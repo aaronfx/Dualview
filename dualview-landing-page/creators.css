@@ -1,0 +1,20 @@
+/* Creator positioning and compact platform cues. */
+.hero-platforms{margin-top:24px;max-width:470px}
+.hero-platforms .platform-label{font-size:10px;font-weight:bold;letter-spacing:.1em;text-transform:uppercase;margin-bottom:10px;color:#5a4c42}
+.platform-list{display:flex;flex-wrap:wrap;gap:8px}
+.platform-chip{display:inline-flex;align-items:center;gap:7px;border:1px solid #20211f20;background:#ffffff65;border-radius:100px;padding:8px 12px;font-size:11px;font-weight:bold;line-height:1.2}
+.platform-chip img{width:17px;height:17px;flex-shrink:0;object-fit:contain}
+.creator-problem{display:grid;grid-template-columns:1.05fr 1fr;gap:60px;padding:60px 0;border-bottom:1px solid var(--line);align-items:center}
+.creator-problem h2{font-size:clamp(30px,3.4vw,46px);margin-top:18px}
+.creator-problem p{color:var(--muted);font-size:17px;max-width:470px;margin:0}
+.creator-problem strong{color:var(--ink)}
+.platform-destinations{display:grid;grid-template-columns:1fr 1fr;gap:24px;margin-top:26px}
+.destination{padding:20px 24px;border:1px solid var(--line);border-radius:14px;background:#ffffff80}
+.destination-label{font-size:11px;font-weight:bold;letter-spacing:.09em;text-transform:uppercase;color:var(--accent);margin-bottom:12px}
+.destination .platform-chip{background:white;padding:8px 11px}
+.destination p{font-size:13px;color:var(--muted);margin:14px 0 0}
+.platform-note{font-size:12px;color:var(--muted);margin:14px 0 0}
+.footer-word{font-size:32px;letter-spacing:-.04em;line-height:1.2;gap:12px;padding:18px 0}
+.footer-logo{width:40px;height:40px;border-radius:9px}
+.footer-top{padding:20px 0 0}.footer-bottom{padding:18px 0 26px}
+@media(max-width:640px){.hero-platforms{margin-top:22px}.platform-chip{font-size:10px;padding:7px 10px}.platform-chip img{width:15px;height:15px}.creator-problem{grid-template-columns:1fr;gap:22px;padding:40px 0}.creator-problem p{font-size:16px}.platform-destinations{grid-template-columns:1fr;gap:12px;margin-top:20px}.destination{padding:18px}.footer-word{font-size:28px;gap:10px}.footer-logo{width:36px;height:36px}}
