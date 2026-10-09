@@ -18,7 +18,7 @@ if (briefForm) {
     const url = URL.createObjectURL(new Blob([text], { type: 'text/plain;charset=utf-8' }));
     const link = document.createElement('a'); link.href = url; link.download = 'cyrontech-project-brief.txt'; link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
-    status.textContent = 'Your brief is ready to download. Keep it to send when our contact email is available.';
+    status.textContent = 'Your brief is ready to download. Attach it to an email to contact@cyrontech.online when you are ready to share it.';
   });
   briefForm.querySelector('fieldset').disabled = false;
 }
