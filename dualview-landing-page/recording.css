@@ -8,3 +8,13 @@
 @media(prefers-reduced-motion:reduce){.is-playing .capture-record:before{animation:none}.capture-record span{transition:none}}
 
 .capture-phone video{object-fit:contain}.capture-phone .crop-guide{left:calc(50% - 42.3467cqh);width:56.2489cqh}.capture-phone{container-type:size}
+
+/* Two separate outputs: never place the portrait preview over the recording. */
+.mini-demo{display:grid;grid-template-columns:minmax(0,3.47fr) minmax(0,1fr);gap:16px;align-items:start;padding:18px 0 0}
+.capture-heading{grid-column:1/-1;margin:0}
+.mini-demo .demo-wide{width:100%;min-width:0}
+.mini-demo .demo-tall{position:relative;inset:auto;width:100%;min-width:0;aspect-ratio:9/16;align-self:start;border-width:4px;border-radius:16px}
+.mini-demo .demo-control{position:static;grid-column:1/-1;justify-self:start;margin-top:4px}
+.portrait-label{font-size:8px;line-height:1.2;letter-spacing:0;padding:5px 2px}
+@media(min-width:1001px){.capture-mode,.capture-zoom,.capture-switch{display:none}.capture-phone .recording{left:15px}.capture-phone .format{left:15px}.capture-record{right:10px}.capture-timer{right:12px}}
+@media(max-width:640px){.mini-demo{grid-template-columns:1fr;gap:18px}.mini-demo .demo-tall{width:42%;max-width:180px;justify-self:center;inset:auto;border-radius:18px}.portrait-label{font-size:10px}.demo-tall .format{font-size:10px}.mini-demo .demo-control{justify-self:center}.capture-heading{font-size:9px}}
