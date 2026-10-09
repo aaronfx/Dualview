@@ -2,6 +2,12 @@
 
 Static HTML/CSS/JavaScript site. No npm installation, build command, or framework migration is needed.
 
+## Current design
+
+The CyronTech homepage now uses the DualView landing page approach: an off-white canvas, a rounded lavender hero, bold editorial headings, concise numbered services, a two-card product grid, subtle scroll reveals, and a compact footer. The global mission, Gopipways, and company development services remain. The hero has a synchronized DualView recording demonstration with play/pause controls.
+
+`creator-theme.css` is the active homepage theme; `recording.css` supplies the recording interface. The older `site.css`, `studio.css`, `phone.css`, and `layout.css` remain as historical files and are no longer loaded by the homepage.
+
 ## Structure
 
 ```
@@ -26,10 +32,6 @@ The 9 October 2026 audit added mobile navigation, stronger keyboard focus, 44px 
 The hero video demo now uses a landscape phone frame and the DualView landing-page recording cues: moving sample footage, a playback-linked REC pulse, elapsed time, record/stop control, crop guide, and synchronized portrait preview. Both website controls pause/resume the same two videos. Autoplay is disabled for reduced-motion preferences.
 
 The homepage is organized into five main sections: company introduction, a grouped product showcase with the phone demo and both apps, a consistent three-card services grid, the global mission, and project contact. Repeated feature sections and duplicate workflow blocks have been removed.
-
-The homepage now features DualView and the live Gopipways web platform, with a global company mission: create world-leading apps that solve real problems. The DualView phone illustration has a metal frame, slim bezels, front-camera cutout, status icons, side buttons, and user-controlled sample-video playback. It is a website illustration, not a claim that this is the shipped app interface.
-
-The revised homepage uses a full-width violet hero, dark benefit sections, layered original software illustrations, scroll reveals, a drawn workflow curve, and synchronized DualView video. Its visual direction is inspired by the Spaceship business-email page; no Spaceship images, logos, copy, pricing, or service claims are used. The earlier CyronTech design remains separately in the local `exports/cyrontech-site-v1` backup and is not included in this package.
 
 ## Update the existing Vercel project
 
