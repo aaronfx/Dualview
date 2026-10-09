@@ -1,0 +1,14 @@
+{
+  "version": 1,
+  "colorSpace": "linear-bt709",
+  "presets": [
+    {"id":"Original","description":"Unchanged color","contrast":1.0,"saturation":1.0,"warmth":0.0,"lift":0.0},
+    {"id":"Natural","description":"Subtle contrast and color","contrast":1.05,"saturation":1.06,"warmth":0.02,"lift":0.0},
+    {"id":"Portrait","description":"Gentle warmth, natural texture","contrast":1.02,"saturation":1.02,"warmth":0.12,"lift":0.003},
+    {"id":"Vivid","description":"Stronger color and contrast","contrast":1.12,"saturation":1.28,"warmth":0.02,"lift":0.0},
+    {"id":"Golden","description":"Warm golden-hour color","contrast":1.05,"saturation":1.08,"warmth":0.65,"lift":0.006},
+    {"id":"Cinematic","description":"Restrained color, richer contrast","contrast":1.16,"saturation":0.82,"warmth":-0.06,"lift":0.0},
+    {"id":"Vintage","description":"Soft contrast and faded color","contrast":0.86,"saturation":0.78,"warmth":0.2,"lift":0.018},
+    {"id":"Mono","description":"Clean black and white","contrast":1.04,"saturation":0.0,"warmth":0.0,"lift":0.0}
+  ]
+}
