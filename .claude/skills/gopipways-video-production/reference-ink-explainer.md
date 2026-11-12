@@ -84,3 +84,7 @@ Ranked by proven views (public snapshots; unverified beyond YouTube pages):
 5. Other human species / Neanderthal: older, long-form, mostly 400K-8M but from big channels; new species-POV clones sit at under 700 views ("You wake up as a Neanderthal" best 694).
 6. Niche body topics (periods 1.2M Venn Stories, 854K Mack; childbirth max 8K; toothache max 86K; cut hair max 4K; death under 1.2K).
 Rain/weather-scenario: Ink Explainer 2.0M, all clones under 55K except Deep Epoch 55K.
+
+## Visual style check (frames from i.ytimg.com hq1-3 and maxres thumbnails, 2026-11-12)
+Their scenes are fully illustrated AI-style images, not flat vector: gradient skies, painted caves with warm firelight, detailed landscapes (savanna, beach, snow/mammoth-tusk shelter), simple round-headed characters with messy brown hair and fur or orange-spotted clothes, thick outlines, occasional clean white-background diagram frames (brain with red X, numbered pots), red X overlays, yellow outlined thumbnail text (1-3 words, top-left). Cuts every ~2-3 s are different images with light motion. Code-drawn vector scenes (our ice-age/ build) do not match this richness; matching needs generated images plus pan/zoom animation.
+Test: Canva generate-image produced a close style match, but the connector returns only a 199x112 preview in the sandbox, so full-res needs another route (user bulk-generates in an image tool, or the Canva host is allowed for download). Quota unknown for ~150 images.
