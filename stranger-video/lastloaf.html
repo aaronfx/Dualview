@@ -471,6 +471,38 @@ window.drawThumb=function(kind){c=MAIN;c.setTransform(1,0,0,1,0,0);c.clearRect(0
   thumbVignette();
 };
 
+
+// ---- vertical (1080x1920) thumbnails ----
+function inkFit(text,x,y,size,fill,maxW){c.save();c.font=`900 ${size}px "Arial Black","DejaVu Sans",Impact,sans-serif`;const w=c.measureText(text).width;c.restore();ink(text,x,y,w>maxW?Math.floor(size*maxW/w):size,fill,'center')}
+function thumbBgV(kind){const g=c.createLinearGradient(0,0,0,1920);
+  if(kind==='B'){g.addColorStop(0,'#0f2a7a');g.addColorStop(1,'#2a56c8')}else if(kind==='C'){g.addColorStop(0,'#5a1d8a');g.addColorStop(1,'#c2418c')}else{g.addColorStop(0,'#0b1b4a');g.addColorStop(1,'#2c4fb5')}
+  c.fillStyle=g;c.fillRect(0,0,1080,1920);
+  for(let i=0;i<90;i++){c.strokeStyle='rgba(190,215,255,.33)';c.lineWidth=4;const x=(i*211)%1080,y=(i*137)%1920;c.beginPath();c.moveTo(x,y);c.lineTo(x-12,y+50);c.stroke()}}
+function thumbVigV(){const g=c.createRadialGradient(540,960,500,540,960,1300);g.addColorStop(0,'rgba(0,0,0,0)');g.addColorStop(1,'rgba(0,0,0,.5)');c.fillStyle=g;c.fillRect(0,0,1080,1920)}
+window.drawThumbV=function(kind){c=MAIN;c.setTransform(1,0,0,1,0,0);c.clearRect(0,0,1080,1920);thumbBgV(kind);
+  if(kind==='A'){
+    glow(520,1560,520,'255,210,120',.7);rays(520,1560,0,'rgba(255,225,140,.24)',18,1300);
+    c.fillStyle='#ffe29a';st(10,'#000');c.beginPath();c.rect(830,1150,210,520);c.fill();c.stroke();glow(935,1400,280,'255,236,170',.9);
+    FS=3.4;stranger(935,{y:1670,flip:-1,hands:[[-10,-44],[26,-60]],face:{m:'sad'},lean:6});FS=2;
+    glow(650,1760,260,'255,220,140',.55);bread(650,1770,4.1,-.1);
+    bigFace(330,1060,{fs:9.6,fig:{hair:'pony',hairCol:'#4a3426',coat:true,coatCol:'#5fa36b',face:{m:'worry',brow:-1.6},hands:[[10,-44],[-4,-50]]}});
+    teardrop(255,1210,1);
+    inkFit('LAST',540,360,300,'#ffd93b',900);inkFit('LOAF?',540,640,260,'#ffffff',940);
+  } else if(kind==='B'){
+    glow(540,1130,700,'255,225,140',.85);rays(540,1130,0,'rgba(255,230,150,.35)',22,1500);
+    bigFace(540,1120,{fs:11,flip:-1,fig:{hood:true,coat:true,coatCol:'#7a6e5c',hoodCol:'#5b5448',face:{m:'sad',brow:-1.4},hands:[[-10,-44],[18,-52]]}});
+    for(let i=0;i<6;i++)foot(150+i*125,1830-i*28,1,.95,-.5);
+    inkFit('WHO WAS',540,330,200,'#ffd93b',960);inkFit('HE?',540,640,330,'#ffffff',700);
+  } else {
+    glow(420,1150,600,'255,205,230',.6);
+    bigFace(400,1100,{fs:10,fig:{hair:'pony',hairCol:'#4a3426',coat:true,coatCol:'#5fa36b',face:{m:'o',mo:.9,brow:-1.7},hands:[[10,-44],[-4,-50]]}});
+    FS=3.2;stranger(900,{y:1760,flip:-1,face:{m:'sad'},hands:[[-10,-44],[28,-62]],lean:6});glow(900,1480,320,'255,230,150',.8);FS=2;
+    for(let i=0;i<5;i++)foot(180+i*110,1840-i*18,.95,.95,-.5);
+    inkFit('HE KNEW',540,340,230,'#ffd93b',960);inkFit('HER NAME?',540,590,200,'#ffffff',960);
+  }
+  thumbVigV();
+};
+
 window.draw=draw; window.DURATION=70.29;
 if(!location.hash.includes('render')){const t0=performance.now();(function loop(){draw(((performance.now()-t0)/1000)%49.63);requestAnimationFrame(loop)})()}
 </script></body></html>
