@@ -122,3 +122,6 @@ ffmpeg -framerate 24 -i $OUT/f%05d.jpg -i narration.mp3 -c:v libx264 -pix_fmt yu
 - Text clipped in vertical (labels placed at fixed x). Always route text through the clamping `txt()`.
 - Guessing the climax line from a bad transcript; flag it and ask.
 - Pre-setting FS/scale inconsistently between figure and props; compute prop positions from the same `FS`.
+
+## 10. Reference studies
+- `reference-faith-in-god.md`: study of the @faithingod02 "Faith in God" Shorts channel (title formula, hashtags, story arc, visual style, numbers). Use it when planning Jesus/angel parable videos.
