@@ -1,5 +1,7 @@
 # Reference study: "Ink Explainer" (@Inkexplainer96) - the competitor/model channel to build a similar doodle-explainer channel
 
+NOTE (user clarification): Ink Explainer is a DIFFERENT NICHE from our faith channel (educational history/behaviour explainers, not faith). The user wants a separate channel of this type. Treat the faith adaptation section below as optional ideas only; do not mix the two channels' topics, titles, thumbnails or CTAs.
+
 Source: five phone screenshots from the user (channel video lists, About page) + the user's earlier uploaded reference video "what is The IKEA Effect" (4:09). Not watched in full; numbers are a snapshot, not analytics. Never copy their characters, thumbnails or assets; copy the formula.
 
 ## Channel facts (About page)
