@@ -149,7 +149,7 @@ function houseDoor(x,y,s=1,woman=false,t=0){at(x,y,s,()=>{
 function phone(x,y,s,screen,rot=0){at(x,y,s,()=>{c.fillStyle='#222';st(6);c.beginPath();c.roundRect(-70,-130,140,260,22);c.fill();c.stroke();
   c.fillStyle=screen==='job'?'#e4f7e8':'#8fd3ff';c.beginPath();c.roundRect(-58,-112,116,224,10);c.fill();
   if(screen==='job'){check(0,-30,.9);txt('JOB',0,50,28,GREEN);txt('OFFER',0,82,28,GREEN)}
-  else {c.fillStyle='#fff';c.beginPath();c.arc(0,-10,30,0,7);c.fill();st(5,'#2a7d3b');c.beginPath();c.moveTo(-14,4);c.quadraticCurveTo(-10,-22,14,-24);c.stroke()}},rot)}
+  else {c.fillStyle='#fff';c.beginPath();c.arc(0,-62,26,0,7);c.fill();c.fillStyle='#9aa7b4';c.beginPath();c.arc(0,-68,9,0,7);c.fill();c.beginPath();c.ellipse(0,-46,16,9,0,Math.PI,0);c.fill();txt('CALLING',0,-10,20,'#0b3a5b');c.fillStyle='#e53935';c.beginPath();c.arc(-30,74,20,0,7);c.fill();c.fillStyle='#2e9e4f';c.beginPath();c.arc(30,74,20,0,7);c.fill();st(5,'#fff');c.beginPath();c.moveTo(22,80);c.quadraticCurveTo(24,66,38,66);c.stroke()}},rot)}
 function briefcase(x,y,s){at(x,y,s,()=>{c.fillStyle='#8b5a2b';st(6);c.beginPath();c.roundRect(-70,-40,140,100,12);c.fill();c.stroke();c.beginPath();c.roundRect(-26,-70,52,30,8);c.stroke();c.fillStyle=GOLD;c.beginPath();c.rect(-12,-6,24,22);c.fill();c.stroke();c.beginPath();c.moveTo(-70,10);c.lineTo(70,10);c.stroke()})}
 function coin(x,y,r){c.fillStyle=GOLD;st(4);c.beginPath();c.ellipse(x,y,r,r*.45,0,0,7);c.fill();c.stroke();c.beginPath();c.ellipse(x,y-8,r,r*.45,0,0,7);c.fill();c.stroke()}
 function coinStack(x,y,n,k=1){for(let i=0;i<n;i++){coin(x,y-i*14*k,46*k)}}
@@ -176,7 +176,7 @@ const loc=(f,wx,wy)=>{const s=f.s||1,fl=f.flip||1;return [(wx-f.x)/(s*fl*FS),(wy
 const mixc=(a,b,t)=>`rgb(${a.map((v,i)=>Math.round(lerp(v,b[i],t))).join(',')})`;
 const warmAt=t=>lin(t,33.5,38);
 // door state over time: opens when the woman answers, closes when she steps out to sit with them
-const doorOpen=t=>t<9.3?0:t<9.9?ease((t-9.3)/.6):t<28.95?1:t<29.5?1-ease((t-28.95)/.55):0;
+const doorOpen=t=>t<9.3?0:t<9.9?ease((t-9.3)/.6):t<29.2?1:t<29.75?1-ease((t-29.2)/.55):0;
 const HX=1700;                                   // mother's house (world x)
 function houseExt(wx,cam,col,open){const x=wx-cam;c.save();c.translate(x,562);c.scale(3.4,3.4);
   c.fillStyle=col;st(2.2);c.beginPath();c.rect(-120,-200,240,200);c.fill();c.stroke();
@@ -187,10 +187,16 @@ function houseExt(wx,cam,col,open){const x=wx-cam;c.save();c.translate(x,562);c.
   const g=c.createLinearGradient(0,-115,0,0);g.addColorStop(0,open>0?'#ffe7a8':'#3d2b1f');g.addColorStop(1,open>0?'#e9b765':'#3d2b1f');
   c.fillStyle=open>0?g:'#3d2b1f';c.beginPath();c.rect(-26,-115,52,115);c.fill();c.stroke();
   c.fillStyle='#6b4a34';c.beginPath();c.rect(-40,0,80,4);c.fill();c.restore()}
+function doorEdge(t){return HX+3.4*(26-52*Math.cos(doorOpen(t)*1.38))}      // world x of the door's free edge
 function doorPanel(wx,cam,open){const x=wx-cam;c.save();c.translate(x,562);c.scale(3.4,3.4);
-  const th=open*1.38,fx=-26+52*Math.cos(th),dy=14*Math.sin(th);
-  c.fillStyle='#8a5a38';st(2.2);c.beginPath();c.moveTo(-26,-115);c.lineTo(fx,-115-dy);c.lineTo(fx,dy);c.lineTo(-26,0);c.closePath();c.fill();c.stroke();
-  c.fillStyle='#d6a43a';c.beginPath();c.arc(fx+(fx>-20?-4:-6),-55,2.6,0,7);c.fill();c.restore()}
+  const th=open*1.38,fx=26-52*Math.cos(th),dy=14*Math.sin(th);
+  c.fillStyle='#8a5a38';st(2.2);c.beginPath();c.moveTo(26,-115);c.lineTo(fx,-115-dy);c.lineTo(fx,dy);c.lineTo(26,0);c.closePath();c.fill();c.stroke();
+  c.fillStyle='#d6a43a';c.beginPath();c.arc(fx+(th>.1?-3:5),-55,2.6,0,7);c.fill();c.restore()}
+function inDoorway(cam,fn){c.save();c.beginPath();c.rect(HX-cam-88,562-392,176,396);c.clip();fn();c.restore()}
+// footprint path Jesus walks along (world coords, with distance perspective)
+const PP=f=>({x:lerp(1300,330,f),y:lerp(GY,GY-70,f),s:lerp(1,.42,f)});
+function trailWorld(cam,a,upto=1,tpass){const n=21;for(let k=0;k<n;k++){const f=k/(n-1);if(f>upto)break;const P=PP(f);
+  const ak=tpass?clamp(tpass(f)):a;foot(P.x-cam,P.y+(k%2?10:-6)*P.s,P.s*.42,ak,-Math.PI/2+(k%2?.14:-.14))}}
 function street(t,cam,env={}){
   const w=env.warm??warmAt(t);
   const g=c.createLinearGradient(0,-500,0,431);g.addColorStop(0,mixc([150,184,204],[240,196,140],w*.8));g.addColorStop(1,mixc([204,216,222],[252,232,190],w*.8));
@@ -209,6 +215,7 @@ function street(t,cam,env={}){
   st(3,'#6d4a2f');for(let x=820;x<1520;x+=70){c.beginPath();c.moveTo(x-cam,470);c.lineTo(x-cam,545);c.stroke()}c.beginPath();c.moveTo(820-cam,490);c.lineTo(1520-cam,490);c.moveTo(820-cam,520);c.lineTo(1520-cam,520);c.stroke();
   houseExt(500,cam,'#b9956b',0);
   houseExt(HX,cam,'#c79a6b',doorOpen(t));
+  if(env.panel!==false)doorPanel(HX,cam,doorOpen(t));
 }
 function rainFx(t,a=1){if(a<=.01)return;c.strokeStyle=`rgba(90,120,150,${.55*a})`;c.lineWidth=2.4;c.beginPath();
   for(let i=0;i<220;i++){const sx=-400+(i*97.3)%1900,sp=520+(i%7)*60,y=((i*53.7)+t*sp)%(1500)-760,x=sx-y*.18;c.moveTo(x,y);c.lineTo(x-4,y+24)}c.stroke()}
@@ -253,21 +260,22 @@ add(7.7,9.5,'#cfe0ea',(u,t)=>{const cam=camAt(t);street(t,cam);const x=strX(t)-c
   const p=walkP(t);stranger(x,{feet:u>1.2?walkFeet(p,16,7):undefined,hands:[[-6,-40],[10,-44]],lean:6,face:{m:'worry'}});
   villager(mx,'#c4863d','#222',{flip:-1,hands:[[-12,-40],[lerp(10,64,pop(u,.2)),lerp(-34,-96,pop(u,.2))]],face:{m:'smile'}});rainFx(t)});
 // 5 the door opens, she appears
-add(9.5,11.4,'#cfe0ea',(u,t)=>{const cam=camAt(t);street(t,cam);const x=strX(t)-cam;shadowAt(x,GY);
+add(9.5,11.4,'#cfe0ea',(u,t)=>{const cam=camAt(t);street(t,cam,{panel:false});const x=strX(t)-cam;shadowAt(x,GY);
   const p=walkP(t);stranger(x,{feet:walkFeet(p,16,7),hands:walkArms(p,-66,8),lean:7,face:{m:'worry'}});
-  if(u>.7){const a=pop(u,.7,.5);mother(HX-cam,{flip:-1,s:.9,sh:false,hands:[[6,-52],[-8,-52]],face:{m:'smile'},y:GY-20*(1-a)})}
+  if(u>.7)inDoorway(cam,()=>mother(HX-cam,{flip:-1,s:.9,hands:[[6,-52],[-8,-52]],face:{m:'smile'}}));
   doorPanel(HX,cam,doorOpen(t));rainFx(t)});
 // 6 another walks straight past
 add(11.4,14.5,'#cfe0ea',(u,t)=>{const cam=camAt(t);street(t,cam);const x=strX(t)-cam;shadowAt(x,GY);
   const sit=seg(u,.2,1.4);stranger(x,{hipY:lerp(-66,-44,sit),feet:[[-14,0],[26,0]],hands:[[-14,-34],[lerp(30,20,sit),-44]],lean:lerp(7,12,sit),face:{m:'sad'}});
   const px=lerp(2150,300,clamp(u/3.0))-cam,p=t*7;shadowAt(px,GY+25);villager(px,'#8c6aa0','#6b3a2a',{flip:-1,y:GY+25,s:1.05,feet:walkFeet(p,20,8),hands:walkArms(p),tilt:-.4,face:{m:'flat',up:.6}});
-  doorPanel(HX,cam,1);rainFx(t)});
+  rainFx(t)});
 // helper: stranger kneeling at 1300 (screen = 300)
 const kneel=(t,o={})=>stranger(1300-camAt(t),{hipY:-40,feet:[[-14,0],[26,0]],hands:[[-14,-34],[24,-44]],lean:12,face:{m:'sad'},...o});
-// 7 boy runs out to him
-add(14.5,16.3,'#cfe0ea',(u,t)=>{const cam=900;street(t,cam);shadowAt(1300-cam,GY);kneel(t,{face:{m:'worry'}});
-  const bx=lerp(HX,1430,seg(u,.1,1.7)),p=t*10;shadowAt(bx-cam,GY);boy(bx-cam,{flip:-1,feet:u<1.8?walkFeet(p,14,6):undefined,hands:walkArms(p,-66,14)});
-  doorPanel(HX,cam,1);rainFx(t)});
+// 7 the boy steps out of the doorway and runs to him
+add(14.5,16.3,'#cfe0ea',(u,t)=>{const cam=900;street(t,cam,{panel:false});shadowAt(1300-cam,GY);kneel(t,{face:{m:'worry'}});
+  const bx=u<.9?HX:lerp(HX,1430,seg(u,.9,1.75)),by=u<.5?GY-22:lerp(GY-22,GY,seg(u,.5,.9)),p=t*10;
+  const B=()=>boy(bx-cam,{y:by,flip:-1,feet:u>.5&&u<1.8?walkFeet(p,14,6):undefined,hands:walkArms(p,-66,14)});
+  if(u<.5)inDoorway(cam,B);doorPanel(HX,cam,1);if(u>=.5){shadowAt(bx-cam,by);B()}rainFx(t)});
 // 8 he offers bread; Jesus takes it
 add(16.3,18.1,'#cfe0ea',(u,t)=>{const cam=900;street(t,cam);shadowAt(1300-cam,GY);
   const a=kneel(t,{face:{m:'smile'},hands:[[-14,-34],[lerp(24,52,pop(u,.5)),lerp(-44,-56,pop(u,.5))]]});
@@ -284,8 +292,8 @@ add(18.1,21.2,'#cfe0ea',(u,t)=>{const cam=900;street(t,cam);shadowAt(1300-cam,GY
   const ta=1-seg(u,1.0,2.4);teardrop(a.hx+a.hr*.45,a.hy+a.hr*.5,ta);teardrop(a.hx+a.hr*.1,a.hy+a.hr*.62,ta*.8);
   rainFx(t,1-seg(u,1.6,3))},[2.0,470,GY-210]);
 // 10 the mother hesitates in the doorway
-add(21.2,22.7,'#cfe0ea',(u,t)=>{const cam=900;street(t,cam);shadowAt(1300-cam,GY);kneel(t,{face:{m:'smile'}});shadowAt(1430-cam,GY);boy(1430-cam,{flip:-1,hands:[[-4,-36],[4,-36]],face:{m:'o',mo:.5}});
-  mother(HX-cam,{flip:-1,sh:false,face:{m:'worry'},hands:[[-6+Math.sin(u*6)*3,-56],[8-Math.sin(u*6)*3,-56]]});doorPanel(HX,cam,1);rainFx(t,.8)});
+add(21.2,22.7,'#cfe0ea',(u,t)=>{const cam=900;street(t,cam,{panel:false});shadowAt(1300-cam,GY);kneel(t,{face:{m:'smile'}});shadowAt(1430-cam,GY);boy(1430-cam,{flip:-1,hands:[[-4,-36],[4,-36]],face:{m:'o',mo:.5}});
+  inDoorway(cam,()=>mother(HX-cam,{flip:-1,face:{m:'worry'},hands:[[-6+Math.sin(u*6)*3,-56],[8-Math.sin(u*6)*3,-56]]}));doorPanel(HX,cam,1);rainFx(t,.8)});
 // 11 inside: the small meal, all they have
 add(22.7,25.0,'#d3ad7c',(u,t)=>{interior(t);table(900,GY-30);
   c.fillStyle='#fff';st(4);c.beginPath();c.ellipse(900,GY-60,66,14,0,0,7);c.fill();c.stroke();bread(900,GY-78,.75);
@@ -300,14 +308,14 @@ add(25.0,27.0,'#d3ad7c',(u,t)=>{interior(t,{morning:true});
 add(27.0,28.7,'#d3ad7c',(u,t)=>{interior(t);
   mother(640,{flip:-1,hipY:-30,feet:[[-18,0],[30,0]],hands:[[34,-86],[40,-84]],lean:lerp(18,26,seg(u,0,1.6)),tilt:.2,face:{m:'sad'}});
   at(900,300,pop(u,.2),()=>{bubbleCloud(0,0,130,80,'l');txt('...',0,20,70)})});
-// 14 she steps out, closes the door behind her, joins them
-add(28.7,30.2,'#cfe0ea',(u,t)=>{const cam=900;street(t,cam);shadowAt(1300-cam,GY);kneel(t,{face:{m:'smile'},hands:[[-14,-34],[30,-44]]});shadowAt(1430-cam,GY);boy(1430-cam,{flip:-1,hands:[[-4,-36],[4,-36]],face:{m:'smile'}});
-  const mx=u<.35?HX:u<.5?lerp(HX,1590,seg(u,.35,.5)):u<1.1?1590:lerp(1590,1500,seg(u,1.1,1.5));
-  let o={flip:-1,sh:true,face:{m:'smile'}};
-  if(u>=.5&&u<1.1){o.hands=[[-6,-50],[-64,-70+Math.sin((u-.5)*10)*3]];o.lean=-4}
-  if(u<.5||u>=1.1){const p=t*7;o.feet=walkFeet(p,16,7);o.hands=walkArms(p)}
-  mother(mx-cam,o);doorPanel(HX,cam,doorOpen(t));
-  if(u>=.5&&u<1.1)for(let i=0;i<3;i++){st(4,'rgba(0,0,0,.25)');c.beginPath();c.moveTo(HX-cam-70,GY-200+i*30);c.lineTo(HX-cam-95,GY-200+i*30);c.stroke()}rainFx(t,.6)});
+// 14 she steps out, reaches back and closes the door, then joins them
+add(28.7,30.2,'#cfe0ea',(u,t)=>{const cam=900;street(t,cam,{panel:false});shadowAt(1300-cam,GY);kneel(t,{face:{m:'smile'},hands:[[-14,-34],[30,-44]]});shadowAt(1430-cam,GY);boy(1430-cam,{flip:-1,hands:[[-4,-36],[4,-36]],face:{m:'smile'}});
+  const mx=u<.15?HX:u<.7?lerp(HX,1560,seg(u,.15,.7)):u<1.1?1560:lerp(1560,1510,seg(u,1.1,1.5)),my=u<.15?GY-22:lerp(GY-22,GY,seg(u,.15,.4));
+  const mo={x:mx-cam,y:my,flip:-1};let o={flip:-1,y:my,face:{m:'smile'}};
+  if(u>=.5&&u<1.15){const r=seg(u,.5,.75);const h=loc({x:mx-cam,y:my,s:1,flip:-1},lerp(mx+60,doorEdge(t),r)-cam,GY-190);o.hands=[[-6,-50],h];o.lean=-3}
+  else{const p=t*7;o.feet=walkFeet(p,16,7);o.hands=walkArms(p)}
+  const M=()=>mother(mx-cam,o);
+  if(u<.35)inDoorway(cam,M);doorPanel(HX,cam,doorOpen(t));if(u>=.35){shadowAt(mx-cam,my);M()}rainFx(t,.6)});
 // 15 they sit and share
 const sitS=(fx)=>({hipY:-14,feet:[[fx,0],[fx+24,-2]]});
 add(30.2,32.7,'#cfe0ea',(u,t)=>{const cam=900;street(t,cam);
@@ -315,54 +323,57 @@ add(30.2,32.7,'#cfe0ea',(u,t)=>{const cam=900;street(t,cam);
   stranger(1290-cam,{...sitS(40),lean:8,hands:[[34,-22],[46,-40+Math.sin(u*3)*3]],face:{m:'smile'}});
   boy(1410-cam,{flip:-1,...sitS(26),hipY:-14,hands:[[6,-22],[28,-32]],face:{m:'grin'}});
   mother(1520-cam,{flip:-1,...sitS(40),hands:[[34,-22],[44,-40]],face:{m:'smile'}});
-  const sp=pop(u,.2);bowl(1400-cam,GY+10,1.0,true);bread(1400-cam-30-sp*10,GY-8,.7,.3);bread(1400-cam+30+sp*10,GY-6,.7,-.4);heart(1400-cam,GY-340,pop(u,1.3)*1.3);doorPanel(HX,cam,0);rainFx(t,.4)});
-// 16 he walks away; rain stops, sky warms
-add(32.7,34.5,'#d7e6ee',(u,t)=>{const cam=lerp(900,750,seg(u,0,1.8));street(t,cam,{dry:true});
-  const sx=lerp(1300,1120,seg(u,.5,1.8));const p=t*6;shadowAt(sx-cam,GY);
-  stranger(sx-cam,{flip:-1,hipY:u<.5?lerp(-14,-66,u/.5):-66,feet:u<.5?[[40*(1-u/.5),0],[62*(1-u/.5),0]]:walkFeet(p,16,7),hands:walkArms(p,-66,8),face:{m:'smile'}});
-  for(let i=0;i<3;i++)foot(sx-cam+70+i*60,GY+22+(i%2?12:-4),.9,clamp((u-.8-i*.2)/.4)*.8,-.25);
+  const sp=pop(u,.2);bowl(1400-cam,GY+10,1.0,true);bread(1400-cam-30-sp*10,GY-8,.7,.3);bread(1400-cam+30+sp*10,GY-6,.7,-.4);heart(1400-cam,GY-340,pop(u,1.3)*1.3);rainFx(t,.4)});
+// 16+17 he rises and walks away down the road; his footprints glow exactly where he stepped
+add(32.7,36.7,'#d7e6ee',(u,t)=>{const cam=lerp(900,560,seg(t,33.2,36.7));street(t,cam,{dry:true});
+  const T0=33.5,T1=36.9,fj=lin(t,T0,T1),P=PP(fj);
   c.fillStyle='#d98b8b';st(5);c.beginPath();c.ellipse(1400-cam,GY+16,230,26,0,0,7);c.fill();c.stroke();
-  boy(1410-cam,{flip:1,...sitS(26),hipY:-14,hands:[[6,-22],[28,-32]],face:{m:'o',mo:.4,up:.3}});mother(1520-cam,{flip:-1,...sitS(40),hands:[[34,-22],[44,-40]],face:{m:'smile',up:.2}});doorPanel(HX,cam,0)});
-// 17 the footprints glow along the road
-add(34.5,36.7,'#fbe3b8',(u,t)=>{const cam=700;street(t,cam,{dry:true,warm:1});
-  doorPanel(HX,cam,0);glowTrail(u,14,1180,260,640,470,1.35,.55,.0,.16);
-  glow(700,520,420,'255,226,130',.45);});
-// 18 the boy looks up at them
-add(36.7,38.3,'#fbe3b8',(u,t)=>{const cam=900;street(t,cam,{dry:true,warm:1});
-  glowTrail(u+3,9,560,90,640,505,1.05,.65,0,.1);
-  shadowAt(1480-cam,GY);boy(1480-cam,{flip:-1,face:{m:'o',mo:.5,up:.8},tilt:-.5,hands:[[-4,-36],[4,-36]]});
-  shadowAt(1580-cam,GY);mother(1580-cam,{flip:-1,face:{m:'smile',up:.3},hands:[[-6,-44],[8,-44]]});doorPanel(HX,cam,0)});
+  const gl=seg(t,34.5,35.6);
+  trailWorld(cam,0,fj-.012,f=>{const tp=T0+f*(T1-T0);return lin(t,tp,tp+.35)*(.22+.78*gl)*(.75+.25*Math.sin(t*3+f*20))});
+  if(gl>0)glow(P.x-cam,P.y-60*P.s,160*P.s+60,'255,226,130',.4*gl);
+  boy(1410-cam,{flip:1,...sitS(26),hipY:-14,hands:[[6,-22],[28,-32]],face:{m:'o',mo:.4,up:.3}});mother(1520-cam,{flip:-1,...sitS(40),hands:[[34,-22],[44,-40]],face:{m:'smile',up:.2}});
+  const rise=seg(t,32.9,33.5),pw=t*6;shadowAt(P.x-cam,P.y,50*P.s);
+  stranger(P.x-cam,{flip:-1,s:P.s,y:P.y,hipY:lerp(-14,-66,rise),feet:t<T0?[[40*(1-rise),0],[62*(1-rise),0]]:walkFeet(pw,16,7),hands:walkArms(pw,-66,8),face:{m:'smile'}})});
+// 18 the boy looks up
+add(36.7,38.3,'#fbe3b8',(u,t)=>{const cam=900;street(t,cam,{dry:true,warm:1});trailWorld(cam,.85);
+  shadowAt(1460-cam,GY);boy(1460-cam,{flip:-1,face:{m:'o',mo:.5,up:.8},tilt:-.5,hands:[[-4,-36],[4,-36]]});
+  shadowAt(1540-cam,GY);mother(1540-cam,{flip:-1,face:{m:'smile',up:.3},hands:[[-6,-44],[8,-44]]})});
 // 19 "It was Jesus": the boy points down the glowing road
-add(38.3,40.0,'#fbe3b8',(u,t)=>{const cam=900;street(t,cam,{dry:true,warm:1});glowTrail(u+3,9,560,90,640,505,1.05,.65,0,.1);
-  shadowAt(1480-cam,GY);boy(1480-cam,{flip:-1,face:{m:'grin',up:.3},hands:[[-4,-36],[lerp(10,66,pop(u,.2)),lerp(-36,-96,pop(u,.2))+Math.sin(u*8)*3]]});
-  shadowAt(1580-cam,GY);mother(1580-cam,{flip:-1,face:{m:'o',mo:.3},tilt:-.2,hands:[[-6,-44],[22,-60]]});doorPanel(HX,cam,0)});
-// 20 her phone rings
-add(40.0,41.3,'#fbe3b8',(u,t)=>{const cam=900;street(t,cam,{dry:true,warm:1});glowTrail(u+3,9,560,90,640,505,1.05,.65,0,.1);
-  shadowAt(1480-cam,GY);boy(1480-cam,{flip:-1,face:{m:'smile'},hands:[[-4,-36],[4,-36]]});shadowAt(1580-cam,GY);
-  const m=mother(1580-cam,{flip:-1,face:{m:'worry',up:0},hands:[[-6,-44],[lerp(14,30,pop(u,.3)),lerp(-48,-70,pop(u,.3))]]});
-  const r=Math.sin(u*38)*4;phone(m.hx-34+r,GY-150,.9,'call',r*.02);st(5,RED);for(let i=1;i<=3;i++){c.globalAlpha=(Math.sin(u*14)>0?1:.35)/i;c.beginPath();c.arc(m.hx-34,GY-160,60+i*20,-2.4,-.7);c.stroke();c.beginPath();c.arc(m.hx-34,GY-160,60+i*20,Math.PI+.7,Math.PI+2.4);c.stroke()}c.globalAlpha=1;doorPanel(HX,cam,0)});
-// 21 the job is hers
-add(41.3,44.0,'#fbe3b8',(u,t)=>{const cam=900;street(t,cam,{dry:true,warm:1});glowTrail(u+3,9,560,90,640,505,1.05,.65,0,.1);
-  const jump=Math.abs(Math.sin(u*5))*(u>.6?40:0);shadowAt(1580-cam,GY,56-jump*.2);
-  const m=mother(1580-cam,{flip:-1,y:GY-jump,face:{m:'grin'},hands:[[-40,-100],[50,-110]]});boy(1480-cam,{flip:-1,y:GY-jump*.6,face:{m:'grin'},hands:[[-30,-80],[30,-80]]});
-  phone(m.hx-90,GY-300-jump,.9,'job');
-  at(m.hx-20,GY-470,pop(u,.5),()=>{c.fillStyle='#fff';st(4);c.beginPath();c.roundRect(-190,-40,380,80,16);c.fill();c.stroke();txt('YOU GOT THE JOB!',0,12,36,GREEN)});
-  for(let i=0;i<16;i++){c.fillStyle=['#f4c430','#d62828','#2e9e4f','#2b6cc4'][i%4];c.fillRect(300+((i*173+u*60)%700),((i*97+u*200)%520),12,18)}doorPanel(HX,cam,0)});
+add(38.3,40.0,'#fbe3b8',(u,t)=>{const cam=900;street(t,cam,{dry:true,warm:1});trailWorld(cam,.85);
+  shadowAt(1460-cam,GY);boy(1460-cam,{flip:-1,face:{m:'grin',up:.3},hands:[[-4,-36],[lerp(10,66,pop(u,.2)),lerp(-36,-96,pop(u,.2))+Math.sin(u*8)*3]]});
+  shadowAt(1540-cam,GY);mother(1540-cam,{flip:-1,face:{m:'o',mo:.3},tilt:-.2,hands:[[-6,-44],[22,-60]]})});
+// 20 her phone buzzes in her pocket; she pulls it out
+add(40.0,41.3,'#fbe3b8',(u,t)=>{const cam=900;street(t,cam,{dry:true,warm:1});trailWorld(cam,.85);
+  const mx=1540-cam;shadowAt(1400-cam,GY);boy(1400-cam,{flip:-1,face:{m:'smile',up:.2},hands:[[-4,-36],[4,-36]]});shadowAt(mx,GY);
+  const pull=seg(u,.25,.85),buzz=u<.25?Math.sin(u*70)*1.5:0;
+  mother(mx+buzz,{flip:-1,face:{m:pull>.5?'o':'smile',mo:.3},hands:[[34,-40],[lerp(-4,30,pull),lerp(-52,-68,pull)]]});
+  if(u>.3){const px=mx-lerp(-4,30,pull)*FS,py=GY+lerp(-52,-68,pull)*FS,k=pop(u,.3,.35),r=Math.sin(u*50)*.07;
+    glow(px,py,130,'150,215,255',.55);phone(px+Math.sin(u*50)*3,py,.5*k,'call',r);
+    st(7,RED);for(let i=1;i<=3;i++){c.globalAlpha=(Math.sin(u*16)>0?1:.3)/i;c.beginPath();c.arc(px,py,70+i*20,-2.6,-.55);c.stroke();c.beginPath();c.arc(px,py,70+i*20,Math.PI+.55,Math.PI+2.6);c.stroke()}c.globalAlpha=1}},[1.7,1490-900,GY-200]);
+// 21 she answers; the job is hers
+add(41.3,44.0,'#fbe3b8',(u,t)=>{const cam=900;street(t,cam,{dry:true,warm:1});trailWorld(cam,.85);
+  const mx=1540-cam,joy=seg(u,1.35,1.6),jump=Math.abs(Math.sin(Math.max(0,u-1.5)*5))*(u>1.5?42:0);
+  shadowAt(mx,GY,56-jump*.2);shadowAt(1400-cam,GY,50-jump*.2);
+  const hand=[lerp(8,44,joy),lerp(-128,-116,joy)];
+  mother(mx,{flip:-1,y:GY-jump,face:u<.7?{m:'smile'}:u<1.35?{m:'o',mo:.4,up:.2}:{m:'grin'},hands:[[34,-40],hand].map((h,i)=>i?[h[0],h[1]-(joy*20)]:h),tilt:u<1.35?.15:0});
+  boy(1400-cam,{flip:-1,y:GY-jump*.7,face:{m:u>1.4?'grin':'smile'},hands:u>1.4?[[-20,-90],[40,-100]]:[[-4,-36],[4,-36]]});
+  const px=mx-hand[0]*FS+(joy<1?24:0),py=GY-jump+(hand[1]-joy*20)*FS;phone(px,py,.5,'job',-.2*(1-joy));
+  if(u>1.5){const a=pop(u,1.55,.45);at(640,GY-600,a,()=>{c.fillStyle='#fff';st(5);c.beginPath();c.roundRect(-290,-62,580,124,24);c.fill();c.stroke();c.fillStyle=GREEN;c.beginPath();c.arc(-224,0,36,0,7);c.fill();check(-224,2,.5,'#fff');c.font='800 42px "Trebuchet MS","DejaVu Sans",Arial,sans-serif';c.textAlign='left';c.fillStyle=GREEN;c.fillText('YOU GOT THE JOB!',-170,15)})}
+  for(let i=0;i<18&&u>1.5;i++){c.fillStyle=['#f4c430','#d62828','#2e9e4f','#2b6cc4'][i%4];c.fillRect(200+((i*173+u*70)%800),((i*97+(u-1.5)*240)%560),12,18)}});
 // 22 she hugs her son
 add(44.0,46.0,'#fbe3b8',(u,t)=>{const cam=900;street(t,cam,{dry:true,warm:1});rays(HX-cam-120,GY-250,t,'rgba(255,214,120,.22)',16,900);
-  const bx=1430-cam,mx=1520-cam;shadowAt(mx,GY);shadowAt(bx,GY);
+  const bx=1440-cam,mx=1520-cam;shadowAt(mx,GY);shadowAt(bx,GY);
   const mo={x:mx,flip:-1,hipY:-36,feet:[[-14,0],[24,0]]},bo={x:bx,s:.72,flip:1};
   mother(mx,{...mo,face:{m:'smile'},hands:[loc(mo,bx+8,GY-150),loc(mo,bx+14,GY-190)],lean:-6,tilt:.1});
   boy(bx,{flip:1,face:{m:'grin'},hands:[loc(bo,mx-20,GY-210),loc(bo,mx-10,GY-190)]});
-  [0,1,2,3].forEach(i=>{const p=((u*.5+i/4)%1);heart(bx+i*40-20+Math.sin(u*3+i)*14,GY-300-p*170,.7+.4*(1-p),RED)});doorPanel(HX,cam,0)});
-// 23 they stand and look down the glowing road
-add(46.0,47.8,'#fbe3b8',(u,t)=>{const cam=900;street(t,cam,{dry:true,warm:1});glowTrail(u+3,9,560,90,640,505,1.05,.65,0,.1);glow(540,520,380,'255,226,130',.4);
-  shadowAt(1480-cam,GY);shadowAt(1570-cam,GY);
-  boy(1480-cam,{flip:-1,face:{m:'smile'},hands:[[-4,-36],[22,-44]]});mother(1570-cam,{flip:-1,face:{m:'smile'},hands:[[-14,-44],[-6,-40]]});doorPanel(HX,cam,0)});
+  [0,1,2,3].forEach(i=>{const p=((u*.5+i/4)%1);heart(bx+i*40-20+Math.sin(u*3+i)*14,GY-300-p*170,.7+.4*(1-p),RED)});});
+// 23 they stand and look down the glowing road, hand in hand
+add(46.0,47.8,'#fbe3b8',(u,t)=>{const cam=900;street(t,cam,{dry:true,warm:1});trailWorld(cam,.9);glow(400,GY-40,260,'255,226,130',.4);
+  shadowAt(1450-cam,GY);shadowAt(1530-cam,GY);
+  boy(1450-cam,{flip:-1,face:{m:'smile'},hands:[[22,-44],[-34,-38]]});mother(1530-cam,{flip:-1,face:{m:'smile'},hands:[[34,-40],[-6,-44]]})});
 // 24 final
-add(47.8,49.63,'#fbe3b8',(u,t)=>{const cam=700;street(t,cam,{dry:true,warm:1});doorPanel(HX,cam,0);rays(640,420,t,'rgba(255,224,130,.25)',22,1200);glow(640,520,520,'255,226,130',.55);
-  glowTrail(u+3,14,1180,260,640,470,1.35,.55,0,.0);
-  c.fillStyle='rgba(23,33,63,.45)';c.fillRect(-BIG,-BIG,2*BIG+1280,2*BIG);
+add(47.8,49.63,'#fbe3b8',(u,t)=>{const cam=620;street(t,cam,{dry:true,warm:1});c.fillStyle='rgba(23,33,63,.5)';c.fillRect(-BIG,-BIG,2*BIG+1280,2*BIG);
+  rays(300,GY-60,t,'rgba(255,224,130,.22)',22,1300);trailWorld(cam,1);glow(500,GY-60,420,'255,226,130',.5);
   at(640,250,pop(u,.05,.35),()=>txt('THEY WELCOMED',0,0,96,'#fff'));at(640,370,pop(u,.45,.35),()=>txt('THEIR SAVIOR.',0,0,110,'#ffd95a'))});
 // ---- rendering with transitions ----
 const TR=0.4, OFF1=document.createElement('canvas'), OFF2=document.createElement('canvas');
