@@ -132,3 +132,11 @@ ffmpeg -framerate 24 -i $OUT/f%05d.jpg -i narration.mp3 -c:v libx264 -pix_fmt yu
 - Our generator: `stranger-video/thumb.js` (run `node thumb.js thumbnails`) calls `drawThumb('A'|'B'|'C')` in `lastloaf.html` and writes 1280x720 PNGs. Make 3 variants per video for A/B testing: A = object + emotion ("LAST LOAF?"), B = mystery character ("WHO WAS HE?"), C = reveal question ("HE KNEW HER NAME?").
 - Face rules: worried/sad brows need a NEGATIVE `brow` value (positive makes the face look angry). Keep text clear of faces; no more than 3 words; yellow first line, white second.
 - `reference-ink-explainer.md`: study of the Ink Explainer channel (the model for a long-form doodle-explainer channel): title/thumbnail formula, hit distribution, measured pacing (cut every ~2.8 s), and how to adapt it to a faith channel.
+
+## 12. Long horizontal explainer pipeline (Ice Age video, 7 min, 1920x1080)
+Source: `ice-age/` (core.js engine copy, props.js, scenes1-3.js, main.js, `ice.html` is the concatenation). Lessons:
+- **Timing**: silencedetect splits at commas and mid-sentence, so sentence-to-segment mapping drifts. Use pocketsphinx word times (`Decoder(samprate=16000, logfn='/dev/null')`, default model) and difflib-align the script words to the ASR words; interpolate unmatched words. Sentence starts landed within about 1 s. Use `T(i)` = start time of sentence i.
+- **Scenes**: `add(start,end,bg,(u,t)=>{...},[zoom,fx,fy])`; ends are re-chained so there are no gaps; keep every scene at 5 s or less (check with a script).
+- **Layout**: design 1280x720, scale 1.5 to 1920x1080; sentence captions at the bottom, so keep labels above y=560; never put zoom on scenes with top labels (text leaves the frame); keep tag/label text inside its box (shorten the text).
+- **QA**: render every scene midpoint, tile contact sheets (PIL, 5x4, label index), fix, then render the full run. 4 parallel Playwright shards (`render2.js <out> <fps> <shard> <n>`) render 10k frames in under 2 minutes.
+- **Mux**: frames at 24 fps + narration + low pink-noise wind bed (lowpass 900, volume 0.06).
