@@ -125,3 +125,4 @@ ffmpeg -framerate 24 -i $OUT/f%05d.jpg -i narration.mp3 -c:v libx264 -pix_fmt yu
 
 ## 10. Reference studies
 - `reference-faith-in-god.md`: study of the @faithingod02 "Faith in God" Shorts channel (title formula, hashtags, story arc, visual style, numbers). Use it when planning Jesus/angel parable videos.
+- `story-and-title-framework.md`: title formulas, a bank of 20 emotional titles, the hook/body/payoff/CTA structure with timings, CTA bank and three ready narration scripts. Use it to write or pick the story before building scenes.
