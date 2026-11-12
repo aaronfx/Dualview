@@ -19,6 +19,21 @@ Reference implementation lives in `stranger-video/` of this repo:
 - Vertical 9:16 is the delivery format for social. All on-screen text must stay inside the frame.
 - Always deliver the file to the user (SendUserFile), commit, push to the designated branch, and keep a draft PR.
 
+
+## 0b. Orientation rule (decided by the user: "use the length for the orientation")
+- Pick the orientation from the narration length, do not ask unless the user overrides:
+  - under 90 seconds -> VERTICAL 9:16 (1080x1920), the short-form format (Reels, TikTok, Shorts).
+  - 90 seconds or longer -> LANDSCAPE 16:9 (1280x720), the long-form / YouTube format.
+- State the choice and the length in the reply ("49.6 s, so vertical"), and offer the other orientation if they want both.
+- Engine support (stranger-video/index5.html): vertical is the default. Landscape = `ORIENT=landscape`, which makes the page add `#render&landscape` (canvas 1280x720, no vertical offset, zoom 1.0, caption 42 px at the bottom). Render length comes from the audio: `DUR=<seconds>` (defaults to `window.DURATION`).
+```
+PAGE=index5.html node render.js $OUT 24                      # vertical 1080x1920
+PAGE=index5.html ORIENT=landscape node render.js $OUT 24     # landscape 1280x720
+DUR=132.4 PAGE=index5.html ORIENT=landscape node render.js $OUT 24
+```
+- For a NEW story, copy `index5.html` to a new file, replace the scene list (`add(...)` blocks) and `CAPS`, set `window.DURATION` to the audio length, keep the engine/helpers. Check both orientations at least on a few frames; long landscape videos need more scenes (about one per phrase) and more varied camera/zoom so it does not feel static.
+- New-character ideas for Jesus/angel stories (not built yet): robe + soft glow for Jesus, wings + halo for angels, shepherd, disciples, crowds; settings: manger, hillside, sea/boat, desert road, garden, empty tomb, heaven/clouds; effects: golden rays, star, dove, calming waves. Add them as presets using the same `figure()` rig and keep hands touching real targets.
+
 ## 1. Inputs and audio analysis
 1. Get the narration mp3 (ElevenLabs etc.). `ffprobe` for duration.
 2. Cut points: use silence detection, which is robust even when no transcript exists:
