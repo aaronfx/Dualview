@@ -435,6 +435,42 @@ function draw(t){
       const a=clamp((t-cap[0])/0.1)*clamp((cap[1]+0.25-t)/0.1);c.globalAlpha=a;
       lines.forEach((ln,k)=>{const y=(LAND?CH-50:CH-420)-(lines.length-1-k)*(LAND?52:74);c.lineWidth=LAND?10:14;c.strokeStyle='#000';c.strokeText(ln,CW/2,y);c.fillStyle='#fff';c.fillText(ln,CW/2,y)});c.restore()}}
 }
+
+// ================= THUMBNAILS (Ink-Explainer-style: big face, 1-3 bold words, saturated background) =================
+function ink(text,x,y,size,fill,align='left'){c.save();c.font=`900 ${size}px "Arial Black","DejaVu Sans",Impact,sans-serif`;c.textAlign=align;c.lineJoin='round';c.miterLimit=2;
+  c.lineWidth=size*.2;c.strokeStyle='#000';c.strokeText(text,x,y);c.lineWidth=size*.07;c.strokeStyle='#fff';c.globalAlpha=.0;c.strokeText(text,x,y);c.globalAlpha=1;c.fillStyle=fill;c.fillText(text,x,y);c.restore()}
+function thumbBg(kind){const g=c.createLinearGradient(0,0,0,720);
+  if(kind==='B'){g.addColorStop(0,'#0f2a7a');g.addColorStop(1,'#2a56c8')}else if(kind==='C'){g.addColorStop(0,'#5a1d8a');g.addColorStop(1,'#c2418c')}else{g.addColorStop(0,'#0b1b4a');g.addColorStop(1,'#2c4fb5')}
+  c.fillStyle=g;c.fillRect(0,0,1280,720);
+  for(let i=0;i<60;i++){c.strokeStyle='rgba(190,215,255,.35)';c.lineWidth=3;const x=(i*211)%1280,y=(i*137)%720;c.beginPath();c.moveTo(x,y);c.lineTo(x-10,y+40);c.stroke()}   // rain
+}
+function thumbVignette(){const g=c.createRadialGradient(640,360,300,640,360,900);g.addColorStop(0,'rgba(0,0,0,0)');g.addColorStop(1,'rgba(0,0,0,.45)');c.fillStyle=g;c.fillRect(0,0,1280,720)}
+function bigFace(cx,cy,opt){const save=FS;FS=opt.fs||7;const o=figure({x:cx,y:cy+140*FS,s:1,flip:opt.flip||1,...opt.fig});FS=save;return o}
+window.drawThumb=function(kind){c=MAIN;c.setTransform(1,0,0,1,0,0);c.clearRect(0,0,1280,720);thumbBg(kind);
+  if(kind==='A'){ // LAST LOAF?
+    glow(700,600,380,'255,210,120',.7);rays(700,620,0,'rgba(255,225,140,.26)',18,900);
+    c.fillStyle='#ffe29a';st(8,'#000');c.beginPath();c.rect(1010,330,200,360);c.fill();c.stroke();glow(1110,520,220,'255,236,170',.9);
+    FS=2.5;stranger(1110,{y:690,flip:-1,hands:[[-10,-44],[26,-60]],face:{m:'sad'},lean:6});FS=2;
+    bread(700,640,4.4,-.1);
+    bigFace(250,380,{fig:{hair:'pony',hairCol:'#4a3426',coat:true,coatCol:'#5fa36b',face:{m:'worry',brow:-1.6},hands:[[10,-44],[-4,-50]]}});
+    teardrop(205,470,.95);
+    ink('LAST',490,195,160,'#ffd93b');ink('LOAF?',490,345,160,'#ffffff');
+  } else if(kind==='B'){ // WHO WAS HE?
+    glow(930,390,520,'255,225,140',.85);rays(930,390,0,'rgba(255,230,150,.35)',20,1000);
+    bigFace(930,410,{fs:7.4,flip:-1,fig:{hood:true,coat:true,coatCol:'#7a6e5c',hoodCol:'#5b5448',face:{m:'sad',brow:-1.4},hands:[[-10,-44],[18,-52]]}});
+    for(let i=0;i<5;i++)foot(330+i*80,690-i*10,.85-i*.05,.95,-.5);
+    bigFace(150,520,{fs:3.4,fig:{hair:'pony',hairCol:'#4a3426',coat:true,coatCol:'#5fa36b',face:{m:'o',mo:.4,brow:-1.4}}});
+    ink('WHO WAS',50,170,140,'#ffd93b');ink('HE?',50,320,180,'#ffffff');
+  } else { // C  HE KNEW HER NAME?
+    glow(340,400,420,'255,205,230',.6);
+    bigFace(300,390,{fig:{hair:'pony',hairCol:'#4a3426',coat:true,coatCol:'#5fa36b',face:{m:'o',mo:.8,brow:-1.7},hands:[[10,-44],[-4,-50]]}});
+    FS=2.4;stranger(1110,{y:700,flip:-1,face:{m:'sad'},hands:[[-10,-44],[28,-62]],lean:6});glow(1110,500,230,'255,230,150',.8);FS=2;
+    for(let i=0;i<5;i++)foot(620+i*85,690-i*12,.85-i*.05,.95,-.5);
+    ink('HE KNEW',560,190,125,'#ffd93b');ink('HER NAME?',560,320,105,'#ffffff');
+  }
+  thumbVignette();
+};
+
 window.draw=draw; window.DURATION=70.29;
 if(!location.hash.includes('render')){const t0=performance.now();(function loop(){draw(((performance.now()-t0)/1000)%49.63);requestAnimationFrame(loop)})()}
 </script></body></html>

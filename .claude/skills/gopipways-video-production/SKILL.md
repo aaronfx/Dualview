@@ -126,3 +126,8 @@ ffmpeg -framerate 24 -i $OUT/f%05d.jpg -i narration.mp3 -c:v libx264 -pix_fmt yu
 ## 10. Reference studies
 - `reference-faith-in-god.md`: study of the @faithingod02 "Faith in God" Shorts channel (title formula, hashtags, story arc, visual style, numbers). Use it when planning Jesus/angel parable videos.
 - `story-and-title-framework.md`: title formulas, a bank of 20 emotional titles, the hook/body/payoff/CTA structure with timings, CTA bank and three ready narration scripts. Use it to write or pick the story before building scenes.
+
+## 11. Thumbnails (Ink-Explainer style reference)
+- Style learned from the "Ink Explainer" channel (user screenshot): one big expressive stick-figure face on a saturated background, 1-3 hook words in thick black-outlined letters (yellow + white), usually ending in a question mark (NO SLEEP? / STILL SURVIVED? / BORN TO KILL?), a tiny scene or prop on the other side, high contrast, 16:9, readable at phone-thumbnail size.
+- Our generator: `stranger-video/thumb.js` (run `node thumb.js thumbnails`) calls `drawThumb('A'|'B'|'C')` in `lastloaf.html` and writes 1280x720 PNGs. Make 3 variants per video for A/B testing: A = object + emotion ("LAST LOAF?"), B = mystery character ("WHO WAS HE?"), C = reveal question ("HE KNEW HER NAME?").
+- Face rules: worried/sad brows need a NEGATIVE `brow` value (positive makes the face look angry). Keep text clear of faces; no more than 3 words; yellow first line, white second.
