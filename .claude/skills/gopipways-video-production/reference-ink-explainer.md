@@ -74,3 +74,13 @@ Ink Explainer, 21 recent videos: 18M "What Did Ancient Humans Actually Do All Da
 
 Clones are everywhere: searching "toothache", "someone died", "cut hair", "bored", "childbirth", "periods" returns 10-15 near-identical titles each, most under 1K views. Winners among clones: Lore Explained "Do For Pleasure" 5.5M, Sleepy Time Historian "All Day" 2.9M, GranKhelafa "Kill boredom" 1.8M, Before Fire "All Day" 1.5M, Venn Stories "First Period" 1.2M, Mack "Different Skin"/"Periods" 1.2M/854K, Trust Me Bro "Have Fun" 910K, Neon Rush "Invent Cooking" 336K.
 Takeaway: identical question + stick figure = saturated. Outliers come from packaging, a surprising twist and a series hook, not the topic.
+
+## Which angle performs (YouTube searches, 2026-11-12)
+Ranked by proven views (public snapshots; unverified beyond YouTube pages):
+1. "How long would you last / survive ... every era/continent" (survival-rating POV): Fossil 12.8M ("every prehistoric era"), Barely Evolved 9.7M ("worst time to be born"), Fossil 435K. Clones with the same title are at 2-260 views, so the winner is the channel/packaging, not the phrase.
+2. "Winter / ice age survival, disturbing / craziest ways": Paint It Simple 2.6M, Ink Explainer 1.6M, Historical Architect 1.4M, Axen 967K, ThinkMan 695K, Before Civilization 580K, Mack 512K.
+3. "What did ancient humans do all day / for pleasure / bored": 18.8M Ink Explainer, 5.5M Lore Explained, 2.9M Sleepy Time Historian, 2.1M Joe Bartolozzi, 1.8M GranKhelafa, 1.6M Before Fire.
+4. "Terrifying / scary humans" hook: ExtinctZoo Neanderthals 7.3M, Spds 5.6M, Ink Explainer 558K.
+5. Other human species / Neanderthal: older, long-form, mostly 400K-8M but from big channels; new species-POV clones sit at under 700 views ("You wake up as a Neanderthal" best 694).
+6. Niche body topics (periods 1.2M Venn Stories, 854K Mack; childbirth max 8K; toothache max 86K; cut hair max 4K; death under 1.2K).
+Rain/weather-scenario: Ink Explainer 2.0M, all clones under 55K except Deep Epoch 55K.
