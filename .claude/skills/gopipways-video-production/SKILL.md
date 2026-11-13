@@ -140,3 +140,6 @@ Source: `ice-age/` (core.js engine copy, props.js, scenes1-3.js, main.js, `ice.h
 - **Layout**: design 1280x720, scale 1.5 to 1920x1080; sentence captions at the bottom, so keep labels above y=560; never put zoom on scenes with top labels (text leaves the frame); keep tag/label text inside its box (shorten the text).
 - **QA**: render every scene midpoint, tile contact sheets (PIL, 5x4, label index), fix, then render the full run. 4 parallel Playwright shards (`render2.js <out> <fps> <shard> <n>`) render 10k frames in under 2 minutes.
 - **Mux**: frames at 24 fps + narration + low pink-noise wind bed (lowpass 900, volume 0.06).
+
+## 13. Generated-image (Ken Burns) pipeline (Ice Age video, preferred when images exist)
+`ice-age/ken_main.js` + `build_ken.py` + `render3.js`. User supplies one image per scene (`001.jpg`..); scene timings come from the word-aligned scene list. Serve the images over local http (`python3 -m http.server`) so the canvas is not tainted, then render 4 shards. Effects: 7 pan/zoom moves by index, 0.3 s crossfade/slide/circle transitions, yellow outlined keyword labels (Ink Explainer style), sentence captions, vignette, light snow overlay on outdoor scenes, text overlay for button images. Master encode crf 23 is ~190 MB; web encode (`-crf 29 -maxrate 3500k`) is ~94 MB.
