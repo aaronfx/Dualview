@@ -6,11 +6,11 @@ These are **original parable-style stories**, not Gospel accounts. They are insp
 
 | # | Title | Words | ~Seconds | Verse |
 |---|---|---|---|---|
-| 1 | Jesus Came as a Homeless Man, Then a Little Girl Changed Everything | 113 | 43 | Matthew 25:35-36 |
-| 2 | Jesus Came as a Thirsty Traveler, Then a Boy Shared His Last Water | 118 | 45 | Matthew 25:35 |
-| 3 | Jesus Came Looking for Work, and Only One Baker Hired Him | 129 | 50 | Matthew 25:35-40 |
-| 4 | Jesus Came Sick to the Hospital Door, Then a Nurse Paid His Bill | 114 | 44 | Matthew 25:36 |
-| 5 | Jesus Came Lost and Alone, Then a Taxi Driver Stopped | 118 | 45 | Luke 10:33-35 |
+| 1 | Jesus Came as a Homeless Man, Then a Little Girl Changed Everything | 130 | 50 | Matthew 25:35-36 |
+| 2 | Jesus Came as a Thirsty Traveler, Then a Boy Shared His Last Water | 122 | 47 | Matthew 25:35 |
+| 3 | Jesus Came Looking for Work, and Only One Baker Hired Him | 136 | 52 | Matthew 25:35-40 |
+| 4 | Jesus Came Sick to the Hospital Door, Then a Nurse Paid His Bill | 115 | 44 | Matthew 25:36 |
+| 5 | Jesus Came Lost and Alone, Then a Taxi Driver Stopped | 126 | 48 | Luke 10:33-35 |
 
 ## Workflow
 1. Paste the master prompt in ChatGPT, make the character sheet.
