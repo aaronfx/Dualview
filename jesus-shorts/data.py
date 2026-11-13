@@ -148,3 +148,26 @@ NEW = {
 for s in S:
     assert len(NEW[s['id']])==len(s['scenes']),(s['id'],len(NEW[s['id']]),len(s['scenes']))
     s['scenes']=[(n,l,p) for n,(o,l,p) in zip(NEW[s['id']],s['scenes'])]
+
+# ---- Ink-style rework: Short 1 split into 18 scenes (~2.5 s each) + hook overlay ----
+HOOKS={1:"WOULD YOU HAVE HELPED HIM?",2:"WOULD YOU HAVE GIVEN HIM WATER?",3:"WOULD YOU HAVE HIRED HIM?",4:"WOULD YOU HAVE PAID HIS BILL?",5:"WOULD YOU HAVE STOPPED?"}
+S[0]['scenes']=[
+("He was freezing, starving, and everyone walked past him.","FREEZING & STARVING","Snowy city street at dusk, [JESUS-STRANGER] shivering on a bench with snow on his shoulders, crowds of people in winter coats hurrying past, warm shop windows, cold blue sky"),
+("Nobody knew this was Jesus.","NOBODY KNEW","Close portrait of [JESUS-STRANGER] looking up with kind tired eyes, snowflakes on his hair and beard, soft golden halo of lamp light behind his head, blurred crowd"),
+("A rich man pointed down the street, and said, Move along.","MOVE ALONG","[RICH MAN] pointing angrily down the street at [JESUS-STRANGER], luxury car behind him, snow swirling"),
+("A woman crossed the road, so she would not have to look at him.","CROSSED THE ROAD","A woman in a red scarf crossing to the other side of a snowy street, glancing back uneasily at [JESUS-STRANGER] on the bench, streetlights"),
+("Then a little girl named Lily stopped.","LILY STOPPED","LILY (small round white head, two braids, red coat, mittens) stopping in the snow and looking at [JESUS-STRANGER], concerned face, soft light"),
+("She pulled off her own scarf, and wrapped it around his neck.","HER OWN SCARF","Lily on tiptoes wrapping her red scarf around [JESUS-STRANGER]'s neck, he smiles gently, warm glow between them, snow"),
+("Her father watched, ashamed.","ASHAMED","LILY'S FATHER (round white head, short brown hair, worn jacket) standing a few steps back looking down in shame, hands in pockets, snowy street"),
+("That morning, he had prayed about the rent, and heard nothing.","UNANSWERED PRAYER","Lily's father holding an unpaid-rent letter, a faint thought bubble of him praying with folded hands, worried, snow falling, warm window light behind"),
+("But he sat down beside the stranger.","SAT BESIDE HIM","Lily's father sitting down on the bench beside [JESUS-STRANGER], Lily smiling in front of them, warm lamp light"),
+("And poured out his last hot soup.","HIS LAST SOUP","Close-up of Lily's father pouring hot soup from a thermos into a cup, steam rising, held out to [JESUS-STRANGER]'s hands, warm glow"),
+("The stranger smiled, and thanked them.","THANK YOU","[JESUS-STRANGER] smiling gently with the steaming cup in both hands, Lily and her father beside him, warm golden light"),
+("Then he slowly walked away.","WALKED AWAY","[JESUS-STRANGER] walking away down the snowy street at night, looking back with a gentle smile, lamp light, long shadow"),
+("They looked down. His footprints were glowing.","FOOTPRINTS GLOWED","Close view of glowing golden footprints in the snow trailing away down the street, sparkles rising, Lily and her father staring in awe"),
+("That night, the landlord called.","THE LANDLORD CALLED","Lily's father in a small apartment holding a phone to his ear, wide-eyed, Lily at his side, warm lamp light"),
+("The whole rent was forgiven.","RENT FORGIVEN","Lily's father crying and laughing with the phone lowered, hugging Lily, the unpaid-rent letter on the table now glowing softly, warm golden room"),
+("Lily whispered, Dad... that was Jesus.","THAT WAS JESUS","Lily and her father at the window looking out at the glowing footprints fading in the snow, [JESUS-REVEALED] a faint bright golden silhouette far down the street"),
+("They had welcomed their Savior.","WELCOMED THEIR SAVIOR","[JESUS-REVEALED] smiling in a golden glow, hands open, Lily and her father standing before him in warm golden light"),
+("Type Amen if you believe.","TYPE AMEN","Warm golden sunrise over a snowy city rooftop, a soft glowing heart of light in the sky, tiny silhouettes of a girl and her father waving, hopeful"),
+]
