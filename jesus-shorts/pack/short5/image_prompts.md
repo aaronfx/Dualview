@@ -1,40 +1,40 @@
-# Short 5: Cleaner Gave His Only Coat to a Freezing Man, Then God Rewarded Him
+# Short 5: Jesus Came Lost and Alone, Then a Taxi Driver Stopped
 
 (After the style lock, send each as: 'Image NN: …'. 12 images.)
 
-**Image 01** (narration: "It was the coldest night of the year. One man had a coat.")
-Snowy city night, [STRANGER] sitting against a church door, lamp light, falling snow, breath clouds
+**Image 01** (narration: "Jesus came as a lost old man, and nobody knew who he was."; yellow label: JESUS CAME LOST)
+Rainy night on a city corner, [JESUS-STRANGER] standing alone with a bundle, headlights blurred, neon glow without text
 
-**Image 02** (narration: "A freezing man sat outside the church.")
-[STRANGER] hugging his knees on the cold stone steps, snow on his shoulders, frost on his beard
+**Image 02** (narration: "A bus driver pulled away, just as he reached the stop."; yellow label: BUS LEFT)
+A city bus pulling away from a stop in the rain, [JESUS-STRANGER] reaching out a hand, red tail lights
 
-**Image 03** (narration: "Rich people in warm clothes walked right past.")
-Well-dressed churchgoers in long coats and scarves walking past [STRANGER] without looking, snow falling
+**Image 03** (narration: "Taxi after taxi drove past, and none would stop."; yellow label: NONE WOULD STOP)
+A row of taxis with glowing roof lights passing by on a wet street, [JESUS-STRANGER] small on the sidewalk
 
-**Image 04** (narration: "Only the old cleaner, Samuel, stayed behind.")
-SAMUEL (60s, grey beard, dark work jacket, keys on a ring) locking a church door at night, tired kind face
+**Image 04** (narration: "Then a tired taxi driver named David slowed down."; yellow label: DAVID SLOWED DOWN)
+DAVID (round white head, short black hair, cap, grey jacket) at the wheel of a taxi leaning to look out at [JESUS-STRANGER], tired eyes, warm dashboard glow
 
-**Image 05** (narration: "He had one coat, and a sick daughter at home.")
-Samuel looking at his thin worn coat, a faint thought glow of a sick girl in bed at home
+**Image 05** (narration: "He had one fare left, and a daughter who needed a miracle for school."; yellow label: HIS LAST FARE)
+David checking the taxi clock and a folded school-fee letter on the dashboard, a thought bubble of his daughter studying, worried
 
-**Image 06** (narration: "He looked at the freezing man, and his heart broke.")
-Close on Samuel's compassionate eyes in the snowfall, lamp light on his face
+**Image 06** (narration: "But he opened the door, and said, Get in, I will take you anywhere."; yellow label: GET IN)
+David leaning across to open the passenger door of the taxi for [JESUS-STRANGER], warm light spilling out, rain falling
 
-**Image 07** (narration: "He took off his only coat, and put it around his shoulders.")
-Samuel draping his coat over [STRANGER] on the steps, snow falling, tender warm rim light
+**Image 07** (narration: "He drove all night, and refused to take a single coin."; yellow label: NO COIN TAKEN)
+Inside the taxi, [JESUS-STRANGER] gently holding out a coin, David smiling and pushing it back, city lights glowing outside
 
-**Image 08** (narration: "He sat beside him, and shared his last bread.")
-Samuel and [STRANGER] sitting side by side on the church steps sharing bread, quiet bond, snow
+**Image 08** (narration: "At the end, the stranger said, God will not forget this."; yellow label: GOD WILL NOT FORGET)
+[JESUS-STRANGER] stepping out of the taxi at dawn on a quiet street, a hand raised in blessing, David smiling inside
 
-**Image 09** (narration: "Samuel walked home in the freezing night, shaking.")
-Samuel walking alone in the snowy street in just a thin sweater, hunched against the cold, lamp-lit
+**Image 09** (narration: "His footprints began to glow."; yellow label: FOOTPRINTS GLOWED)
+Glowing golden footprints on the wet street trailing away at sunrise, David staring out of his taxi window in awe
 
-**Image 10** (narration: "When he opened the door, his daughter was sitting up.")
-Samuel opening the door of a small home, a young girl sitting up in bed with a big smile, warm lamp light
+**Image 10** (narration: "That same morning, a scholarship letter arrived for his daughter."; yellow label: SCHOLARSHIP ARRIVED)
+David's daughter (small, pigtails) holding up an opened letter with a big smile, David hugging her in a small kitchen, morning light
 
-**Image 11** (narration: "She was healed. And on the table lay his coat, warm and glowing.")
-Father and daughter hugging, Samuel's coat folded glowing gently on the table behind them, warm golden room
+**Image 11** (narration: "He finally understood who he was."; yellow label: HE UNDERSTOOD)
+David at his taxi looking at fading glowing footprints, [JESUS-REVEALED] a bright golden silhouette in the sunrise
 
-**Image 12** (narration: "When you clothe the cold, you clothe Him.")
-Glowing silhouette of a long-haired bearded man at the door in golden light, snowflakes turning to sparkles
+**Image 12** (narration: "He had welcomed his Savior."; yellow label: WELCOMED HIS SAVIOR)
+[JESUS-REVEALED] smiling in a golden glow, hands open, David standing before him in warm sunrise light
 

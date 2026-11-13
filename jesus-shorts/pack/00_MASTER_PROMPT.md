@@ -1,9 +1,16 @@
 # Jesus Shorts – master prompt
 
-STYLE LOCK (paste first in ChatGPT, then send each prompt):
-Photorealistic cinematic documentary photograph, shot on a 35mm lens, natural soft daylight or warm street light, shallow depth of field, candid real-life look, realistic skin and clothing texture, modern everyday setting. VERTICAL 9:16 portrait, main subject in the centre, clear space at top and bottom for captions. NO text, NO letters, NO logos, NO watermark, no cartoon or painting look. Respectful, emotional, hopeful tone.
-RECURRING CHARACTER [STRANGER]: a thin tired man in his 30s-40s, shoulder-length brown hair, short beard, kind deep brown eyes, worn grey-brown coat with patches, old scarf, carries a small cloth bundle. Looks poor and helpless but his eyes are calm and gentle.
-REVEAL: the same man shown only as a warm glowing silhouette or from behind in golden light, never frightening, never a face close-up. Keep the same face and build whenever he appears.
-Keep each story's other characters identical across all of its images (same face, clothes, ages).
+STEP 1 - paste ONCE at the start of a new ChatGPT chat:
+You are my image generator for animated YouTube Shorts. I will send numbered batches of scenes. Rules for EVERY image:
+- One separate image per scene, VERTICAL 9:16 portrait (1024x1536), main subject centred, empty space at the top and bottom for captions.
+- NO text, letters, numbers, logos or watermarks in the image.
+- Keep characters IDENTICAL to the character reference sheet.
+- Style: hand-drawn 2D cartoon illustration in a thick-outline doodle-explainer style (same as our Ice Age video): simple characters with round white heads, dot eyes and expressive faces, thin limbs, messy hair; painterly flat colours with soft gradient skies and warm cinematic lighting; richly detailed backgrounds (textures, props, tiny details in every corner); clear foreground / midground / background depth.
+- Respectful, reverent, hopeful tone. Never scary. No gore.
+- Write the image number before each image (e.g. "Image 003"). Generate all images in the batch without asking questions. When done write "Batch done".
 
-Use: paste the style lock once per chat, then send the numbered prompts of ONE short as a batch. Generate a character-sheet image first ([JESUS-DISGUISED] and [JESUS-REVEALED] side by side) and keep it in the same chat so faces stay the same.
+STEP 2 - character reference sheet (generate first, keep it in the chat):
+Character reference sheet, hand-drawn 2D cartoon in a thick-outline doodle-explainer style, plain light background, six full-body characters side by side, NO text: (1) [JESUS-STRANGER]: round white head, long brown hair and short beard, kind gentle eyes, dusty patched grey-brown cloak, rope belt, worn sandals, small cloth bundle; (2) [JESUS-REVEALED]: the same face and hair, clean white robe, soft golden glow around him, warm smile; (3) [BOY]: small, round white head, spiky brown hair, blue hoodie; (4) [MOTHER]: round white head, hair in a bun, yellow cardigan, long green skirt; (5) [RICH MAN]: round white head, slicked grey hair, expensive dark suit, scowl; (6) [WORKER]: round white head, short black hair, work apron or uniform. Vertical 9:16.
+
+Per-story helper characters are described inside each prompt; reuse them exactly within a story.
+Rules of the story format: Jesus is NAMED in the hook, a poor stranger nobody recognises, one person refuses, a child or a poor person helps, a prayer is answered, his glowing footprints appear, and the last line says they had welcomed their Savior.
