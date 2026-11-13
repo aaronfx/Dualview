@@ -1,79 +1,78 @@
-# Each short: dict(id,title,verse,scenes=[(narration,prompt)])  -- vertical 2:3 portrait compositions
 MASTER = """STYLE LOCK (paste first in ChatGPT, then send each prompt):
-Richly painted, detailed storybook illustration in a warm cinematic style, first-century Galilee/Judea setting (stone houses, clay roofs, olive trees, linen and wool clothing, oil lamps). VERTICAL portrait 2:3 composition, subject in the centre third, empty space at top and bottom for captions. Soft golden-hour or lamp light, expressive faces, fine painted texture, NO text, NO letters, NO watermark. Respectful, reverent tone; no gore.
-RECURRING CHARACTER [JESUS-DISGUISED]: a thin tired stranger in his early 30s, shoulder-length brown hair, short beard, kind deep brown eyes, dusty patched grey-brown tunic, frayed rope belt, worn sandals, a small bundle on a stick. Looks poor but his eyes are gentle and steady.
-[JESUS-REVEALED]: same face, now in a clean white robe with a soft golden light around him, warm loving smile; the dusty clothes are gone. Calm, never scary.
-Always keep the same face for both."""
+Photorealistic cinematic documentary photograph, shot on a 35mm lens, natural soft daylight or warm street light, shallow depth of field, candid real-life look, realistic skin and clothing texture, modern everyday setting. VERTICAL 9:16 portrait, main subject in the centre, clear space at top and bottom for captions. NO text, NO letters, NO logos, NO watermark, no cartoon or painting look. Respectful, emotional, hopeful tone.
+RECURRING CHARACTER [STRANGER]: a thin tired man in his 30s-40s, shoulder-length brown hair, short beard, kind deep brown eyes, worn grey-brown coat with patches, old scarf, carries a small cloth bundle. Looks poor and helpless but his eyes are calm and gentle.
+REVEAL: the same man shown only as a warm glowing silhouette or from behind in golden light, never frightening, never a face close-up. Keep the same face and build whenever he appears.
+Keep each story's other characters identical across all of its images (same face, clothes, ages)."""
 S = []
 def short(id,title,verse,scenes): S.append(dict(id=id,title=title,verse=verse,scenes=scenes))
 
-short(1,"He Asked for Work. Nobody Hired Him.","Matthew 25:35-40",[
-("Nobody wanted to hire the stranger.","Wide dusty village street at midday, [JESUS-DISGUISED] knocking at a closed wooden workshop door, merchants turning their backs, heat haze"),
-("He was thin, tired, and covered in dust.","Close portrait of [JESUS-DISGUISED], dust on his cheeks, tired kind eyes, sunlit stone wall behind him"),
-("Door after door closed in his face.","A row of three closed doors in a stone alley, a hand pushing one shut, [JESUS-DISGUISED] standing small in front"),
-("Then he came to a small bakery, run by a widow named Ruth.","Small stone bakery with a glowing clay oven and a few loaves on a wooden shelf, RUTH, a worn kind widow in a headscarf, kneading dough"),
-("He asked, Please, I only need work for a day.","[JESUS-DISGUISED] at the bakery door, hands open and humble, Ruth looking up from her dough"),
-("Ruth had barely enough bread for herself.","Close shot of an almost empty shelf with three loaves, Ruth counting them with worry, warm oven glow"),
-("Still, she said, Come in. I cannot pay much, but you will not leave hungry.","Ruth waving [JESUS-DISGUISED] in with a gentle smile, golden light spilling from the doorway"),
-("All day he carried flour and fired the oven.","[JESUS-DISGUISED] carrying a heavy sack of flour across the bakery, flour dust in sunbeams, Ruth smiling behind"),
-("At sunset, she gave him half of her last loaf.","Ruth handing [JESUS-DISGUISED] half a loaf of bread on a cloth, sunset through the window, tender moment"),
-("He thanked her, and walked into the night.","[JESUS-DISGUISED] walking away down a lantern-lit stone street at dusk, bundle on his shoulder, glancing back softly"),
-("The next morning, her shelves were overflowing.","Ruth in shock in the bakery at dawn, every shelf piled with golden loaves, light streaming, hands to her mouth"),
-("On the table lay a note, I was a stranger, and you took me in.","A folded parchment on the wooden table glowing gently, [JESUS-REVEALED] faintly visible as a bright silhouette in the doorway, golden light"),
-("Whoever helps the least of these, helps Him.","[JESUS-REVEALED] smiling warmly with hands open, golden glow, Ruth kneeling in gratitude in front of him")])
+short(1,"Child Gave His Lunch to a Helpless Man, Then God Rewarded Him","Matthew 25:35-40",[
+("Everyone walked past this starving man. Except one boy.","Busy city sidewalk, crowd walking past, [STRANGER] sitting weak against a wall, a young boy NOAH (8, blue hoodie) stopping to look at him"),
+("The man had not eaten in three days.","Close portrait of [STRANGER] sitting on cold pavement, hollow cheeks, tired eyes, hand on stomach"),
+("People looked away, and some even laughed.","Passers-by in business clothes walking past [STRANGER], one woman pulling her child's hand away"),
+("But Noah, just eight years old, saw him.","Noah standing still in the crowd, looking at [STRANGER] with concern, soft focus background"),
+("He had only one sandwich, and it was his lunch.","Close on Noah's small hands holding a wrapped sandwich in a brown paper bag, school backpack on his shoulder"),
+("His stomach was growling too.","Noah touching his own stomach, hesitating, looking down at the sandwich"),
+("But he walked over, and said, Sir, please, take this.","Noah holding out the sandwich to [STRANGER], who looks up in surprise, eye-level shot"),
+("The man cried. No one had been kind to him in years.","[STRANGER] taking the sandwich with both hands, tears in his eyes, Noah smiling"),
+("The man blessed him, and said, You will never go hungry.","[STRANGER] resting a gentle hand on Noah's shoulder, warm light between them"),
+("Noah walked home with an empty bag.","Noah walking along a quiet suburban street at sunset, empty paper bag in hand, long warm shadows"),
+("But at home, his mother had a surprise.","Noah opening the door of a small home, his mother hands to her mouth in joy, kitchen light"),
+("Her prayer for work was answered that same day, and the table was full.","Small family table full of food, mother crying and laughing with Noah, warm golden window light"),
+("Whatever you do for the least of these, you do for Me.","Glowing silhouette of a long-haired bearded man standing at the end of the street in golden light, Noah's family on the porch looking")])
 
-short(2,"A Beggar Knocked in the Storm","Hebrews 13:2",[
-("A terrible storm hit the village.","Night storm over a hillside village, lightning, bending olive trees, rain sheets, small lit windows"),
-("At the edge of town, a beggar was shaking in the cold.","[JESUS-DISGUISED] soaked, shivering against a stone wall in the rain, hugging himself, lightning flash behind"),
-("He knocked on the rich man's door.","Huge ornate wooden door of a rich house, [JESUS-DISGUISED] knocking small and cold, warm light under the door"),
-("The rich man shouted, Go away.","A rich man in fine robes at the door with an angry waving hand, [JESUS-DISGUISED] stepping back, rain"),
-("He knocked on three more doors. No one answered.","Three dark closed doors in a rainy lane, [JESUS-DISGUISED] walking between them, head bowed"),
-("At the very last house, lived a poor shepherd and his small son.","Tiny stone hut with one glowing window at the village edge, a shepherd and his boy TOBIAS visible inside by lamp"),
-("The shepherd opened the door and said, We have little. But come in.","The shepherd opening the door, boy peeking behind his leg, [JESUS-DISGUISED] dripping at the threshold, warm light"),
-("They shared their soup, and the stranger's shaking stopped.","Interior: three at a small table sharing a bowl of soup, oil lamp glow, [JESUS-DISGUISED] smiling for the first time, boy giggling"),
-("He slept by the fire, and they gave him their only blanket.","The shepherd laying a wool blanket over sleeping [JESUS-DISGUISED] by the hearth, the boy watching sleepily"),
-("At dawn, the stranger was gone.","Empty hearth with the folded blanket, sunrise through the door, the shepherd puzzled, boy pointing outside"),
-("Outside, their dry field had become green and full of sheep.","Shepherd and boy at the doorway seeing a lush green hillside with many sheep, golden sunrise, rainbow"),
-("Some have shown kindness to angels without knowing it.","[JESUS-REVEALED] standing on the hill in golden light, gentle smile, sheep around him, blessing hand raised")])
+short(2,"Poor Waitress Fed a Homeless Man, Then God Rewarded Her","Matthew 25:35",[
+("She had nine dollars, and he had nothing.","Night diner interior, young waitress GRACE (late 20s, ponytail, apron) wiping a counter, rain on the window, [STRANGER] outside looking in"),
+("He stood in the rain, looking through the window.","[STRANGER] soaked outside a diner window in rainy night, face lit by neon glow, hands in coat"),
+("Her manager said, Do not let him in.","Angry manager in a white shirt pointing at the door, Grace uneasy behind the counter, tense mood"),
+("But Grace saw how cold he was.","Close on Grace's compassionate eyes looking toward the window, warm diner light on her face"),
+("She slipped out the back and brought him inside.","Grace holding the door open to [STRANGER] on a rainy night, steam and warm light spilling out"),
+("She paid for his soup with her last nine dollars.","Grace handing coins and notes across the counter, a steaming bowl of soup on a tray, quiet moment"),
+("He ate slowly, with shaking hands.","Close on [STRANGER]'s trembling hands around a hot soup bowl, steam rising, warm light"),
+("The manager fired her on the spot.","Manager angrily taking Grace's apron, Grace stunned, [STRANGER] watching sadly"),
+("Grace walked out into the rain with nothing.","Grace walking alone down a wet street at night, apron folded in her hand, city lights blurred"),
+("But the stranger was gone, and a car pulled up.","Rainy street, empty bench where [STRANGER] sat, a car stopping in the foreground with headlights glowing"),
+("The owner had watched everything. He gave her a better job that very night.","Elegant older man in a coat shaking Grace's hand outside the diner, Grace stunned and tearful, warm streetlight"),
+("Kindness is never wasted.","Glowing silhouette of a long-haired bearded man walking away down the rainy street into golden light")])
 
-short(3,"The Boy Who Gave His Last Fish","Matthew 25:40",[
-("A poor boy sold fish at the market.","Busy ancient market square at morning, a small boy JONAH behind a basket with a few fish, stalls and colour"),
-("He needed one more sale to feed his family.","Close on the boy's worried face counting two small coins, a basket with only one fish left"),
-("A hungry stranger approached him.","[JESUS-DISGUISED] stepping up to the boy's stall, tired, one hand on his stomach, market blur behind"),
-("The stranger had no money. Only an empty hand.","Close on [JESUS-DISGUISED]'s open empty palm held out gently, warm afternoon light"),
-("Everyone else laughed and walked on.","Market crowd laughing and walking past [JESUS-DISGUISED], a woman pulling her child away, painted motion"),
-("The boy looked at his last fish. And thought of his own hunger.","The boy holding his last fish up in both hands, torn expression, soft light on his face"),
-("Then he wrapped it in a cloth, and gave it away.","The boy placing the wrapped fish into [JESUS-DISGUISED]'s hands, small smile, golden light between them"),
-("The stranger blessed him, and slowly disappeared into the crowd.","[JESUS-DISGUISED] resting a gentle hand on the boy's head, crowd soft in the background"),
-("That evening, the boy walked home with an empty basket.","The boy walking home on a sunset path with an empty basket, calm and quiet, long shadows"),
-("But his father was waiting at the shore, with a miracle.","The boy's father pointing at a fishing boat on the sea at sunset, boat sinking low with silver fish"),
-("Their nets were so full, they could barely pull them in.","Father and boy hauling a huge net overflowing with silver fish, golden water splashing, joy"),
-("What you give to the least, you give to Jesus.","[JESUS-REVEALED] standing on the shore in the golden light, warm smile, boy's silhouette looking up")])
+short(3,"Truck Driver Stopped for an Old Man, Then God Rewarded Him","Luke 10:36-37",[
+("Thousands drove past. Only one man stopped.","Wet rural highway at dusk, cars rushing by, [STRANGER] standing by a broken-down old car with the hood up, waving weakly"),
+("His car had died on a cold, empty road.","[STRANGER] leaning on his dead car in the cold dusk, breath visible, hands on the hood"),
+("Car after car sped away.","Long exposure of headlights streaming past on the dark highway, [STRANGER] small by the roadside"),
+("Then a tired truck driver named Daniel saw him.","DANIEL (50s, flannel jacket, cap) at the wheel of a big truck looking at the road ahead, sunset glow in the cabin"),
+("Daniel was already late for his delivery.","Daniel's face lit by the dashboard clock reading late, torn expression"),
+("But he pulled over anyway.","Large truck pulling onto the shoulder with hazard lights flashing in the dusk"),
+("He towed the car, and gave the man his coffee.","Daniel hooking a tow strap to [STRANGER]'s car, a thermos of coffee handed over, warm headlight glow"),
+("The stranger said, God will not forget this.","[STRANGER] smiling gently at Daniel, hand on his arm, golden low light"),
+("Daniel got fired the next morning for being late.","Daniel in an office doorway holding a cardboard box, supervisor in a suit shaking his head, grey light"),
+("But then his phone rang.","Daniel sitting in his parked truck at dawn looking at his phone with surprise, soft morning light"),
+("A company owner offered him a better job, with higher pay.","Daniel shaking hands with a smiling business owner in front of a modern logistics warehouse, golden morning"),
+("God sees every act of kindness.","Glowing silhouette of a bearded man standing on the highway horizon in golden sunrise light")])
 
-short(4,"Two Men Passed. One Stopped.","Luke 10:36-37",[
-("A cart broke down on a lonely road.","Long dusty road through hills at noon, a wooden cart with a broken wheel, [JESUS-DISGUISED] kneeling beside it, tired"),
-("The stranger could not move it alone.","[JESUS-DISGUISED] straining to lift the heavy cart, sweat on his forehead, heat shimmer"),
-("A rich merchant rode by on a fine horse.","A rich merchant on a white horse with a jewelled saddle riding past, looking away, dust cloud"),
-("He did not even slow down.","Close on the merchant's cold eyes turning from the stranger, horse hoofs lifting dust"),
-("Then a poor farmer named Daniel came by, carrying his tools.","DANIEL, a weathered kind farmer with a hoe on his shoulder walking along the road, bag of seeds, tired but warm"),
-("He was late for his own field, but he stopped anyway.","Daniel pausing on the road, looking back at the stranger, hesitation then resolve, soft light"),
-("Together, they lifted the cart and fixed the wheel.","Daniel and [JESUS-DISGUISED] pushing a wooden wheel into place with ropes and a wedge, teamwork, golden dust"),
-("The stranger thanked him, and said, Your field will be blessed.","[JESUS-DISGUISED] gripping Daniel's forearm in thanks, gentle smile, hills behind"),
-("Daniel hurried to his dry, cracked ground.","Cracked parched farmland under a hard sun, Daniel standing over it, hoe in hand, worried"),
-("Then the clouds gathered, and rain began to fall.","Dark clouds opening over the field, rain falling on Daniel's upturned face, joyful tears, light breaking through"),
-("By harvest, his barns were the fullest in the valley.","Overflowing barn of golden wheat, Daniel and his family laughing in the harvest light"),
-("Who is my neighbour? The one who stopped.","[JESUS-REVEALED] on the hill smiling at the field, golden light, hand raised in blessing")])
+short(4,"Girl Shared Her Last Bread With a Beggar, Then God Rewarded Her","Matthew 25:40",[
+("She had one slice of bread, and a stranger was starving.","Dim village market alley, girl MIA (10, braided hair, worn yellow coat) holding a slice of bread, [STRANGER] sitting in a doorway"),
+("Mia lived with her grandmother, and they had almost nothing.","Small tidy poor kitchen, grandmother and Mia at a table with a single slice of bread, soft window light"),
+("On the way home, she saw a man shaking in a doorway.","Mia walking home at dusk, stopping, looking at [STRANGER] shivering in a stone doorway"),
+("His lips were blue from the cold.","Close portrait of [STRANGER] with pale blue-tinted lips, frost on his scarf, tired eyes"),
+("She knew her grandmother needed this bread.","Mia gripping the bread tightly with both hands, torn expression, soft focus street behind"),
+("But she remembered what her grandmother taught her.","Mia in warm flashback glow, grandmother's hands folded in prayer behind a soft vignette"),
+("She broke the bread in half, and gave him the bigger piece.","Mia handing the larger half of the bread to [STRANGER], their hands almost touching, warm light"),
+("He smiled, and said, Go home, little one. Look at your door.","[STRANGER] gently pointing past Mia toward her house down the alley, warm light on his face"),
+("At home, the door was covered with bags of food.","Mia's grandmother opening a wooden door, grocery bags and boxes piled on the step, both stunned"),
+("Neighbours were cooking and laughing in their kitchen.","Mia and her grandmother at a table with neighbours bringing steaming dishes, warm kitchen light, tears of joy"),
+("No one knew who had sent them.","Mia looking out the window at the empty alley where [STRANGER] was, a faint golden glow in the street"),
+("Give, and it shall be given to you.","Glowing silhouette of a bearded long-haired man at the far end of the alley in warm golden light")])
 
-short(5,"The Man at the Temple Door","Matthew 25:36",[
-("It was the coldest night of the year.","Snowy-looking cold night in an old stone town, frost on cobblestones, lamplight, breath clouds"),
-("A shivering man sat outside the temple doors.","[JESUS-DISGUISED] sitting against huge temple doors in the cold, hugging his knees, snow dusting his shoulders"),
-("People in fine clothes walked right past him.","Wealthy worshippers in fur-trimmed robes walking past [JESUS-DISGUISED] without looking, heads high"),
-("Only the old cleaner stayed behind to lock up.","SAMUEL, an elderly humble cleaner with a broom and ring of keys at the temple door, tired kind face"),
-("Samuel had only one coat. And his daughter was sick at home.","Samuel looking at his single worn coat, thought bubble of a sick girl in bed at home, warm lamp"),
-("Still, he looked at the stranger, and his heart broke.","Close on Samuel's compassionate eyes looking at [JESUS-DISGUISED], light on his face"),
-("He took off his coat, and placed it on the stranger's shoulders.","Samuel draping his coat around [JESUS-DISGUISED], breath clouds, tender, warm golden rim light"),
-("Then he shared his bread, and sat with him a while.","Samuel and [JESUS-DISGUISED] sharing a piece of bread on the temple steps under a lamp, quiet connection"),
-("When he got home, he found a miracle.","Samuel opening the door of his small home, light spilling out, surprised expression"),
-("His daughter was sitting up, healed, smiling.","A young girl sitting up in bed, cheeks glowing with health, laughing, Samuel's tears of joy, warm lamp"),
-("On the table lay his coat. It was warm and glowing.","Samuel's coat folded on the table glowing gently, a soft golden light from the doorway where [JESUS-REVEALED] fades into the night"),
-("When you clothe the cold, you clothe Him.","[JESUS-REVEALED] smiling in a gentle golden glow, snowflakes turning to light around him")])
+short(5,"Cleaner Gave His Only Coat to a Freezing Man, Then God Rewarded Him","Matthew 25:36",[
+("It was the coldest night of the year. One man had a coat.","Snowy city night, [STRANGER] sitting against a church door, lamp light, falling snow, breath clouds"),
+("A freezing man sat outside the church.","[STRANGER] hugging his knees on the cold stone steps, snow on his shoulders, frost on his beard"),
+("Rich people in warm clothes walked right past.","Well-dressed churchgoers in long coats and scarves walking past [STRANGER] without looking, snow falling"),
+("Only the old cleaner, Samuel, stayed behind.","SAMUEL (60s, grey beard, dark work jacket, keys on a ring) locking a church door at night, tired kind face"),
+("He had one coat, and a sick daughter at home.","Samuel looking at his thin worn coat, a faint thought glow of a sick girl in bed at home"),
+("He looked at the freezing man, and his heart broke.","Close on Samuel's compassionate eyes in the snowfall, lamp light on his face"),
+("He took off his only coat, and put it around his shoulders.","Samuel draping his coat over [STRANGER] on the steps, snow falling, tender warm rim light"),
+("He sat beside him, and shared his last bread.","Samuel and [STRANGER] sitting side by side on the church steps sharing bread, quiet bond, snow"),
+("Samuel walked home in the freezing night, shaking.","Samuel walking alone in the snowy street in just a thin sweater, hunched against the cold, lamp-lit"),
+("When he opened the door, his daughter was sitting up.","Samuel opening the door of a small home, a young girl sitting up in bed with a big smile, warm lamp light"),
+("She was healed. And on the table lay his coat, warm and glowing.","Father and daughter hugging, Samuel's coat folded glowing gently on the table behind them, warm golden room"),
+("When you clothe the cold, you clothe Him.","Glowing silhouette of a long-haired bearded man at the door in golden light, snowflakes turning to sparkles")])

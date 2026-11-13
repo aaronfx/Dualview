@@ -1,43 +1,43 @@
-# Short 1: He Asked for Work. Nobody Hired Him.
+# Short 1: Child Gave His Lunch to a Helpless Man, Then God Rewarded Him
 
 (After the style lock, send each as: 'Image NN: …'. 13 images.)
 
-**Image 01** (narration: "Nobody wanted to hire the stranger.")
-Wide dusty village street at midday, [JESUS-DISGUISED] knocking at a closed wooden workshop door, merchants turning their backs, heat haze
+**Image 01** (narration: "Everyone walked past this starving man. Except one boy.")
+Busy city sidewalk, crowd walking past, [STRANGER] sitting weak against a wall, a young boy NOAH (8, blue hoodie) stopping to look at him
 
-**Image 02** (narration: "He was thin, tired, and covered in dust.")
-Close portrait of [JESUS-DISGUISED], dust on his cheeks, tired kind eyes, sunlit stone wall behind him
+**Image 02** (narration: "The man had not eaten in three days.")
+Close portrait of [STRANGER] sitting on cold pavement, hollow cheeks, tired eyes, hand on stomach
 
-**Image 03** (narration: "Door after door closed in his face.")
-A row of three closed doors in a stone alley, a hand pushing one shut, [JESUS-DISGUISED] standing small in front
+**Image 03** (narration: "People looked away, and some even laughed.")
+Passers-by in business clothes walking past [STRANGER], one woman pulling her child's hand away
 
-**Image 04** (narration: "Then he came to a small bakery, run by a widow named Ruth.")
-Small stone bakery with a glowing clay oven and a few loaves on a wooden shelf, RUTH, a worn kind widow in a headscarf, kneading dough
+**Image 04** (narration: "But Noah, just eight years old, saw him.")
+Noah standing still in the crowd, looking at [STRANGER] with concern, soft focus background
 
-**Image 05** (narration: "He asked, Please, I only need work for a day.")
-[JESUS-DISGUISED] at the bakery door, hands open and humble, Ruth looking up from her dough
+**Image 05** (narration: "He had only one sandwich, and it was his lunch.")
+Close on Noah's small hands holding a wrapped sandwich in a brown paper bag, school backpack on his shoulder
 
-**Image 06** (narration: "Ruth had barely enough bread for herself.")
-Close shot of an almost empty shelf with three loaves, Ruth counting them with worry, warm oven glow
+**Image 06** (narration: "His stomach was growling too.")
+Noah touching his own stomach, hesitating, looking down at the sandwich
 
-**Image 07** (narration: "Still, she said, Come in. I cannot pay much, but you will not leave hungry.")
-Ruth waving [JESUS-DISGUISED] in with a gentle smile, golden light spilling from the doorway
+**Image 07** (narration: "But he walked over, and said, Sir, please, take this.")
+Noah holding out the sandwich to [STRANGER], who looks up in surprise, eye-level shot
 
-**Image 08** (narration: "All day he carried flour and fired the oven.")
-[JESUS-DISGUISED] carrying a heavy sack of flour across the bakery, flour dust in sunbeams, Ruth smiling behind
+**Image 08** (narration: "The man cried. No one had been kind to him in years.")
+[STRANGER] taking the sandwich with both hands, tears in his eyes, Noah smiling
 
-**Image 09** (narration: "At sunset, she gave him half of her last loaf.")
-Ruth handing [JESUS-DISGUISED] half a loaf of bread on a cloth, sunset through the window, tender moment
+**Image 09** (narration: "The man blessed him, and said, You will never go hungry.")
+[STRANGER] resting a gentle hand on Noah's shoulder, warm light between them
 
-**Image 10** (narration: "He thanked her, and walked into the night.")
-[JESUS-DISGUISED] walking away down a lantern-lit stone street at dusk, bundle on his shoulder, glancing back softly
+**Image 10** (narration: "Noah walked home with an empty bag.")
+Noah walking along a quiet suburban street at sunset, empty paper bag in hand, long warm shadows
 
-**Image 11** (narration: "The next morning, her shelves were overflowing.")
-Ruth in shock in the bakery at dawn, every shelf piled with golden loaves, light streaming, hands to her mouth
+**Image 11** (narration: "But at home, his mother had a surprise.")
+Noah opening the door of a small home, his mother hands to her mouth in joy, kitchen light
 
-**Image 12** (narration: "On the table lay a note, I was a stranger, and you took me in.")
-A folded parchment on the wooden table glowing gently, [JESUS-REVEALED] faintly visible as a bright silhouette in the doorway, golden light
+**Image 12** (narration: "Her prayer for work was answered that same day, and the table was full.")
+Small family table full of food, mother crying and laughing with Noah, warm golden window light
 
-**Image 13** (narration: "Whoever helps the least of these, helps Him.")
-[JESUS-REVEALED] smiling warmly with hands open, golden glow, Ruth kneeling in gratitude in front of him
+**Image 13** (narration: "Whatever you do for the least of these, you do for Me.")
+Glowing silhouette of a long-haired bearded man standing at the end of the street in golden light, Noah's family on the porch looking
 

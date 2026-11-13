@@ -6,11 +6,11 @@ These are **original parable-style stories**, not Gospel accounts. They are insp
 
 | # | Title | Words | ~Seconds | Verse |
 |---|---|---|---|---|
-| 1 | He Asked for Work. Nobody Hired Him. | 123 | 47 | Matthew 25:35-40 |
-| 2 | A Beggar Knocked in the Storm | 113 | 43 | Hebrews 13:2 |
-| 3 | The Boy Who Gave His Last Fish | 113 | 43 | Matthew 25:40 |
-| 4 | Two Men Passed. One Stopped. | 106 | 41 | Luke 10:36-37 |
-| 5 | The Man at the Temple Door | 112 | 43 | Matthew 25:36 |
+| 1 | Child Gave His Lunch to a Helpless Man, Then God Rewarded Him | 121 | 47 | Matthew 25:35-40 |
+| 2 | Poor Waitress Fed a Homeless Man, Then God Rewarded Her | 100 | 38 | Matthew 25:35 |
+| 3 | Truck Driver Stopped for an Old Man, Then God Rewarded Him | 91 | 35 | Luke 10:36-37 |
+| 4 | Girl Shared Her Last Bread With a Beggar, Then God Rewarded Her | 112 | 43 | Matthew 25:40 |
+| 5 | Cleaner Gave His Only Coat to a Freezing Man, Then God Rewarded Him | 115 | 44 | Matthew 25:36 |
 
 ## Workflow
 1. Paste the master prompt in ChatGPT, make the character sheet.

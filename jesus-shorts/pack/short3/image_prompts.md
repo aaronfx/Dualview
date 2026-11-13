@@ -1,40 +1,40 @@
-# Short 3: The Boy Who Gave His Last Fish
+# Short 3: Truck Driver Stopped for an Old Man, Then God Rewarded Him
 
 (After the style lock, send each as: 'Image NN: …'. 12 images.)
 
-**Image 01** (narration: "A poor boy sold fish at the market.")
-Busy ancient market square at morning, a small boy JONAH behind a basket with a few fish, stalls and colour
+**Image 01** (narration: "Thousands drove past. Only one man stopped.")
+Wet rural highway at dusk, cars rushing by, [STRANGER] standing by a broken-down old car with the hood up, waving weakly
 
-**Image 02** (narration: "He needed one more sale to feed his family.")
-Close on the boy's worried face counting two small coins, a basket with only one fish left
+**Image 02** (narration: "His car had died on a cold, empty road.")
+[STRANGER] leaning on his dead car in the cold dusk, breath visible, hands on the hood
 
-**Image 03** (narration: "A hungry stranger approached him.")
-[JESUS-DISGUISED] stepping up to the boy's stall, tired, one hand on his stomach, market blur behind
+**Image 03** (narration: "Car after car sped away.")
+Long exposure of headlights streaming past on the dark highway, [STRANGER] small by the roadside
 
-**Image 04** (narration: "The stranger had no money. Only an empty hand.")
-Close on [JESUS-DISGUISED]'s open empty palm held out gently, warm afternoon light
+**Image 04** (narration: "Then a tired truck driver named Daniel saw him.")
+DANIEL (50s, flannel jacket, cap) at the wheel of a big truck looking at the road ahead, sunset glow in the cabin
 
-**Image 05** (narration: "Everyone else laughed and walked on.")
-Market crowd laughing and walking past [JESUS-DISGUISED], a woman pulling her child away, painted motion
+**Image 05** (narration: "Daniel was already late for his delivery.")
+Daniel's face lit by the dashboard clock reading late, torn expression
 
-**Image 06** (narration: "The boy looked at his last fish. And thought of his own hunger.")
-The boy holding his last fish up in both hands, torn expression, soft light on his face
+**Image 06** (narration: "But he pulled over anyway.")
+Large truck pulling onto the shoulder with hazard lights flashing in the dusk
 
-**Image 07** (narration: "Then he wrapped it in a cloth, and gave it away.")
-The boy placing the wrapped fish into [JESUS-DISGUISED]'s hands, small smile, golden light between them
+**Image 07** (narration: "He towed the car, and gave the man his coffee.")
+Daniel hooking a tow strap to [STRANGER]'s car, a thermos of coffee handed over, warm headlight glow
 
-**Image 08** (narration: "The stranger blessed him, and slowly disappeared into the crowd.")
-[JESUS-DISGUISED] resting a gentle hand on the boy's head, crowd soft in the background
+**Image 08** (narration: "The stranger said, God will not forget this.")
+[STRANGER] smiling gently at Daniel, hand on his arm, golden low light
 
-**Image 09** (narration: "That evening, the boy walked home with an empty basket.")
-The boy walking home on a sunset path with an empty basket, calm and quiet, long shadows
+**Image 09** (narration: "Daniel got fired the next morning for being late.")
+Daniel in an office doorway holding a cardboard box, supervisor in a suit shaking his head, grey light
 
-**Image 10** (narration: "But his father was waiting at the shore, with a miracle.")
-The boy's father pointing at a fishing boat on the sea at sunset, boat sinking low with silver fish
+**Image 10** (narration: "But then his phone rang.")
+Daniel sitting in his parked truck at dawn looking at his phone with surprise, soft morning light
 
-**Image 11** (narration: "Their nets were so full, they could barely pull them in.")
-Father and boy hauling a huge net overflowing with silver fish, golden water splashing, joy
+**Image 11** (narration: "A company owner offered him a better job, with higher pay.")
+Daniel shaking hands with a smiling business owner in front of a modern logistics warehouse, golden morning
 
-**Image 12** (narration: "What you give to the least, you give to Jesus.")
-[JESUS-REVEALED] standing on the shore in the golden light, warm smile, boy's silhouette looking up
+**Image 12** (narration: "God sees every act of kindness.")
+Glowing silhouette of a bearded man standing on the highway horizon in golden sunrise light
 

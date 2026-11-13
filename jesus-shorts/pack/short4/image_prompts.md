@@ -1,40 +1,40 @@
-# Short 4: Two Men Passed. One Stopped.
+# Short 4: Girl Shared Her Last Bread With a Beggar, Then God Rewarded Her
 
 (After the style lock, send each as: 'Image NN: …'. 12 images.)
 
-**Image 01** (narration: "A cart broke down on a lonely road.")
-Long dusty road through hills at noon, a wooden cart with a broken wheel, [JESUS-DISGUISED] kneeling beside it, tired
+**Image 01** (narration: "She had one slice of bread, and a stranger was starving.")
+Dim village market alley, girl MIA (10, braided hair, worn yellow coat) holding a slice of bread, [STRANGER] sitting in a doorway
 
-**Image 02** (narration: "The stranger could not move it alone.")
-[JESUS-DISGUISED] straining to lift the heavy cart, sweat on his forehead, heat shimmer
+**Image 02** (narration: "Mia lived with her grandmother, and they had almost nothing.")
+Small tidy poor kitchen, grandmother and Mia at a table with a single slice of bread, soft window light
 
-**Image 03** (narration: "A rich merchant rode by on a fine horse.")
-A rich merchant on a white horse with a jewelled saddle riding past, looking away, dust cloud
+**Image 03** (narration: "On the way home, she saw a man shaking in a doorway.")
+Mia walking home at dusk, stopping, looking at [STRANGER] shivering in a stone doorway
 
-**Image 04** (narration: "He did not even slow down.")
-Close on the merchant's cold eyes turning from the stranger, horse hoofs lifting dust
+**Image 04** (narration: "His lips were blue from the cold.")
+Close portrait of [STRANGER] with pale blue-tinted lips, frost on his scarf, tired eyes
 
-**Image 05** (narration: "Then a poor farmer named Daniel came by, carrying his tools.")
-DANIEL, a weathered kind farmer with a hoe on his shoulder walking along the road, bag of seeds, tired but warm
+**Image 05** (narration: "She knew her grandmother needed this bread.")
+Mia gripping the bread tightly with both hands, torn expression, soft focus street behind
 
-**Image 06** (narration: "He was late for his own field, but he stopped anyway.")
-Daniel pausing on the road, looking back at the stranger, hesitation then resolve, soft light
+**Image 06** (narration: "But she remembered what her grandmother taught her.")
+Mia in warm flashback glow, grandmother's hands folded in prayer behind a soft vignette
 
-**Image 07** (narration: "Together, they lifted the cart and fixed the wheel.")
-Daniel and [JESUS-DISGUISED] pushing a wooden wheel into place with ropes and a wedge, teamwork, golden dust
+**Image 07** (narration: "She broke the bread in half, and gave him the bigger piece.")
+Mia handing the larger half of the bread to [STRANGER], their hands almost touching, warm light
 
-**Image 08** (narration: "The stranger thanked him, and said, Your field will be blessed.")
-[JESUS-DISGUISED] gripping Daniel's forearm in thanks, gentle smile, hills behind
+**Image 08** (narration: "He smiled, and said, Go home, little one. Look at your door.")
+[STRANGER] gently pointing past Mia toward her house down the alley, warm light on his face
 
-**Image 09** (narration: "Daniel hurried to his dry, cracked ground.")
-Cracked parched farmland under a hard sun, Daniel standing over it, hoe in hand, worried
+**Image 09** (narration: "At home, the door was covered with bags of food.")
+Mia's grandmother opening a wooden door, grocery bags and boxes piled on the step, both stunned
 
-**Image 10** (narration: "Then the clouds gathered, and rain began to fall.")
-Dark clouds opening over the field, rain falling on Daniel's upturned face, joyful tears, light breaking through
+**Image 10** (narration: "Neighbours were cooking and laughing in their kitchen.")
+Mia and her grandmother at a table with neighbours bringing steaming dishes, warm kitchen light, tears of joy
 
-**Image 11** (narration: "By harvest, his barns were the fullest in the valley.")
-Overflowing barn of golden wheat, Daniel and his family laughing in the harvest light
+**Image 11** (narration: "No one knew who had sent them.")
+Mia looking out the window at the empty alley where [STRANGER] was, a faint golden glow in the street
 
-**Image 12** (narration: "Who is my neighbour? The one who stopped.")
-[JESUS-REVEALED] on the hill smiling at the field, golden light, hand raised in blessing
+**Image 12** (narration: "Give, and it shall be given to you.")
+Glowing silhouette of a bearded long-haired man at the far end of the alley in warm golden light
 

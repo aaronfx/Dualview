@@ -1,40 +1,40 @@
-# Short 2: A Beggar Knocked in the Storm
+# Short 2: Poor Waitress Fed a Homeless Man, Then God Rewarded Her
 
 (After the style lock, send each as: 'Image NN: …'. 12 images.)
 
-**Image 01** (narration: "A terrible storm hit the village.")
-Night storm over a hillside village, lightning, bending olive trees, rain sheets, small lit windows
+**Image 01** (narration: "She had nine dollars, and he had nothing.")
+Night diner interior, young waitress GRACE (late 20s, ponytail, apron) wiping a counter, rain on the window, [STRANGER] outside looking in
 
-**Image 02** (narration: "At the edge of town, a beggar was shaking in the cold.")
-[JESUS-DISGUISED] soaked, shivering against a stone wall in the rain, hugging himself, lightning flash behind
+**Image 02** (narration: "He stood in the rain, looking through the window.")
+[STRANGER] soaked outside a diner window in rainy night, face lit by neon glow, hands in coat
 
-**Image 03** (narration: "He knocked on the rich man's door.")
-Huge ornate wooden door of a rich house, [JESUS-DISGUISED] knocking small and cold, warm light under the door
+**Image 03** (narration: "Her manager said, Do not let him in.")
+Angry manager in a white shirt pointing at the door, Grace uneasy behind the counter, tense mood
 
-**Image 04** (narration: "The rich man shouted, Go away.")
-A rich man in fine robes at the door with an angry waving hand, [JESUS-DISGUISED] stepping back, rain
+**Image 04** (narration: "But Grace saw how cold he was.")
+Close on Grace's compassionate eyes looking toward the window, warm diner light on her face
 
-**Image 05** (narration: "He knocked on three more doors. No one answered.")
-Three dark closed doors in a rainy lane, [JESUS-DISGUISED] walking between them, head bowed
+**Image 05** (narration: "She slipped out the back and brought him inside.")
+Grace holding the door open to [STRANGER] on a rainy night, steam and warm light spilling out
 
-**Image 06** (narration: "At the very last house, lived a poor shepherd and his small son.")
-Tiny stone hut with one glowing window at the village edge, a shepherd and his boy TOBIAS visible inside by lamp
+**Image 06** (narration: "She paid for his soup with her last nine dollars.")
+Grace handing coins and notes across the counter, a steaming bowl of soup on a tray, quiet moment
 
-**Image 07** (narration: "The shepherd opened the door and said, We have little. But come in.")
-The shepherd opening the door, boy peeking behind his leg, [JESUS-DISGUISED] dripping at the threshold, warm light
+**Image 07** (narration: "He ate slowly, with shaking hands.")
+Close on [STRANGER]'s trembling hands around a hot soup bowl, steam rising, warm light
 
-**Image 08** (narration: "They shared their soup, and the stranger's shaking stopped.")
-Interior: three at a small table sharing a bowl of soup, oil lamp glow, [JESUS-DISGUISED] smiling for the first time, boy giggling
+**Image 08** (narration: "The manager fired her on the spot.")
+Manager angrily taking Grace's apron, Grace stunned, [STRANGER] watching sadly
 
-**Image 09** (narration: "He slept by the fire, and they gave him their only blanket.")
-The shepherd laying a wool blanket over sleeping [JESUS-DISGUISED] by the hearth, the boy watching sleepily
+**Image 09** (narration: "Grace walked out into the rain with nothing.")
+Grace walking alone down a wet street at night, apron folded in her hand, city lights blurred
 
-**Image 10** (narration: "At dawn, the stranger was gone.")
-Empty hearth with the folded blanket, sunrise through the door, the shepherd puzzled, boy pointing outside
+**Image 10** (narration: "But the stranger was gone, and a car pulled up.")
+Rainy street, empty bench where [STRANGER] sat, a car stopping in the foreground with headlights glowing
 
-**Image 11** (narration: "Outside, their dry field had become green and full of sheep.")
-Shepherd and boy at the doorway seeing a lush green hillside with many sheep, golden sunrise, rainbow
+**Image 11** (narration: "The owner had watched everything. He gave her a better job that very night.")
+Elegant older man in a coat shaking Grace's hand outside the diner, Grace stunned and tearful, warm streetlight
 
-**Image 12** (narration: "Some have shown kindness to angels without knowing it.")
-[JESUS-REVEALED] standing on the hill in golden light, gentle smile, sheep around him, blessing hand raised
+**Image 12** (narration: "Kindness is never wasted.")
+Glowing silhouette of a long-haired bearded man walking away down the rainy street into golden light
 

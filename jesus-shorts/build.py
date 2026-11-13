@@ -14,7 +14,7 @@ for s in S:
         for i,(a,p) in enumerate(s['scenes'],1):
             f.write(f"**Image {i:02d}** (narration: \"{a}\")\n{p}\n\n"); rows.append((s['id'],i,a,p))
     plan.append(f"| {s['id']} | {s['title']} | {words} | {round(words/2.6)} | {s['verse']} |")
-    open(f"{d}/youtube_meta.txt",'w').write(f"TITLE: {s['title']} #shorts\n\nDESCRIPTION:\nA short original parable-style story inspired by {s['verse']} (not a Gospel account). When we help someone in need, we may be serving Jesus himself.\n\n#Jesus #Faith #Christian #Shorts #Kindness #Parable\n")
+    open(f"{d}/youtube_meta.txt",'w').write(f"TITLE: {s['title']} #shorts\n\nDESCRIPTION:\nA short original, fictional story inspired by {s['verse']} (not a Gospel account). When we help someone in need, we may be serving Jesus himself.\n\n#Jesus #Faith #Christian #Shorts #Kindness #Parable\n")
 with open(f'{out}/all_prompts.csv','w',newline='') as f:
     w=csv.writer(f);w.writerow(['short','image','narration','prompt']);w.writerows(rows)
 plan.append("\n## Workflow\n1. Paste the master prompt in ChatGPT, make the character sheet.\n2. Generate one short's images (12–13) in that chat, name them 01, 02….\n3. Make the narration in ElevenLabs (Ron, same voice) from that short's narration file.\n4. Send me mp3 + the images; I build the 1080×1920 video with Ken Burns, yellow keyword labels and captions.\n")
