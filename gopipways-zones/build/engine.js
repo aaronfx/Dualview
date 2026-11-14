@@ -7,7 +7,7 @@ window.READY=new Promise(res=>{SC.forEach(s=>{if(s.type!=='F')return;const im=ne
 const IDX={};SC.forEach((s,i)=>IDX[s.k]=i);
 // per chart: ordered beat scenes
 const CHBEATS={};Object.keys(CHARTS).forEach(id=>{CHBEATS[id]=Object.keys(CHARTS[id].beats).map(Number).sort((a,b)=>a-b)});
-const PLOT={x:110,y:350,w:1450,h:500},PANEL={x:80,y:310,w:1760,h:570};
+const PLOT={x:110,y:366,w:1370,h:486},PANEL={x:80,y:320,w:1760,h:572};
 function sceneAt(t){let lo=0,hi=SC.length-1;while(lo<hi){const m=(lo+hi+1)>>1;if(SC[m].a<=t)lo=m;else hi=m-1}return lo}
 const FR=[[.5,.5,1.0,1.10,0,0],[.30,.44,1.42,1.52,.03,0],[.70,.44,1.42,1.52,-.03,0],[.5,.36,1.38,1.48,0,.02],[.5,.5,1.22,1.32,0,0],[.5,.5,1.15,1.0,0,0],[.36,.44,1.28,1.28,.28,.05]];
 function frameRect(img,f,p){const[cx,cy,z0,z1,dx,dy]=FR[f%FR.length];const iw=img.naturalWidth||1672,ih=img.naturalHeight||941,base=Math.max(CW/iw,CH/ih),z=lerp(z0,z1,p),s=base*z,w=iw*s,h=ih*s;
@@ -30,18 +30,18 @@ function chartView(s,t,ov){const ch=CHARTS[SCH[s.k]];const bs=CHBEATS[SCH[s.k]];
  const p=ease(clamp(u/(dur*.82)));return{ch,beat:ch.beats[s.k],v:prev+(cur-prev)*p}}
 function yOf(ch,p){return PLOT.y+(ch.ymax-p)/(ch.ymax-ch.ymin)*PLOT.h}
 function xOf(ch,i){return PLOT.x+(i+.5)*PLOT.w/ch.candles.length}
-function pill(ctx,txt,x,y,col,alpha){ctx.save();ctx.globalAlpha=alpha;ctx.font=`800 22px ${FONT}`;const w=ctx.measureText(txt).width+26;ctx.fillStyle='rgba(10,18,34,.92)';ctx.strokeStyle=col;ctx.lineWidth=2;ctx.beginPath();ctx.roundRect(x-w/2,y-19,w,38,8);ctx.fill();ctx.stroke();ctx.fillStyle=col;ctx.textAlign='center';ctx.fillText(txt,x,y+8);ctx.restore()}
+function pill(ctx,txt,x,y,col,alpha){ctx.save();ctx.globalAlpha=alpha;ctx.font=`800 32px ${FONT}`;const w=ctx.measureText(txt).width+36;x=Math.min(PLOT.x+PLOT.w-w/2,Math.max(PLOT.x+w/2,x));y=Math.min(PANEL.y+PANEL.h-44,Math.max(PLOT.y+6,y));ctx.fillStyle='rgba(10,18,34,.94)';ctx.strokeStyle=col;ctx.lineWidth=3;ctx.beginPath();ctx.roundRect(x-w/2,y-27,w,54,10);ctx.fill();ctx.stroke();ctx.fillStyle=col;ctx.textAlign='center';ctx.fillText(txt,x,y+11);ctx.restore()}
 function annAlpha(a,s,v,t){let al=1;if(a.idx!==undefined&&typeof a.idx==='number')al=Math.min(al,clamp((v-a.idx)/2.5));if(a.scene!==undefined&&a.scene===s.k)al=Math.min(al,clamp((t-s.a)/.6));return al}
 function annOn(a,s,v){if(a.scene!==undefined&&s.k<a.scene)return false;if(a.until!==undefined&&s.k>=a.until)return false;if(typeof a.idx==='number'&&v<a.idx)return false;return true}
 function paintChartS(ctx,s,t,ov){const {ch,beat,v}=chartView(s,t,ov);const TT=(ov&&ov.title)||beat.title,SS=(ov&&ov.sub)||beat.sub,CC=(ov&&ov.chip)||beat.chip;ctx.clearRect(0,0,CW,CH);ctx.fillStyle=COL.bg;ctx.fillRect(0,0,CW,CH);
  // header
- ctx.font=`800 26px ${FONT}`;ctx.textAlign='left';ctx.fillStyle=COL.white;ctx.fillText('GOPIPWAYS',80,62);ctx.font=`700 20px ${FONT}`;ctx.textAlign='right';ctx.fillStyle=COL.gray;ctx.fillText('CHART STUDY',1840,60);ctx.fillStyle='#1b2a44';ctx.fillRect(80,80,1760,2);
+ ctx.font=`800 32px ${FONT}`;ctx.textAlign='left';ctx.fillStyle=COL.white;ctx.fillText('GOPIPWAYS',80,64);ctx.font=`700 26px ${FONT}`;ctx.textAlign='right';ctx.fillStyle=COL.gray;ctx.fillText('CHART STUDY',1840,62);ctx.fillStyle='#1b2a44';ctx.fillRect(80,80,1760,2);
  const ta=clamp((t-s.a)/.35);ctx.save();ctx.globalAlpha=ta;ctx.textAlign='left';ctx.fillStyle=COL.white;let fs=72;ctx.font=`800 ${fs}px ${FONT}`;while(ctx.measureText(TT).width>1760&&fs>40){fs-=4;ctx.font=`800 ${fs}px ${FONT}`}ctx.fillText(TT,80,170+(1-ta)*14);
- ctx.font=`500 30px ${FONT}`;ctx.fillStyle=COL.gray;ctx.fillText(SS,80,218);ctx.restore();
- ctx.fillStyle=COL.chip;ctx.beginPath();ctx.roundRect(80,244,1760,46,8);ctx.fill();ctx.font=`800 22px ${FONT}`;ctx.fillStyle=COL.gold;ctx.textAlign='left';ctx.fillText(CC,100,275);
+ ctx.font=`600 38px ${FONT}`;ctx.fillStyle='#a7b6cf';ctx.fillText(SS,80,224);ctx.restore();
+ ctx.fillStyle=COL.chip;ctx.beginPath();ctx.roundRect(80,246,1760,58,8);ctx.fill();ctx.font=`800 30px ${FONT}`;ctx.fillStyle=COL.gold;ctx.textAlign='left';ctx.fillText(CC,100,285);
  ctx.fillStyle=COL.panel;ctx.beginPath();ctx.roundRect(PANEL.x,PANEL.y,PANEL.w,PANEL.h,16);ctx.fill();
  ctx.strokeStyle=COL.grid;ctx.lineWidth=1.5;for(let g=0;g<=5;g++){const y=PLOT.y+g*PLOT.h/5;ctx.beginPath();ctx.moveTo(PLOT.x,y);ctx.lineTo(PLOT.x+PLOT.w,y);ctx.stroke()}
- ctx.font=`500 18px ${FONT}`;ctx.fillStyle='#5d6e8a';ctx.textAlign='left';ctx.fillText(ch.symbol,PANEL.x+24,PANEL.y+PANEL.h-18);
+ ctx.font=`600 24px ${FONT}`;ctx.fillStyle='#6f809c';ctx.textAlign='left';ctx.fillText(ch.symbol,PANEL.x+24,PANEL.y+PANEL.h-16);
  // annotations that sit behind candles: zones, boxes, hlines
  const RL=[];const on=ch.ann.filter(a=>annOn(a,s,v));
  const boxes={};on.filter(a=>a.type==='box').forEach(a=>{if(!boxes[a.id]||boxes[a.id].scene<=a.scene)boxes[a.id]=a});
@@ -49,29 +49,32 @@ function paintChartS(ctx,s,t,ov){const {ch,beat,v}=chartView(s,t,ov);const TT=(o
   if(a.to===undefined||x1>=PLOT.x+PLOT.w-2){RL.push({y:(y1+y2)/2+6,c:a.color,l:a.label,p:null,al:al})}ctx.restore()});
  Object.values(boxes).forEach(a=>{const al=annAlpha(a,s,v,t),x0=xOf(ch,a.idx),x1=PLOT.x+PLOT.w,yE=yOf(ch,a.entry),yS=yOf(ch,a.stop),yT=yOf(ch,a.target),da=a.dashed?.55:1;ctx.save();ctx.globalAlpha=al*da;
   ctx.fillStyle='rgba(45,179,166,.15)';ctx.fillRect(x0,Math.min(yE,yT),x1-x0,Math.abs(yT-yE));ctx.fillStyle='rgba(226,65,99,.20)';ctx.fillRect(x0,Math.min(yE,yS),x1-x0,Math.abs(yS-yE));
-  const ln=(y,c,lab,pr)=>{ctx.strokeStyle=c;ctx.lineWidth=2;ctx.setLineDash([9,7]);ctx.beginPath();ctx.moveTo(x0,y);ctx.lineTo(x1,y);ctx.stroke();ctx.setLineDash([]);RL.push({y:y-6,c:c,l:lab,p:pr,al:al*da})};
+  const ln=(y,c,lab,pr)=>{ctx.strokeStyle=c;ctx.lineWidth=3;ctx.setLineDash([11,8]);ctx.beginPath();ctx.moveTo(x0,y);ctx.lineTo(x1,y);ctx.stroke();ctx.setLineDash([]);RL.push({y:y-6,c:c,l:lab,p:pr,al:al*da,single:true})};
   ln(yE,COL.gold,'ENTRY',a.entry);ln(yS,COL.dn,'STOP LOSS',a.stop);ln(yT,COL.up,'TARGET',a.target);
   if(a.rr&&s.k>=a.rrscene){pill(ctx,a.rr,(x0+x1)/2,(yE+yT)/2,COL.up,1)}ctx.restore()});
- on.filter(a=>a.type==='hline').forEach(a=>{const al=annAlpha(a,s,v,t),x0=xOf(ch,a.idx||0),x1=a.to!==undefined?xOf(ch,a.to):PLOT.x+PLOT.w,y=yOf(ch,a.price);ctx.save();ctx.globalAlpha=al;ctx.strokeStyle=a.color;ctx.lineWidth=2.2;ctx.setLineDash([10,8]);ctx.beginPath();ctx.moveTo(x0,y);ctx.lineTo(x1,y);ctx.stroke();ctx.setLineDash([]);
+ on.filter(a=>a.type==='hline').forEach(a=>{const al=annAlpha(a,s,v,t),x0=xOf(ch,a.idx||0),x1=a.to!==undefined?xOf(ch,a.to):PLOT.x+PLOT.w,y=yOf(ch,a.price);ctx.save();ctx.globalAlpha=al;ctx.strokeStyle=a.color;ctx.lineWidth=3;ctx.setLineDash([12,9]);ctx.beginPath();ctx.moveTo(x0,y);ctx.lineTo(x1,y);ctx.stroke();ctx.setLineDash([]);
   if(a.label&&(a.to===undefined||x1>=PLOT.x+PLOT.w-2)){RL.push({y:y-6,c:a.color,l:a.label,p:a.price,al:al})}ctx.restore()});
  // candles
  const n=ch.candles.length,slot=PLOT.w/n,bw=Math.max(4,slot*.62);const full=Math.floor(v),frac=v-full;
  for(let k=0;k<Math.min(n,full+1);k++){let[o,h,l,c]=ch.candles[k];if(k===full){if(frac<=0)break;c=o+(c-o)*frac;h=Math.max(o,c)+(h-Math.max(ch.candles[k][0],ch.candles[k][3]))*frac;l=Math.min(o,c)-(Math.min(ch.candles[k][0],ch.candles[k][3])-l)*frac}
-  const x=xOf(ch,k),up=c>=o,col=up?COL.up:COL.dn;ctx.strokeStyle=col;ctx.lineWidth=2.2;ctx.beginPath();ctx.moveTo(x,yOf(ch,h));ctx.lineTo(x,yOf(ch,l));ctx.stroke();const y1=yOf(ch,Math.max(o,c)),y2=yOf(ch,Math.min(o,c));ctx.fillStyle=col;ctx.fillRect(x-bw/2,y1,bw,Math.max(2,y2-y1))}
+  const x=xOf(ch,k),up=c>=o,col=up?COL.up:COL.dn;ctx.strokeStyle=col;ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(x,yOf(ch,h));ctx.lineTo(x,yOf(ch,l));ctx.stroke();const y1=yOf(ch,Math.max(o,c)),y2=yOf(ch,Math.min(o,c));ctx.fillStyle=col;ctx.fillRect(x-bw/2,y1,bw,Math.max(2,y2-y1))}
  // annotations on top
  on.filter(a=>['circle','arrow','tag'].includes(a.type)).forEach(a=>{const al=annAlpha(a,s,v,t),x=xOf(ch,a.idx),y=yOf(ch,a.price);
-  if(a.type==='circle'){ctx.save();ctx.globalAlpha=al;ctx.strokeStyle=a.color;ctx.lineWidth=3.2;ctx.beginPath();ctx.arc(x,y,17,0,7);ctx.stroke();ctx.restore()}
+  if(a.type==='circle'){ctx.save();ctx.globalAlpha=al;ctx.strokeStyle=a.color;ctx.lineWidth=4.5;ctx.beginPath();ctx.arc(x,y,22,0,7);ctx.stroke();ctx.restore()}
   else if(a.type==='arrow'){ctx.save();ctx.globalAlpha=al;ctx.fillStyle=a.color;ctx.strokeStyle=a.color;ctx.lineWidth=4;const d=a.dir==='down'?1:-1,y0=y-d*62,y1=y-d*10;ctx.beginPath();ctx.moveTo(x,y0);ctx.lineTo(x,y1-d*8);ctx.stroke();ctx.beginPath();ctx.moveTo(x,y1);ctx.lineTo(x-10,y1-d*18);ctx.lineTo(x+10,y1-d*18);ctx.closePath();ctx.fill();ctx.restore();if(a.text)pill(ctx,a.text,x,y0-d*26,a.color,al)}
   else if(a.type==='tag'){pill(ctx,a.text,x,y+(a.dy||0),a.color,al)}});
  // right-margin labels with spacing
- RL.sort((a,b)=>a.y-b.y);let lastY=-999,lastH=0;RL.forEach(r=>{const h=r.p!==null?46:28;let y=r.y;if(y<lastY+lastH)y=lastY+lastH;r.y2=y;lastY=y;lastH=h;ctx.save();ctx.globalAlpha=r.al;ctx.font=`800 18px ${FONT}`;ctx.textAlign='left';ctx.fillStyle=r.c;ctx.fillText(r.l,PLOT.x+PLOT.w+14,y);if(r.p!==null){ctx.fillStyle=COL.white;ctx.fillText(Math.round(r.p).toLocaleString('en-US'),PLOT.x+PLOT.w+14,y+22)}ctx.restore()});
+ RL.sort((a,b)=>a.y-b.y);let lastY=-999,lastH=0;RL.forEach(r=>{const h=r.single?42:(r.p!==null?70:42);let y=r.y;if(y<lastY+lastH)y=lastY+lastH;r.y2=y;r.h=h;lastY=y;lastH=h});
+ if(RL.length){const bottom=PANEL.y+PANEL.h-36,over=RL[RL.length-1].y2+RL[RL.length-1].h-bottom;if(over>0){RL.forEach(r=>r.y2-=over);let top=PLOT.y+20;RL.forEach(r=>{if(r.y2<top)r.y2=top;top=r.y2+r.h})}}
+ RL.forEach(r=>{const y=r.y2;ctx.save();ctx.globalAlpha=r.al;ctx.font=`800 27px ${FONT}`;ctx.textAlign='left';ctx.fillStyle=r.c;const X=PLOT.x+PLOT.w+16;ctx.fillText(r.l,X,y);
+  if(r.p!==null){const pr=Math.round(r.p).toLocaleString('en-US');ctx.font=`800 31px ${FONT}`;ctx.fillStyle=COL.white;if(r.single){ctx.font=`800 27px ${FONT}`;const w=ctx.measureText(r.l+'  ').width;ctx.font=`800 31px ${FONT}`;ctx.fillText(pr,X+w,y)}else ctx.fillText(pr,X,y+34)}ctx.restore()});
  // footer
- ctx.font=`500 20px ${FONT}`;ctx.fillStyle='#6a7b97';ctx.textAlign='left';ctx.fillText('Illustrative example  ·  not a real trade  ·  not financial advice',80,1052);ctx.textAlign='right';ctx.fillText('gopipways.com',1840,1052)}
+ ctx.font=`600 25px ${FONT}`;ctx.fillStyle='#7d8ea9';ctx.textAlign='left';ctx.fillText('Illustrative example  ·  not a real trade  ·  not financial advice',80,1054);ctx.textAlign='right';ctx.fillText('gopipways.com',1840,1054)}
 function paintChart(ctx,i,t){paintChartS(ctx,SC[i],t,null)}
 function paint(ctx,i,t){if(SC[i].type==='F')paintFigure(ctx,i,t);else paintChart(ctx,i,t)}
 function caption(t){let k=-1;for(let i=0;i<CAP.length;i++){if(t>=CAP[i][0]-.02)k=i;else break}if(k<0)return;const c=CAP[k];if(t>c[1]+.15)return;const i=sceneAt(t),isF=SC[i].type==='F';
- const x=MAIN;x.save();x.font=`800 ${isF?46:42}px ${FONT}`;x.textAlign='center';x.lineJoin='round';const words=c[2].split(' '),maxW=1560;let ls=[],cur='';for(const w of words){const tt=cur?cur+' '+w:w;if(x.measureText(tt).width>maxW){ls.push(cur);cur=w}else cur=tt}ls.push(cur);x.globalAlpha=clamp((t-c[0])/.12);
- const base=isF?1024:1000;ls.forEach((ln,j)=>{const y=base-(ls.length-1-j)*56;x.lineWidth=12;x.strokeStyle='rgba(0,0,0,.92)';x.strokeText(ln,CW/2,y);x.fillStyle='#fff';x.fillText(ln,CW/2,y)});x.restore()}
+ const x=MAIN;x.save();x.font=`800 ${isF?48:46}px ${FONT}`;x.textAlign='center';x.lineJoin='round';const words=c[2].split(' '),maxW=1560;let ls=[],cur='';for(const w of words){const tt=cur?cur+' '+w:w;if(x.measureText(tt).width>maxW){ls.push(cur);cur=w}else cur=tt}ls.push(cur);x.globalAlpha=clamp((t-c[0])/.12);
+ const base=isF?1024:1004;ls.forEach((ln,j)=>{const y=base-(ls.length-1-j)*56;x.lineWidth=12;x.strokeStyle='rgba(0,0,0,.92)';x.strokeText(ln,CW/2,y);x.fillStyle='#fff';x.fillText(ln,CW/2,y)});x.restore()}
 const OFF1=document.createElement('canvas'),OFF2=document.createElement('canvas');OFF1.width=OFF2.width=CW;OFF1.height=OFF2.height=CH;const TR=.3;
 function draw(t){const i=sceneAt(t),s=SC[i],u=t-s.a;const pv=i>0?SC[i-1]:null;const same=pv&&pv.type==='C'&&s.type==='C'&&SCH[pv.k]===SCH[s.k];
  if(i>0&&u<TR&&!same){const p=ease(u/TR);paint(OFF1.getContext('2d'),i-1,SC[i-1].b-.001);paint(OFF2.getContext('2d'),i,t);MAIN.clearRect(0,0,CW,CH);MAIN.drawImage(OFF1,0,0);MAIN.globalAlpha=p;MAIN.drawImage(OFF2,0,0);MAIN.globalAlpha=1}else paint(MAIN,i,t);
