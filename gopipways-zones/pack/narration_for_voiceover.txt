@@ -1,0 +1,229 @@
+If you're a complete beginner who wants to learn trading, or you've already been trading for two or three years, I can guarantee that by the end of this video, if you watch it all the way through, you'll have a much clearer understanding of how to mark trading zones and identify the right levels.
+
+I'm going to explain everything, from the basics to more advanced concepts, so you can understand zone marking even if you're trading on the one-minute timeframe.
+
+I'm Dr. Aaron, and I have 10 years of trading experience. If you already have one or two years of experience, my suggestion is to watch the whole video from start to finish. I believe this will be a useful revision for you. Don't skip ahead. You might learn something new.
+
+Let's talk about marking zones.
+
+If you don't know, I also host a live Weekly Market Outlook on Zoom. A lot of people have asked me, “Dr. Aaron, can you make a video on marking zones?” How do we mark zones? How do we identify levels where a move has started, or where the next move could start?
+
+First, if you're a complete beginner, let's cover basic support and resistance.
+
+What is resistance? Resistance is a price level where the market repeatedly moves up, meets selling pressure, and then falls. It's usually easy to spot on a chart.
+
+Look at this example. Price reaches this level once, twice, and three times, and falls each time. That's a resistance level. Whenever price reaches that area, it has been rejected.
+
+Support is the opposite. It's an area where price repeatedly comes down and then moves upward. Buyers are stepping in and trying to push price higher.
+
+That's the basic concept of support and resistance.
+
+So how do we spot these levels?
+
+We look for a price area that has been respected more than once, where price has reacted and moved away. If it has held two or three times, traders may watch it for another reaction on the third or fourth test.
+
+But how do we improve the probability of choosing a useful level? That's what we're going to explore in detail.
+
+Suppose I mark a resistance level because price has reached it three times and fallen. What guarantees that price will fall again on the fourth test? Nothing. Price could break above the resistance and keep moving higher. That's exactly what we need to understand.
+
+Now, here's the second basic concept. When price breaks resistance, that former resistance can become support. And when price breaks support, that former support can become resistance.
+
+Let's say price repeatedly holds a support level and moves upward. Eventually, that support breaks. If price comes back to the same level, it may start acting as resistance.
+
+Look at this example. What used to be resistance has become support. Price has returned to that area, and we can watch to see whether buyers defend it again.
+
+Now let's look at the opposite. This level acted as support twice, but price eventually broke below it. When price returned to the same area, it met resistance and fell. The former support had become resistance.
+
+These are two very basic concepts. If you want to master zone marking, you need to understand them.
+
+But why does a broken support sometimes turn into resistance? What's the logic behind it?
+
+Let's imagine I'm a buyer. I've bought around 4,400 before, and price has gone up each time. I bought once at 4,400 and made a profit. I bought a second time and made a profit again.
+
+On the third visit, I think, “This is support. It has worked before. I'll buy at 4,400 again.” But this time, price breaks lower, and my position goes into a loss.
+
+When price finally returns to 4,400, what might I do? I may think, “I was stuck in that losing buy. Now that price is back at my entry, I'm getting out.” That selling pressure can help turn the old support into resistance.
+
+It's a simple way to understand one of the psychological reasons behind the support-to-resistance flip.
+
+The reverse can happen when resistance becomes support.
+
+Imagine price has repeatedly fallen from 5,600. You've been buying around 5,300 and selling around 5,600. It worked several times.
+
+Then you sell again at 5,600, expecting another drop. But instead, price breaks above the resistance.
+
+When price returns to 5,600, your thinking may change. You might decide, “That resistance has broken. There may be a better chance of price rising from here.” So instead of selling, you look for a buy.
+
+The area you once treated as resistance is now an area where you might look for support.
+
+That's how trader behavior and market psychology can contribute to these reactions. Of course, there are more technical factors and more advanced mechanisms involved. But this is an easy way to understand why support can become resistance, and resistance can become support.
+
+I hope that's clear. This is the basic foundation. Now we're going to start marking zones more precisely.
+
+So far, we've established that support and resistance are areas where price has reacted two or three times. But that is where many traders stop, and that's a mistake.
+
+When you're marking a zone, I want you to keep two important questions in mind.
+
+First, did price move away from the zone with strength? Was there a strong reaction or a meaningful move?
+
+Second, when price moved away from the zone, did it create a break of structure?
+
+I'll explain both concepts with an example.
+
+Look at this chart. Here we have a potential support level. Price has touched the area twice and moved higher.
+
+Many beginners would say, “Two touches? That's support. Done.” But that isn't enough.
+
+Ask yourself: Did a strong bullish move begin there?
+
+Support and resistance help us identify areas where buying and selling pressure may exist. But it's not enough just to know that buyers or sellers are present. We want to know whether they are strong enough to move price significantly.
+
+If buyers are present but weak, the support can still break. If buying pressure is strong, price may move sharply higher. That strength is what interests us.
+
+In this example, price reacted from support with a strong upward move. That's our first positive sign.
+
+Now, what about a break of structure?
+
+Did price move above a previous significant high and create a fresh higher high? Yes. It continued the uptrend and reached a level it had not reached before.
+
+That's what I'm referring to here as a bullish break of structure.
+
+If price had bounced a little and then fallen straight back, we wouldn't have the same confirmation. But in this example, the move from support broke a previous high. So we have both things: a strong reaction and a break of structure.
+
+Now we wait for price to return to that support zone.
+
+Here comes price, back into the zone. Suppose it prints a green candle. That gives me an entry confirmation to consider a buy.
+
+I could place the stop loss below the support zone and set a target near the previous high. If price has already broken structure to the upside from this area, it may be capable of another strong move. That's the idea behind this setup.
+
+Let's say my target is 4,500. I enter the buy. Price rises, pulls back, taps the same area again, and then makes a much bigger move upward.
+
+That's how I use strength and structure to filter support zones.
+
+Of course, we're looking at a higher timeframe here. Later, we'll bring the same logic down to a smaller timeframe and go into more detail.
+
+That was our support example. Now let's look at resistance.
+
+Look at this chart. If you're a complete beginner, it might seem confusing. You can see several possible levels: a former resistance that turned into support, another reaction zone here, and another one over there.
+
+You might be thinking, “Which level am I supposed to mark?”
+
+Let me simplify it. Forget the noise for a moment and ask one question: Where did the big move start?
+
+Where did the strongest downward momentum begin?
+
+Take a moment and look at the chart.
+
+If you chose this particular level, you're correct. Price was moving downward, but the strongest bearish move began from this area.
+
+If I want to mark just one important resistance level, this is the one I would prioritize. Price has reacted here multiple times. A strong downward move started here. And that move also broke structure to the downside by taking out a previous significant low.
+
+That's the combination we're looking for.
+
+Now, someone might say, “Dr. Aaron, what about this other level? It was support, became resistance, and price moved down from it too.”
+
+That's a fair question. But look carefully. Price tried to react at that lower level, moved down, failed to continue, and came back up. It's now approaching the higher resistance area.
+
+Does that mean price absolutely cannot fall from the lower level? No. But the move toward that level was strong, and it didn't hold the way we wanted. I would give more weight to the resistance zone from which the major bearish move began.
+
+Watch how price develops. It breaks through the lower level. Now the next important level left on our chart is the main resistance zone where the stronger downward move began.
+
+Remember this: when you're confused by several zones, give priority to the one that produced a significant move. If an area didn't create much momentum, don't automatically treat it as the most important level unless current price action gives you a reason.
+
+Suppose price now reaches our marked resistance and prints a bearish candle. That could be an opportunity to consider a short trade.
+
+Let's place the stop loss above the candle or above the zone, depending on our plan. We could target a risk-to-reward ratio of one to two.
+
+Even a smaller move can offer an opportunity. On gold, for example, a move of around 50 dollars can be substantial. The key is identifying the zone and planning the trade.
+
+Now, let's follow the example on the chart.
+
+Price has moved upward and tapped our resistance. A red candle appears. Let's say I enter a short, place the stop loss above the area, and set the target near the round number of 4,000.
+
+In this illustration, the risk-to-reward ratio is roughly one to 3.9.
+
+Let's see what happens. Price moves down, gets close to the target, pulls up briefly, then falls again.
+
+And there we go. Our target is hit.
+
+We used a simple principle: identify the important zone, look for strength and structure, wait for price to return, and then evaluate a trade.
+
+You can also apply this idea to swing trading. If you're working, studying, or can't watch charts all day, you may prefer higher-timeframe setups that can last for two or three days.
+
+Mark the important zones, place alerts, and wait for price to reach those areas. Then assess your entry, stop loss, and target.
+
+We're using a one-hour chart in this example, and this kind of planning can also be useful for traders who cannot monitor every small movement.
+
+Now let's move on to more advanced examples: support turning into resistance, and resistance turning into support.
+
+First, let's look at support turning into resistance.
+
+Here's a strong support level. You can see that a major bullish move started here. Later, price returned to the same area, bounced again, and created a bullish break of structure by reaching a higher level.
+
+But eventually, the support broke.
+
+Now, what should we look for?
+
+Earlier, when evaluating support, we checked whether price had moved upward strongly from the level. When evaluating resistance, we checked whether a strong sell-side move had started there.
+
+When support breaks and may become resistance, we want to see how strong the selling was during the breakdown. Did sellers take control aggressively? Did price break an important low?
+
+The stronger the breakdown and the more meaningful the break of structure, the more interested I become in a possible retest of that level.
+
+Here's our example. Support breaks. Price moves sharply downward with strong selling pressure. Then price comes back up to test the old support, which may now act as resistance.
+
+A bearish candle appears near that level. I can consider a short entry with a stop loss above the resistance zone and a target near 4,200, a round-number level.
+
+Let's see how the chart develops. Price moves down. Later, it comes back up and tests that same resistance area again.
+
+Why am I watching this level closely? Because the initial breakdown had strong selling momentum, and price also broke structure to the downside.
+
+Now we wait for a bearish candle to appear. There it is.
+
+Let's say I take the short entry, place the stop loss above that candle, and set a target around 4,200.
+
+In this example, price hits our stop loss. We lose the trade.
+
+But notice that price eventually moves down afterward. This shows why stop-loss placement matters. A stop just above an individual candle may be too tight for the structure we're trading. A wider stop above the full invalidation zone would have changed the result, although it would also have changed the risk and position size.
+
+The main point here isn't the specific stop loss or target. It's learning how to recognize and mark the important zone.
+
+I hope that example makes sense.
+
+Now let's look at the opposite: resistance turning into support.
+
+Here we have another useful example.
+
+First, notice this support level. Price has found support here several times, and a strong move began from this area.
+
+But there's also a resistance level above it. Price has tested that resistance before, and now it finally breaks through.
+
+Once resistance is broken, it may start acting as support.
+
+What do we need to check? The same two questions.
+
+First, did price break the resistance with strong bullish momentum?
+
+Yes.
+
+Second, did the move create a bullish break of structure by taking out a previous significant high?
+
+Yes, it did.
+
+So we have two reasons to pay attention to this level when price comes back down to retest it.
+
+If price touches the former resistance, now potential support, and prints a bullish candle, that may give us an opportunity to consider a buy.
+
+Let's watch what happens.
+
+Price comes back and just touches the area. Suppose we wait for that bullish candle, enter a buy, and place the stop loss below the support zone. We also set our target above the entry.
+
+And here you can see that price makes a very, very strong move.
+
+Now you know the two key questions I ask when marking support and resistance zones. First, did price move away from that level with strength? Second, did that move break market structure?
+
+Use those two questions as part of your chart analysis, and always manage your risk.
+
+I'm Dr. Aaron. If this lesson helped you, subscribe to GoPipways, and join our live Weekly Market Outlook on Zoom for more market analysis and trading education.
+
+GoPipways. Trade with a plan, not a guess.
