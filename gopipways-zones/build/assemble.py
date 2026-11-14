@@ -22,7 +22,7 @@ for i in range(len(P)):
     k=i+1;a=st[i];b=st[i+1] if i+1<len(P) else D
     ty=SPEC[k][0]
     d=dict(k=k,a=round(a,2),b=round(b,2),type=ty)
-    if ty=='F':d['label']=SPEC[k][1]
+    if ty=='F':d['label']={4:'MARKING ZONES',5:'YOU ASKED FOR THIS'}.get(k,SPEC[k][1])
     SC.append(d)
 SCH={str(k):cid for k,cid in charts.SCENE2CH.items()}
 # captions
@@ -41,6 +41,46 @@ for i,para in enumerate(P):
     for j,(a,tx) in enumerate(items):
         e=items[j+1][0] if j+1<len(items) else pend
         CAP.append([round(a,2),round(max(a+.4,e-.05),2),tx])
+# ---- shots: phrase-synced cuts so the picture changes every ~3-5 s
+TEASER={'A':dict(chart='A',beat=8,title='SPOT THE LEVEL',sub='Where price gets rejected again and again.',chip='PREVIEW / WHAT YOU WILL LEARN'),
+ 'H':dict(chart='H',beat=51,title='STRENGTH + STRUCTURE',sub='The two questions that filter the best zones.',chip='PREVIEW / WHAT YOU WILL LEARN'),
+ 'F':dict(chart='F',beat=17,title='WHEN A LEVEL FLIPS',sub='Resistance becomes support, and the reverse.',chip='PREVIEW / ADVANCED CONCEPTS'),
+ 'B':dict(chart='B',beat=9,title='FIND SUPPORT',sub='Where buyers step in.',chip='PREVIEW / REVISION')}
+PLAN={1:[('F',0,'COMPLETE BEGINNER?'),('F',1,'2-3 YEARS IN?'),('T','A',None),('F',3,'WATCH TILL THE END'),('T','H',None)],
+ 2:[('F',2,'EVERYTHING EXPLAINED'),('T','F',None),('F',5,'EVEN ON THE 1-MINUTE CHART')],
+ 3:[('F',6,'ONE OR TWO YEARS IN?'),('F',4,'WATCH IT ALL'),('T','B',None),('F',1,"DON'T SKIP AHEAD"),('F',3,'LEARN SOMETHING NEW')]}
+def chunks_of(s):return [c[0] for c in CAP if s['a']-0.01<=c[0]<s['b']-0.05]
+nshots=0
+for s in SC:
+    if s['type']!='F':continue
+    cs=chunks_of(s);d=s['b']-s['a']
+    if s['k'] in PLAN:
+        plan=PLAN[s['k']];starts=[s['a']]+[cs[j] for j in range(1,len(plan))]
+        sh=[]
+        for j,(kind,x,lab) in enumerate(plan):
+            a=starts[j];b=starts[j+1] if j+1<len(starts) else s['b']
+            if kind=='F':sh.append(dict(a=round(a,2),b=round(b,2),k='F',f=x,lab=lab))
+            else:
+                sh.append(dict(a=round(a,2),b=round(b,2),k='T',**TEASER[x]))
+        s['shots']=sh
+    elif d>6.5:
+        starts=[s['a']];
+        for c in cs[1:]:
+            if c-starts[-1]>=3.0 and s['b']-c>=2.0:starts.append(c)
+        # split any remaining long gap in equal parts (max ~5 s)
+        ends=starts[1:]+[s['b']];st2=[]
+        for a0,b0 in zip(starts,ends):
+            n=max(1,round((b0-a0)/4.6)) if b0-a0>5.6 else 1
+            st2+= [a0+(b0-a0)*q/n for q in range(n)]
+        starts=st2
+        f=(s['k']*3)%7;sh=[]
+        for j,a in enumerate(starts):
+            b=starts[j+1] if j+1<len(starts) else s['b']
+            sh.append(dict(a=round(a,2),b=round(b,2),k='F',f=f));f=(f+2+j)%7
+        s['shots']=sh
+    nshots+=len(s.get('shots',[]))
+gaps=[round(sh['b']-sh['a'],1) for s in SC if s['type']=='F' for sh in (s.get('shots') or [dict(a=s['a'],b=s['b'])])]
+print('figure shots',nshots,'longest figure shot',max(gaps),'s')
 CHARTS={cid:{k:v for k,v in c.items() if k!='markers'} for cid,c in charts.S.items()}
 os.makedirs('site',exist_ok=True)
 if not os.path.exists('site/imgs'):os.symlink(G+'/imgs/Scene_Images','site/imgs')
