@@ -108,7 +108,7 @@ class CameraDirector:
             return gravity_roll(self.gravity(t))
         if cam.roll_end is not None:
             u = (t - sh.start) / max(1e-6, sh.end - sh.start)
-            return lerp(cam.roll, cam.roll_end, ease("in_out", u))
+            return lerp(cam.roll, cam.roll_end, ease(cam.roll_ease, u))
         return cam.roll
 
     def _bake(self, sh: ShotSpec) -> Tuple[np.ndarray, np.ndarray]:

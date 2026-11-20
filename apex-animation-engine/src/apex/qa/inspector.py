@@ -51,11 +51,23 @@ class QAReport:
     def passed(self) -> bool:
         return all(c.status in ("PASS", "WARN", "SKIP") for c in self.checks)
 
+    def counts(self) -> dict:
+        """Totals computed from the checks themselves (reports quote these, never a hand count)."""
+        by_status: Dict[str, int] = {}
+        for c in self.checks:
+            by_status[c.status] = by_status.get(c.status, 0) + 1
+        exits = sum(1 for c in self.checks if c.name.startswith("exit["))
+        return {"total": len(self.checks), "by_status": by_status, "exit_conditions": exits,
+                "engine_and_video_checks": len(self.checks) - exits}
+
     def to_dict(self) -> dict:
-        return {"scene": self.scene, "passed": self.passed, "checks": [asdict(c) for c in self.checks]}
+        return {"scene": self.scene, "passed": self.passed, "counts": self.counts(), "checks": [asdict(c) for c in self.checks]}
 
     def summary(self) -> str:
-        lines = [f"QA {self.scene}: {'PASSED' if self.passed else 'FAILED'}"]
+        k = self.counts()
+        st = ", ".join(f"{v} {s}" for s, v in sorted(k["by_status"].items()))
+        lines = [f"QA {self.scene}: {'PASSED' if self.passed else 'FAILED'} - {k['total']} checks ({st}); "
+                 f"{k['engine_and_video_checks']} engine/video checks + {k['exit_conditions']} shot exit conditions"]
         for c in self.checks:
             m = "" if c.metric is None else f" metric={c.metric:.4g}"
             th = "" if c.threshold is None else f" threshold={c.threshold:.4g}"
@@ -152,7 +164,8 @@ class Inspector:
         return out
 
     def _door_open_at(self, t: float) -> bool:
-        return any(door_state(d, t)[0] in ("opening", "open", "exited") for d in self.r.doors.values())
+        return any(door_state(d, t)[0] in ("opening", "open", "exited", "closing", "closed") and (d.get("open_t") is not None)
+                   for d in self.r.doors.values())
 
     def check_teleport(self) -> List[Check]:
         out = []
@@ -387,8 +400,17 @@ class Inspector:
                 d = self.cam.at(sh.end - 1e-3).roll - self.cam.at(max(sh.start, tr.t_start)).roll
                 if abs(d) > 10 and math.copysign(1, d) != math.copysign(1, sw):
                     bad.append(sh.id)
+        for sh in self.rt.scene.shots:  # authored eased rolls (roll -> roll_end) must also turn with the latest sweep
+            if sh.camera.roll_mode == "align_gravity" or sh.camera.roll_end is None:
+                continue
+            prior = [tr for tr in g.transitions if tr.t_start < sh.end]
+            d = sh.camera.roll_end - sh.camera.roll
+            if prior and abs(d) > 10:
+                sw = prior[-1].sweep if prior[-1].sweep is not None else 0.0
+                if math.copysign(1, d) != math.copysign(1, sw):
+                    bad.append(sh.id)
         out.append(Check("camera_roll_follows_gravity_direction", "PASS" if not bad else "FAIL", float(len(bad)), 0.0,
-                         f"aligned shots rolling against the gravity sweep: {bad or 'none'}"))
+                         f"aligned or eased-roll shots turning against the gravity sweep: {bad or 'none'}"))
         # landings only on surfaces that can support the body under the gravity at that instant
         badl = []
         for e in r.events:

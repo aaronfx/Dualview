@@ -2,7 +2,7 @@
 
 A standalone, AI-directed procedural animation engine. It turns structured scene plans, which an LLM can generate from a story, into physically grounded stick-figure animation. It renders 1080p MP4s with synchronized sound and automatically checks every render for animation defects.
 
-> **Status:** Milestones 1A–1C are complete; 1C was accepted as a technically validated foundation. Milestone 1D (the 30-second Gravity Switch story, with slide, mid-air switch slap, a 180° gravity reversal, catch and swing on a rail, and the exit-door state machine) is implemented, rendered at 1080p and technically verified. Its artistic quality is awaiting the owner's review (see `docs/MILESTONE_STATUS.md`).
+> **Status:** Milestones 1A–1D are complete; 1C and 1D were accepted by the owner as technically validated milestones. The 30-second Gravity Switch film has been revised after review (v2: restaged swing and camera turn, visible rail, more acting, heavier impacts, a new ending). Its artistic quality is awaiting the owner's review (see `docs/MILESTONE_STATUS.md`).
 
 The engine is **independent of Creator Studio**. It has its own backend (FastAPI), storage (SQLite now, PostgreSQL planned), character system, physics layer, camera system, renderer, QA and export. The only shared concern is access to AI provider credentials, which are read from backend environment variables. Providers are interchangeable: OpenRouter, OpenAI, Anthropic, or any OpenAI-compatible endpoint.
 
@@ -113,7 +113,7 @@ src/apex/
   qa/        animation quality inspector, decode check, contact sheets, diagnostics charts
   ai/        provider abstraction + story director
   api/       FastAPI app + storage
-examples/    project JSON files (milestone scenes)
-tests/       pytest suite (88 tests)
+examples/    project JSON files (milestone scenes); build_gravity_switch_1d.py regenerates the 1D scene
+tests/       pytest suite (97 tests)
 docs/        architecture, schema, reference analysis, milestone status, roadmap, evidence
 ```

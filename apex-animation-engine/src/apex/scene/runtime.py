@@ -24,6 +24,8 @@ from .targets import exit_portal, exit_world, switch_world
 
 DOOR_UNLOCK_S = 0.7  # seal bars retract
 DOOR_OPEN_S = 0.6  # door panel slides open
+DOOR_CLOSE_DELAY = 0.75  # the door closes behind the character...
+DOOR_CLOSE_S = 0.5  # ...over this long
 
 SIM_HZ = 240
 
@@ -69,8 +71,11 @@ class SimulationResult:
 
 
 def door_state(d: Dict[str, Optional[float]], t: float) -> Tuple[str, float]:
-    """Door state machine: sealed -> unlocking -> unlocked -> opening -> open (-> exited)."""
+    """Door state machine: sealed -> unlocking -> unlocked -> opening -> open -> exited -> closing -> closed."""
     u0, o0, x0 = d.get("unlock_t"), d.get("open_t"), d.get("exit_t")
+    if x0 is not None and t >= x0 + DOOR_CLOSE_DELAY:
+        u = (t - x0 - DOOR_CLOSE_DELAY) / DOOR_CLOSE_S
+        return ("closing", u) if u < 1.0 else ("closed", 1.0)
     if u0 is None or t < u0:
         return "sealed", 0.0
     if t < u0 + DOOR_UNLOCK_S:
@@ -126,6 +131,7 @@ class SceneRuntime:
                 events.append(Event(tu + DOOR_UNLOCK_S, "door_unlocked", e.character, {"exit": ex_id}))
             elif e.type == "exit_reached":
                 doors[e.data["exit"]]["exit_t"] = e.t
+                events.append(Event(e.t + DOOR_CLOSE_DELAY, "door_close", e.character, {"exit": e.data["exit"]}))
 
         ctrls: Dict[str, CharacterController] = {}
         for pl in self.scene.placements:

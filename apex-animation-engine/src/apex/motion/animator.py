@@ -106,6 +106,7 @@ class Animator:
         self.gait_params = GaitParams(cadence_scale=style.cadence_scale, stride_scale=style.stride_scale,
                                       leg_length=rig.p.thigh + rig.p.shin)
         self.footsteps: List[Event] = []
+        self.shift_times = [e.t for e in events if e.type == "gravity_shift"]
         self.portals: List[Tuple[float, float, float, float]] = []  # open-doorway regions (set by the runtime)
         self.FAC = np.array([r.facing for r in records])
         self._prepare()
@@ -394,19 +395,38 @@ class Animator:
         knees = 0.0
         if seg.data.get("settle"):
             R = RECOVER
-            pose.root = F.to_world(s + 2.5 * sway * seg.facing, self.stand_h - 2.0 - R["crouch"](tau) + 1.2 * breath)
-            set_lean(L, R["lean"](tau), chest=-0.1 * R["knees"](tau), head=R["head"](tau))
-            sy = R["sy"](tau)
+            k = seg.data.get("settle_k", 1.0)  # harder landing -> deeper, longer relief
+            var = seg.data.get("variant", 0)
+            pant = 2.2 * k * math.sin(2 * PI * tau / 0.42) * smoothstep(0.2, 0.35, tau) * (1 - smoothstep(0.8, 1.1, tau))  # catching breath
+            pose.root = F.to_world(s + 2.5 * sway * seg.facing, self.stand_h - 2.0 - k * R["crouch"](tau) + 1.2 * breath + pant)
+            shake = 0.0
+            if var % 2 == 1:  # second relief: a disbelieving head shake before straightening up
+                shake = 0.32 * math.sin(2 * PI * (tau - 0.55) / 0.26) * smoothstep(0.5, 0.6, tau) * (1 - smoothstep(0.85, 0.98, tau))
+            set_lean(L, k * R["lean"](tau), chest=-0.1 * R["knees"](tau), head=R["head"](tau) + shake)
+            sy = 1.0 + (R["sy"](tau) - 1.0) * k
             pose.squash = (1.0 / math.sqrt(sy), sy)
             pose.pivot_y = -(self.stand_h - 2.0)
             pose.eye = R["eye"](tau)
             knees = R["knees"](tau)
         if seg.data.get("tense"):  # braced, eyes on what is coming
-            pose.root = F.to_world(s, self.stand_h - 8.0 + 1.5 * math.sin(2 * PI * tau / 1.1))
-            set_lean(L, 0.16, chest=-0.05)
-            set_arm(L, "n", 0.55, 1.2)
-            set_arm(L, "f", 0.35, 1.4)
-            pose.eye = 1.3
+            whoa = 0.0
+            for ts in self.shift_times:  # the floor starts to tilt away: arms fly out, knees give, eyes wide
+                if seg.t0 <= ts <= t:
+                    whoa = smoothstep(ts, ts + 0.14, t)
+            pose.root = F.to_world(s, self.stand_h - 8.0 - 10.0 * whoa + 1.5 * math.sin(2 * PI * tau / 1.1))
+            set_lean(L, 0.16 - 0.22 * whoa, chest=-0.05)
+            set_arm(L, "n", lerp(0.55, 1.9, whoa), lerp(1.2, 0.4, whoa))
+            set_arm(L, "f", lerp(0.35, -1.5, whoa), lerp(1.4, 0.5, whoa))
+            pose.eye = 1.3 + 0.5 * whoa
+            if whoa > 0.5:
+                pose.hands = {"n": "open", "f": "open"}
+        if seg.data.get("look_back"):  # last look at the room from the doorway
+            lb = smoothstep(0.0, 0.3, tau) * (1 - smoothstep(seg.data.get("pause", 1.0) - 0.25, seg.data.get("pause", 1.0), tau))
+            pose.twist = -0.6 * lb
+            set_lean(L, 0.02, chest=0.1 * lb)
+            set_arm(L, "n", 0.1, 0.4)
+            set_arm(L, "f", -0.15, 0.4)
+            pose.eye = 1.0 + 0.2 * lb
         plants, lift, ang = self._settle_feet(seg, t)
         self._legs(pose, F, plants, lift, ang)
         if knees > 0:  # hands on the knees (IK to just above each knee)
@@ -638,10 +658,28 @@ class Animator:
         L["shin_f"] = -(0.3 + 0.2 * abs(lag))
         L["foot_n"] = L["foot_f"] = PI / 2
         B = seg.data["anchor"]
+        L["head"] = L.get("head", 0.0) - 0.45 * catch * (1 - kick)  # head snaps with the jolt of the catch
         for side in "nf":
             self.rig.arm_ik(pose, side, B)
         pose.hands = {"n": "fist", "f": "fist"}
-        pose.eye = lerp(1.7, 1.25, smoothstep(0.0, 0.6, tau))
+        hang = seg.data.get("hang", 0.0)
+        pose.eye = lerp(1.8, 1.25, smoothstep(0.0, 0.6, tau))
+        if hang > 0.4:
+            # dangle: look down at the drop (wide eyes), then at the door (determined), then pump
+            down = smoothstep(0.15, 0.4, tau) * (1 - smoothstep(hang - 0.55, hang - 0.3, tau))
+            ahead = smoothstep(hang - 0.55, hang - 0.3, tau)
+            r = (pose.root[0] - B[0], pose.root[1] - B[1])
+            n = math.hypot(*r) or 1.0
+            below = (pose.root[0] + r[0] / n * 400, pose.root[1] + r[1] / n * 400)
+            if down > 0:
+                self._gaze(pose, below, down)
+                pose.eye = max(pose.eye, 1.0 + 0.75 * down)
+            if ahead > 0 and seg.data.get("look_to") is not None:
+                self._gaze(pose, seg.data["look_to"], ahead)
+                pose.eye = lerp(pose.eye, 1.1, ahead)
+            if tau < hang:  # small dangling leg kicks (not pumping)
+                L["thigh_n"] += 0.18 * math.sin(tau * 9.0) * down
+                L["thigh_f"] -= 0.15 * math.sin(tau * 9.0 + 1.3) * down
         return pose
 
     # -- airborne (falling / tumbling / jump) with brace toward the predicted surface
@@ -697,11 +735,10 @@ class Animator:
                 dist = math.dist(j["shoulder"], bar)
                 w = 1 - smoothstep(70.0, 260.0, dist)
                 self._gaze(pose, bar, clamp(w * 1.6, 0, 1))
-                for side in "nf":
-                    fk = {k: L[k] for k in (f"upper_arm_{side}", f"forearm_{side}")}
-                    self.rig.arm_ik(pose, side, bar)
-                    for k, v in fk.items():
-                        L[k] = lerp_angle(v, L[k], w)
+                if w > 0:  # blend in position space (angle blends can flip direction across half a turn)
+                    for side in "nf":
+                        wp = j[f"wrist_{side}"]
+                        self.rig.arm_ik(pose, side, (wp[0] + (bar[0] - wp[0]) * w, wp[1] + (bar[1] - wp[1]) * w))
         L["foot_n"] = L["foot_f"] = PI / 2
         return pose
 
@@ -717,16 +754,36 @@ class Animator:
         L = pose.local
         set_lean(L, 0.12 + 0.95 * c, chest=-0.15 * c, head=-0.55 * c)
         wind = clamp(abs(err) * 4.0, 0, 1)
+        tp = smoothstep(0.55, 0.8, clamp((seg.data.get("approach", 600.0) - 700.0) / 800.0, 0.0, 1.0))  # three-point amount
         set_arm(L, "n", 0.5 + 1.5 * c + wind * 1.2 * math.sin(tau * 13), 0.5 + 0.4 * c)
         set_arm(L, "f", 0.3 + 1.2 * c - wind * 1.2 * math.sin(tau * 13 + 1.5), 0.6 + 0.4 * c)
-        imp = smoothstep(0.0, 0.03, tau) * (1 - smoothstep(0.05, 0.16, tau))
-        sy = 1.0 - 0.12 * imp
-        pose.squash = (1.0 + 0.08 * imp, sy)
+        if tp > 0:  # hard landing: the far arm keeps the orientation it had at touchdown (thrown back for balance)
+            i = self.segments.index(seg)
+            if i > 0:
+                pa = self._eval(self.segments[i - 1], seg.t0)
+                ca = pa.local.get("spine", PI / 2) + pa.local.get("chest", 0.0) + pa.body_angle * pa.facing
+                cl = L.get("spine", PI / 2) + L.get("chest", 0.0) + pose.body_angle * pose.facing
+                L["upper_arm_f"] = lerp_angle(L["upper_arm_f"], wrap_angle(pa.local["upper_arm_f"] + ca - cl), tp)
+                L["forearm_f"] = lerp(L["forearm_f"], pa.local["forearm_f"], tp)
+        heavy = clamp((seg.data.get("approach", 600.0) - 700.0) / 800.0, 0.0, 1.0)
+        imp = smoothstep(0.0, 0.03, tau) * (1 - smoothstep(0.05 + 0.04 * heavy, 0.16 + 0.08 * heavy, tau))
+        sy = 1.0 - 0.12 * imp  # heavier impact: same squash depth (bone/foot limits), held longer
+        # mostly vertical: horizontal squash scales about the pelvis and would slide the planted feet
+        pose.squash = (1.0 + 0.03 * imp, sy)
         pose.pivot_y = -h
         pose.eye = lerp(1.6, 1.15, smoothstep(0, 0.6, tau))
         pose.hands = {"n": "open", "f": "open"}
         pose.twist = 0.5 * wind * math.sin(tau * 13)
+        L["head"] = L.get("head", 0.0) - 0.35 * heavy * imp  # head keeps travelling into the impact
         self._legs(pose, F, seg.data["plants"])
+        if heavy > 0.55:  # hard landing: three-point touch, the near hand slams down ahead of the feet
+            w = smoothstep(0.03, 0.22, tau) * (1 - smoothstep(0.36, 0.64, tau)) * smoothstep(0.55, 0.8, heavy)
+            if w > 0:
+                fk = {kk: L[kk] for kk in ("upper_arm_n", "forearm_n", "hand_n")}
+                s0 = seg.data["s0"]
+                self.rig.arm_ik(pose, "n", F.to_world(s0 + pose.facing * 30.0, 3.0), fingertip=True)
+                for kk, v in fk.items():
+                    L[kk] = lerp_angle(v, L[kk], w)
         return pose
 
     # ------------------------------------------------------------ for QA

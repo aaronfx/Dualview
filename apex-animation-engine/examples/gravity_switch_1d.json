@@ -42,7 +42,7 @@
      "surface": "ceiling",
      "effect": {
       "rotate_deg": -180,
-      "delay": 1.6,
+      "delay": 1.85,
       "duration": 0.5
      }
     }
@@ -209,7 +209,8 @@
      "target": "bar:rail",
      "release_deg": 30.0,
      "swings": 1,
-     "face": -1
+     "face": -1,
+     "duration": 1.85
     },
     {
      "character": "axel",
@@ -218,20 +219,15 @@
     {
      "character": "axel",
      "type": "look_at",
-     "target": "bar:rail",
-     "duration": 0.8
-    },
-    {
-     "character": "axel",
-     "type": "look_at",
      "target": "exit:door1",
-     "duration": 0.7
+     "duration": 0.25
     },
     {
      "character": "axel",
      "type": "reach_exit",
      "target": "exit:door1",
-     "speed": 125
+     "speed": 165,
+     "duration": 0.6
     },
     {
      "character": "axel",
@@ -378,7 +374,7 @@
     },
     {
      "start": 8.95,
-     "end": 10.85,
+     "end": 11.0,
      "id": "s06_recover",
      "kind": "medium",
      "description": "the camera turns with gravity; relief (exhale, hands on knees); double take: something far above",
@@ -408,8 +404,8 @@
      ]
     },
     {
-     "start": 10.85,
-     "end": 11.55,
+     "start": 11.0,
+     "end": 11.7,
      "id": "s07_door_pov",
      "kind": "insert",
      "description": "POV: the sealed exit, high on the far end wall (the old ceiling)",
@@ -434,8 +430,8 @@
      ]
     },
     {
-     "start": 11.55,
-     "end": 12.6,
+     "start": 11.7,
+     "end": 12.75,
      "id": "s08_point",
      "kind": "medium",
      "description": "AXEL points at it, then spots the second switch",
@@ -463,8 +459,8 @@
      ]
     },
     {
-     "start": 12.6,
-     "end": 13.25,
+     "start": 12.75,
+     "end": 13.4,
      "id": "s09_switch_pov",
      "kind": "insert",
      "description": "POV: the second switch on the end wall",
@@ -479,8 +475,8 @@
      }
     },
     {
-     "start": 13.25,
-     "end": 15.9,
+     "start": 13.4,
+     "end": 16.0,
      "id": "s10_slide",
      "kind": "tracking",
      "description": "sprint along the wall, slide under the conduit beam",
@@ -509,8 +505,8 @@
      ]
     },
     {
-     "start": 15.9,
-     "end": 18.3,
+     "start": 16.0,
+     "end": 18.45,
      "id": "s11_slap",
      "kind": "medium",
      "description": "end wall: looks up, jumps, slaps the switch mid-air, lands",
@@ -540,21 +536,37 @@
      ]
     },
     {
-     "start": 18.3,
-     "end": 19.75,
-     "id": "s12_reverse",
+     "start": 18.45,
+     "end": 18.95,
+     "id": "s12_rail_pov",
+     "kind": "insert",
+     "description": "POV: he eyes the rail mid-room (braced, waiting for the switch to act)",
+     "camera": {
+      "mode": "static",
+      "center": [
+       330,
+       1270
+      ],
+      "view_height": 440,
+      "roll": 90
+     }
+    },
+    {
+     "start": 18.95,
+     "end": 20.05,
+     "id": "s13_reverse",
      "kind": "wide",
-     "description": "G1 -> G2 (-180 deg back through the original down): he falls 'up' the screen, tumbles feet-first, grabs the rail",
+     "description": "G1 -> G2 (-180 deg, back through the original down): he falls 'up' the screen, tumbles feet-first, catches the rail",
      "camera": {
       "mode": "follow",
       "target": "axel",
-      "view_height": 700,
+      "view_height": 640,
       "offset": [
-       -90,
-       -10
+       60,
+       -300
       ],
-      "lead": 0.25,
-      "stiffness": 4.5,
+      "lead": 0.2,
+      "stiffness": 5.0,
       "roll": 90,
       "shake": 0.8
      },
@@ -581,11 +593,32 @@
      ]
     },
     {
-     "start": 19.75,
-     "end": 22.45,
-     "id": "s13_swing",
+     "start": 20.05,
+     "end": 21.95,
+     "id": "s14_turn",
+     "kind": "medium",
+     "description": "dangling from the rail: the room turns with gravity around him; he looks down at the drop, then at the door",
+     "camera": {
+      "mode": "follow",
+      "target": "axel",
+      "view_height": 600,
+      "offset": [
+       -110,
+       0
+      ],
+      "lead": 0.0,
+      "stiffness": 6.0,
+      "roll": 90,
+      "roll_end": -90,
+      "roll_ease": "sine"
+     }
+    },
+    {
+     "start": 21.95,
+     "end": 24.75,
+     "id": "s15_swing",
      "kind": "tracking",
-     "description": "swing on the rail as the camera turns with gravity; release at the apex; drop; land",
+     "description": "pumps, swings, lets go at the top, drops, lands hard by the door",
      "camera": {
       "mode": "follow",
       "target": "axel",
@@ -596,9 +629,7 @@
       ],
       "lead": 0.15,
       "stiffness": 4.0,
-      "roll": 90,
-      "roll_mode": "align_gravity",
-      "roll_rate": 120,
+      "roll": -90,
       "shake": 0.8
      },
      "sound_cues": [
@@ -614,11 +645,11 @@
      ]
     },
     {
-     "start": 22.45,
-     "end": 25.4,
-     "id": "s14_relief",
+     "start": 24.75,
+     "end": 26.3,
+     "id": "s16_relief",
      "kind": "medium",
-     "description": "relief; looks back up at the rail; the door slides open behind him",
+     "description": "relief (head shake); the door slides open behind him",
      "camera": {
       "mode": "follow",
       "target": "axel",
@@ -648,23 +679,23 @@
      ]
     },
     {
-     "start": 25.4,
+     "start": 26.3,
      "end": 30.0,
-     "id": "s15_exit",
+     "id": "s17_exit",
      "kind": "wide",
-     "description": "final: he walks into the light; the room is left empty, the door glowing",
+     "description": "walks to the doorway, stops, looks back at the room, steps into the light; the door closes; fade out",
      "camera": {
       "mode": "dolly",
       "center": [
-       -430,
-       1240
+       -440,
+       1250
       ],
       "center_end": [
-       -450,
-       1290
+       -460,
+       1300
       ],
-      "view_height": 760,
-      "view_height_end": 680,
+      "view_height": 740,
+      "view_height_end": 660,
       "roll": -90
      },
      "sound_cues": [
@@ -672,11 +703,18 @@
        "on_event": "exit_reached",
        "sound": "resolve",
        "gain": 1.0
+      },
+      {
+       "on_event": "door_close",
+       "sound": "door",
+       "gain": 1.0
       }
      ],
      "exit_conditions": [
+      "event:look_back",
       "event:exit_reached"
-     ]
+     ],
+     "fade_out": 0.9
     }
    ]
   }

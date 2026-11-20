@@ -85,6 +85,14 @@ def red_flash(events, t: float) -> float:
     return r
 
 
+def shot_fade(cam: CameraDirector, t: float) -> float:
+    """Fade-to-black amount at time t (ShotSpec.fade_out: seconds at the end of the shot)."""
+    sh = cam.shot_at(t)
+    if sh.fade_out <= 0:
+        return 0.0
+    return max(0.0, min(1.0, (t - (sh.end - sh.fade_out)) / sh.fade_out))
+
+
 def build_camera(rt: SceneRuntime, aspect: float) -> CameraDirector:
     res = rt.result or rt.simulate()
     rigs = rt.rigs
@@ -185,15 +193,16 @@ def render_scene(project: ProjectSpec, scene_id: str, out_path: str, samples: in
     try:
         for i in range(n):
             t = i / project.fps
+            fade = shot_fade(cam, t)
             if samples <= 1:
-                frame = renderer.render(rt.evaluate(t), cam.at(t), red_flash(res.events, t), fx)
+                frame = renderer.render(rt.evaluate(t), cam.at(t), red_flash(res.events, t), fx, fade)
             else:
                 acc = None
                 sh = cam.shot_at(t)
                 for k in range(samples):
                     ts = t + (k / (samples - 1) - 0.5) * 0.4 / project.fps
                     ts = min(max(ts, sh.start), sh.end - 1e-4)
-                    f = renderer.render(rt.evaluate(ts), cam.at(ts), red_flash(res.events, ts), fx).astype(np.float32)
+                    f = renderer.render(rt.evaluate(ts), cam.at(ts), red_flash(res.events, ts), fx, fade).astype(np.float32)
                     acc = f if acc is None else acc + f
                 frame = (acc / samples).astype(np.uint8)
             writer.write(frame)

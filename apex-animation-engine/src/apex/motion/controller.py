@@ -36,7 +36,7 @@ SLIDE_DECEL = 170.0  # sliding friction deceleration (u/s^2)
 SLIDE_VMIN = 210.0
 GRAB_REACH = 0.94
 CATCH_KEEP = 0.55
-PUMP_ACC = 700.0  # tangential acceleration of a pumping kick (u/s^2, per unit mass)
+PUMP_ACC = 1100.0  # tangential acceleration of a pumping kick (u/s^2, per unit mass)
 RECOVER_T = 1.15  # relief beat after a hard landing
 RECOVER_MIN_APPROACH = 900.0  # grab when the bar is within this fraction of shoulder->wrist reach
 
@@ -351,7 +351,17 @@ class CharacterController:
         door = self.doors.get(ex["id"], {})
         is_open = door.get("open_t") is not None and t >= door["open_t"] + 0.45
         d = ex["dir"]
-        target = ex["beyond"] if is_open else ex["plane"] - d * 45.0  # wait at the threshold until the door is open
+        pause = a.duration or 0.0  # reach_exit.duration: stop at the threshold and look back at the room first
+        if ex.get("paused") is not None:
+            if t - ex["paused"] < pause:  # standing in the doorway, looking back
+                self.v = 0.0
+                return
+            if self.seg.kind == "idle":
+                self._open("loco", t, run=False, style="normal", gaze=exit_world(self.env, ex["id"]), exit=ex["id"])
+        if pause > 0 and ex.get("paused") is None:
+            target = ex["plane"] - d * 34.0
+        else:
+            target = ex["beyond"] if is_open else ex["plane"] - d * 45.0  # wait at the threshold until the door is open
         speed = a.speed or 150.0
         remaining = (target - self.s) * d
         v_des = min(speed, math.sqrt(2 * 600.0 * max(remaining, 0.0)))
@@ -362,7 +372,14 @@ class CharacterController:
         if not ex["crossed"] and (self.s - ex["plane"]) * d > 0:
             ex["crossed"] = True
             self.emit(Event(t, "exit_reached", self.cid, {"exit": ex["id"]}))
-        if is_open and remaining < 0.4:
+        if pause > 0 and is_open and ex.get("paused") is None and remaining < 0.4:
+            ex["paused"] = t
+            self.v = 0.0
+            hw, rh = self.env.room.width / 2, self.env.room.height
+            back = next(((o.center[0], o.center[1]) for o in self.env.obstacles if o.kind == "bar"), (0.0, rh / 2))
+            self._open("idle", t, look_back=True, gaze=back, pause=pause)
+            self.emit(Event(t, "look_back", self.cid, {"exit": ex["id"]}))
+        elif is_open and remaining < 0.4 and (pause == 0 or ex.get("paused") is not None):
             self.s, self.v = ex["beyond"], 0.0
             self._next_action(t)
 
@@ -442,7 +459,9 @@ class CharacterController:
         th = self._swing_angle(B, g)
         self.swing = {"bar": a.target, "B": B, "t0": t, "a": a, "theta": th, "passes": 0, "local": local,
                       "half_amp": abs(th), "last_amp": 0.0, "work": 0.0}
-        self._open("swing", t, bar=a.target, anchor=B, grip_local=local, pumps=[], work=[(t, 0.0)])
+        look_to = exit_world(self.env, self.env.exits[0].id) if self.env.exits else None
+        self._open("swing", t, bar=a.target, anchor=B, grip_local=local, pumps=[], work=[(t, 0.0)], hang=a.duration or 0.0,
+                   look_to=look_to)
         self.cur = None
         self.emit(Event(t, "grab", self.cid, {"bar": a.target, "point": B, "speed": math.hypot(*st.vel),
                                               "speed_after": math.hypot(*st.vel) * CATCH_KEEP}))
@@ -470,7 +489,8 @@ class CharacterController:
         # pumping: kick through the bottom of the arc (muscular work, booked so QA can account for it) until the
         # swing is big enough to release
         target = math.radians(a.release_deg + 12.0)
-        pumping = S["last_amp"] < target and abs(th) < math.radians(30.0) and abs(dth) > 1e-6 and t - S["t0"] > 0.12
+        hang = max(0.12, a.duration or 0.0)  # grab_swing.duration: dangle (and look) before starting to pump
+        pumping = S["last_amp"] < target and abs(th) < math.radians(30.0) and abs(dth) > 1e-6 and t - S["t0"] > hang
         segd = self.seg.data
         if pumping:
             st = self.world.state(self.cid)
@@ -629,7 +649,8 @@ class CharacterController:
     def _landing(self, t: float, dt: float) -> None:
         L = self.land
         tau = t - L["t_contact"]
-        h, hv = damped_spring(L["h0"], -L["approach"] * 0.9, self.stand_h, 11.0, 0.55, tau)
+        heavy = clamp((L["approach"] - 700.0) / 800.0, 0.0, 1.0)  # 0 = light hop, 1 = hard landing
+        h, hv = damped_spring(L["h0"], -L["approach"] * 0.9, self.stand_h, 11.0 - 2.0 * heavy, 0.55 + 0.25 * heavy, tau)
         h = min(max(42.0, h), self.stand_h + 1.0)  # never rebound above leg reach (feet stay planted)
         s = L["s0"] + L["vt"] * (1 - math.exp(-12 * tau)) / 12.0
         a, av = damped_spring(L["ang0"], L["w0"], 0.0, 8.0, 0.3, tau)
@@ -640,7 +661,8 @@ class CharacterController:
             self.h = self.stand_h
             self.emit(Event(t, "recovered", self.cid, {"surface": self.frame.tag}))
             big = L["approach"] > RECOVER_MIN_APPROACH
-            self._open("idle", t, settle=big)
+            self.hard_landings = getattr(self, "hard_landings", 0) + (1 if big else 0)
+            self._open("idle", t, settle=big, settle_k=clamp(L["approach"] / 1300.0, 0.75, 1.25), variant=self.hard_landings - 1)
             if self.queue and self.queue[0].type == "wait_grounded":
                 self.queue.popleft()
             # after a hard landing the relief beat (exhale, hands on knees, straighten up) always plays out

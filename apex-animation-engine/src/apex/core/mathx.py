@@ -104,6 +104,7 @@ EASES: dict[str, Callable[[float], float]] = {
     "in_out2": lambda u: 2 * u * u if u < 0.5 else 1 - (-2 * u + 2) ** 2 / 2,
     "back_out": lambda u: 1 + 2.70158 * (u - 1) ** 3 + 1.70158 * (u - 1) ** 2,
     "hold": lambda u: 0.0,
+    "sine": lambda u: 0.5 - 0.5 * math.cos(math.pi * u),  # gentlest in-out (peak rate pi/2 x average)
 }
 
 

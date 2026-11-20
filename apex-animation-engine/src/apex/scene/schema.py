@@ -182,6 +182,7 @@ class CameraSpec(Strict):
     stiffness: float = Field(6.0, gt=0)
     roll: float = 0.0  # degrees (fixed mode / start of an eased roll)
     roll_end: Optional[float] = None  # eased roll transition over the shot
+    roll_ease: Literal["in_out", "sine", "linear"] = "in_out"  # easing of roll -> roll_end
     roll_mode: Literal["fixed", "align_gravity"] = "fixed"  # align_gravity: screen-down follows the gravity vector
     focus: Literal["body", "upper", "head"] = "body"  # framing focus for follow cameras (close-ups use head/upper)
     shake: float = Field(0.0, ge=0, le=3)  # event-driven camera shake amount (impacts, pulses)
@@ -209,6 +210,7 @@ class ShotSpec(Strict):
     physics_requirements: List[str] = Field(default_factory=list)
     sound_cues: List[SoundCue] = Field(default_factory=list)
     exit_conditions: List[str] = Field(default_factory=list)  # e.g. "event:press_contact", "grounded_on:wall_right"
+    fade_out: float = Field(0.0, ge=0.0, le=5.0)  # seconds of fade to black at the end of the shot
 
     @model_validator(mode="after")
     def _order(self) -> "ShotSpec":

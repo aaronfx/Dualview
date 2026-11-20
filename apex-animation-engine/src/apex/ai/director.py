@@ -146,7 +146,7 @@ class TemplatePlanner:
         b1 = round(max(0.5, press - 0.75), 3)
         b2 = round(max(b1 + 0.5, (press + impact) / 2), 3)
         fps = proj.fps
-        dur = round(math.ceil(max(rec + 2.5, b2 + 1.5) * fps) / fps, 6)  # whole number of frames
+        dur = math.ceil(max(rec + 2.5, b2 + 1.5) * fps) / fps  # whole number of frames (exact: rounding to 6 decimals broke frame alignment)
         sh = sc["shots"]
         sh[0]["end"], sh[1]["start"], sh[1]["end"], sh[2]["start"], sh[2]["end"] = b1, b1, b2, b2, dur
         sc["duration"] = dur

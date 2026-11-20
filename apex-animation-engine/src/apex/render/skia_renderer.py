@@ -85,7 +85,7 @@ class SkiaRenderer:
         c.drawLine(pa[0], pa[1], pb[0], pb[1], skia.Paint(AntiAlias=True, Color=col(mix(rgb, WHITE, 0.25), 0.85 * alpha), StrokeWidth=max(0.8, width * k), Style=skia.Paint.kStroke_Style))
 
     # ------------------------------------------------------------ main
-    def render(self, fs: FrameState, cam: CameraState, red_flash: float = 0.0, fx: Optional[List[dict]] = None) -> np.ndarray:
+    def render(self, fs: FrameState, cam: CameraState, red_flash: float = 0.0, fx: Optional[List[dict]] = None, fade: float = 0.0) -> np.ndarray:
         self._setup(cam)
         c = self.surface.getCanvas()
         c.clear(col((5, 6, 8)))
@@ -125,6 +125,8 @@ class SkiaRenderer:
         self._cutaway(c, red_flash, fs)
         c.restore()
         self._post(c, red_flash)
+        if fade > 0.0:  # shot fade to black (end of film)
+            c.drawRect(skia.Rect(0, 0, self.W, self.H), skia.Paint(Color=col((0, 0, 0), clamp(fade, 0.0, 1.0))))
         img = self.surface.makeImageSnapshot()
         return img.toarray(colorType=skia.ColorType.kRGBA_8888_ColorType)
 
@@ -257,20 +259,7 @@ class SkiaRenderer:
         for ob in self.env.obstacles:
             cx_, cy_ = ob.center
             if ob.kind == "bar":
-                r = ob.size[0] / 2
-                if back:
-                    a, b = self.P(cx_, cy_, bk), self.P(cx_, cy_, 0)
-                    c.drawLine(a[0], a[1], b[0], b[1], skia.Paint(AntiAlias=True, Color=col((150, 165, 175)), StrokeWidth=max(1.5, 2 * r * b[2]),
-                                                                 StrokeCap=skia.Paint.kRound_Cap))
-                    c.drawLine(a[0], a[1], b[0], b[1], skia.Paint(AntiAlias=True, Color=col((255, 207, 58), 0.9), StrokeWidth=max(0.8, 0.6 * r * b[2])))
-                    for zz in (bk, 0.0):
-                        q = self.P(cx_, cy_, zz)
-                        self._glow(c, (q[0], q[1]), 26 * q[2], (255, 210, 90), 0.35)
-                else:
-                    a, b = self.P(cx_, cy_, 0), self.P(cx_, cy_, nr)
-                    c.drawLine(a[0], a[1], b[0], b[1], skia.Paint(AntiAlias=True, Color=col((150, 165, 175)), StrokeWidth=max(1.5, 2 * r * b[2]),
-                                                                 StrokeCap=skia.Paint.kRound_Cap))
-                    c.drawLine(a[0], a[1], b[0], b[1], skia.Paint(AntiAlias=True, Color=col((255, 207, 58), 0.9), StrokeWidth=max(0.8, 0.6 * r * b[2])))
+                self._rail(c, ob, back)
                 continue
             hx, hy = ob.size[0] / 2, ob.size[1] / 2
             x0, x1, y0, y1 = cx_ - hx, cx_ + hx, cy_ - hy, cy_ + hy
@@ -301,6 +290,38 @@ class SkiaRenderer:
                         c.drawPath(stripe, skia.Paint(AntiAlias=True, Color=col((255, 196, 40), 0.85)))
                 c.restore()
                 c.drawPath(cap, skia.Paint(AntiAlias=True, Color=col(CYAN, 0.6), Style=skia.Paint.kStroke_Style, StrokeWidth=1.4))
+
+    def _rail(self, c: skia.Canvas, ob, back: bool) -> None:
+        """Grab rail spanning the room depth: a steel tube with yellow grip bands, bolted to the back wall by a
+        bracket, with an end cap at the front. Drawn behind the character for z >= 0 and in front for z < 0."""
+        nr, bk = self.near + 2, self.back
+        x, y = ob.center
+        r = max(ob.size[0] / 2, 6.0) * 1.15
+        z0, z1 = (0.0, bk) if back else (nr, 0.0)
+        a, b = self.P(x, y, z0), self.P(x, y, z1)
+        k = (a[2] + b[2]) / 2
+        c.drawLine(a[0], a[1], b[0], b[1], skia.Paint(AntiAlias=True, Color=col((255, 214, 90), 0.18), StrokeWidth=max(3.0, 7 * r * k),
+                                                     StrokeCap=skia.Paint.kRound_Cap, MaskFilter=skia.MaskFilter.MakeBlur(skia.kNormal_BlurStyle, 4 * k)))
+        c.drawLine(a[0], a[1], b[0], b[1], skia.Paint(AntiAlias=True, Color=col((120, 132, 142)), StrokeWidth=max(2.0, 2 * r * k),
+                                                     StrokeCap=skia.Paint.kRound_Cap))
+        n = 12  # grip bands along the tube
+        zs = np.linspace(z0, z1, n + 1)
+        for i in range(n):
+            if i % 2 == 0:
+                p0, p1 = self.P(x, y, zs[i]), self.P(x, y, zs[i + 1])
+                c.drawLine(p0[0], p0[1], p1[0], p1[1], skia.Paint(AntiAlias=True, Color=col((255, 196, 40)), StrokeWidth=max(1.6, 1.7 * r * (p0[2] + p1[2]) / 2)))
+        c.drawLine(a[0], a[1], b[0], b[1], skia.Paint(AntiAlias=True, Color=col((235, 245, 255), 0.7), StrokeWidth=max(0.6, 0.35 * r * k)))
+        if back:  # bracket on the back wall
+            q = self.P(x, y, bk - 0.5)
+            s_ = 26 * q[2]
+            c.drawRect(skia.Rect(q[0] - s_, q[1] - s_, q[0] + s_, q[1] + s_), skia.Paint(AntiAlias=True, Color=col((70, 80, 92))))
+            c.drawRect(skia.Rect(q[0] - s_, q[1] - s_, q[0] + s_, q[1] + s_), skia.Paint(AntiAlias=True, Color=col(CYAN, 0.6), Style=skia.Paint.kStroke_Style, StrokeWidth=1.2))
+            for dx, dy in ((-0.6, -0.6), (0.6, -0.6), (-0.6, 0.6), (0.6, 0.6)):
+                c.drawCircle(q[0] + dx * s_, q[1] + dy * s_, max(1.0, 2.5 * q[2]), skia.Paint(AntiAlias=True, Color=col((200, 210, 220))))
+        else:  # end cap at the front
+            q = self.P(x, y, nr)
+            c.drawCircle(q[0], q[1], max(2.0, 1.6 * r * q[2]), skia.Paint(AntiAlias=True, Color=col((255, 196, 40))))
+            c.drawCircle(q[0], q[1], max(2.0, 1.6 * r * q[2]), skia.Paint(AntiAlias=True, Color=col((40, 30, 10)), Style=skia.Paint.kStroke_Style, StrokeWidth=1.5))
 
     def _prop(self, c: skia.Canvas, pr) -> None:
         sx, sy, k = self.P(pr.pos[0], pr.pos[1], 0)
@@ -482,7 +503,7 @@ class SkiaRenderer:
             SP = lambda s_, h, z: self._SP(surf, s_, h, z)
             a, b, z0, z1 = self._door_geom(ex)
             pulse = 0.85 + 0.15 * math.sin(fs.t * 4.2)
-            openness = {"opening": u, "open": 1.0, "exited": 1.0}.get(state, 0.0)
+            openness = {"opening": u, "open": 1.0, "exited": 1.0, "closing": 1.0 - u}.get(state, 0.0)
             mid = self.P(*SP(ex.s, 0.5, 0))
             self._glow(c, (mid[0], mid[1]), max((260 + 120 * openness) * mid[2], 40), (150, 245, 255), (0.25 + 0.12 * openness) * pulse)
             c.drawPath(self.poly([SP(a - 16, 0.6, z0 - 16), SP(a - 16, 0.6, z1 + 16), SP(b + 16, 0.6, z1 + 16), SP(b + 16, 0.6, z0 - 16)]),
@@ -533,16 +554,20 @@ class SkiaRenderer:
                     self.line3(c, (j0[0], j0[1], 0), (j1[0], j1[1], 0), WHITE, 0.8 * openness, 2.5)
 
     def _open_exits(self, fs: FrameState):
-        return [ex for ex in self.env.exits if fs.doors.get(ex.id, ("sealed", 0))[0] in ("opening", "open", "exited")]
+        return [ex for ex in self.env.exits if fs.doors.get(ex.id, ("sealed", 0))[0] in ("opening", "open", "exited", "closing")]
+
+    def _passed_exits(self, fs: FrameState):
+        """Exits a character may be beyond (open, or closed behind someone who walked out)."""
+        return [ex for ex in self.env.exits if fs.doors.get(ex.id, ("sealed", 0))[0] in ("opening", "open", "exited", "closing", "closed")]
 
     def _exit_fade(self, pose: Pose, fs: FrameState) -> float:
         """Characters walking out through an open doorway fade into the light beyond it."""
         alpha = 1.0
-        for ex in self._open_exits(fs):
+        for ex in self._passed_exits(fs):
             n = surface_normal(ex.surface)
             o = surface_point(self.env, ex.surface, ex.s, 0.0)
             d = -((pose.root[0] - o[0]) * n[0] + (pose.root[1] - o[1]) * n[1])  # >0 beyond the plane
-            alpha = min(alpha, 1.0 - smoothstep(25.0, 165.0, d))
+            alpha = min(alpha, 1.0 - smoothstep(20.0, 115.0, d))
         return alpha
 
     def _interior_clip(self, fs: FrameState) -> Optional[skia.Path]:
@@ -563,7 +588,7 @@ class SkiaRenderer:
             beams.append(((-hw, 0.0), (-hw, 230.0), (-hw + 520, 0.0), (-hw + 380, 0.0), (190, 240, 255), 1.0))
         for ex in self.env.exits:
             state, u = fs.doors.get(ex.id, ("sealed", 0.0)) if fs else ("sealed", 0.0)
-            gain = 1.0 + 1.1 * ({"opening": u, "open": 1.0, "exited": 1.0}.get(state, 0.0))
+            gain = 1.0 + 1.1 * ({"opening": u, "open": 1.0, "exited": 1.0, "closing": 1.0 - u}.get(state, 0.0))
             a, b = ex.s - ex.width / 2, ex.s + ex.width / 2
             pa, pb = surface_point(self.env, ex.surface, a, 0), surface_point(self.env, ex.surface, b, 0)
             pc, pd = surface_point(self.env, ex.surface, a - 200, 620), surface_point(self.env, ex.surface, b + 160, 620)

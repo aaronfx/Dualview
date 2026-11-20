@@ -22,7 +22,7 @@ Validation covers duplicate ids, unknown references (environment, character, swi
 - **SwitchSpec** `{id, surface: floor|wall_left|wall_right|ceiling, x, height, effect}`. `x` is the position *along* its surface: world x for floor and ceiling, world y for the walls. `height` is the button's distance from that surface.
 - **ExitSpec** `{id, surface, s, width, sealed, unlock_on?, open_radius}`. `s` uses the same along-surface convention.
   - `unlock_on: "switch:<id>"` releases the seal once that switch's gravity change has settled.
-  - State machine: `sealed → unlocking (0.7 s, bars retract) → unlocked → opening (0.6 s, when a grounded character is within open_radius) → open → exited`.
+  - State machine: `sealed → unlocking (0.7 s, bars retract) → unlocked → opening (0.6 s, when a grounded character is within open_radius) → open → exited → closing (0.75 s after the exit, 0.5 s long) → closed`.
 - **ObstacleSpec** `{id, kind: beam|bar, center, size}` describes structures spanning the room depth.
   - A `beam` is a solid static collider.
   - A `bar` is a grab rail: a grip anchor for `grab_swing`, not a collider.
@@ -61,7 +61,7 @@ Gravity can only change through a switch effect. That makes every gravity transi
 | `environment` | Environment id |
 | `duration` | Seconds (keep it a whole number of frames) |
 | `placements[]` | `{character, x, facing: ±1}` (x on the floor) |
-| `actions[]` | Executed in order per character. `idle(duration)`, `walk_to(target_x, speed?)`, `run_to(target_x, speed?)`, `turn(face)`, `press(switch, hesitate?)`, `jump(height)`, `look_around(duration)`, `wait_grounded` (waits until no gravity transition is pending and the character is standing), `notice(target, duration?)` (a double take), `look_at(target, duration)`, `point(target, duration)`. `duck_slide(target_x, speed?)`: a feet-first slide that drops the hips to 30 units, decelerates by friction and rises straight into the next run. `jump_to(target_x, height, switch?)`: a ballistic jump to a landing point with an apex height; with `switch`, the hand slaps the button mid-air at the closest approach. `grab_swing(target "bar:<id>", release_deg, swings, face)` is armed while standing: when support is lost, the body tumbles feet-first and the hands lock onto the bar overhead (a pivot joint). The arms absorb 45 % of the catch, pumping kicks build the swing (booked as muscular work), and the release comes at the top of the swing on side `face` (+1 = counter-clockwise of hanging) once the angle exceeds `release_deg`. `reach_exit(target "exit:<id>", speed?)` walks to the doorway, waits at the threshold until the door is open, then walks through. `target` is `switch:<id>`, `exit:<id>`, `bar:<id>` or `point:x,y`. Locomotion takes `style: normal|cautious` and an optional gaze `target` |
+| `actions[]` | Executed in order per character. `idle(duration)`, `walk_to(target_x, speed?)`, `run_to(target_x, speed?)`, `turn(face)`, `press(switch, hesitate?)`, `jump(height)`, `look_around(duration)`, `wait_grounded` (waits until no gravity transition is pending and the character is standing), `notice(target, duration?)` (a double take), `look_at(target, duration)`, `point(target, duration)`. `duck_slide(target_x, speed?)`: a feet-first slide that drops the hips to 30 units, decelerates by friction and rises straight into the next run. `jump_to(target_x, height, switch?)`: a ballistic jump to a landing point with an apex height; with `switch`, the hand slaps the button mid-air at the closest approach. `grab_swing(target "bar:<id>", release_deg, swings, face)` is armed while standing: when support is lost, the body tumbles feet-first and the hands lock onto the bar overhead (a pivot joint). The arms absorb 45 % of the catch, pumping kicks build the swing (booked as muscular work), and the release comes at the top of the swing on side `face` (+1 = counter-clockwise of hanging) once the angle exceeds `release_deg`. Its optional `duration` is a dangle: AXEL hangs, looks down and then at the exit before pumping, which leaves time for a camera turn. `reach_exit(target "exit:<id>", speed?, duration?)` walks to the doorway, waits at the threshold until the door is open, then walks through. With `duration`, AXEL stops in the doorway and looks back at the room for that long before stepping out. `target` is `switch:<id>`, `exit:<id>`, `bar:<id>` or `point:x,y`. Locomotion takes `style: normal|cautious` and an optional gaze `target` |
 | `shots[]` | Contiguous, starting at 0 and ending at `duration` |
 
 Required fields per action are validated: for example, `walk_to` needs `target_x` and `press` needs `switch`.
@@ -72,7 +72,7 @@ Required fields per action are validated: for example, `walk_to` needs `target_x
 |---|---|
 | `id`, `start`, `end` | Identifier and timing |
 | `description` | Human-readable intent |
-| `camera` | `mode: static|follow|track_x|dolly`, `target`, `center`, `center_end`, `view_height`, `view_height_end`, `offset`, `lead`, `stiffness`, `roll`, `roll_end`, `roll_mode: fixed|align_gravity`, `roll_rate` (deg/s cap for aligned rolls), `focus: body|upper|head` (the framing region, used by the guard), `shake` (strength of the event shake), `keep_in_frame` |
+| `camera` | `mode: static|follow|track_x|dolly`, `target`, `center`, `center_end`, `view_height`, `view_height_end`, `offset`, `lead`, `stiffness`, `roll`, `roll_end`, `roll_mode: fixed|align_gravity`, `roll_rate` (deg/s cap for aligned rolls), `roll_ease: in_out|sine|linear` (easing for `roll → roll_end`; `sine` peaks at 1.57× the average rate, cubic `in_out` at 3×), `focus: body|upper|head` (the framing region, used by the guard), `shake` (strength of the event shake), `keep_in_frame` |
 | `kind` | `establishing|wide|medium|close|insert|tracking`. QA checks inserts frame the switch, and close-ups frame their focus region |
 | `character_states` | Expected state at shot start (documentation / QA hint) |
 | `action_objectives` | What the shot must show |
@@ -80,13 +80,14 @@ Required fields per action are validated: for example, `walk_to` needs `target_x
 | `environment_state` | e.g. `{"gravity": "G0 -> G1"}` |
 | `physics_requirements` | e.g. "ballistic fall", "feet-first contact with wall_right" |
 | `sound_cues[]` | `{on_event, sound, gain}`. Bound to engine events, never to raw times |
+| `fade_out` | Seconds of fade to black at the end of the shot |
 | `exit_conditions[]` | `event:<type>`, `state:<idle|loco|press|...>`, `grounded_on:<surface>`. **Checked by QA** |
 
 Character positions per shot are not hand-specified. They are the *output* of simulation: `SceneRuntime.evaluate(t)` returns every character's pose at any time.
 
 ## Events (engine output)
 
-`footstep`, `turn`, `press_contact`, `switch_activated`, `gravity_shift`, `gravity_settled`, `lost_support`, `brace`, `impact`, `recovered`, `takeoff`, `prop_impact`, `notice`, `point`, `slide_start`, `slide_end`, `grab`, `grab_missed`, `release`, `graze` (glancing contact with a surface that cannot support the body under the current gravity: not a landing), `door_unlocking`, `door_unlocked`, `door_open`, `exit_reached`. Each has a time, a character and data (surface, speeds, points).
+`footstep`, `turn`, `press_contact`, `switch_activated`, `gravity_shift`, `gravity_settled`, `lost_support`, `brace`, `impact`, `recovered`, `takeoff`, `prop_impact`, `notice`, `point`, `slide_start`, `slide_end`, `grab`, `grab_missed`, `release`, `graze` (glancing contact with a surface that cannot support the body under the current gravity: not a landing), `door_unlocking`, `door_unlocked`, `door_open`, `look_back`, `exit_reached`, `door_close`. Each has a time, a character and data (surface, speeds, points).
 
 ## Example
 

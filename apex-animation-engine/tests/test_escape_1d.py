@@ -230,11 +230,26 @@ def test_camera_rolls_with_gravity_both_ways(escape_runtime, escape_project):
     from apex.render.pipeline import build_camera
     cam = build_camera(escape_runtime, 16 / 9)
     s06 = next(s for s in cam.shots if s.id == "s06_recover")
-    s13 = next(s for s in cam.shots if s.id == "s13_swing")
+    turn = next(s for s in cam.shots if s.id == "s14_turn")
+    swing = next(s for s in cam.shots if s.id == "s15_swing")
     assert abs(cam.at(s06.end - 1e-3).roll - 90) < 3
-    assert abs(cam.at(s13.end - 1e-3).roll + 90) < 3  # turned back the other way (CW gravity sweep)
-    rates = [abs(cam.at(t + 1 / 24).roll - cam.at(t).roll) * 24 for t in np.arange(s13.start, s13.end - 0.05, 1 / 24)]
-    assert max(rates) <= 121
+    assert abs(cam.at(turn.end - 1e-3).roll + 90) < 3  # turned back the other way (CW gravity sweep)
+    rates = [abs(cam.at(t + 1 / 24).roll - cam.at(t).roll) * 24 for t in np.arange(turn.start, turn.end - 0.05, 1 / 24)]
+    assert max(rates) <= 150
+
+
+def test_camera_turn_happens_while_dangling_not_while_swinging(escape_runtime):
+    """1D review: the 180-degree roll made the swing hard to read. The roll now completes while AXEL dangles
+    (before pumping starts) and the swing plays under a stable camera."""
+    from apex.render.pipeline import build_camera
+    cam = build_camera(escape_runtime, 16 / 9)
+    an = escape_runtime.result.animators["axel"]
+    seg = next(s for s in an.segments if s.kind == "swing")
+    pump0 = seg.data["pumps"][0][0]
+    assert pump0 >= seg.t0 + seg.data["hang"] - 1e-6
+    swing = next(s for s in cam.shots if s.id == "s15_swing")
+    rolls = [cam.at(float(t)).roll for t in np.arange(max(pump0, swing.start), swing.end - 1e-3, 1 / 24)]
+    assert max(rolls) - min(rolls) < 1.0  # no camera roll while pumping, releasing and dropping
 
 
 def test_inspector_passes_1d(escape_report):
@@ -265,3 +280,81 @@ def test_new_sounds(tmp_path):
           Event(1.2, "door_open", "a", {"exit": "d"}), Event(1.6, "exit_reached", "a", {"exit": "d"})]
     cues = SoundDirector(1).render(ev, 3.0, str(tmp_path / "s.wav"))
     assert {c.sound for c in cues} == {"slide", "clank", "unlock", "door", "resolve"}
+
+
+# ---------------------------------------------------------------- 1D review revisions (Part A)
+def test_hard_landing_is_three_point(escape_runtime):
+    """Weight on impact: on a hard landing the near hand touches the surface ahead of the feet."""
+    rt = escape_runtime
+    an = rt.result.animators["axel"]
+    for seg in (s for s in an.segments if s.kind == "landing" and s.data["approach"] > 1200):
+        F = rt.result.frames[seg.frame]
+        h = min(F.to_frame(rt.rigs["axel"].world_joints(an.pose_at(float(t)))["hand_n"])[1]
+                for t in np.arange(seg.t0 + 0.15, seg.t0 + 0.4, 1 / 96))
+        assert h < 12.0
+
+
+def test_heavier_landing_recovers_more_slowly():
+    from apex.core.mathx import damped_spring
+    # the controller's landing spring: heavy impacts use a lower frequency and more damping
+    light = damped_spring(60.0, -600 * 0.9, 88.7, 11.0, 0.55, 0.25)[0]
+    heavy = damped_spring(60.0, -1500 * 0.9, 88.7, 9.0, 0.8, 0.25)[0]
+    assert heavy < light
+
+
+def test_relief_beats_vary(escape_runtime):
+    an = escape_runtime.result.animators["axel"]
+    settles = [s for s in an.segments if s.kind == "idle" and s.data.get("settle")]
+    assert [s.data["variant"] for s in settles] == [0, 1]
+    assert all(0.75 <= s.data["settle_k"] <= 1.25 for s in settles)
+
+
+def test_reversal_reaction_before_losing_support(escape_runtime):
+    """When the floor starts to tilt away he reacts (arms out, eyes wide) before the fall."""
+    rt = escape_runtime
+    an = rt.result.animators["axel"]
+    shift = _ev(rt, "gravity_shift", switch="sw2").t
+    lost = _ev(rt, "lost_support", shift).t
+    before = an.pose_at(shift - 0.05)
+    during = an.pose_at(min(lost - 0.01, shift + 0.18))
+    assert during.eye > before.eye + 0.3
+
+
+def test_threshold_look_back_holds_still(escape_runtime):
+    rt = escape_runtime
+    lb = _ev(rt, "look_back")
+    ex = _ev(rt, "exit_reached", lb.t)
+    an = rt.result.animators["axel"]
+    a, b = an.pose_at(lb.t + 0.1).root, an.pose_at(lb.t + 0.5).root
+    assert math.dist(a, b) < 2.0 and ex.t > lb.t + 0.5
+
+
+def test_door_closes_behind_him(escape_runtime):
+    from apex.scene.runtime import DOOR_CLOSE_DELAY, DOOR_CLOSE_S, door_state
+    d = escape_runtime.result.doors["door1"]
+    x = d["exit_t"]
+    assert door_state(d, x + DOOR_CLOSE_DELAY + DOOR_CLOSE_S / 2)[0] == "closing"
+    assert door_state(d, x + DOOR_CLOSE_DELAY + DOOR_CLOSE_S + 0.01)[0] == "closed"
+    assert x + DOOR_CLOSE_DELAY + DOOR_CLOSE_S < escape_runtime.result.duration - 0.2  # the close is seen before the end
+
+
+def test_final_shot_fades_out(escape_runtime):
+    from apex.render.pipeline import build_camera, shot_fade
+    cam = build_camera(escape_runtime, 16 / 9)
+    end = escape_runtime.result.duration
+    assert shot_fade(cam, end - 1e-3) > 0.98 and shot_fade(cam, end - 1.2) == 0.0
+
+
+def test_rail_is_long_on_screen_at_the_catch(escape_runtime, escape_project):
+    """1D review: the rail read as a glow at the hands. At the catch it must project to a clearly visible bar."""
+    from apex.render.pipeline import build_camera
+    from apex.render.skia_renderer import FOV_K
+    rt = escape_runtime
+    cam = build_camera(rt, 16 / 9)
+    g = _ev(rt, "grab")
+    c = cam.at(g.t - 1e-3)
+    x, y = next(o.center for o in rt.env.obstacles if o.kind == "bar")
+    focal, Fd = 1080 * FOV_K, c.view_h * FOV_K
+    P = lambda z: ((x - c.cx) * focal / (Fd + z), -(y - c.cy) * focal / (Fd + z))
+    a, b = P(rt.env.room.depth_back), P(0.0)
+    assert math.dist(a, b) > 90  # pixels at 1080p from the back-wall bracket to the character plane

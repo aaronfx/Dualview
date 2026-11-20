@@ -1,6 +1,6 @@
 # Milestone 1D: plan and what was actually built
 
-**Status:** implemented and rendered (`examples/gravity_switch_1d.json`, 30.0 s), awaiting owner review. The review results are in `docs/MILESTONE_STATUS.md`.
+**Status:** implemented, rendered and accepted (v1). It was revised after the owner's review as **v2**: the swing restaged so the camera turn happens during a dangle, the rail introduced and made visible, more acting, heavier impacts, and an ending with a look back, the door closing and a fade. The v2 timeline and the list of changes are in `docs/MILESTONE_STATUS.md` ("Milestone 1D revision 1"). The table below is the v1 story; v2 keeps the same beats with these additions.
 
 ## The 30 s story as built
 
