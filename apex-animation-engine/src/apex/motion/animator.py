@@ -16,11 +16,12 @@ from ..core.timeline import Track
 from ..rig.skeleton import to_character
 from ..rig.stickman import PI, Pose, StickmanRig, base_pose, blend_poses, set_arm, set_lean
 from ..scene.schema import CharacterStyle
-from .controller import NOTICE_DOUBLE_TAKE, PRESS_CONTACT_T, PRESS_H_CONTACT_T, TURN_DURATION, Event, Segment, StepRecord
+from .controller import NOTICE_DOUBLE_TAKE, PRESS_CONTACT_T, PRESS_H_CONTACT_T, SLIDE_DROP, TURN_DURATION, Event, Segment, StepRecord
 from .frames import GroundFrame
 from .gait import Gait, GaitParams
 
-BLEND_IN = {"airborne": 0.16, "landing": 0.12, "loco": 0.18, "idle": 0.2, "press": 0.18, "turn": 0.06, "point": 0.12}
+BLEND_IN = {"airborne": 0.16, "landing": 0.12, "loco": 0.18, "idle": 0.2, "press": 0.18, "turn": 0.06, "point": 0.12,
+            "slide": 0.1, "crouch": 0.14, "swing": 0.08}
 
 # press action: hand target offsets relative to the button (ds toward the character, dh above), IK weight, body
 PRESS = {
@@ -45,17 +46,27 @@ PRESS_H = {
     "ik": Track.of((0.0, 0.0), (0.22, 0.0), (0.55, 1.0), (H + 0.42, 1.0), (H + 0.55, 0.0)),
     "ds": Track.of((0.22, 42.0), (0.6, 15.0), (0.85, 19.0), (1.02, 36.0), (1.2, 31.0), (1.36, 17.0), (H - 0.1, 11.0, "in"), (H, 0.0), (H + 0.45, 0.0)),
     "dh": Track.of((0.22, 52.0), (0.6, 21.0), (0.85, 25.0), (1.02, 42.0), (1.2, 39.0), (1.36, 25.0), (H - 0.1, 28.0, "in"), (H, 0.0), (H + 0.07, -3.0), (H + 0.45, -3.0)),
-    "lean": Track.of((0.0, 0.08), (0.25, 0.3), (0.6, 0.52), (0.85, 0.5), (1.02, 0.28), (1.2, 0.3), (H - 0.1, 0.6), (H, 0.66), (H + 0.4, 0.62), (H + 0.5, -0.36), (H + 0.7, 0.0), (H + 0.9, 0.1)),
-    "crouch": Track.of((0.0, 0.0), (0.6, 14.0), (1.02, 9.0), (H - 0.1, 17.0), (H, 19.0), (H + 0.4, 18.0), (H + 0.5, -5.0), (H + 0.75, 8.0), (H + 0.9, 7.0)),
+    # startle (after contact) eased over ~0.2 s: the 1C version rose 22 u in 0.08 s and read as a pop
+    "lean": Track.of((0.0, 0.08), (0.25, 0.3), (0.6, 0.52), (0.85, 0.5), (1.02, 0.28), (1.2, 0.3), (H - 0.1, 0.6), (H, 0.66), (H + 0.42, 0.62), (H + 0.62, -0.3), (H + 0.8, 0.02), (H + 0.9, 0.1)),
+    "crouch": Track.of((0.0, 0.0), (0.6, 14.0), (1.02, 9.0), (H - 0.1, 17.0), (H, 19.0), (H + 0.42, 18.0), (H + 0.62, -4.0), (H + 0.8, 7.0), (H + 0.9, 7.0)),
     "cock": Track.of((0.0, 0.0), (0.8, 0.0), (0.95, 0.28), (1.25, 0.25), (1.38, 0.0)),  # doubtful head tilt
     "eye": Track.of((0.0, 1.0), (0.6, 1.1), (0.9, 0.8), (1.25, 0.82), (1.4, 1.05), (H + 0.42, 1.0), (H + 0.5, 1.9), (H + 0.9, 1.45)),
-    "twist": Track.of((0.0, 0.0), (0.6, 0.7), (1.02, 0.25), (H, 0.8), (H + 0.45, 0.7), (H + 0.55, -0.45), (H + 0.9, 0.0)),
-    "sy": Track.of((H + 0.42, 1.0), (H + 0.5, 1.08), (H + 0.62, 0.96), (H + 0.72, 1.0)),
-    "armN": Track.of((H + 0.42, 0.0), (H + 0.52, 2.7), (H + 0.72, 1.3), (H + 0.9, 1.0)),
-    "armF": Track.of((0.0, 0.7), (0.6, 0.9), (0.85, 1.05), (1.3, 1.05), (H + 0.42, 0.9), (H + 0.52, 2.5), (H + 0.72, 1.1), (H + 0.9, 0.9)),
-    "elbF": Track.of((0.0, 1.8), (0.6, 2.2), (0.85, 2.55), (1.3, 2.5), (H + 0.42, 2.2), (H + 0.52, 0.6), (H + 0.72, 1.4), (H + 0.9, 1.6)),
-    "gaze": Track.of((0.0, 0.0), (0.18, 1.0), (H + 0.44, 1.0), (H + 0.52, 0.0)),
-    "lookup": Track.of((H + 0.45, 0.0), (H + 0.6, -0.55), (H + 0.9, -0.4)),
+    "twist": Track.of((0.0, 0.0), (0.6, 0.7), (1.02, 0.25), (H, 0.8), (H + 0.45, 0.7), (H + 0.64, -0.4), (H + 0.9, 0.0)),
+    "sy": Track.of((H + 0.44, 1.0), (H + 0.58, 1.06), (H + 0.72, 0.97), (H + 0.84, 1.0)),
+    "armN": Track.of((H + 0.42, 0.0), (H + 0.6, 2.5), (H + 0.78, 1.3), (H + 0.9, 1.0)),
+    "armF": Track.of((0.0, 0.7), (0.6, 0.9), (0.85, 1.05), (1.3, 1.05), (H + 0.42, 0.9), (H + 0.6, 2.3), (H + 0.78, 1.1), (H + 0.9, 0.9)),
+    "elbF": Track.of((0.0, 1.8), (0.6, 2.2), (0.85, 2.55), (1.3, 2.5), (H + 0.42, 2.2), (H + 0.6, 0.7), (H + 0.78, 1.4), (H + 0.9, 1.6)),
+    "gaze": Track.of((0.0, 0.0), (0.18, 1.0), (H + 0.44, 1.0), (H + 0.58, 0.0)),
+    "lookup": Track.of((H + 0.45, 0.0), (H + 0.66, -0.5), (H + 0.9, -0.4)),
+}
+# post-landing recovery: relief slump (exhale, hands on knees) then straighten up (1C review: relief was missing)
+RECOVER = {
+    "crouch": Track.of((0.0, 3.0), (0.32, 17.0), (0.75, 14.0), (1.15, 0.0)),
+    "lean": Track.of((0.0, 0.2), (0.32, 0.72), (0.75, 0.6), (1.15, 0.05)),
+    "head": Track.of((0.0, 0.1), (0.35, 0.55), (0.8, 0.45), (1.1, 0.0)),
+    "knees": Track.of((0.0, 0.0), (0.28, 1.0), (0.8, 1.0), (1.05, 0.0)),
+    "sy": Track.of((0.3, 1.0), (0.5, 0.955), (0.78, 1.025), (0.95, 1.0)),
+    "eye": Track.of((0.0, 1.35), (0.3, 1.1), (0.36, 0.25), (0.44, 0.9), (1.2, 1.0)),
 }
 NOTICE = {  # double-take: glance -> look away -> snap back with a startle
     "w": Track.of((0.0, 0.0), (0.1, 0.0), (0.18, 1.0, "out"), (0.26, 1.0), (0.38, 0.0), (NOTICE_DOUBLE_TAKE - 0.04, 0.0), (NOTICE_DOUBLE_TAKE + 0.05, 1.0, "out")),
@@ -95,6 +106,7 @@ class Animator:
         self.gait_params = GaitParams(cadence_scale=style.cadence_scale, stride_scale=style.stride_scale,
                                       leg_length=rig.p.thigh + rig.p.shin)
         self.footsteps: List[Event] = []
+        self.portals: List[Tuple[float, float, float, float]] = []  # open-doorway regions (set by the runtime)
         self.FAC = np.array([r.facing for r in records])
         self._prepare()
         self._follow_through()
@@ -110,7 +122,7 @@ class Animator:
         for seg in self.segments:
             F = self.frames[seg.frame]
             f = seg.facing
-            if seg.kind == "airborne":
+            if seg.kind in ("airborne", "swing", "slide"):
                 plants = None
                 continue
             if seg.kind == "landing":
@@ -130,7 +142,7 @@ class Animator:
                 continue
             if plants is None:
                 s0 = self._rec(self.S, seg.t0, seg)
-                if seg.data.get("landing"):
+                if seg.data.get("landing") or seg.data.get("from_slide"):
                     plants = (s0 + 18.0 * f, s0 - 6.0 * f)
                 else:
                     plants = (s0 + 9.0 * f, s0 - 9.0 * f)
@@ -219,7 +231,7 @@ class Animator:
             self.FX[i], self.FY[i] = yx, yy
 
     def _overlap(self, pose: Pose, t: float) -> None:
-        if pose.state == "airborne":
+        if pose.state in ("airborne", "swing", "slide"):
             return
         fx, fy = float(np.interp(t, self.T, self.FX)), float(np.interp(t, self.T, self.FY))
         da = clamp(-0.00042 * fx, -0.75, 0.75)
@@ -283,8 +295,42 @@ class Animator:
             if u < 1:
                 prev = self._eval(self.segments[i - 1], t)
                 pose = blend_poses(prev, pose, smoothstep(0, 1, u))
+                if seg.kind == "swing":  # the grip is a hard constraint: re-solve the arms after blending
+                    for side in "nf":
+                        self.rig.arm_ik(pose, side, seg.data["anchor"])
+                elif seg.kind not in ("airborne",):  # blended legs may not dip through the support surface
+                    self._ground_clamp(pose, self.frames[seg.frame])
         self._overlap(pose, t)
+        self._hands_in_room(pose)
         return pose
+
+    def _hands_in_room(self, pose: Pose) -> None:
+        """Limb-environment constraint: a hand that would pass through a room surface is placed on it instead
+        (it reads as bracing against the wall)."""
+        if pose.state == "swing":
+            return
+        hw, rh = self.frames["wall_right"].origin[0], self.frames["ceiling"].origin[1]
+        j = None
+        for side in "nf":
+            j = j or self.rig.world_joints(pose)
+            hx, hy = j[f"hand_{side}"]
+            if self.portals and any(x0 <= hx <= x1 and y0 <= hy <= y1 for (x0, y0, x1, y1) in self.portals):
+                continue
+            cx, cy = clamp(hx, -hw + 3.0, hw - 3.0), clamp(hy, 3.0, rh - 3.0)
+            if (cx, cy) != (hx, hy):
+                self.rig.arm_ik(pose, side, (cx, cy), fingertip=True)
+                pose.hands[side] = "open"
+                j = None
+
+    def _ground_clamp(self, pose: Pose, F: GroundFrame) -> None:
+        j = self.rig.world_joints(pose)
+        for side in "nf":
+            sa, ha = F.to_frame(j[f"ankle_{side}"])
+            st, ht = F.to_frame(j[f"toe_{side}"])
+            if ha < self.p.ankle_height - 0.5 or ht < -0.5:
+                ang = -math.asin(clamp(self.p.ankle_height / self.p.foot, 0.0, 1.0)) if ht < -0.5 else None
+                tilt = (pose.body_angle - F.body_angle) * (1.0 if pose.facing >= 0 else -1.0)
+                self.rig.leg_ik(pose, side, F.to_world(sa, max(ha, self.p.ankle_height)), None if ang is None else max(0.0, ang) - tilt)
 
     def _legs(self, pose: Pose, F: GroundFrame, plants: Tuple[float, float], lift: Tuple[float, float] = (0.0, 0.0),
               angles: Tuple[float, float] = (0.0, 0.0)) -> None:
@@ -345,12 +391,34 @@ class Animator:
             tilt = Track.of((0.0, 0.0), (0.3, -0.35), (0.55, -0.1), (1.15, -0.15), (1.4, 0.05))
             pose.head_facing = 1.0 if look(tau) > 0 else -1.0
             L["head"] = -tilt(tau)
+        knees = 0.0
         if seg.data.get("settle"):
-            pose.eye = lerp(1.25, 1.0, smoothstep(0, 1.2, tau))
-            down = (1 - smoothstep(0.2, 0.7, tau))  # glance down at the new floor, then up
-            L["head"] = L.get("head", 0.0) - 0.45 * down
+            R = RECOVER
+            pose.root = F.to_world(s + 2.5 * sway * seg.facing, self.stand_h - 2.0 - R["crouch"](tau) + 1.2 * breath)
+            set_lean(L, R["lean"](tau), chest=-0.1 * R["knees"](tau), head=R["head"](tau))
+            sy = R["sy"](tau)
+            pose.squash = (1.0 / math.sqrt(sy), sy)
+            pose.pivot_y = -(self.stand_h - 2.0)
+            pose.eye = R["eye"](tau)
+            knees = R["knees"](tau)
+        if seg.data.get("tense"):  # braced, eyes on what is coming
+            pose.root = F.to_world(s, self.stand_h - 8.0 + 1.5 * math.sin(2 * PI * tau / 1.1))
+            set_lean(L, 0.16, chest=-0.05)
+            set_arm(L, "n", 0.55, 1.2)
+            set_arm(L, "f", 0.35, 1.4)
+            pose.eye = 1.3
         plants, lift, ang = self._settle_feet(seg, t)
         self._legs(pose, F, plants, lift, ang)
+        if knees > 0:  # hands on the knees (IK to just above each knee)
+            j = self.rig.world_joints(pose)
+            for side in "nf":
+                fk = {k: L[k] for k in (f"upper_arm_{side}", f"forearm_{side}")}
+                kp, hp = j[f"knee_{side}"], j[f"hip_{side}"]
+                tgt = (kp[0] + (hp[0] - kp[0]) * 0.18, kp[1] + (hp[1] - kp[1]) * 0.18)
+                self.rig.arm_ik(pose, side, tgt)
+                for k, v in fk.items():
+                    L[k] = lerp_angle(v, L[k], knees)
+                pose.hands[side] = "open" if knees > 0.5 else pose.hands.get(side, "fist")
         g, w = self._seg_gaze(seg, t)
         self._gaze(pose, g, w)
         return pose
@@ -504,6 +572,78 @@ class Animator:
         self._gaze(pose, g, w)
         return pose
 
+    # -- duck slide (feet first, torso laid back, trailing hand on the surface)
+    def _eval_slide(self, seg: Segment, t: float) -> Pose:
+        pose, F = self._base(seg, t)
+        tc = clamp(t, seg.t0, seg.t1)
+        tau = tc - seg.t0
+        d = seg.data["dir"]
+        s, h = self._rec(self.S, tc), self._rec(self.H, tc)
+        pose.root = F.to_world(s, h)
+        e = smoothstep(0.0, SLIDE_DROP + 0.05, tau)
+        L = pose.local
+        set_lean(L, lerp(0.3, -1.22, e), chest=-0.12 * e, head=0.8 * e)
+        lead = s + d * lerp(30.0, 80.0, e)
+        trail = s - d * lerp(12.0, 3.0, e)
+        self._legs(pose, F, (lead, trail), (0.0, 0.0), (0.55 * e, -0.15))
+        set_arm(L, "f", lerp(0.6, 1.0, e), 0.7)
+        pose.hands = {"n": "open", "f": "fist"}
+        if e > 0:
+            fk = {k: L[k] for k in ("upper_arm_n", "forearm_n")}
+            self.rig.arm_ik(pose, "n", F.to_world(s - d * 46.0, 7.0))  # trailing hand skims the surface
+            for k, v in fk.items():
+                L[k] = lerp_angle(v, L[k], e)
+        pose.eye = 1.25
+        return pose
+
+    # -- standing jump anticipation (crouch, arms swing back, eyes on the target)
+    def _eval_crouch(self, seg: Segment, t: float) -> Pose:
+        pose, F = self._base(seg, t)
+        tau = clamp(t - seg.t0, 0.0, seg.data.get("dur", 0.26))
+        dur = seg.data.get("dur", 0.26)
+        u = tau / dur
+        e = smoothstep(0.0, 1.0, u)
+        s = self._rec(self.S, t, seg)
+        pose.root = F.to_world(s, self.stand_h - 2.0 - 26.0 * math.sin(PI * 0.5 * min(1.0, u * 1.25)))
+        L = pose.local
+        set_lean(L, 0.12 + 0.38 * e, chest=-0.1 * e)
+        set_arm(L, "n", -1.25 * e, 0.3)
+        set_arm(L, "f", -1.05 * e, 0.35)
+        pose.eye = 1.25
+        self._legs(pose, F, seg.data["plants"])
+        g = seg.data.get("gaze")
+        self._gaze(pose, g, 1.0 if g else 0.0)
+        return pose
+
+    # -- hanging / swinging from a bar: wrists locked to the grip, legs trail the swing
+    def _eval_swing(self, seg: Segment, t: float) -> Pose:
+        tc = clamp(t, seg.t0, seg.t1)
+        pose = Pose(local=base_pose(), facing=seg.facing, state="swing")
+        pose.root = (self._rec(self.PX, tc), self._rec(self.PY, tc))
+        pose.body_angle = self._rec(self.ANG, tc)
+        tau = tc - seg.t0
+        w = (self._rec(self.ANG, min(tc + 0.02, seg.t1)) - self._rec(self.ANG, max(tc - 0.02, seg.t0))) / 0.04
+        L = pose.local
+        set_lean(L, 0.0, head=-0.25)  # straight torso: the grip geometry is the rigid body's
+        lag = clamp(-0.11 * w * seg.facing, -0.85, 0.85)
+        catch = math.exp(-tau * 7.0)  # legs kick through on the catch, then trail
+        kick = 0.0
+        for (p0, p1) in seg.data.get("pumps", []):  # pumping: pike the legs through the bottom of the arc
+            if p0 - 0.12 <= tc <= p1 + 0.15:
+                kick = max(kick, math.sin(PI * clamp((tc - p0 + 0.12) / (p1 - p0 + 0.27), 0, 1)))
+        catch += 0.9 * kick
+        L["thigh_n"] = -PI / 2 + 0.25 + lag + 0.5 * catch
+        L["shin_n"] = -(0.45 + 0.25 * abs(lag)) - 0.4 * catch
+        L["thigh_f"] = -PI / 2 + 0.05 + 0.8 * lag + 0.2 * catch
+        L["shin_f"] = -(0.3 + 0.2 * abs(lag))
+        L["foot_n"] = L["foot_f"] = PI / 2
+        B = seg.data["anchor"]
+        for side in "nf":
+            self.rig.arm_ik(pose, side, B)
+        pose.hands = {"n": "fist", "f": "fist"}
+        pose.eye = lerp(1.7, 1.25, smoothstep(0.0, 0.6, tau))
+        return pose
+
     # -- airborne (falling / tumbling / jump) with brace toward the predicted surface
     def _eval_airborne(self, seg: Segment, t: float) -> Pose:
         tc = clamp(t, seg.t0, seg.t1)
@@ -523,6 +663,18 @@ class Animator:
             L["thigh_f"] = -PI / 2 + lerp(-0.4, 1.0, tuck) + 0.1 * b
             L["shin_f"] = -lerp(0.4, 1.6, tuck) - 0.15 * b
             pose.eye = 1.15
+            btn, pt = seg.data.get("button"), seg.data.get("press_t")
+            if btn is not None:
+                self._gaze(pose, btn, smoothstep(0.0, 0.15, tau))
+                if pt is not None:  # mid-air slap: near hand IK onto the button around the contact instant
+                    w = smoothstep(pt - 0.24, pt - 0.03, tc) * (1 - smoothstep(pt + 0.08, pt + 0.26, tc))
+                    if w > 0:
+                        fk = {k: L[k] for k in ("upper_arm_n", "forearm_n", "hand_n")}
+                        self.rig.arm_ik(pose, "n", btn, fingertip=True)
+                        for k, v in fk.items():
+                            L[k] = lerp_angle(v, L[k], w)
+                        pose.hands["n"] = "open"
+                        pose.eye = 1.15 + 0.5 * w
         else:
             fl = 1.0 - b
             w = 11.0
@@ -539,6 +691,17 @@ class Animator:
             bp = seg.data.get("brace_point")
             if bp is not None and b > 0:
                 self._gaze(pose, bp, clamp(b * 1.5, 0, 1))
+            bar = seg.data.get("reach_bar")
+            if bar is not None:  # reaching for the bar on the way past
+                j = self.rig.world_joints(pose)
+                dist = math.dist(j["shoulder"], bar)
+                w = 1 - smoothstep(70.0, 260.0, dist)
+                self._gaze(pose, bar, clamp(w * 1.6, 0, 1))
+                for side in "nf":
+                    fk = {k: L[k] for k in (f"upper_arm_{side}", f"forearm_{side}")}
+                    self.rig.arm_ik(pose, side, bar)
+                    for k, v in fk.items():
+                        L[k] = lerp_angle(v, L[k], w)
         L["foot_n"] = L["foot_f"] = PI / 2
         return pose
 
@@ -572,7 +735,7 @@ class Animator:
         for seg in self.segments:
             F = self.frames[seg.frame]
             bl = BLEND_IN.get(seg.kind, 0.15) + 1e-3
-            if seg.kind in ("idle", "turn", "press", "landing", "point") and seg.data.get("plants"):
+            if seg.kind in ("idle", "turn", "press", "landing", "point", "crouch") and seg.data.get("plants"):
                 a = seg.t0 + bl
                 if seg.t1 - a > 0.05:
                     for k, side in enumerate("nf"):

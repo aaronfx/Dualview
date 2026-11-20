@@ -1,43 +1,82 @@
-# Milestone 1D: preparation plan (30 s Gravity Switch story)
+# Milestone 1D: plan and what was actually built
 
-**Status: prepared, not started.** The sequencing rule for this assignment says 1D starts only after the 14 s 1C sequence (`examples/gravity_switch_1c.json`) passes review. This file records what 1D needs, so work can begin right after that sign-off. Nothing here is claimed as done.
+**Status:** implemented and rendered (`examples/gravity_switch_1d.json`, 30.0 s), awaiting owner review. The review results are in `docs/MILESTONE_STATUS.md`.
 
-## Story (30 s, continuous room, two gravity reversals)
+## The 30 s story as built
 
-| Time | Beat | Gravity | New engine capability |
+Times come from the simulation (events), not from authoring.
+
+| Time | Beat | Gravity | Engine capability |
 |---|---|---|---|
-| 0–14 | 1C sequence: notice → hesitant press → fall to the right wall → recover → notice exit → point | G0 → G1 (right wall) | none (reuse) |
-| 14–17 | Run along the new floor (the right wall) toward the door; a crate slides into the path | G1 | prop-aware path, `duck_slide` |
-| 17–19.5 | Slide under the crate, pop up | G1 | `duck_slide` (low capsule, hands on surface) |
-| 19.5–22 | Door is sealed; a second switch sits on the ceiling-side panel; jump and slap it | G1 → G2 (ceiling) | `jump_to` with mid-air `press` (hand IK to switch in flight) |
-| 22–25 | Gravity reverses to the ceiling; grabs the door handle rail while falling "up" | G2 | `grab_swing`: hand IK lock plus pendulum about the grip |
-| 25–28 | Swings, releases at the apex, lands beside the door on the ceiling | G2 | release impulse, then existing brace and landing |
-| 28–30 | Seal bars retract; steps through; door light on the closing frame | G2 | door state machine (sealed → open), `reach_exit` exit condition |
+| 0–1.6 | Wide push-in. The room shows the floor switch, the conduit beam, the grab rail, the second switch and a sealed door on the ceiling. AXEL enters | G0 (down) | — |
+| 1.6–7.25 | Double take at the switch; cautious approach; hesitant press, with contact at 6.69 | G0 | 1C acting (startle now eased) |
+| 7.25–8.95 | Gravity turns +90°. He loses support, falls to the right wall, braces and lands (1341 u/s) | G0 → G1 | 1B physics |
+| 8.95–10.85 | Camera rolls with gravity. **Relief beat:** exhale, hands on knees, straighten up (new). Then a double take | G1 | `RECOVER` clip |
+| 10.85–13.25 | POV of the sealed door, now high on the far end wall. He points at it. POV of the second switch on the end wall | G1 | POV inserts |
+| 13.25–15.9 | Sprints along the wall and **slides under the conduit beam** (16.6 units clearance) | G1 | `duck_slide` |
+| 15.9–18.3 | Looks up, crouches, **jumps and slaps the switch mid-air** (17.15), lands | G1 | `jump_to` with an airborne press |
+| 18.3–19.75 | Gravity turns **−180°** (clockwise, back through the original "down"). He falls "up" the screen, tumbles feet-first and **catches the rail overhead** (19.65) | G1 → G2 | `grab_swing`: catch |
+| 19.75–22.45 | Pumps the swing; the camera turns with gravity; he **lets go at the top of the swing** (21.22), drops and lands by the door (1524 u/s) | G2 | `grab_swing`: swing, release |
+| 22.45–25.4 | Relief beat. He looks back up at the rail. The seal has retracted (unlocked at 19.25) and the **door slides open** (22.65) | G2 | door state machine |
+| 25.4–30 | Turns, walks into the doorway and fades into the light (`exit_reached` 26.65). The room is left empty, the doorway glowing | G2 | `reach_exit` |
 
-## Engineering tasks
+## Deviations from the original plan, and why
 
-1. **Schema.** Add the actions `duck_slide`, `jump_to`, `grab_swing{anchor, release_angle}` and `reach_exit`. Add an `ExitSpec.unlock_on` event and the exit condition `event:exit_reached`.
-2. **Controller.**
-   - `duck_slide` is a kinematic grounded state: a lowered capsule, friction-decayed speed, a clearance check against prop AABBs.
-   - `grab_swing` is a dynamic pendulum. It constrains the pymunk body to the grip with a pin joint. Release happens on the authored angle, or when the swing reaches it.
-   - An airborne `press`: hand IK to the switch while the body follows its ballistic path. Contact time is solved from the trajectory instead of authored.
-3. **Animator.** Clips for slide (lead leg extended, trailing hand dragging), hang/swing (arms locked, legs trailing by follow-through and swing phase), release tuck and door push.
-4. **Physics.**
-   - Prop paths must be tested against the slide clearance; the inspector gets a `clearance_violation` check.
-   - G2 is a 180° transition. `gravity_roll` is now wrapped and the roll spring takes the shortest path, fixed in 1C because the old code would have spun 270°.
-5. **Camera.**
-   - Hand-off from the 1C `s6` gravity-aligned roll into tracking shots.
-   - A second roll of 180° during G2. Choose the turn direction for continuity: keep the door on screen right.
-   - An insert of the hand grabbing the rail.
-6. **Audio.** Slide scrape, metal grab clank, door unlock chord. The music resolves to the tonic only on `exit_reached`.
-7. **QA additions.**
-   - Grip drift: hand to anchor distance while swinging (< 1.5 u).
-   - Slide clearance.
-   - Roll direction consistency across both reversals.
-   - Door visibility in at least one frame of every shot after `notice exit`.
+| Plan | Built | Reason |
+|---|---|---|
+| G2 = ceiling, a 180° rotation counted from the original | G2 = **left wall**: −180° relative to G1 (a true reversal of the preceding state), −90° relative to the original | It makes the second change a reversal of the first, as the story asks. The jump spot is near the ceiling, so a "toward the ceiling" gravity would have meant a tiny fall. The relative/original distinction is now explicit in the data (`rel_prev_deg`, `rel_original_deg`). |
+| Exit on the right wall | Exit **on the ceiling, next to the left wall** | In G0 and G1 the door is unreachable: a "sealed door far above" that motivates the second switch. In G2 it stands at the base of a side wall, so it is a door you can walk through. |
+| Crate in the path, slide under it | Slide under a **fixed conduit beam** spanning the room depth | A crate rests *on* the floor in any gravity, so there is nothing to slide under. The beam is a solid static collider, present and visible from the establishing shot. |
+| Grab the handle rail next to the door | Grab a **rail (bar) mid-room** on the fall path | The rail turns a dangerous 1100-unit fall into a catch and swing. It is placed on the hands' actual (simulated) path. |
+| Release on the swing angle while still moving | Release **at the top of the swing** | Letting go mid-swing threw him into the ceiling (a graze, detected). Letting go at the apex is the clean dismount. |
 
-## Acceptance (not to be claimed without the rendered video)
+## Engineering delivered
 
-- A playable 30 s 1080p MP4 with full-decode verification and a contact sheet every 0.5 s.
-- Every inspector check passes, including the new ones.
-- A separate subjective review of acting, action clarity, staging, continuity and emotional readability, written after viewing the actual render, plus a defect list.
+- **Schema**:
+  - `GravityEffect.rotate_deg` / `turn`;
+  - `SwitchSpec.surface`;
+  - `ObstacleSpec` (beam, bar);
+  - `ExitSpec.unlock_on` / `open_radius`;
+  - the actions `duck_slide`, `jump_to`, `grab_swing`, `reach_exit`;
+  - the `bar:<id>` target;
+  - `CameraSpec.roll_rate`.
+- **Physics**:
+  - signed sweeps;
+  - `angle_unwrapped`;
+  - `report()`;
+  - static boxes;
+  - pivot pins for the grip;
+  - COM impulses for pumping.
+- **Controller**:
+  - slide;
+  - standing or running `jump_to`, with a closest-approach mid-air press;
+  - the armed grab, a feet-first tumble with clearance gating, a hands-overhead catch with absorption, pumping and the apex dismount;
+  - the forced relief beat after hard landings;
+  - "graze" contacts that are not landings.
+- **Animator**:
+  - clips for slide, crouch and swing, plus mid-air slap and bar reach;
+  - the grip as a hard constraint after blending;
+  - the ground clamp after blending;
+  - hands that brace on surfaces instead of passing through them;
+  - the eased startle;
+  - the relief clip.
+- **Runtime**: the door state machine, door events and exit portals (the scarf and QA allow the open doorway).
+- **Renderer**:
+  - switches on any surface;
+  - beams and rails;
+  - door states (bars retract and turn green, the leaf slides back, light falls off into the corridor);
+  - fade into the light;
+  - interior clip;
+  - contact shadows on every surface;
+  - rings and flashes on any surface.
+- **Audio**: slide, clank, unlock, door and resolve; a two-act adaptive score that resolves to D major on `exit_reached`.
+- **QA (new)**:
+  - `gravity_angle_report`;
+  - `camera_roll_follows_gravity_direction`;
+  - `landings_on_supporting_surfaces`;
+  - `hand_on_switch_at_contact`;
+  - `grip_attachment`;
+  - `swing_energy_conserved` (net of pumping work);
+  - `obstacle_clearance`;
+  - `door_state_machine`.
+- **Tests**: `tests/test_escape_1d.py` (22 tests).

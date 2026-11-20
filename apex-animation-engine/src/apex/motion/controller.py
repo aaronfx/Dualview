@@ -16,7 +16,7 @@ from ..physics.gravity import GravityField, GravityTransition
 from ..physics.world import ContactEvent, PhysicsWorld, capsule_moment
 from ..rig.stickman import StickmanRig
 from ..scene.schema import ActionSpec, EnvironmentSpec
-from ..scene.targets import resolve
+from ..scene.targets import bar_world, exit_world, resolve, switch_world
 from .frames import GroundFrame
 
 MASS = 70.0
@@ -29,6 +29,16 @@ PRESS_H_DURATION = 2.45
 NOTICE_DOUBLE_TAKE = 0.55  # time of the second (snap) look inside a notice action
 TURN_DURATION = 0.32
 JUMP_PREP = 0.14
+JUMP_TO_PREP = 0.26  # standing jump: deeper anticipation crouch
+SLIDE_DROP = 0.14  # run -> slide: hips drop
+SLIDE_H = 30.0  # pelvis height while sliding
+SLIDE_DECEL = 170.0  # sliding friction deceleration (u/s^2)
+SLIDE_VMIN = 210.0
+GRAB_REACH = 0.94
+CATCH_KEEP = 0.55
+PUMP_ACC = 700.0  # tangential acceleration of a pumping kick (u/s^2, per unit mass)
+RECOVER_T = 1.15  # relief beat after a hard landing
+RECOVER_MIN_APPROACH = 900.0  # grab when the bar is within this fraction of shoulder->wrist reach
 
 
 @dataclass
@@ -67,9 +77,16 @@ class StepRecord:
 
 class CharacterController:
     def __init__(self, cid: str, rig: StickmanRig, world: PhysicsWorld, frames: Dict[str, GroundFrame], gravity: GravityField,
-                 env: EnvironmentSpec, x: float, facing: int, actions: List[ActionSpec], emit: Callable[[Event], None]):
+                 env: EnvironmentSpec, x: float, facing: int, actions: List[ActionSpec], emit: Callable[[Event], None],
+                 doors: Optional[Dict[str, Dict[str, Any]]] = None):
         self.cid, self.rig, self.world, self.frames, self.gravity, self.env = cid, rig, world, frames, gravity, env
         self.emit = emit
+        self.doors = doors if doors is not None else {}
+        self.shoulder_up = rig.p.spine + 0.86 * rig.p.chest  # shoulder above the pelvis along the body axis
+        self.arm_reach = rig.p.upper_arm + rig.p.forearm  # shoulder -> wrist
+        self.swing: Dict[str, Any] = {}
+        self.exit: Dict[str, Any] = {}
+        self.cur_prep = JUMP_PREP
         self.stand_h = rig.p.stand_height
         self.frame = frames["floor"]
         self.s, self.h, self.v = float(x), self.stand_h, 0.0
@@ -123,15 +140,22 @@ class CharacterController:
             self._airborne(t, dt, g)
         elif self.mode == "landing":
             self._landing(t, dt)
+        elif self.mode == "swing":
+            self._swing(t, dt, g)
 
     def after_step(self, t: float, contacts: List[ContactEvent]) -> None:
         if self.mode == "airborne":
+            g = self.gravity.direction(t)
             for c in contacts:
                 if c.a == self.cid and c.b in self.frames and c.normal_speed > 1.0:
-                    self._touch_down(t, c)
-                    break
+                    # only a surface that can hold the body under the current gravity is a landing; anything else
+                    # (e.g. grazing the ceiling while gravity points at a wall) is a glancing contact
+                    if -v_dot(g, self.frames[c.b].normal) >= SUPPORT_COS:
+                        self._touch_down(t, c)
+                        break
+                    self.emit(Event(t, "graze", self.cid, {"surface": c.b, "normal_speed": c.normal_speed, "point": c.point}))
         st = self.world.state(self.cid)
-        if self.mode in ("airborne",):
+        if self.mode in ("airborne", "swing"):
             s, h = self.frame.to_frame(st.pos)
         else:
             s, h = self.s, self.h
@@ -192,8 +216,38 @@ class CharacterController:
             self.emit(Event(t, "turn", self.cid, {"to": a.face}))
         elif a.type == "press":
             sw = next(s for s in self.env.switches if s.id == a.switch)
-            self._open("press", t, switch=sw.id, button=(sw.x, sw.height), pressed=False, hesitate=a.hesitate,
-                       gaze=(sw.x, sw.height))
+            bw = switch_world(self.env, sw)
+            self._open("press", t, switch=sw.id, button=self.frame.to_frame(bw), pressed=False, hesitate=a.hesitate, gaze=bw)
+        elif a.type == "duck_slide":
+            d = 1.0 if a.target_x - self.s >= 0 else -1.0
+            if self.v * d < 150.0:
+                self.v = d * (a.speed or 430.0)
+            self._open("slide", t, dir=d, s0=self.s, h0=self.h, target=a.target_x, v0=self.v)
+            self.emit(Event(t, "slide_start", self.cid, {"surface": self.frame.tag, "speed": abs(self.v)}))
+        elif a.type == "jump_to":
+            sw = next((x for x in self.env.switches if x.id == a.switch), None) if a.switch else None
+            gaze = switch_world(self.env, sw) if sw else None
+            if abs(self.v) > 40:
+                self.seg.data["prep"] = (t, t + JUMP_PREP)
+                self.cur_prep = JUMP_PREP
+            else:
+                self._open("crouch", t, dur=JUMP_TO_PREP, gaze=gaze)
+                self.cur_prep = JUMP_TO_PREP
+        elif a.type == "grab_swing":
+            # armed: waits (tense, eyes on the bar) until the body is airborne and the bar comes within reach
+            self._open("idle", t, gaze=resolve(self.env, a.target), tense=True)
+        elif a.type == "reach_exit":
+            ex_id = a.target.split(":", 1)[1]
+            plane, _ = self.frame.to_frame(exit_world(self.env, ex_id))
+            d = 1.0 if plane - self.s >= 0 else -1.0
+            if d != self.facing and abs(self.v) < 5:
+                self.queue.appendleft(a)
+                self.cur = ActionSpec(type="turn", character=self.cid, face=int(d))
+                self._open("turn", t, face_from=self.facing, face_to=d)
+                self.emit(Event(t, "turn", self.cid, {"to": int(d)}))
+                return
+            self.exit = {"id": ex_id, "plane": plane, "dir": d, "beyond": plane + d * 300.0, "crossed": False}
+            self._open("loco", t, run=False, style="normal", gaze=exit_world(self.env, ex_id), exit=ex_id)
         elif a.type == "jump":
             if abs(self.v) < 40:
                 raise ValueError("jump requires the character to be moving (run-up)")
@@ -235,6 +289,17 @@ class CharacterController:
             if tau >= JUMP_PREP:
                 self._takeoff(t, a)
                 return
+        elif a.type == "jump_to":
+            self.s += self.v * dt
+            if tau >= self.cur_prep:
+                self._takeoff_to(t, a)
+                return
+        elif a.type == "duck_slide":
+            self._slide(t, dt, a)
+        elif a.type == "grab_swing":
+            pass  # armed; holds until support is lost
+        elif a.type == "reach_exit":
+            self._reach_exit(t, dt, a)
         self._place(t)
 
     def _locomote(self, t: float, dt: float, a: ActionSpec) -> None:
@@ -247,7 +312,7 @@ class CharacterController:
         direction = self.cur_dir  # fixed for the whole action (never re-decided mid-move)
         remaining = (a.target_x - self.s) * direction
         nxt = self.queue[0] if self.queue else None
-        carry = nxt is not None and (nxt.type == "jump" or (nxt.type in ("walk_to", "run_to") and (nxt.target_x - a.target_x) * direction > 0))
+        carry = nxt is not None and (nxt.type in ("jump", "duck_slide") or (nxt.type in ("walk_to", "run_to") and (nxt.target_x - a.target_x) * direction > 0))
         v_des = speed if carry else min(speed, math.sqrt(2 * dec * max(remaining, 0.0)))
         cur = self.v * direction
         cur = min(cur + acc * dt, v_des) if cur < v_des else max(cur - dec * dt, v_des)
@@ -260,18 +325,201 @@ class CharacterController:
             self.s, self.v = a.target_x, 0.0
             self._next_action(t)
 
+    def _slide(self, t: float, dt: float, a: ActionSpec) -> None:
+        """Feet-first slide: hips drop, friction slows the body (never below SLIDE_VMIN until the end mark), then the
+        character rises straight into the next action (a run) carrying its speed."""
+        seg = self.seg
+        d = seg.data["dir"]
+        tau = t - seg.t0
+        u = clamp(tau / SLIDE_DROP, 0.0, 1.0)
+        e = u * u * (3 - 2 * u)
+        self.h = seg.data["h0"] + (SLIDE_H - seg.data["h0"]) * e
+        sp = abs(self.v)
+        if tau > SLIDE_DROP:
+            sp = max(SLIDE_VMIN, sp - SLIDE_DECEL * dt)
+        self.v = d * sp
+        self.s += self.v * dt
+        if (self.s - a.target_x) * d >= 0:
+            self.emit(Event(t, "slide_end", self.cid, {"surface": self.frame.tag, "speed": sp}))
+            self.overlay = {"t": t, "h0": self.h, "v0": 260.0}  # spring back up to standing height while running on
+            self._next_action(t)
+            if self.seg.kind == "loco":
+                self.seg.data["from_slide"] = True
+
+    def _reach_exit(self, t: float, dt: float, a: ActionSpec) -> None:
+        ex = self.exit
+        door = self.doors.get(ex["id"], {})
+        is_open = door.get("open_t") is not None and t >= door["open_t"] + 0.45
+        d = ex["dir"]
+        target = ex["beyond"] if is_open else ex["plane"] - d * 45.0  # wait at the threshold until the door is open
+        speed = a.speed or 150.0
+        remaining = (target - self.s) * d
+        v_des = min(speed, math.sqrt(2 * 600.0 * max(remaining, 0.0)))
+        cur = self.v * d
+        cur = min(cur + 500.0 * dt, v_des) if cur < v_des else max(cur - 650.0 * dt, v_des)
+        self.v = cur * d
+        self.s += self.v * dt
+        if not ex["crossed"] and (self.s - ex["plane"]) * d > 0:
+            ex["crossed"] = True
+            self.emit(Event(t, "exit_reached", self.cid, {"exit": ex["id"]}))
+        if is_open and remaining < 0.4:
+            self.s, self.v = ex["beyond"], 0.0
+            self._next_action(t)
+
+    def _shoulder_world(self) -> Vec:
+        st = self.world.state(self.cid)
+        up = v_rot((0.0, self.shoulder_up), st.angle)
+        return (st.pos[0] + up[0], st.pos[1] + up[1])
+
+    def _takeoff_to(self, t: float, a: ActionSpec) -> None:
+        """Ballistic jump aimed at a landing point `target_x` on the current surface with apex height `height`."""
+        g = self.gravity.at(t)
+        gm = math.hypot(*g)
+        vn = math.sqrt(2 * gm * a.height)
+        T = 2 * vn / gm
+        vt = (a.target_x - self.s) / T
+        tan, nrm = self.frame.tangent, self.frame.normal
+        vel = (tan[0] * vt + nrm[0] * vn, tan[1] * vt + nrm[1] * vn)
+        self.world.set_dynamic(self.cid, vel, 0.0, MASS, self.moment)
+        self.mode = "airborne"
+        sw = next((x for x in self.env.switches if x.id == a.switch), None) if a.switch else None
+        self.air = {"intent": "jump", "t0": t, "switch": sw.id if sw else None, "button": switch_world(self.env, sw) if sw else None}
+        self._open("airborne", t, intent="jump", button=self.air["button"], target_x=a.target_x)
+        self.cur = None
+        self.emit(Event(t, "takeoff", self.cid, {"surface": self.frame.tag, "speed": vt, "apex": a.height}))
+
+    def _try_grab(self, t: float) -> bool:
+        if not self.queue or self.queue[0].type != "grab_swing":
+            return False
+        a = self.queue[0]
+        B = bar_world(self.env, a.target.split(":", 1)[1])
+        sh = self._shoulder_world()
+        dist = math.dist(sh, B)
+        prev = self.air.get("bar_dist")
+        self.air["bar_dist"] = dist
+        st = self.world.state(self.cid)
+        loc = v_rot((B[0] - st.pos[0], B[1] - st.pos[1]), -st.angle)  # bar in the body frame (+y = toward the head)
+        # tumble feet-first (upright for the new gravity, the same cartoon air control as the landing brace) with the
+        # arms reaching overhead: the hands close on the bar as it passes above the shoulders
+        # orient for the gravity being rotated TO (an in-progress transition's end state), not the passing direction
+        t_end = next((tr.t_start + tr.duration for tr in self.gravity.transitions if tr.t_start <= t < tr.t_start + tr.duration), t)
+        g = self.gravity.direction(t_end)
+        want = math.atan2(-g[1], -g[0]) - math.pi / 2
+        err = wrap_angle(want - st.angle)
+        hw_, rh_ = self.env.room.width / 2, self.env.room.height
+        clearance = min(st.pos[0] + hw_, hw_ - st.pos[0], st.pos[1], rh_ - st.pos[1])
+        if clearance < 125.0:  # not enough room to turn over yet: fall clear of the surfaces first
+            err = 0.0
+            self.world.set_angular_velocity(self.cid, st.angvel)
+        if err != 0.0 and abs(abs(err) - math.pi) < 0.35:  # half a turn away: tumble the way with more free space for the head
+            hw, rh = self.env.room.width / 2, self.env.room.height
+            top = self.cap_b[1] + CAPSULE_R
+            room = []
+            for sgn in (1.0, -1.0):
+                hx, hy = v_rot((0.0, top), st.angle + sgn * math.pi / 2)
+                x, y = st.pos[0] + hx, st.pos[1] + hy
+                room.append(min(x + hw, hw - x, y, rh - y))
+            err = abs(err) if room[0] >= room[1] else -abs(err)
+        if clearance >= 125.0:
+            self.world.set_angular_velocity(self.cid, clamp(9.0 * err, -11, 11))
+        if dist <= GRAB_REACH * self.arm_reach and loc[1] >= self.shoulder_up + 0.6 * self.arm_reach:  # overhead, near-straight arms
+            self.queue.popleft()
+            self._grab(t, a, B)
+            return True
+        if prev is not None and dist > prev and dist > 3 * self.arm_reach and t - self.air["t0"] > 0.3:
+            self.queue.popleft()  # passed the bar without reaching it: give up, fall and brace
+            self.emit(Event(t, "grab_missed", self.cid, {"bar": a.target}))
+        return False
+
+    def _grab(self, t: float, a: ActionSpec, B: Vec) -> None:
+        st = self.world.state(self.cid)
+        local = self.world.add_pin(self.cid, B)
+        # inelastic catch: bent arms and shoulders absorb part of the impact (the body keeps CATCH_KEEP of its velocity)
+        self.world.set_dynamic(self.cid, (st.vel[0] * CATCH_KEEP, st.vel[1] * CATCH_KEEP), st.angvel * CATCH_KEEP, MASS, self.moment)
+        g = self.gravity.direction(t)
+        self.mode = "swing"
+        self.brace, self.ttc = 0.0, -1.0
+        th = self._swing_angle(B, g)
+        self.swing = {"bar": a.target, "B": B, "t0": t, "a": a, "theta": th, "passes": 0, "local": local,
+                      "half_amp": abs(th), "last_amp": 0.0, "work": 0.0}
+        self._open("swing", t, bar=a.target, anchor=B, grip_local=local, pumps=[], work=[(t, 0.0)])
+        self.cur = None
+        self.emit(Event(t, "grab", self.cid, {"bar": a.target, "point": B, "speed": math.hypot(*st.vel),
+                                              "speed_after": math.hypot(*st.vel) * CATCH_KEEP}))
+
+    def _swing_angle(self, B: Vec, gdir: Vec) -> float:
+        st = self.world.state(self.cid)
+        r = (st.pos[0] - B[0], st.pos[1] - B[1])
+        return math.atan2(gdir[0] * r[1] - gdir[1] * r[0], gdir[0] * r[0] + gdir[1] * r[1])  # + = CCW of hanging
+
+    def _swing(self, t: float, dt: float, g: Vec) -> None:
+        S = self.swing
+        a = S["a"]
+        gm = math.hypot(*g) or 1.0
+        th = self._swing_angle(S["B"], (g[0] / gm, g[1] / gm))
+        side = float(a.face or 1)
+        dth = th - S["theta"]
+        if S["theta"] * side < 0 <= th * side:
+            S["passes"] += 1  # passed the bottom moving toward the release side
+        if dth * S.get("dth", dth) < 0:  # turning point: amplitude of the half swing just completed
+            S["last_amp"] = S["half_amp"]
+            S["half_amp"] = 0.0
+        S["half_amp"] = max(S["half_amp"], abs(th))
+        S["dth"] = dth
+        S["theta"] = th
+        # pumping: kick through the bottom of the arc (muscular work, booked so QA can account for it) until the
+        # swing is big enough to release
+        target = math.radians(a.release_deg + 12.0)
+        pumping = S["last_amp"] < target and abs(th) < math.radians(30.0) and abs(dth) > 1e-6 and t - S["t0"] > 0.12
+        segd = self.seg.data
+        if pumping:
+            st = self.world.state(self.cid)
+            r = (st.pos[0] - S["B"][0], st.pos[1] - S["B"][1])
+            rn = math.hypot(*r) or 1.0
+            tdir = (-r[1] / rn, r[0] / rn)  # CCW tangent
+            sgn = 1.0 if (st.vel[0] * tdir[0] + st.vel[1] * tdir[1]) >= 0 else -1.0
+            self.world.apply_impulse(self.cid, (tdir[0] * sgn * MASS * PUMP_ACC * dt, tdir[1] * sgn * MASS * PUMP_ACC * dt))
+            S["work"] += PUMP_ACC * dt * abs(st.vel[0] * tdir[0] + st.vel[1] * tdir[1])
+            if not segd["pumps"] or segd["pumps"][-1][1] < t - 1.5 * dt:
+                segd["pumps"].append([t, t])
+            segd["pumps"][-1][1] = t
+        segd["work"].append((t, S["work"]))
+        # dismount: let go at the top of the swing on the release side (velocity ~ 0: a clean, predictable drop)
+        if S["passes"] >= a.swings and th * side >= math.radians(a.release_deg) and dth * side <= 0:
+            self.world.remove_pin(self.cid)
+            st = self.world.state(self.cid)
+            self.mode = "airborne"
+            self.air = {"intent": "fall", "t0": t, "released": True}
+            self._open("airborne", t, intent="fall", release=True)
+            self.emit(Event(t, "release", self.cid, {"bar": S["bar"], "angle_deg": math.degrees(th), "speed": math.hypot(*st.vel)}))
+
     def _trigger_switch(self, t: float, switch_id: str) -> None:
         sw = next(s for s in self.env.switches if s.id == switch_id)
-        g_now = self.gravity.at(t)
-        mag = sw.effect.magnitude or math.hypot(*g_now)
-        d = sw.effect.to
-        n = math.hypot(*d) or 1.0
-        to = (d[0] / n * mag, d[1] / n * mag)
         start = t + sw.effect.delay
-        self.gravity.schedule(GravityTransition(start, sw.effect.duration, to, cause=switch_id))
-        self.emit(Event(t, "press_contact", self.cid, {"switch": switch_id, "point": (sw.x, sw.height)}))
+        g_now = self.gravity.at(start)
+        mag = sw.effect.magnitude or math.hypot(*g_now)
+        a0 = math.atan2(g_now[1], g_now[0])
+        if sw.effect.rotate_deg is not None:
+            sweep = math.radians(sw.effect.rotate_deg)
+        else:
+            d = sw.effect.to
+            diff = math.atan2(d[1], d[0]) - a0
+            if sw.effect.turn == "ccw":
+                sweep = diff % (2 * math.pi)
+            elif sw.effect.turn == "cw":
+                sweep = -((-diff) % (2 * math.pi))
+            else:
+                sweep = wrap_angle(diff)
+        a1 = a0 + sweep
+        to = (math.cos(a1) * mag, math.sin(a1) * mag)
+        to = tuple(0.0 if abs(c) < 1e-9 else c for c in to)
+        self.gravity.schedule(GravityTransition(start, sw.effect.duration, to, cause=switch_id, sweep=sweep))
+        rel0 = math.degrees(self.gravity.angle_unwrapped(start + sw.effect.duration) - math.atan2(self.gravity.initial[1], self.gravity.initial[0]))
+        bw = switch_world(self.env, sw)
+        self.emit(Event(t, "press_contact", self.cid, {"switch": switch_id, "point": bw}))
         self.emit(Event(t, "switch_activated", self.cid, {"switch": switch_id}))
-        self.emit(Event(start, "gravity_shift", self.cid, {"from": g_now, "to": to, "duration": sw.effect.duration}))
+        self.emit(Event(start, "gravity_shift", self.cid, {"from": g_now, "to": to, "duration": sw.effect.duration, "switch": switch_id,
+                                                          "rel_prev_deg": math.degrees(sweep), "rel_original_deg": rel0}))
 
     def _takeoff(self, t: float, a: ActionSpec) -> None:
         g = self.gravity.at(t)
@@ -316,6 +564,23 @@ class CharacterController:
         if intent == "jump":
             self.world.set_angular_velocity(self.cid, clamp(10.0 * wrap_angle(self.frame.body_angle - st.angle), -12, 12))
             self.brace = clamp(1 - self.ttc / 0.3, 0, 1) if hit else 0.0
+            sw = self.air.get("switch")
+            if sw and not self.air.get("pressed"):
+                d = math.dist(self._shoulder_world(), self.air["button"])
+                prev = self.air.get("btn_d")
+                self.air["btn_d"] = d
+                reach = 0.97 * (self.arm_reach + self.rig.p.hand)
+                # slap at the closest approach (or once well within reach), never at the edge of reach on the way up
+                if d <= reach and (d <= 0.55 * reach or (prev is not None and d > prev)):
+                    self.air["pressed"] = True
+                    self.seg.data["press_t"] = t
+                    self._trigger_switch(t, sw)
+            return
+        if self._try_grab(t):
+            return
+        if self.queue and self.queue[0].type == "grab_swing":
+            self.brace = 0.0  # reaching for the bar, not bracing yet
+            self.seg.data["reach_bar"] = resolve(self.env, self.queue[0].target)
             return
         if hit and hit.tag in self.frames and self.ttc < 0.65:
             target = self.frames[hit.tag].body_angle
@@ -374,10 +639,13 @@ class CharacterController:
             self.mode = "grounded"
             self.h = self.stand_h
             self.emit(Event(t, "recovered", self.cid, {"surface": self.frame.tag}))
-            self.cur = None
-            self._open("idle", t, settle=True)
+            big = L["approach"] > RECOVER_MIN_APPROACH
+            self._open("idle", t, settle=big)
             if self.queue and self.queue[0].type == "wait_grounded":
                 self.queue.popleft()
+            # after a hard landing the relief beat (exhale, hands on knees, straighten up) always plays out
+            self.cur = ActionSpec(type="idle", character=self.cid, duration=RECOVER_T) if big else None
+            self.cur_t0 = t
             self._place(t)
 
     def finish(self, t_end: float) -> None:

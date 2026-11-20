@@ -6,8 +6,8 @@ All numbers below come from actual runs. Raw evidence is in `docs/evidence/`: `p
 |---|---|
 | 1A Rig and motion | **Done**, verified |
 | 1B Physical interaction | **Done**, verified |
-| 1C Character acting + cinematic direction | **Implemented, technically verified** (37/37 QA checks, 66/66 tests, full decode). **Artistic quality: self-reviewed, awaiting owner review**; see the separate assessment below. Not claimed as professional quality on the strength of numeric tests. |
-| 1D Full 30 s Gravity Switch | **Prepared, not started**; gated on 1C review. Plan in `docs/MILESTONE_1D_PLAN.md` |
+| 1C Character acting + cinematic direction | **Accepted** by the owner as a technically validated foundation. Startle and recovery fixed in 1D |
+| 1D Full 30 s Gravity Switch | **Implemented, rendered (30 s, 1080p, sound) and technically verified**: 57/57 QA checks, 88/88 tests, full decode. **Artistic quality: self-reviewed, awaiting the owner's review.** Not claimed as professional quality. |
 
 ---
 
@@ -225,6 +225,133 @@ This is my review of the rendered video, frame by frame plus the contact sheet. 
 
 ---
 
+## Milestone 1D: the 30-second Gravity Switch story
+
+**Owner's brief.**
+1. Fix the abrupt startle, the post-landing recovery and the framing.
+2. Retime the opening.
+3. Implement `duck_slide`, `jump_to`, `grab_swing`, `reach_exit` and the door state machine.
+4. Clarify gravity angles: relative to the preceding state vs the original.
+5. Keep the hands on the rail; make releases, landings and contacts coherent.
+6. Keep 1A–1C passing.
+7. Render 30 s at 1080p/24 with sound.
+8. Deliver a contact sheet, QA, an artistic assessment and a defect list.
+
+The full story, the deviations from the plan, and why each one was made are in `docs/MILESTONE_1D_PLAN.md`.
+
+**Evidence.**
+- `APEX_1D_gravity_switch_escape_30s_1080p.mp4`: 1920×1080, 24 fps, 720 frames, 30.000 s, H.264 + AAC, 3-sample motion blur. Full decode 720/720, no decoder or audio errors (`docs/evidence/gravity_switch_1d_decode.json`).
+- Contact sheet every 0.5 s: `docs/media/gravity_switch_1d_contact_sheet.jpg`.
+- Diagnostics: `docs/evidence/gravity_switch_1d_diagnostics.json`, chart `docs/media/gravity_switch_1d_diagnostics.jpg`.
+- QA: `docs/evidence/gravity_switch_1d_qa.json`.
+
+### Fixes requested after the 1C review
+
+| Item | Before | After |
+|---|---|---|
+| Startle after the press | Pelvis +22 u in 0.08 s (~634 u/s peak root speed) | Eased over ~0.2 s; peak pelvis speed ~320 u/s (test `test_startle_is_eased`) |
+| Post-landing recovery | The "settle" clip was replaced by the next action the same instant, so it **never played** (found while implementing 1D) | After any hard landing (> 900 u/s) a 1.15 s relief beat always plays: exhale slump, hands on knees (arm IK to the knees), blink, straighten up |
+| Framing | AXEL small in the establishing shot; empty frame late in s6 | The establishing shot pushes in and shows every story object (switches, beam, rail, sealed door). The new POV inserts frame the door and the second switch. Every follow shot was re-offset. |
+
+### Retiming of the 1C opening
+
+| Beat | 1C | 1D | Change |
+|---|---|---|---|
+| Start walk | x = −560, 150 u/s | x = −520, 150 u/s | −0.27 s |
+| Notice (double take) | 2.30 | 2.03 | — |
+| Cautious approach | 90 u/s | 105 u/s | −0.5 s |
+| Press contact | 7.49 | 6.69 | −0.80 s |
+| Wall landing | 9.39 | 8.59 | |
+| look_around 0.9 s (filler) | yes | replaced by the relief beat (1.15 s, a real acting beat) | |
+| Notice exit → point | 11.30 → 12.00 | 10.75 → 11.25 | |
+| Final idle 1.0 s | yes | removed: straight into "spots the second switch" and the run | |
+
+### Gravity angles: relative to the previous state vs the original
+
+| State | When | World direction | vs previous | vs original | Camera roll |
+|---|---|---|---|---|---|
+| G0 | 0 s | −90° (down) | — | 0° | 0° |
+| G1 | settles 7.84 s | 0° (right wall) | **+90°** (counter-clockwise) | +90° | 0 → +90° (s06, springs, ≤ 110°/s) |
+| G2 | settles 19.25 s | 180° (left wall) | **−180°** (clockwise, back through the original "down") | **−90°** | +90 → −90° (s13, capped at 120°/s) |
+
+- **Signed sweeps.** Each transition stores a signed sweep, so a 180° reversal has an explicit direction (`rotate_deg: -180`).
+- **Unwrapped roll.** The camera follows the *unwrapped* angle, so it turns the same way as the physics.
+- **QA coverage.** `gravity_angle_report` and `camera_roll_follows_gravity_direction` check both of these.
+- **Consequence for the viewer.** Because G2 sweeps through the original "down", AXEL first slides toward the original floor and then falls across the room. Sweeping +180° would have thrown him into the ceiling.
+
+### Technical results: 57/57 QA checks PASS on the 1080p render
+
+39 engine and video checks plus 18 shot exit conditions.
+
+| Check | Result |
+|---|---|
+| Bone-length ratio | 0.929–1.098 (limit 1.13) |
+| Planted-foot drift | 1.12 (limit 1.5) |
+| Max joint speed | 3130 u/s at the catch (limit 3200) |
+| Surface penetration | 3.8 (limit 4) |
+| Airborne acceleration vs gravity | 2.2° (limit 3°), magnitude error 0.08 % |
+| Landings | wall_right 1341 u/s, wall_right 644 (after the slap), wall_left 1524 (drop from the rail); all on supporting surfaces |
+| Hand on the button at contact | 0.003 units (both presses, including mid-air) |
+| Wrist-to-rail distance while hanging | 6e-14 (limit 1.5) |
+| Swing energy not accounted for by pumping work | 0.77 % of peak kinetic energy (limit 2 %) |
+| Beam clearance during the slide | 16.6 units (including a 2.5-unit limb margin) |
+| Door state machine | sealed → switch 17.15 → unlock 19.25 → open 22.65 → exit 26.65 |
+| Camera | subject in frame 100 %; roll ≤ 120°/s; aligned-roll error 1.0–1.5°; no screen-direction flips across 14 cuts |
+| Scarf | max stretch 1.25, anchor error 0 |
+| Audio | 45 cues, each at its engine event time; A/V difference 0.000 s |
+| Frames | 720/720; full decode OK |
+| Deterministic replay | identical hash |
+
+**Regression.** 1A, 1B and 1C re-inspected with the 1D engine: all PASS. `pytest`: **88 passed** (66 earlier plus 22 in `tests/test_escape_1d.py`).
+
+**Physics defects found and fixed while building 1D.** Each was found by QA or the event trace, not by eye.
+- **Grip at the waist.** The grip pinned whatever body point was beside the bar (near the waist), so AXEL spun like a propeller (radius 26). The grip now requires the bar overhead at near-straight arms (radius ~95).
+- **Catch fast enough to loop.** A head-first catch looped over the bar (1300 u/s). The catch is now feet-first and partly inelastic (arms absorb 45 %), and pumping is booked as muscular work.
+- **Phantom ceiling landing.** Grazing the ceiling while gravity pointed at a wall was treated as a landing on the ceiling. Only surfaces that can support the body under the current gravity now count as landings (others emit `graze`).
+- **Tumble into the end wall.** The tumble steered toward the gravity of that instant and swung the head into the end wall. It now orients toward the transition's end state, picks the free side, and waits until there is room (clearance gating).
+- **Release into the ceiling.** Letting go mid-swing threw AXEL into the ceiling. He now dismounts at the top of the swing.
+- **Hand through the end wall.** After the slap landing, a hand went through the end wall. Hands now brace on surfaces (limb–environment constraint).
+- **Leg through the floor.** Blending slide → run dipped a leg through the floor. A ground clamp is applied after blending.
+- **QA timing artifact.** Gravity-direction QA sampled gravity half a step late inside a 720°/s rotation (a 4.4° artifact). It now compares with the gravity actually applied.
+- **Scarf jerk.** The scarf jerked to a 1.38 stretch at the 1420 u/s impact. A follow-the-leader length cap was added.
+
+### Artistic assessment (separate from the numeric tests)
+
+This is my review of the final 1080p render (the 0.5 s contact sheet plus full-resolution frames at the key beats). **It is not a substitute for the owner's review, and the film is not claimed to be professional animation quality.**
+
+| Dimension | Assessment | Verdict |
+|---|---|---|
+| **Acting** | The 1C beats carry over (double take, caution, doubt, startle), and the eased startle now reads as a flinch rather than a pop. The new relief beat (hands on knees, exhale) is the clearest emotional moment after each fall. The looks are motivated: AXEL notices → POV → points → notices the second switch. Weak spots: still no face; the tense wait before the reversal is subtle; the pumping kicks are small; the "looks back at the rail" beat is easy to miss. | Readable; clearly below hand-keyed character animation |
+| **Action clarity** | Each action has a visible cause and effect: the slide under a hazard-striped beam, the slap with a red flash, the fall "up" the screen after the reversal, the catch with a clank and spark, the drop, the door opening with light. The catch (19.65 s) is the least clear moment: the rail runs into the depth of the scene, so at the catch it reads as a glow at the hands rather than a bar. | Good, except the catch |
+| **Camera staging** | 15 shots, with cuts on action and POV inserts that make the "where is the exit / how do I reach it" logic readable without words. The establishing shot shows every story object. Weaknesses: the 180° camera roll during the swing (s13) is motivated but disorienting, because the body appears sideways mid-roll; the reversal wide (s12) keeps AXEL small; the final hold on the empty doorway (~3 s) is long. | Good structure; s13 is the weakest shot |
+| **Continuity** | The room never moves. Each gravity change is caused by a pressed switch, and the console arrows always match physics. Both camera turns follow the direction of the gravity rotation. The door is the same object throughout: high and sealed (G0/G1), unlocking at G2, then open. Screen direction reverses between G1 and G2; this is inherent to a 180° reversal and is shown by the roll rather than hidden by a cut. | Good |
+| **Emotional readability** | Curiosity → caution → shock → relief → "there's the way out" → determination (sprint, slide, leap) → shock again → relief → hope (the door opens) → release (walks into the light, music resolves to D major). The arc reads without narration. Its weakest link is the reversal-to-catch stretch, where the camera motion competes with the action. | Readable |
+
+### Remaining defects (1D): explicit list
+
+1. **No face.** Emotion relies on posture, eye size and blinks only.
+2. **The swing shot rolls 180°** while AXEL swings. It is motivated by gravity, but it is the most disorienting moment in the film. A cut, or a slower pre-roll, should be compared.
+3. **The rail is drawn as a depth-spanning bar.** At the catch the camera sees it end-on, so the grab reads as a glow at the hands. It needs brackets or a different angle at the catch.
+4. **Physics is still a single capsule.**
+   - Hands bracing on walls and feet kept above the floor are pose-level constraints, not simulated contacts.
+   - The rail is a grip anchor, not a collider.
+5. **The catch and pumping are approximations.**
+   - Arm absorption is a velocity scale (`CATCH_KEEP` 0.55).
+   - Pumping is a centre-of-mass impulse, booked as work but not driven by leg torque.
+   - Air control (tumble, brace, reaching for the bar) is cartoon angular steering.
+6. **The landings are superhuman.** 1341 and 1524 u/s (roughly 7–8 m drops at 1 u ≈ 1 cm, with gravity at 1.6 g) are absorbed by a spring and the relief beat.
+7. **The geometry is tuned to the simulation.** The rail's position was placed on AXEL's simulated fall path. Upstream timing changes can make him miss it; the engine then falls back to brace-and-land (`grab_missed`), but the story beat is lost.
+8. **The ending holds ~3.3 s** on the empty glowing doorway, which is long. It could be tightened, or used for a final shot.
+9. **The door sits on a surface seen edge-on** by the front camera. It reads from a distance or from the POV insert; at other angles it is a bright slit.
+10. **The relief clip is identical after both hard landings.** There is no per-instance variation.
+11. **Music and SFX are procedural synthesis.**
+12. **Two scarf limits.** The scarf has no bending stiffness, and the follow-the-leader cap is a non-physical correction at impacts.
+13. **Skia "Default font" deprecation warnings** in the review-sheet code (cosmetic).
+
+**Per the owner's instruction, engine work stops here for review.** No further features are added until 1D has been reviewed.
+
+---
+
 ## Also delivered ahead of plan (foundations only)
 
 - **AI Story Director** (`ai/director.py`). Provider-agnostic. The model must return schema-valid JSON, which is then dry-run simulated. Validation errors are fed back for up to two repair attempts. Tested with a fake provider. **No live LLM call was made** in this environment (no API key configured).
@@ -233,8 +360,8 @@ This is my review of the rendered video, frame by frame plus the contact sheet. 
 
 ## Test results
 
-`pytest -v`: **66 passed**, 0 failed, in about 60 s (Python 3.13, Linux). This is 39 from 1A/1B plus 27 new in `tests/test_cinematic_1c.py`. Full list in `docs/evidence/pytest_results.txt`.
+`pytest -v`: **88 passed**, 0 failed, in about 90 s (Python 3.13, Linux): 39 for 1A/1B, 27 for 1C (`tests/test_cinematic_1c.py`) and 22 for 1D (`tests/test_escape_1d.py`). Full list in `docs/evidence/pytest_results.txt`.
 
-## Next milestone (1D)
+## Next step
 
-Prepared but not started: see `docs/MILESTONE_1D_PLAN.md`. Per the assignment's sequencing rule, it begins only after the 1C review sequence is signed off. The 30 s milestone will not be declared complete without a delivered and reviewed render.
+Stop for the owner's review of the 30 s film (instruction: "After completing 1D, stop for review before adding additional engine features"). The candidate follow-ups are the defects listed under 1D above.

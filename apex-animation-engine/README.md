@@ -2,7 +2,7 @@
 
 A standalone, AI-directed procedural animation engine. It turns structured scene plans, which an LLM can generate from a story, into physically grounded stick-figure animation. It renders 1080p MP4s with synchronized sound and automatically checks every render for animation defects.
 
-> **Status:** Milestones 1A and 1B are complete and verified. 1C (character acting, secondary motion, cinematic direction) is implemented and technically verified, and its 14 s review sequence is rendered; the artistic sign-off is pending the owner's review (see `docs/MILESTONE_STATUS.md`). 1D, the full 30-second story, is planned (`docs/MILESTONE_1D_PLAN.md`) but not started.
+> **Status:** Milestones 1A–1C are complete; 1C was accepted as a technically validated foundation. Milestone 1D (the 30-second Gravity Switch story, with slide, mid-air switch slap, a 180° gravity reversal, catch and swing on a rail, and the exit-door state machine) is implemented, rendered at 1080p and technically verified. Its artistic quality is awaiting the owner's review (see `docs/MILESTONE_STATUS.md`).
 
 The engine is **independent of Creator Studio**. It has its own backend (FastAPI), storage (SQLite now, PostgreSQL planned), character system, physics layer, camera system, renderer, QA and export. The only shared concern is access to AI provider credentials, which are read from backend environment variables. Providers are interchangeable: OpenRouter, OpenAI, Anthropic, or any OpenAI-compatible endpoint.
 
@@ -27,7 +27,10 @@ The engine is **independent of Creator Studio**. It has its own backend (FastAPI
 | Continuity checks: gravity indicator vs physics, screen direction across cuts, static layout | `qa/inspector.py` | QA `check_continuity` |
 | Adaptive synthesized music (calm, tension, resolve) and new cues (notice, startle, chime, rising hum) | `audio/sound_director.py` | `tests/test_cinematic_1c.py` |
 | Review outputs: full-decode check, timestamped contact sheet, per-frame diagnostics JSON and chart | `qa/media.py`, `render/pipeline.py` (`--review-dir`) | `docs/evidence/gravity_switch_1c_*` |
-| Automated QA, 24–31 checks per scene | `qa/inspector.py` | `docs/evidence/*_qa.json` |
+| 1D actions: feet-first `duck_slide`, ballistic `jump_to` with a mid-air switch slap, `grab_swing` (hands-overhead catch on a pivot joint, absorbed catch, pumping, release at the top of the swing), `reach_exit` | `motion/controller.py`, `motion/animator.py` | `tests/test_escape_1d.py` |
+| Exit door state machine (sealed → unlocking → unlocked → opening → open → exited) with rendered states and the walk into the light | `scene/runtime.py`, `render/skia_renderer.py` | QA `door_state_machine` |
+| Signed gravity rotations: each state is reported relative to the previous one and to the original, and the camera roll follows the physical direction | `physics/gravity.py`, `camera/director.py` | QA `gravity_angle_report`, `camera_roll_follows_gravity_direction` |
+| Automated QA, 24–39 checks per scene | `qa/inspector.py` | `docs/evidence/*_qa.json` |
 | Schema-validated scene plans; AI director with validation and repair loop; offline template planner | `scene/schema.py`, `ai/` | `tests/test_ai_api.py` |
 | REST API with background render jobs, progress and error capture | `api/` | `tests/test_ai_api.py` |
 
@@ -47,13 +50,14 @@ py -3.12 -m venv .venv
 python -m pip install --upgrade pip
 pip install -e ".[dev]"
 
-# 3. Run the automated tests (about 1 minute)
+# 3. Run the automated tests (about 2 minutes)
 pytest -v
 
 # 4. Render the milestone demos (1080p, 3-sample motion blur, QA report)
 apex render examples\motion_test.json       -o out\motion_test.mp4       --samples 3 --qa-json out\motion_test_qa.json
 apex render examples\gravity_switch_1b.json -o out\gravity_switch_1b.mp4 --samples 3 --qa-json out\gravity_switch_1b_qa.json
 apex render examples\gravity_switch_1c.json -o out\gravity_switch_1c.mp4 --samples 3 --qa-json out\gravity_switch_1c_qa.json --review-dir out\review_1c
+apex render examples\gravity_switch_1d.json -o out\gravity_switch_1d.mp4 --samples 3 --qa-json out\gravity_switch_1d_qa.json --review-dir out\review_1d
 # fast half-resolution preview:
 apex render examples\gravity_switch_1b.json -o out\preview.mp4 --scale 0.5
 
@@ -110,6 +114,6 @@ src/apex/
   ai/        provider abstraction + story director
   api/       FastAPI app + storage
 examples/    project JSON files (milestone scenes)
-tests/       pytest suite (66 tests)
+tests/       pytest suite (88 tests)
 docs/        architecture, schema, reference analysis, milestone status, roadmap, evidence
 ```

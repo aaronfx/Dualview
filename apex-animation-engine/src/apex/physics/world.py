@@ -53,6 +53,7 @@ class PhysicsWorld:
         self._tags: Dict[pymunk.Shape, str] = {}
         self._bodies: Dict[str, pymunk.Body] = {}
         self._static_shapes: List[Tuple[str, Vec, Vec, float]] = []
+        self._pins: Dict[str, pymunk.Constraint] = {}
         self.events: List[ContactEvent] = []
         self._pending: List[ContactEvent] = []
         self.space.on_collision(None, None, begin=self._on_begin)
@@ -85,6 +86,39 @@ class PhysicsWorld:
         self._tags[shape] = tag
         self._bodies[tag] = body
 
+    def add_static_box(self, tag: str, center: Vec, size: Vec, friction: float = 0.9) -> None:
+        """Axis-aligned static box (a beam spanning the room depth), recorded as its four edge segments."""
+        cx, cy = center
+        hx, hy = size[0] / 2, size[1] / 2
+        pts = [(cx - hx, cy - hy), (cx + hx, cy - hy), (cx + hx, cy + hy), (cx - hx, cy + hy)]
+        s = pymunk.Poly(self.space.static_body, pts)
+        s.friction, s.collision_type, s.elasticity = friction, CT_STATIC, 0.0
+        self.space.add(s)
+        self._tags[s] = tag
+        for a, b in zip(pts, pts[1:] + pts[:1]):
+            self._static_shapes.append((tag, a, b, 0.0))
+
+    # ------------------------------------------------------------ constraints (grip)
+    def add_pin(self, tag: str, anchor_world: Vec) -> Vec:
+        """Pin the body's material point that currently lies at `anchor_world` to that fixed world point (a hand grip
+        on a static bar). Returns the body-local anchor."""
+        b = self._bodies[tag]
+        local = b.world_to_local(anchor_world)
+        j = pymunk.PivotJoint(self.space.static_body, b, anchor_world, (local.x, local.y))
+        j.collide_bodies = False
+        self.space.add(j)
+        self._pins[tag] = j
+        return (local.x, local.y)
+
+    def remove_pin(self, tag: str) -> None:
+        j = self._pins.pop(tag, None)
+        if j is not None:
+            self.space.remove(j)
+
+    def body_to_world(self, tag: str, local: Vec) -> Vec:
+        p = self._bodies[tag].local_to_world(local)
+        return (p.x, p.y)
+
     # ------------------------------------------------------------ control
     def set_gravity(self, g: Vec) -> None:
         self.space.gravity = g
@@ -109,6 +143,11 @@ class PhysicsWorld:
             b.body_type = pymunk.Body.DYNAMIC
             b.mass, b.moment = mass, moment
         b.velocity, b.angular_velocity = vel, angvel
+
+    def apply_impulse(self, tag: str, impulse: Vec) -> None:
+        """Impulse through the centre of mass (character muscular effort, e.g. a pumping kick while hanging)."""
+        b = self._bodies[tag]
+        b.apply_impulse_at_world_point(impulse, b.local_to_world(b.center_of_gravity))
 
     def set_angular_velocity(self, tag: str, w: float) -> None:
         self._bodies[tag].angular_velocity = w

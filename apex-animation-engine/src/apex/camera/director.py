@@ -59,11 +59,14 @@ def _noise(x: float, seed: float) -> float:
 
 class CameraDirector:
     def __init__(self, shots: List[ShotSpec], aspect: float, bbox: BBoxFn, velocity: VelFn, gravity: Optional[GravFn] = None,
-                 focus_bbox: Optional[FocusFn] = None, shake_events: Optional[List[Tuple[float, float]]] = None):
+                 focus_bbox: Optional[FocusFn] = None, shake_events: Optional[List[Tuple[float, float]]] = None,
+                 gravity_angle: Optional[Callable[[float], float]] = None):
         self.shots = sorted(shots, key=lambda s: s.start)
         self.aspect = aspect
         self.bbox, self.velocity = bbox, velocity
         self.gravity = gravity or (lambda t: (0.0, -1.0))
+        # unwrapped gravity angle (rad): roll follows the physical rotation direction (no shortest-way guessing)
+        self.gravity_angle = gravity_angle
         self.focus_bbox = focus_bbox
         self.shake_events = shake_events or []  # (time, strength)
         self._tracks: Dict[str, Tuple[np.ndarray, np.ndarray]] = {}
@@ -100,6 +103,8 @@ class CameraDirector:
 
     def _roll_target(self, cam: CameraSpec, sh: ShotSpec, t: float) -> float:
         if cam.roll_mode == "align_gravity":
+            if self.gravity_angle is not None:
+                return 90.0 + math.degrees(self.gravity_angle(t))
             return gravity_roll(self.gravity(t))
         if cam.roll_end is not None:
             u = (t - sh.start) / max(1e-6, sh.end - sh.start)
@@ -130,9 +135,11 @@ class CameraDirector:
             cx, cy, vh = x
             rt = self._roll_target(cam, sh, float(t))
             if cam.roll_mode == "align_gravity":
-                rt = roll + _wrap180(rt - roll)  # shortest way round (no 270-degree spins)
+                if self.gravity_angle is None:
+                    rt = roll + _wrap180(rt - roll)  # no unwrapped angle available: shortest way round
                 ra = rw * rw * (rt - roll) - 2 * rw * rv
                 rv += ra * dt
+                rv = clamp(rv, -cam.roll_rate, cam.roll_rate)  # large turns (180 deg reversals) stay readable
                 roll += rv * dt
             else:
                 roll = rt

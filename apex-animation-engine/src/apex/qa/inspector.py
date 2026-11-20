@@ -12,7 +12,8 @@ import numpy as np
 
 from ..camera.director import CameraDirector
 from ..render.video import probe
-from ..scene.runtime import SceneRuntime
+from ..scene.runtime import DOOR_OPEN_S, SceneRuntime, door_state
+from ..scene.targets import in_portal, switch_world
 
 # Each tolerance below is named so failures can be traced back to an explicit, documented threshold.
 TOL = {
@@ -25,6 +26,10 @@ TOL = {
     "camera_visible_frac": 0.95,
     "scarf_stretch": 1.35, "scarf_anchor": 0.5,
     "roll_rate_deg_s": 150.0, "min_shot_s": 0.5, "gravity_align_deg": 3.0, "indicator_deg": 0.5,
+    "grip_drift": 1.5,  # wrist distance from the bar while hanging (units)
+    "contact_hand": 22.0,  # hand distance from the button at a press_contact event
+    "obstacle_margin": 2.5,  # joints must stay this far outside solid beams (limb half-thickness)
+    "swing_energy_gain": 0.02,  # relative mechanical-energy increase allowed while swinging (solver drift only; no pumping)
 }
 
 
@@ -79,7 +84,7 @@ class Inspector:
                 self.joints[cid].append(self.rt.rigs[cid].world_joints(pose))
         for fn in (self.check_hierarchy, self.check_bone_lengths, self.check_positions, self.check_teleport, self.check_foot_sliding,
                    self.check_gravity, self.check_geometry, self.check_camera, self.check_camera_motion, self.check_continuity,
-                   self.check_secondary, self.check_exit_conditions):
+                   self.check_secondary, self.check_exit_conditions, self.check_interactions):
             rep.checks.extend(fn())
         rep.checks.extend(self.check_sync(cues))
         if check_determinism:
@@ -135,6 +140,8 @@ class Inspector:
                         nan += 1
                         continue
                     pen = max(-hw - x, x - hw, -y, y - rh)
+                    if pen > m and in_portal(self.rt.env, (x, y)) and self._door_open_at(self.times[fi]):
+                        pen = 0.0  # walking out through an open doorway
                     if pen > m:
                         outside += 1
                     if pen > worst:
@@ -143,6 +150,9 @@ class Inspector:
             out.append(Check(f"surface_penetration[{cid}]", "PASS" if outside == 0 else "FAIL", worst, m,
                              f"deepest joint penetration into floor/walls/ceiling (units) at {where}; violations={outside}"))
         return out
+
+    def _door_open_at(self, t: float) -> bool:
+        return any(door_state(d, t)[0] in ("opening", "open", "exited") for d in self.r.doors.values())
 
     def check_teleport(self) -> List[Check]:
         out = []
@@ -200,7 +210,9 @@ class Inspector:
                         continue
                     h = T[i + 1] - T[i]
                     acc = (P[i + 1] - 2 * P[i] + P[i - 1]) / (h * h)
-                    gv = np.array(g.at(T[i]))
+                    # the two steps in this difference applied gravity at T[i]-h and T[i] (records are stamped at step
+                    # end): compare with their mean, which matters inside fast rotations (up to ~720 deg/s)
+                    gv = (np.array(g.at(T[i] - h)) + np.array(g.at(T[i]))) / 2
                     if np.linalg.norm(gv) < 1:
                         continue
                     ang = abs(math.degrees(math.atan2(gv[0] * acc[1] - gv[1] * acc[0], float(np.dot(gv, acc)))))
@@ -316,8 +328,9 @@ class Inspector:
                          f"cuts that flip the character's screen direction: {flips or 'none'}"))
         # 3) fixed layout: switch/exit/room positions come from the spec and never move
         env = self.rt.env
-        out.append(Check("static_layout", "PASS", details=f"room {env.room.width}x{env.room.height}, switches {[s.x for s in env.switches]}, "
-                         f"exits {[(x.surface, x.s) for x in env.exits]} are spec constants (never animated)"))
+        out.append(Check("static_layout", "PASS", details=f"room {env.room.width}x{env.room.height}, switches {[(s.surface, s.x) for s in env.switches]}, "
+                         f"exits {[(x.surface, x.s) for x in env.exits]}, obstacles {[(o.kind, tuple(o.center)) for o in env.obstacles]} "
+                         "are spec constants (never animated)"))
         return out
 
     def check_secondary(self) -> List[Check]:
@@ -327,8 +340,8 @@ class Inspector:
             st = sc.max_stretch()
             out.append(Check(f"scarf_integrity[{cid}]", "PASS" if st <= TOL["scarf_stretch"] and sc.anchor_err <= TOL["scarf_anchor"] else "FAIL",
                              st, TOL["scarf_stretch"], f"max segment stretch; anchor error {sc.anchor_err:.3f}"))
-            inside = all(-room.width / 2 - 1e-6 <= p[0] <= room.width / 2 + 1e-6 and -1e-6 <= p[1] <= room.height + 1e-6
-                         for d in sc.data for frame in d[::12] for p in frame)
+            inside = all((-room.width / 2 - 1e-6 <= p[0] <= room.width / 2 + 1e-6 and -1e-6 <= p[1] <= room.height + 1e-6)
+                         or in_portal(self.rt.env, (p[0], p[1])) for d in sc.data for frame in d[::12] for p in frame)
             out.append(Check(f"scarf_inside_room[{cid}]", "PASS" if inside else "FAIL"))
         if self.r.dust is not None:
             D = self.r.dust.data
@@ -351,6 +364,119 @@ class Inspector:
                 else:
                     ok = False
                 out.append(Check(f"exit[{sh.id}] {cond}", "PASS" if ok else "FAIL"))
+        return out
+
+    # ------------------------------------------------------------ 1D: interactions, doors, gravity angles
+    def check_interactions(self) -> List[Check]:
+        out: List[Check] = []
+        env, r = self.rt.env, self.r
+        g = r.gravity
+        # gravity angles: every state relative to the preceding one and to the original (documentation + sanity)
+        rep_ = g.report()
+        txt = "; ".join(f"{x['state']}: world {x['world_deg']:.0f} deg, vs previous {x['rel_prev_deg']:+.0f}, vs original {x['rel_original_deg']:+.0f}"
+                        for x in rep_)
+        ok = all(abs(((x["world_deg"] - (rep_[0]["world_deg"] + x["rel_original_deg"])) + 180) % 360 - 180) < 1e-6 for x in rep_)
+        out.append(Check("gravity_angle_report", "PASS" if ok else "FAIL", details=txt))
+        # camera roll turns the same way as gravity (a CCW gravity sweep rolls the camera positively, and vice versa)
+        bad = []
+        for tr in g.transitions:
+            sw = tr.sweep if tr.sweep is not None else 0.0
+            for sh in self.rt.scene.shots:
+                if sh.camera.roll_mode != "align_gravity" or sh.end <= tr.t_start or sh.start >= tr.t_start + tr.duration + 3.0:
+                    continue
+                d = self.cam.at(sh.end - 1e-3).roll - self.cam.at(max(sh.start, tr.t_start)).roll
+                if abs(d) > 10 and math.copysign(1, d) != math.copysign(1, sw):
+                    bad.append(sh.id)
+        out.append(Check("camera_roll_follows_gravity_direction", "PASS" if not bad else "FAIL", float(len(bad)), 0.0,
+                         f"aligned shots rolling against the gravity sweep: {bad or 'none'}"))
+        # landings only on surfaces that can support the body under the gravity at that instant
+        badl = []
+        for e in r.events:
+            if e.type == "impact":
+                gd = g.direction(e.t)
+                n = r.frames[e.data["surface"]].normal
+                if -(gd[0] * n[0] + gd[1] * n[1]) < math.cos(math.radians(55)):
+                    badl.append(f"{e.data['surface']}@{e.t:.2f}")
+        out.append(Check("landings_on_supporting_surfaces", "PASS" if not badl else "FAIL", float(len(badl)), 0.0,
+                         f"impacts (landings) where gravity could not hold the body: {badl or 'none'}"))
+        # the hand is on the button whenever a switch is pressed (standing or mid-air)
+        worst, n_c = 0.0, 0
+        for e in r.events:
+            if e.type == "press_contact" and e.character in r.animators:
+                sw = next(s for s in env.switches if s.id == e.data["switch"])
+                b = switch_world(env, sw)
+                j = self.rt.rigs[e.character].world_joints(r.animators[e.character].pose_at(e.t))
+                worst = max(worst, min(math.dist(j["hand_n"], b), math.dist(j["hand_f"], b)))
+                n_c += 1
+        if n_c:
+            out.append(Check("hand_on_switch_at_contact", "PASS" if worst <= TOL["contact_hand"] else "FAIL", worst, TOL["contact_hand"],
+                             f"{n_c} press contact(s); worst hand-to-button distance"))
+        for cid, an in r.animators.items():
+            swings = [sg for sg in an.segments if sg.kind == "swing"]
+            if swings:  # hands stay locked to the rail while hanging
+                worst, n_s = 0.0, 0
+                for sg in swings:
+                    B = sg.data["anchor"]
+                    for t in np.arange(sg.t0, sg.t1, 1.0 / 96.0):
+                        j = self.rt.rigs[cid].world_joints(an.pose_at(float(t)))
+                        worst = max(worst, math.dist(j["wrist_n"], B), math.dist(j["wrist_f"], B))
+                        n_s += 1
+                out.append(Check(f"grip_attachment[{cid}]", "PASS" if worst <= TOL["grip_drift"] else "FAIL", worst, TOL["grip_drift"],
+                                 f"max wrist-to-rail distance over {n_s} samples while hanging"))
+                # passive swing: mechanical energy may not grow (no hidden pumping); it may only drop (inelastic catch)
+                ctrl = r.controllers[cid]
+                from ..motion.controller import MASS
+                k2 = ctrl.moment / MASS  # radius of gyration squared (rotational energy per unit mass)
+                gain = 0.0
+                for sg in swings:
+                    E = []
+                    wt = np.array([w[0] for w in sg.data.get("work", [(sg.t0, 0.0)])])
+                    wv = np.array([w[1] for w in sg.data.get("work", [(sg.t0, 0.0)])])
+                    for rec in ctrl.records:
+                        if sg.t0 + 0.02 <= rec.t <= sg.t1 - 0.01:
+                            gv = g.at(rec.t)
+                            W = float(np.interp(rec.t, wt, wv))  # muscular work put in by pumping so far
+                            E.append(0.5 * (rec.vel[0] ** 2 + rec.vel[1] ** 2) + 0.5 * k2 * rec.angvel ** 2
+                                     - (gv[0] * rec.pos[0] + gv[1] * rec.pos[1]) - W)
+                    if E:  # relative to the swing's own energy scale (peak kinetic energy), not the coordinate origin
+                        ke = max(0.5 * (rec.vel[0] ** 2 + rec.vel[1] ** 2) + 0.5 * k2 * rec.angvel ** 2
+                                 for rec in ctrl.records if sg.t0 <= rec.t <= sg.t1)
+                        gain = max(gain, (max(E) - E[0]) / max(ke, 1.0))
+                out.append(Check(f"swing_energy_conserved[{cid}]", "PASS" if gain <= TOL["swing_energy_gain"] else "FAIL", gain,
+                                 TOL["swing_energy_gain"], "unaccounted energy gain while swinging: (kinetic + rotational + potential - pumping work) relative to the peak kinetic energy"))
+        beams = [o for o in env.obstacles if o.kind == "beam"]
+        if beams:  # nothing passes through a solid beam (the slide must clear it)
+            worst, where = -1e9, ""
+            for cid, frames in self.joints.items():
+                for fi, j in enumerate(frames):
+                    for name, (x, y) in j.items():
+                        for o in beams:
+                            hx, hy = o.size[0] / 2 + TOL["obstacle_margin"], o.size[1] / 2 + TOL["obstacle_margin"]
+                            pen = min(hx - abs(x - o.center[0]), hy - abs(y - o.center[1]))
+                            if pen > worst:
+                                worst, where = pen, f"{name} t={self.times[fi]:.2f} ({o.id})"
+            clear = -worst
+            out.append(Check("obstacle_clearance", "PASS" if worst <= 0 else "FAIL", clear, 0.0,
+                             f"closest approach of any joint to a solid beam (incl. {TOL['obstacle_margin']} limb margin): {clear:.1f} units at {where}"))
+        for ex in env.exits:  # door state machine order
+            d = r.doors.get(ex.id, {})
+            u, o, x = d.get("unlock_t"), d.get("open_t"), d.get("exit_t")
+            seq = [("unlock", u), ("open", o), ("exit", x)]
+            ok = True
+            msg = []
+            if ex.unlock_on and u is not None:
+                sw_id = ex.unlock_on.split(":", 1)[1]
+                act = next((e.t for e in r.events if e.type == "switch_activated" and e.data.get("switch") == sw_id), None)
+                ok &= act is not None and u >= act
+                msg.append(f"switch {sw_id} at {act:.2f}" if act is not None else "switch never pressed")
+            from ..scene.runtime import DOOR_UNLOCK_S
+            if o is not None:
+                ok &= u is not None and o >= u + DOOR_UNLOCK_S - 1e-6
+            if x is not None:
+                ok &= o is not None and x >= o + DOOR_OPEN_S * 0.75
+            msg += [f"{k} {v:.2f}s" for k, v in seq if v is not None]
+            out.append(Check(f"door_state_machine[{ex.id}]", "PASS" if ok else "FAIL",
+                             details="sealed -> " + " -> ".join(msg) if msg else "stays sealed"))
         return out
 
     def check_sync(self, cues) -> List[Check]:

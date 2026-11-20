@@ -129,6 +129,47 @@ class Synth:
         stab = sum(np.sin(2 * np.pi * f * t) for f in (146.8, 207.7, 293.7)) / 3 * _env(n, 0.003, 0.25)
         return 0.8 * stab + 0.35 * self.whoosh(d, 1200, 300)[:n]
 
+    def slide(self, d: float = 1.0) -> np.ndarray:
+        """Body sliding on a metal floor: filtered scrape that decays with the slide."""
+        n = _n(d)
+        t = _t(d)
+        scrape = _norm(_bandpass(self.noise(d), 700, 5000)) * (1 - t / d) ** 1.5 * np.minimum(1, t / 0.03)
+        rumble = _norm(_bandpass(self.noise(d), 80, 400)) * (1 - t / d) * 0.6
+        return 0.45 * scrape + 0.35 * rumble
+
+    def clank(self) -> np.ndarray:
+        """Hands slamming onto a steel rail: short metallic ring."""
+        d = 0.7
+        n = _n(d)
+        t = _t(d)
+        ring = sum(a * np.sin(2 * np.pi * f * t) for f, a in [(523, 1.0), (1187, 0.7), (1873, 0.45), (2741, 0.3)]) * _env(n, 0.001, 0.12)
+        return 0.6 * ring + 0.5 * _norm(_bandpass(self.noise(d), 2000, 9000)) * _env(n, 0.001, 0.03)
+
+    def unlock(self) -> np.ndarray:
+        """Seal bars retracting: three mechanical clicks and a rising major third."""
+        out = np.zeros(_n(1.4))
+        for k in range(3):
+            c = self.click()
+            i = _n(0.12 * k)
+            out[i:i + len(c)] += 0.7 * c[:len(out) - i]
+        ch = self.chime((587.3, 740.0, 880.0), 0.1, 0.5)
+        i = _n(0.4)
+        m = min(len(ch), len(out) - i)
+        out[i:i + m] += 0.8 * ch[:m]
+        return out
+
+    def door(self) -> np.ndarray:
+        """Door sliding open: pneumatic hiss + soft whoosh of outside air."""
+        d = 1.2
+        n = _n(d)
+        t = _t(d)
+        hiss = _norm(_bandpass(self.noise(d), 3000, 12000)) * _env(n, 0.02, 0.35)
+        return 0.35 * hiss + 0.4 * self.whoosh(d, 200, 900)[:n]
+
+    def resolve(self) -> np.ndarray:
+        """Final arrival: bright open D-major bell chord."""
+        return 0.9 * self.chime((293.7, 440.0, 587.3, 740.0, 880.0), 0.07, 0.9)
+
     def hum_rise(self, d: float) -> np.ndarray:
         n = _n(d)
         t = np.arange(n) / SR
@@ -144,10 +185,14 @@ class Synth:
         first = {}
         for e in events:
             first.setdefault(e.type, []).append(e.t)
-        t_act = (first.get("switch_activated") or [duration])[0]
-        t_rec = (first.get("recovered") or [duration])[0]
+        acts = first.get("switch_activated") or [duration]
+        t_act = acts[0]
+        t_rec = next((x for x in (first.get("recovered") or []) if x > t_act), duration)
         notices = first.get("notice") or []
         t_res = next((x for x in notices if x > t_rec), duration)
+        t_act2 = acts[1] if len(acts) > 1 else duration  # second switch: tension returns
+        t_rec2 = next((x for x in (first.get("recovered") or []) if x > t_act2 + 1.0), duration)
+        t_exit = (first.get("exit_reached") or [duration])[0]
 
         def pad(freqs, a, b):
             seg = np.zeros(n)
@@ -160,7 +205,11 @@ class Synth:
             return seg
         out = 0.5 * pad((73.4, 110.0, 146.8, 174.6), 0.0, t_act)            # D minor, calm
         out += 0.6 * pad((73.4, 103.8, 146.8, 155.6), t_act, t_rec)          # tension cluster (tritone + minor 2nd)
-        out += 0.55 * pad((73.4, 110.0, 146.8, 185.0, 220.0), t_res, duration)  # D major lift: a way out
+        out += 0.55 * pad((73.4, 110.0, 146.8, 185.0, 220.0), t_res, min(duration, t_act2))  # D major lift: a way out
+        if t_act2 < duration:
+            out += 0.6 * pad((77.8, 110.0, 155.6, 164.8), t_act2, t_rec2)  # tension again: the room turns over
+            out += 0.5 * pad((73.4, 110.0, 146.8, 185.0), t_rec2, t_exit)  # hope: the door is open
+            out += 0.7 * pad((73.4, 110.0, 146.8, 185.0, 220.0, 293.7), t_exit, duration)  # arrival: full D major
         return out * 0.05
 
     def ambience(self, duration: float) -> np.ndarray:
@@ -179,6 +228,8 @@ DEFAULT_BINDINGS = {
     "footstep": "footstep", "press_contact": "click", "gravity_shift": "pulse", "lost_support": "whoosh",
     "impact": "impact", "prop_impact": "clang", "takeoff": "jump", "recovered": None, "brace": None,
     "switch_activated": "startle", "notice": "notice", "point": "chime",
+    "slide_start": "slide", "grab": "clank", "release": None, "door_unlocking": "unlock", "door_open": "door", "exit_reached": "resolve",
+    "graze": None, "slide_end": None, "grab_missed": None, "door_unlocked": None,
 }
 
 
@@ -218,7 +269,8 @@ class SoundDirector:
         sy = self.synth
         bank: Dict[str, Callable[..., np.ndarray]] = {"footstep": sy.footstep, "click": sy.click, "pulse": sy.pulse, "whoosh": sy.whoosh,
                                                        "impact": sy.impact, "clang": sy.clang, "jump": sy.jump, "notice": sy.notice,
-                                                       "startle": sy.startle, "chime": sy.chime}
+                                                       "startle": sy.startle, "chime": sy.chime, "slide": sy.slide, "clank": sy.clank,
+                                                       "unlock": sy.unlock, "door": sy.door, "resolve": sy.resolve}
         bank["land"] = bank["impact"]
         unknown = sorted({c.sound for c in cues} - set(bank))
         if unknown:

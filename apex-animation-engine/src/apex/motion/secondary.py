@@ -18,13 +18,15 @@ from ..core.mathx import Vec, v_rot
 from ..physics.gravity import GravityField
 
 SC_HZ = 240
+MAX_STRETCH = 1.25  # hard cap after the iterative solve (impacts can jerk the anchor by tens of units in one step)
 
 
 class ScarfSim:
     TAILS = ((10, 6.6, 0.0), (7, 6.0, -3.5))  # (nodes, segment length, anchor drop along the neck)
 
     def __init__(self, pose_at, rig, gravity: GravityField, bounds: Tuple[float, float, float, float], t0: float, t1: float,
-                 seed: int = 3, gravity_scale: float = 0.55, damping: float = 3.4):
+                 seed: int = 3, gravity_scale: float = 0.55, damping: float = 3.4,
+                 portals: Sequence[Tuple[float, float, float, float]] = ()):
         self.t0, self.dt = t0, 1.0 / SC_HZ
         n = int(math.ceil((t1 - t0) * SC_HZ)) + 2
         self.n = n
@@ -73,8 +75,20 @@ class ScarfSim:
                                 P[i - 2] += d * df
                             P[i] -= d * df
                     P[0] = a
-                    np.clip(P[:, 0], xmin + 1, xmax - 1, out=P[:, 0])  # cloth never passes through the room
-                    np.clip(P[:, 1], ymin + 1, ymax - 1, out=P[:, 1])
+                    C = np.empty_like(P)  # cloth never passes through the room (except through an open doorway)
+                    np.clip(P[:, 0], xmin + 1, xmax - 1, out=C[:, 0])
+                    np.clip(P[:, 1], ymin + 1, ymax - 1, out=C[:, 1])
+                    if portals:
+                        inside = np.zeros(k, dtype=bool)
+                        for (px0, py0, px1, py1) in portals:
+                            inside |= (P[:, 0] >= px0) & (P[:, 0] <= px1) & (P[:, 1] >= py0) & (P[:, 1] <= py1)
+                        C[inside] = P[inside]
+                    P[:] = C
+                for i in range(1, k):  # follow-the-leader cap: a rope segment can never stretch beyond MAX_STRETCH
+                    d = P[i] - P[i - 1]
+                    L = math.hypot(d[0], d[1])
+                    if L > seg * MAX_STRETCH:
+                        P[i] = P[i - 1] + d * (seg * MAX_STRETCH / L)
                 self.data[ti][step] = P
                 self.anchor_err = max(self.anchor_err, float(np.hypot(*(P[0] - a))))
 

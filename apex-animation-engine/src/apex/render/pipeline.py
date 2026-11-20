@@ -33,21 +33,46 @@ class RenderResult:
     events: List[dict]
 
 
-def _effects_from_events(events, switches) -> List[dict]:
+def _surface_ring(env, surface: str, x: float, y: float, t: float, **kw) -> dict:
+    hw, rh = env.room.width / 2, env.room.height
+    if surface in ("wall_right", "wall_left"):
+        return {"kind": "ring_wall", "t": t, "x": (hw - 0.5) if surface == "wall_right" else (-hw + 0.5), "y": y, **kw}
+    return {"kind": "ring_floor", "t": t, "x": x, "y": 0.0 if surface == "floor" else rh, **kw}
+
+
+def _effects_from_events(events, switches, env=None) -> List[dict]:
+    from ..scene.targets import exit_world, switch_base
     fx = []
     for e in events:
         if e.type == "switch_activated":
             sw = switches[e.data["switch"]]
-            fx += [{"kind": "ring_floor", "t": e.t, "x": sw.x, "r0": 30, "speed": 1500, "life": 0.9},
-                   {"kind": "ring_floor", "t": e.t + 0.12, "x": sw.x, "r0": 30, "speed": 1100, "life": 0.9, "rgb": (255, 140, 150)}]
+            if env is None or sw.surface == "floor":
+                fx += [{"kind": "ring_floor", "t": e.t, "x": sw.x, "r0": 30, "speed": 1500, "life": 0.9},
+                       {"kind": "ring_floor", "t": e.t + 0.12, "x": sw.x, "r0": 30, "speed": 1100, "life": 0.9, "rgb": (255, 140, 150)}]
+            else:
+                bx, by = switch_base(env, sw)
+                fx += [_surface_ring(env, sw.surface, bx, by, e.t, r0=30, speed=600, life=0.8)]
+                fx += [{"kind": "flash", "t": e.t, "x": bx, "y": by, "r": 40, "grow": 260, "rgb": (255, 70, 80), "a": 0.8, "life": 0.6}]
         elif e.type == "gravity_shift":
             fx.append({"kind": "sweep", "t": e.t, "life": 0.45})
         elif e.type == "impact":
-            if e.data["surface"] == "wall_right":
-                fx.append({"kind": "ring_wall", "t": e.t, "y": e.data["point"][1], "r0": 20, "speed": 380, "life": 0.7})
+            px, py = e.data["point"]
+            surf = e.data["surface"]
+            if env is not None:
+                kw = dict(r0=20, speed=380, life=0.7) if surf.startswith("wall") else dict(r0=10, speed=260, life=0.45, rgb=(180, 250, 255), z=0)
+                fx.append(_surface_ring(env, surf, px, py, e.t, **kw))
+            elif surf == "wall_right":
+                fx.append({"kind": "ring_wall", "t": e.t, "y": py, "r0": 20, "speed": 380, "life": 0.7})
             else:
-                fx.append({"kind": "ring_floor", "t": e.t, "x": e.data["point"][0], "z": 0, "r0": 10, "speed": 260, "life": 0.45, "rgb": (180, 250, 255)})
-        elif e.type == "footstep" and e.data.get("speed", 0) > 300:
+                fx.append({"kind": "ring_floor", "t": e.t, "x": px, "z": 0, "r0": 10, "speed": 260, "life": 0.45, "rgb": (180, 250, 255)})
+        elif e.type == "grab":
+            bx, by = e.data["point"]
+            fx.append({"kind": "flash", "t": e.t, "x": bx, "y": by, "r": 20, "grow": 90, "rgb": (255, 225, 140), "a": 0.9, "life": 0.35})
+        elif e.type in ("door_unlocking", "door_open") and env is not None:
+            dx, dy = exit_world(env, e.data["exit"])
+            rgb = (90, 255, 160) if e.type == "door_unlocking" else (235, 252, 255)
+            fx.append({"kind": "flash", "t": e.t, "x": dx, "y": dy, "r": 80, "grow": 320, "rgb": rgb, "a": 0.7, "life": 0.8})
+        elif e.type == "footstep" and e.data.get("speed", 0) > 300 and e.data.get("surface", "floor") == "floor":
             fx.append({"kind": "dust", "t": e.t, "x": e.data.get("x", 0), "y": 0})
     return fx
 
@@ -85,7 +110,7 @@ def build_camera(rt: SceneRuntime, aspect: float) -> CameraDirector:
 
     shake = []
     for e in res.events:
-        if e.type == "impact":
+        if e.type in ("impact", "grab"):
             shake.append((e.t, 10.0 * min(2.0, e.data.get("normal_speed", 600) / 700)))
         elif e.type == "gravity_shift":
             shake.append((e.t, 7.0))
@@ -93,7 +118,8 @@ def build_camera(rt: SceneRuntime, aspect: float) -> CameraDirector:
             shake.append((e.t, 4.0))
         elif e.type == "prop_impact":
             shake.append((e.t, 2.0))
-    return CameraDirector(rt.scene.shots, aspect, bbox, vel, gravity=res.gravity.at, focus_bbox=focus, shake_events=shake)
+    return CameraDirector(rt.scene.shots, aspect, bbox, vel, gravity=res.gravity.at, focus_bbox=focus, shake_events=shake,
+                          gravity_angle=res.gravity.angle_unwrapped)
 
 
 def compute_diagnostics(rt: SceneRuntime, cam: CameraDirector, fps: int) -> List[dict]:
@@ -148,7 +174,7 @@ def render_scene(project: ProjectSpec, scene_id: str, out_path: str, samples: in
     for e in res.events:  # attach world x to footsteps for dust placement
         if e.type == "footstep":
             e.data.setdefault("x", rt.evaluate(e.t).poses[e.character].root[0] if e.character in res.animators else 0.0)
-    fx = _effects_from_events(res.events, switches)
+    fx = _effects_from_events(res.events, switches, rt.env)
     os.makedirs(os.path.dirname(os.path.abspath(out_path)) or ".", exist_ok=True)
     wav = os.path.splitext(out_path)[0] + ".wav"
     sd = SoundDirector(project.seed, {c.on_event: c.sound for sh in scene.shots for c in sh.sound_cues})
