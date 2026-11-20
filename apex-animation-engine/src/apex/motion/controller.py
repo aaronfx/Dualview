@@ -16,6 +16,7 @@ from ..physics.gravity import GravityField, GravityTransition
 from ..physics.world import ContactEvent, PhysicsWorld, capsule_moment
 from ..rig.stickman import StickmanRig
 from ..scene.schema import ActionSpec, EnvironmentSpec
+from ..scene.targets import resolve
 from .frames import GroundFrame
 
 MASS = 70.0
@@ -23,6 +24,9 @@ CAPSULE_R = 9.0
 SUPPORT_COS = math.cos(math.radians(55))  # gravity must point within 55deg of "into the surface" to stay supported
 PRESS_CONTACT_T = 0.80  # contact time inside the press action
 PRESS_DURATION = 1.75
+PRESS_H_CONTACT_T = 1.55  # hesitant press: reach, hesitate, pull back, commit
+PRESS_H_DURATION = 2.45
+NOTICE_DOUBLE_TAKE = 0.55  # time of the second (snap) look inside a notice action
 TURN_DURATION = 0.32
 JUMP_PREP = 0.14
 
@@ -163,17 +167,33 @@ class CharacterController:
                 self.queue.appendleft(a)
                 self.cur = ActionSpec(type="turn", character=self.cid, face=int(direction))
                 a = self.cur
+        if a.type == "point":
+            tw = resolve(self.env, a.target)
+            ts, _ = self.frame.to_frame(tw)
+            if (ts - self.s) * self.facing < -20.0:  # target behind: turn toward it first
+                self.queue.appendleft(a)
+                self.cur = ActionSpec(type="turn", character=self.cid, face=int(-self.facing))
+                a = self.cur
+        gaze = resolve(self.env, a.target) if a.target else None
         if a.type in ("idle", "look_around", "wait_grounded"):
             self._open("idle", t, look=(a.type == "look_around"))
+        elif a.type in ("look_at", "notice"):
+            self._open("idle", t, gaze=gaze, gaze_mode=a.type, gaze_target=a.target)
+            if a.type == "notice":
+                self.emit(Event(t + NOTICE_DOUBLE_TAKE, "notice", self.cid, {"target": a.target}))
+        elif a.type == "point":
+            self._open("point", t, gaze=gaze, gaze_target=a.target)
+            self.emit(Event(t + 0.25, "point", self.cid, {"target": a.target}))
         elif a.type in ("walk_to", "run_to"):
             if self.seg.kind != "loco":
-                self._open("loco", t, run=(a.type == "run_to"))
+                self._open("loco", t, run=(a.type == "run_to"), style=a.style, gaze=gaze)
         elif a.type == "turn":
             self._open("turn", t, face_from=self.facing, face_to=float(a.face))
             self.emit(Event(t, "turn", self.cid, {"to": a.face}))
         elif a.type == "press":
             sw = next(s for s in self.env.switches if s.id == a.switch)
-            self._open("press", t, switch=sw.id, button=(sw.x, sw.height), pressed=False)
+            self._open("press", t, switch=sw.id, button=(sw.x, sw.height), pressed=False, hesitate=a.hesitate,
+                       gaze=(sw.x, sw.height))
         elif a.type == "jump":
             if abs(self.v) < 40:
                 raise ValueError("jump requires the character to be moving (run-up)")
@@ -186,11 +206,15 @@ class CharacterController:
         tau = t - self.cur_t0
         if a is None:
             pass
-        elif a.type in ("idle", "look_around"):
-            if tau >= (a.duration or 1.0):
+        elif a.type in ("idle", "look_around", "look_at", "notice", "point"):
+            if tau >= (a.duration or (1.3 if a.type == "point" else 1.0)):
                 self._next_action(t)
         elif a.type == "wait_grounded":
-            self._next_action(t)
+            # holds while a gravity change is still pending/in progress (the character waits, tense) and completes
+            # once grounded with gravity settled
+            pending = any(t < tr.t_start + tr.duration for tr in self.gravity.transitions)
+            if not pending:
+                self._next_action(t)
         elif a.type == "turn":
             if tau >= TURN_DURATION * 0.5:
                 self.facing = float(a.face)
@@ -198,10 +222,11 @@ class CharacterController:
                 self.seg.facing = self.facing
                 self._next_action(t)
         elif a.type == "press":
-            if not self.seg.data["pressed"] and tau >= PRESS_CONTACT_T:
+            contact, dur = (PRESS_H_CONTACT_T, PRESS_H_DURATION) if a.hesitate else (PRESS_CONTACT_T, PRESS_DURATION)
+            if not self.seg.data["pressed"] and tau >= contact:
                 self.seg.data["pressed"] = True
                 self._trigger_switch(t, a.switch)
-            if tau >= PRESS_DURATION:
+            if tau >= dur:
                 self._next_action(t)
         elif a.type in ("walk_to", "run_to"):
             self._locomote(t, dt, a)
@@ -214,8 +239,9 @@ class CharacterController:
 
     def _locomote(self, t: float, dt: float, a: ActionSpec) -> None:
         run = a.type == "run_to"
-        speed = a.speed or (430.0 if run else 140.0)
-        acc, dec = (950.0, 1150.0) if run else (520.0, 650.0)
+        cautious = a.style == "cautious"
+        speed = a.speed or (430.0 if run else (90.0 if cautious else 140.0))
+        acc, dec = (950.0, 1150.0) if run else ((300.0, 420.0) if cautious else (520.0, 650.0))
         if self.cur_dir is None:
             self.cur_dir = 1.0 if a.target_x - self.s >= 0 else -1.0
         direction = self.cur_dir  # fixed for the whole action (never re-decided mid-move)
@@ -270,7 +296,9 @@ class CharacterController:
         self.air = {"intent": "fall", "t0": t}
         self.overlay = None
         self._open("airborne", t, intent="fall")
-        self.queue.appendleft(self.cur) if (self.cur is not None and self.cur.type not in ("idle", "look_around", "wait_grounded", "press")) else None
+        keep = self.cur is not None and self.cur.type not in ("idle", "look_around", "press", "look_at", "notice", "point")
+        if keep:
+            self.queue.appendleft(self.cur)
         self.cur = None
         self.emit(Event(t, "lost_support", self.cid, {"surface": self.frame.tag}))
 
@@ -295,6 +323,7 @@ class CharacterController:
                 self.air["brace_t"] = t
                 self.seg.data["brace_t"] = t
                 self.seg.data["brace_surface"] = hit.tag
+                self.seg.data["brace_point"] = hit.point
                 self.emit(Event(t, "brace", self.cid, {"surface": hit.tag, "ttc": self.ttc}))
             self.brace = clamp(1 - self.ttc / 0.65, 0, 1)
             err = wrap_angle(target - st.angle)

@@ -51,6 +51,11 @@ class SkiaRenderer:
         self.hw, self.rh, self.back, self.near = r.width / 2, r.height, r.depth_back, r.depth_front
         self.grid = r.grid_spacing
 
+    @staticmethod
+    def indicator_rotation(g) -> float:
+        """Canvas rotation (deg) of the console's gravity arrow (drawn pointing down at 0) for gravity g (world, y-up)."""
+        return -math.degrees(math.atan2(g[1], g[0])) - 90.0
+
     # ------------------------------------------------------------ projection
     def _setup(self, cam: CameraState) -> None:
         self.cam = cam
@@ -82,10 +87,16 @@ class SkiaRenderer:
         c = self.surface.getCanvas()
         c.clear(col((5, 6, 8)))
         c.save()
-        c.translate(self.W / 2, self.H / 2)
+        sc = self.H / 1080.0
+        c.translate(self.W / 2 + cam.shx * sc, self.H / 2 + cam.shy * sc)
         c.rotate(cam.roll)
         self._room(c, fs, red_flash)
+        self._exits(c, fs)
+        self._shafts(c)
         self._switches(c, fs)
+        self._dust(c, fs, front=False)
+        for cid, pose in fs.poses.items():
+            self._back_shadow(c, cid, pose, fs)
         for pr in fs.props:
             self._prop(c, pr)
         for cid, pose in fs.poses.items():
@@ -94,7 +105,8 @@ class SkiaRenderer:
         for e in fx or []:
             self._effect(c, e, fs.t)
         for cid, pose in fs.poses.items():
-            self._character(c, cid, pose)
+            self._character(c, cid, pose, scarf=fs.scarves.get(cid))
+        self._dust(c, fs, front=True)
         self._cutaway(c, red_flash)
         c.restore()
         self._post(c, red_flash)
@@ -182,7 +194,7 @@ class SkiaRenderer:
             c.scale(k, k)
             c.drawRect(skia.Rect(-20, -14, 20, 14), skia.Paint(Color=col((8, 14, 18))))
             c.drawRect(skia.Rect(-20, -14, 20, 14), skia.Paint(AntiAlias=True, Color=col(CYAN, 0.9), Style=skia.Paint.kStroke_Style, StrokeWidth=1.2))
-            c.rotate(-math.degrees(g_ang) - 90)
+            c.rotate(self.indicator_rotation(fs.gravity))
             p = skia.Paint(AntiAlias=True, Color=col(CYAN), Style=skia.Paint.kStroke_Style, StrokeWidth=2.6, StrokeCap=skia.Paint.kRound_Cap)
             path = skia.Path()
             path.moveTo(0, -9); path.lineTo(0, 9); path.moveTo(-6, 3); path.lineTo(0, 9); path.lineTo(6, 3)
@@ -243,13 +255,16 @@ class SkiaRenderer:
         S = lambda p: ((p[0] - self.cam.cx) * k, -(p[1] - self.cam.cy) * k)
         return rig, st, j, k, S
 
-    def _character(self, c: skia.Canvas, cid: str, pose: Pose, alpha: float = 1.0, mirror_y: Optional[float] = None) -> None:
+    def _character(self, c: skia.Canvas, cid: str, pose: Pose, alpha: float = 1.0, mirror_y: Optional[float] = None, scarf=None,
+                   tint: Optional[Tuple[int, int, int]] = None) -> None:
         rig, st, j, k, S0 = self._char_paths(cid, pose)
         if mirror_y is not None:
             S = lambda p: S0((p[0], 2 * mirror_y - p[1]))
         else:
             S = S0
         near, far, vis = hex_rgb(st.body_color), hex_rgb(st.far_color), hex_rgb(st.visor_color)
+        if tint is not None:
+            near = far = vis = tint
         lw = st.limb_width * k
 
         def stroke(pts, rgb, w):
@@ -270,13 +285,15 @@ class SkiaRenderer:
                               StrokeCap=skia.Paint.kRound_Cap, MaskFilter=skia.MaskFilter.MakeBlur(skia.kNormal_BlurStyle, max(1.0, 4 * k)))
             path = skia.Path()
             for chain in (["pelvis", "neck_base", "head_center"], ["pelvis", "knee_n", "ankle_n"], ["pelvis", "knee_f", "ankle_f"],
-                          ["shoulder", "elbow_n", "wrist_n"], ["shoulder", "elbow_f", "wrist_f"]):
+                          ["shoulder_n", "elbow_n", "wrist_n"], ["shoulder_f", "elbow_f", "wrist_f"]):
                 for i, n in enumerate(chain):
                     q = S(j[n])
                     (path.lineTo if i else path.moveTo)(q[0], q[1])
             c.drawPath(path, glow)
         # far limbs
-        stroke([j["shoulder"], j["elbow_f"], j["wrist_f"]], far, lw * 0.92)
+        if scarf is not None and mirror_y is None:
+            self._scarf(c, scarf, S, hex_rgb(st.scarf_color), lw, alpha)
+        stroke([j["shoulder_f"], j["elbow_f"], j["wrist_f"]], far, lw * 0.92)
         self._hand(c, pose, "f", j, S, far, lw, alpha)
         stroke([j["hip_f"], j["knee_f"], j["ankle_f"]], far, lw)
         stroke([j["ankle_f"], j["toe_f"]], far, lw * 1.35)
@@ -309,8 +326,37 @@ class SkiaRenderer:
         # near limbs
         stroke([j["hip_n"], j["knee_n"], j["ankle_n"]], near, lw * 1.05)
         stroke([j["ankle_n"], j["toe_n"]], near, lw * 1.4)
-        stroke([j["shoulder"], j["elbow_n"], j["wrist_n"]], near, lw * 0.98)
+        stroke([j["shoulder_n"], j["elbow_n"], j["wrist_n"]], near, lw * 0.98)
         self._hand(c, pose, "n", j, S, near, lw, alpha)
+
+    def _scarf(self, c, tails, S, rgb, lw, alpha) -> None:
+        for ti, P in enumerate(tails):
+            pts = [tuple(p) for p in P]
+            for _ in range(2):  # Chaikin smoothing for a cloth-like curve
+                q = [pts[0]]
+                for a, b in zip(pts, pts[1:]):
+                    q += [(a[0] * 0.75 + b[0] * 0.25, a[1] * 0.75 + b[1] * 0.25), (a[0] * 0.25 + b[0] * 0.75, a[1] * 0.25 + b[1] * 0.75)]
+                q.append(pts[-1])
+                pts = q
+            scr = [S(p) for p in pts]
+            w0, w1 = (1.45, 0.65) if ti == 0 else (1.15, 0.55)
+            left, right = [], []
+            for i, p in enumerate(scr):
+                a, b = scr[max(0, i - 1)], scr[min(len(scr) - 1, i + 1)]
+                dx, dy = b[0] - a[0], b[1] - a[1]
+                n = math.hypot(dx, dy) or 1.0
+                w = lw * lerp(w0, w1, i / (len(scr) - 1)) / 2
+                left.append((p[0] - dy / n * w, p[1] + dx / n * w))
+                right.append((p[0] + dy / n * w, p[1] - dx / n * w))
+            path = skia.Path()
+            path.moveTo(*left[0])
+            for p in left[1:]:
+                path.lineTo(*p)
+            for p in reversed(right):
+                path.lineTo(*p)
+            path.close()
+            shade = rgb if ti == 0 else tuple(int(v * 0.8) for v in rgb)
+            c.drawPath(path, skia.Paint(AntiAlias=True, Color=col(shade, alpha)))
 
     def _hand(self, c, pose: Pose, side: str, j, S, rgb, lw, alpha) -> None:
         shape = pose.hands.get(side, "fist")
@@ -323,6 +369,79 @@ class SkiaRenderer:
             c.drawLine(w[0], w[1], m[0], m[1], skia.Paint(AntiAlias=True, Color=col(rgb, alpha), StrokeWidth=lw * 1.25, StrokeCap=skia.Paint.kRound_Cap))
         else:
             c.drawCircle(w[0], w[1], lw * 0.85, skia.Paint(AntiAlias=True, Color=col(rgb, alpha)))
+
+    def _exits(self, c: skia.Canvas, fs: FrameState) -> None:
+        for ex in self.env.exits:
+            if ex.surface not in ("wall_right", "wall_left"):
+                continue
+            x = self.hw - 0.5 if ex.surface == "wall_right" else -self.hw + 0.5
+            y0, y1, z0, z1 = ex.s - ex.width / 2, ex.s + ex.width / 2, -80.0, 80.0
+            pulse = 0.85 + 0.15 * math.sin(fs.t * 4.2)
+            mid = self.P(x, ex.s, 0)
+            self._glow(c, (mid[0], mid[1]), max(260 * mid[2], 40), (110, 240, 255), 0.25 * pulse)
+            c.drawPath(self.poly([(x, y0 - 16, z0 - 16), (x, y0 - 16, z1 + 16), (x, y1 + 16, z1 + 16), (x, y1 + 16, z0 - 16)]),
+                       skia.Paint(AntiAlias=True, Color=col((32, 42, 50))))
+            door = self.poly([(x, y0, z0), (x, y0, z1), (x, y1, z1), (x, y1, z0)])
+            a, b = self.P(x, y1, 0), self.P(x, y0, 0)
+            sh = skia.GradientShader.MakeLinear([skia.Point(a[0], a[1]), skia.Point(b[0], b[1])],
+                                                [col((210, 255, 255), 0.95 * pulse), col((110, 240, 255), 0.75 * pulse), col((210, 255, 255), 0.95 * pulse)], [0, 0.5, 1])
+            c.drawPath(door, skia.Paint(AntiAlias=True, Shader=sh))
+            c.drawPath(door, skia.Paint(AntiAlias=True, Color=col(WHITE, 0.95), Style=skia.Paint.kStroke_Style, StrokeWidth=3.0))
+            if ex.sealed:
+                for i in range(1, 5):
+                    yy = lerp(y0, y1, i / 5)
+                    c.drawPath(self.poly([(x - 0.5, yy - 5, z0 + 8), (x - 0.5, yy - 5, z1 - 8), (x - 0.5, yy + 5, z1 - 8), (x - 0.5, yy + 5, z0 + 8)]),
+                               skia.Paint(AntiAlias=True, Color=col((255, 70, 80), 0.85)))
+
+    def _shafts(self, c: skia.Canvas) -> None:
+        """Soft volumetric light shafts from the doorway and the exit (additive, low alpha)."""
+        hw = self.hw
+        beams = []
+        if self.env.room.entry_door:
+            beams.append(((-hw, 0.0), (-hw, 230.0), (-hw + 520, 0.0), (-hw + 380, 0.0), (190, 240, 255)))
+        for ex in self.env.exits:
+            if ex.surface == "wall_right":
+                beams.append(((hw, ex.s - ex.width / 2), (hw, ex.s + ex.width / 2), (hw - 620, ex.s - 260), (hw - 620, ex.s + 200), (120, 240, 255)))
+        for a, b, cpt, d, rgb in beams:
+            pa, pb, pc, pd = self.P(a[0], a[1], 0), self.P(b[0], b[1], 0), self.P(cpt[0], cpt[1], 0), self.P(d[0], d[1], 0)
+            path = skia.Path()
+            path.moveTo(pa[0], pa[1]); path.lineTo(pb[0], pb[1]); path.lineTo(pd[0], pd[1]); path.lineTo(pc[0], pc[1]); path.close()
+            mx, my = (pa[0] + pb[0]) / 2, (pa[1] + pb[1]) / 2
+            ex_, ey_ = (pc[0] + pd[0]) / 2, (pc[1] + pd[1]) / 2
+            sh = skia.GradientShader.MakeLinear([skia.Point(mx, my), skia.Point(ex_, ey_)], [col(rgb, 0.16), col(rgb, 0.0)])
+            c.drawPath(path, skia.Paint(AntiAlias=True, Shader=sh, BlendMode=skia.BlendMode.kPlus))
+
+    def _back_shadow(self, c: skia.Canvas, cid: str, pose: Pose, fs: FrameState) -> None:
+        """Soft silhouette shadow on the back wall (key light near the camera, slightly above-left).
+
+        A light near the lens throws a shadow roughly the character's own on-screen size, offset a little: it is
+        drawn at the character's screen scale (not shrunk to back-wall depth, which read as a second, distant
+        figure in 1C review) and heavily blurred so it reads as light, not as a body."""
+        k0 = self._zfn()
+        c.save()
+        c.translate(9.0 * k0, 7.0 * k0)  # screen offset: down-right of the character
+        blur = 7.0 * k0 + 4
+        layer = skia.Paint(ImageFilter=skia.ImageFilters.Blur(blur, blur), Color=col((0, 0, 0), 0.26))
+        c.saveLayer(None, layer)
+        self._character(c, cid, pose, alpha=1.0, mirror_y=None, scarf=fs.scarves.get(cid), tint=(0, 0, 0))
+        c.restore()
+        c.restore()
+
+    def _dust(self, c: skia.Canvas, fs: FrameState, front: bool) -> None:
+        if fs.dust is None:
+            return
+        P, Q = fs.dust, fs.dust_prev
+        sel = (P[:, 2] < 0) if front else (P[:, 2] >= 0)
+        for p, q in zip(P[sel], Q[sel]):
+            a = self.P(float(p[0]), float(p[1]), float(p[2]))
+            b = self.P(float(q[0]), float(q[1]), float(q[2]))
+            sz = clamp(1.6 * a[2], 0.8, 6.0)
+            alpha = clamp(0.55 - (float(p[2]) + self.Fd) / 6000.0, 0.12, 0.5)
+            paint = skia.Paint(AntiAlias=True, Color=col((190, 245, 255), alpha), StrokeWidth=sz, StrokeCap=skia.Paint.kRound_Cap, Style=skia.Paint.kStroke_Style)
+            if math.hypot(a[0] - b[0], a[1] - b[1]) > 2.5:
+                c.drawLine(b[0], b[1], a[0], a[1], paint)
+            else:
+                c.drawPoint(a[0], a[1], paint)
 
     def _reflection(self, c: skia.Canvas, cid: str, pose: Pose) -> None:
         hw = self.hw

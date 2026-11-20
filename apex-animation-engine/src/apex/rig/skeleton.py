@@ -66,8 +66,13 @@ class Skeleton:
         return out
 
     # ------------------------------------------------------------------ FK
-    def fk_character(self, local: Dict[str, float], stretch: Optional[Dict[str, float]] = None) -> Dict[str, Tuple[Vec, Vec, float]]:
-        """Forward kinematics in the character frame. Returns name -> (start, end, absolute_angle)."""
+    def fk_character(self, local: Dict[str, float], stretch: Optional[Dict[str, float]] = None,
+                     offsets: Optional[Dict[str, Vec]] = None) -> Dict[str, Tuple[Vec, Vec, float]]:
+        """Forward kinematics in the character frame. Returns name -> (start, end, absolute_angle).
+
+        `offsets` shifts a bone's start (and therefore its whole sub-chain) — used for torso/hip twist, which in a
+        side view shows up as the near and far shoulder (or hip) separating along the facing axis.
+        """
         out: Dict[str, Tuple[Vec, Vec, float]] = {}
         for b in self.bones:
             ang = local.get(b.name, b.rest)
@@ -79,6 +84,8 @@ class Skeleton:
                 ps, pe, pa = out[b.parent]
                 start = (ps[0] + (pe[0] - ps[0]) * b.attach, ps[1] + (pe[1] - ps[1]) * b.attach)
                 absang = pa + ang
+            if offsets and b.name in offsets:
+                start = (start[0] + offsets[b.name][0], start[1] + offsets[b.name][1])
             end = (start[0] + math.cos(absang) * L, start[1] + math.sin(absang) * L)
             out[b.name] = (start, end, absang)
         return out

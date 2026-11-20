@@ -11,15 +11,16 @@ from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 
-from ..core.mathx import clamp, lerp, lerp_angle, smoothstep
+from ..core.mathx import Vec, clamp, damped_spring, lerp, lerp_angle, smoothstep, v_rot, wrap_angle
 from ..core.timeline import Track
+from ..rig.skeleton import to_character
 from ..rig.stickman import PI, Pose, StickmanRig, base_pose, blend_poses, set_arm, set_lean
 from ..scene.schema import CharacterStyle
-from .controller import PRESS_CONTACT_T, TURN_DURATION, Event, Segment, StepRecord
+from .controller import NOTICE_DOUBLE_TAKE, PRESS_CONTACT_T, PRESS_H_CONTACT_T, TURN_DURATION, Event, Segment, StepRecord
 from .frames import GroundFrame
 from .gait import Gait, GaitParams
 
-BLEND_IN = {"airborne": 0.12, "landing": 0.12, "loco": 0.14, "idle": 0.16, "press": 0.14, "turn": 0.06}
+BLEND_IN = {"airborne": 0.16, "landing": 0.12, "loco": 0.18, "idle": 0.2, "press": 0.18, "turn": 0.06, "point": 0.12}
 
 # press action: hand target offsets relative to the button (ds toward the character, dh above), IK weight, body
 PRESS = {
@@ -35,6 +36,34 @@ PRESS = {
     "armF": Track.of((0.0, 0.9), (0.4, 1.0), (0.95, 1.0), (1.05, 2.5), (1.25, 1.0), (1.75, 0.8)),
     "elbF": Track.of((0.0, 2.0), (0.4, 2.3), (0.95, 2.3), (1.05, 0.6), (1.25, 1.4), (1.75, 1.6)),
     "look": Track.of((1.3, 1.0), (1.42, -1.0, "hold"), (1.62, -1.0), (1.7, 1.0)),
+}
+
+
+# hesitant press: reach -> hover -> doubt (pull back, head cock) -> commit -> contact -> startle
+H = PRESS_H_CONTACT_T
+PRESS_H = {
+    "ik": Track.of((0.0, 0.0), (0.22, 0.0), (0.55, 1.0), (H + 0.42, 1.0), (H + 0.55, 0.0)),
+    "ds": Track.of((0.22, 42.0), (0.6, 15.0), (0.85, 19.0), (1.02, 36.0), (1.2, 31.0), (1.36, 17.0), (H - 0.1, 11.0, "in"), (H, 0.0), (H + 0.45, 0.0)),
+    "dh": Track.of((0.22, 52.0), (0.6, 21.0), (0.85, 25.0), (1.02, 42.0), (1.2, 39.0), (1.36, 25.0), (H - 0.1, 28.0, "in"), (H, 0.0), (H + 0.07, -3.0), (H + 0.45, -3.0)),
+    "lean": Track.of((0.0, 0.08), (0.25, 0.3), (0.6, 0.52), (0.85, 0.5), (1.02, 0.28), (1.2, 0.3), (H - 0.1, 0.6), (H, 0.66), (H + 0.4, 0.62), (H + 0.5, -0.36), (H + 0.7, 0.0), (H + 0.9, 0.1)),
+    "crouch": Track.of((0.0, 0.0), (0.6, 14.0), (1.02, 9.0), (H - 0.1, 17.0), (H, 19.0), (H + 0.4, 18.0), (H + 0.5, -5.0), (H + 0.75, 8.0), (H + 0.9, 7.0)),
+    "cock": Track.of((0.0, 0.0), (0.8, 0.0), (0.95, 0.28), (1.25, 0.25), (1.38, 0.0)),  # doubtful head tilt
+    "eye": Track.of((0.0, 1.0), (0.6, 1.1), (0.9, 0.8), (1.25, 0.82), (1.4, 1.05), (H + 0.42, 1.0), (H + 0.5, 1.9), (H + 0.9, 1.45)),
+    "twist": Track.of((0.0, 0.0), (0.6, 0.7), (1.02, 0.25), (H, 0.8), (H + 0.45, 0.7), (H + 0.55, -0.45), (H + 0.9, 0.0)),
+    "sy": Track.of((H + 0.42, 1.0), (H + 0.5, 1.08), (H + 0.62, 0.96), (H + 0.72, 1.0)),
+    "armN": Track.of((H + 0.42, 0.0), (H + 0.52, 2.7), (H + 0.72, 1.3), (H + 0.9, 1.0)),
+    "armF": Track.of((0.0, 0.7), (0.6, 0.9), (0.85, 1.05), (1.3, 1.05), (H + 0.42, 0.9), (H + 0.52, 2.5), (H + 0.72, 1.1), (H + 0.9, 0.9)),
+    "elbF": Track.of((0.0, 1.8), (0.6, 2.2), (0.85, 2.55), (1.3, 2.5), (H + 0.42, 2.2), (H + 0.52, 0.6), (H + 0.72, 1.4), (H + 0.9, 1.6)),
+    "gaze": Track.of((0.0, 0.0), (0.18, 1.0), (H + 0.44, 1.0), (H + 0.52, 0.0)),
+    "lookup": Track.of((H + 0.45, 0.0), (H + 0.6, -0.55), (H + 0.9, -0.4)),
+}
+NOTICE = {  # double-take: glance -> look away -> snap back with a startle
+    "w": Track.of((0.0, 0.0), (0.1, 0.0), (0.18, 1.0, "out"), (0.26, 1.0), (0.38, 0.0), (NOTICE_DOUBLE_TAKE - 0.04, 0.0), (NOTICE_DOUBLE_TAKE + 0.05, 1.0, "out")),
+    "eye": Track.of((0.0, 1.0), (NOTICE_DOUBLE_TAKE, 1.0), (NOTICE_DOUBLE_TAKE + 0.06, 1.75), (NOTICE_DOUBLE_TAKE + 0.5, 1.3)),
+    "sy": Track.of((NOTICE_DOUBLE_TAKE, 1.0), (NOTICE_DOUBLE_TAKE + 0.06, 1.06), (NOTICE_DOUBLE_TAKE + 0.16, 0.97), (NOTICE_DOUBLE_TAKE + 0.26, 1.0)),
+    "lean": Track.of((0.0, 0.03), (0.3, 0.06), (NOTICE_DOUBLE_TAKE, 0.05), (NOTICE_DOUBLE_TAKE + 0.07, -0.14), (NOTICE_DOUBLE_TAKE + 0.4, 0.08)),
+    "armF": Track.of((NOTICE_DOUBLE_TAKE, -0.1), (NOTICE_DOUBLE_TAKE + 0.1, 0.9), (NOTICE_DOUBLE_TAKE + 0.5, 0.7)),
+    "elbF": Track.of((NOTICE_DOUBLE_TAKE, 0.35), (NOTICE_DOUBLE_TAKE + 0.1, 2.3), (NOTICE_DOUBLE_TAKE + 0.5, 2.2)),
 }
 
 
@@ -66,7 +95,9 @@ class Animator:
         self.gait_params = GaitParams(cadence_scale=style.cadence_scale, stride_scale=style.stride_scale,
                                       leg_length=rig.p.thigh + rig.p.shin)
         self.footsteps: List[Event] = []
+        self.FAC = np.array([r.facing for r in records])
         self._prepare()
+        self._follow_through()
 
     # ------------------------------------------------------------ post-processing (plants, gaits)
     def _rec(self, arr: np.ndarray, t: float, seg: Optional[Segment] = None) -> float:
@@ -112,7 +143,11 @@ class Animator:
                 vs = np.gradient(ss, ts)
                 direction = 1.0 if (ss[-1] - ss[0]) >= 0 else -1.0
                 lead = 0 if plants[0] * direction < plants[1] * direction else 1
-                gait = Gait(ts, ss, vs, self.gait_params, direction, plants, lead_leg=lead)
+                gp = self.gait_params
+                if seg.data.get("style") == "cautious":
+                    from dataclasses import replace as _rep
+                    gp = _rep(gp, stride_scale=gp.stride_scale * 0.78, cadence_scale=gp.cadence_scale * 0.9)
+                gait = Gait(ts, ss, vs, gp, direction, plants, lead_leg=lead)
                 seg.data["gait"] = gait
                 seg.data["plants_in"] = plants
                 for ff in gait.footfalls:
@@ -157,6 +192,80 @@ class Animator:
                 ang[k] = -0.35 * math.sin(math.pi * u)
         return (plants[0], plants[1]), (lift[0], lift[1]), (ang[0], ang[1])
 
+    def _follow_through(self) -> None:
+        """Overlapping action: root acceleration (in the body frame) drives a lagged, under-damped response that
+        swings arms/head/chest opposite to the acceleration and lets them settle after stops and impacts."""
+        T = self.T
+        n = len(T)
+        self.FX = np.zeros(n)
+        self.FY = np.zeros(n)
+        if n < 3:
+            return
+        ax, ay = np.gradient(self.VX, T), np.gradient(self.VY, T)
+        c, s_ = np.cos(self.ANG), np.sin(self.ANG)
+        fwd = (ax * c + ay * s_) * np.where(self.FAC >= 0, 1.0, -1.0)
+        up = ax * s_ - ay * c
+        up = -up  # body-up axis is (sin a, -cos a) rotated; keep +up = toward the head
+        fwd = np.clip(fwd, -6000, 6000)
+        up = np.clip(up, -12000, 12000)
+        w, z = 11.0, 0.42
+        yx = vx = yy = vy = 0.0
+        for i in range(1, n):
+            dt = T[i] - T[i - 1]
+            vx += (w * w * (fwd[i] - yx) - 2 * z * w * vx) * dt
+            yx += vx * dt
+            vy += (w * w * (up[i] - yy) - 2 * z * w * vy) * dt
+            yy += vy * dt
+            self.FX[i], self.FY[i] = yx, yy
+
+    def _overlap(self, pose: Pose, t: float) -> None:
+        if pose.state == "airborne":
+            return
+        fx, fy = float(np.interp(t, self.T, self.FX)), float(np.interp(t, self.T, self.FY))
+        da = clamp(-0.00042 * fx, -0.75, 0.75)
+        dn = clamp(-0.00009 * fy, -0.6, 0.45)
+        L = pose.local
+        for side in "nf":
+            if pose.hands.get(side) == "point":
+                continue
+            L[f"upper_arm_{side}"] = L.get(f"upper_arm_{side}", 0.0) + da + 0.5 * dn
+            L[f"forearm_{side}"] = clamp(L.get(f"forearm_{side}", 0.3) + 0.55 * abs(da) + 0.4 * max(0.0, -dn), -0.05, 2.75)
+        L["chest"] = L.get("chest", 0.0) + 0.4 * dn
+        L["head"] = L.get("head", 0.0) + 0.7 * dn + 0.25 * da
+
+    # ------------------------------------------------------------ gaze
+    def _gaze(self, pose: Pose, target: Optional[Vec], w: float, extra_tilt: float = 0.0) -> None:
+        """Turn neck + head toward a world point (weight w). Looking behind flips the head's facing."""
+        if target is None or w <= 0.0:
+            pose.local["head"] = pose.local.get("head", 0.0) + extra_tilt
+            return
+        ch = self.rig.fk(pose)
+        neck = ch["neck"][0]
+        tc = to_character(target, pose.root, pose.body_angle, pose.facing if abs(pose.facing) > 1e-6 else 1.0)
+        dx, dy = tc[0] - neck[0], tc[1] - neck[1]
+        behind = dx < -8.0
+        if behind:
+            dx = -dx
+        a = clamp(math.atan2(dy, dx), -1.1, 1.0)
+        chest_abs = pose.local.get("spine", PI / 2) + pose.local.get("chest", 0.0)
+        neck_l = 0.3 * a * (-1 if behind else 1)
+        head_abs = PI / 2 + (a if not behind else -a) * 0.8
+        head_l = wrap_angle(head_abs - chest_abs - neck_l)
+        L = pose.local
+        L["neck"] = lerp_angle(L.get("neck", 0.0), neck_l, w)
+        L["head"] = lerp_angle(L.get("head", 0.0), head_l, w) + extra_tilt
+        if behind and w > 0.5:
+            pose.head_facing = -1.0
+
+    def _seg_gaze(self, seg: Segment, t: float) -> Tuple[Optional[Vec], float]:
+        g = seg.data.get("gaze")
+        if g is None:
+            return None, 0.0
+        tau = t - seg.t0
+        if seg.data.get("gaze_mode") == "notice":
+            return g, NOTICE["w"](tau)
+        return g, smoothstep(0.0, 0.22, tau)
+
     # ------------------------------------------------------------ evaluation
     def segment_at(self, t: float) -> int:
         for i, s in enumerate(self.segments):
@@ -174,6 +283,7 @@ class Animator:
             if u < 1:
                 prev = self._eval(self.segments[i - 1], t)
                 pose = blend_poses(prev, pose, smoothstep(0, 1, u))
+        self._overlap(pose, t)
         return pose
 
     def _legs(self, pose: Pose, F: GroundFrame, plants: Tuple[float, float], lift: Tuple[float, float] = (0.0, 0.0),
@@ -215,11 +325,21 @@ class Animator:
         tau = t - seg.t0
         s = self._rec(self.S, t, seg)
         breath = math.sin(2 * PI * tau / 3.2)
-        pose.root = F.to_world(s, self.stand_h - 2.0 + 1.2 * breath)
+        sway = math.sin(2 * PI * tau / 4.4)  # slow weight shift between the feet
+        pose.root = F.to_world(s + 2.5 * sway * seg.facing, self.stand_h - 2.0 + 1.2 * breath - 0.8 * abs(sway))
         L = pose.local
-        set_lean(L, 0.03 + 0.01 * breath)
-        set_arm(L, "n", 0.12 + 0.03 * breath, 0.3)
-        set_arm(L, "f", -0.1 - 0.03 * breath, 0.35)
+        set_lean(L, 0.03 + 0.01 * breath, chest=0.02 * sway)
+        pose.hip_twist = 0.25 * sway
+        pose.twist = -0.15 * sway
+        set_arm(L, "n", 0.12 + 0.03 * breath - 0.05 * sway, 0.3)
+        set_arm(L, "f", -0.1 - 0.03 * breath + 0.05 * sway, 0.35)
+        if seg.data.get("gaze_mode") == "notice":
+            set_lean(L, NOTICE["lean"](tau))
+            set_arm(L, "f", NOTICE["armF"](tau), NOTICE["elbF"](tau))
+            pose.eye = NOTICE["eye"](tau)
+            sy = NOTICE["sy"](tau)
+            pose.squash = (1.0 / math.sqrt(sy), sy)
+            pose.pivot_y = -(self.stand_h - 2.0)
         if seg.data.get("look"):
             look = Track.of((0.0, 1.0), (0.35, 1.0), (0.55, -1.0, "hold"), (1.15, -1.0), (1.3, 1.0))
             tilt = Track.of((0.0, 0.0), (0.3, -0.35), (0.55, -0.1), (1.15, -0.15), (1.4, 0.05))
@@ -227,8 +347,12 @@ class Animator:
             L["head"] = -tilt(tau)
         if seg.data.get("settle"):
             pose.eye = lerp(1.25, 1.0, smoothstep(0, 1.2, tau))
+            down = (1 - smoothstep(0.2, 0.7, tau))  # glance down at the new floor, then up
+            L["head"] = L.get("head", 0.0) - 0.45 * down
         plants, lift, ang = self._settle_feet(seg, t)
         self._legs(pose, F, plants, lift, ang)
+        g, w = self._seg_gaze(seg, t)
+        self._gaze(pose, g, w)
         return pose
 
     # -- turn (2D snap turn with anticipation: head leads, body follows at mid-point)
@@ -273,15 +397,28 @@ class Animator:
             arm_back = 1.2 * w
         if overlay < 0:
             lean += clamp(-overlay / 60.0, 0, 0.6)
+        cautious = seg.data.get("style") == "cautious"
+        if cautious:
+            crouch += 9.0
+            lean += 0.22
         bob = gait.pelvis_bob(tc, 0.0)
         pose.root = F.to_world(s, self.stand_h - crouch + overlay + bob)
         L = pose.local
-        set_lean(L, lean, chest=-0.1 * lean, head=-0.65 * lean)
+        set_lean(L, lean, chest=-0.1 * lean, head=-0.65 * lean + (0.12 if cautious else 0.0))
         c = gait.arm_phase(tc)
-        A = lerp(0.35, 1.05, rb) * self.style.arm_swing_scale
+        A = lerp(0.35, 1.05, rb) * self.style.arm_swing_scale * (0.3 if cautious else 1.0)
         elbow = lerp(0.35, 1.55, rb)
-        set_arm(L, "n", -A * c - arm_back, elbow + 0.25 * c)
-        set_arm(L, "f", A * c - arm_back, elbow - 0.25 * c)
+        if cautious:  # hands raised near the chest, careful
+            set_arm(L, "n", 0.75 - A * c, 1.9 + 0.15 * c)
+            set_arm(L, "f", 0.45 + A * c, 2.15 - 0.15 * c)
+            pose.eye = 1.15
+        else:
+            set_arm(L, "n", -A * c - arm_back, elbow + 0.25 * c)
+            set_arm(L, "f", A * c - arm_back, elbow - 0.25 * c)
+        # shoulders counter-rotate against the hips (torso twist), stronger when running
+        tw = lerp(0.35, 0.9, rb) * (0.4 if cautious else 1.0)
+        pose.twist = -tw * c
+        pose.hip_twist = 0.8 * tw * c
         lifts, angs, sss = [], [], []
         for leg in (0, 1):
             fs = gait.foot(tc, leg)
@@ -289,35 +426,82 @@ class Animator:
             lifts.append(fs.h)
             angs.append(fs.angle)
         self._legs(pose, F, (sss[0], sss[1]), (lifts[0], lifts[1]), (angs[0], angs[1]))
-        pose.eye = 1.0 + 0.12 * rb
+        if not cautious:
+            pose.eye = 1.0 + 0.12 * rb
+        g, w = self._seg_gaze(seg, t)
+        self._gaze(pose, g, 0.75 * w)
         return pose
 
     # -- press a physical button (anticipation -> reach -> contact -> recoil)
     def _eval_press(self, seg: Segment, t: float) -> Pose:
         pose, F = self._base(seg, t)
-        tau = clamp(t - seg.t0, 0, 1.75)
+        hes = bool(seg.data.get("hesitate"))
+        P = PRESS_H if hes else PRESS
+        tau = clamp(t - seg.t0, 0, 2.45 if hes else 1.75)
         s = self._rec(self.S, t, seg)
-        pose.root = F.to_world(s, self.stand_h - 2.0 - PRESS["crouch"](tau))
+        pose.root = F.to_world(s, self.stand_h - 2.0 - P["crouch"](tau))
         L = pose.local
-        set_lean(L, PRESS["lean"](tau), chest=-0.05, head=-PRESS["head"](tau))
-        pose.eye = PRESS["eye"](tau)
-        sy = PRESS["sy"](tau)
+        set_lean(L, P["lean"](tau), chest=-0.05)
+        pose.eye = P["eye"](tau)
+        sy = P["sy"](tau)
         pose.squash = (1.0 / math.sqrt(sy), sy)
         pose.pivot_y = -(self.stand_h - 2.0)
-        set_arm(L, "f", PRESS["armF"](tau), PRESS["elbF"](tau))
-        set_arm(L, "n", PRESS["armN"](tau), 0.4)
-        w = PRESS["ik"](tau)
+        pose.twist = P["twist"](tau) if hes else 0.6 * P["ik"](tau)
+        set_arm(L, "f", P["armF"](tau), P["elbF"](tau))
+        set_arm(L, "n", P["armN"](tau), 0.4)
+        w = P["ik"](tau)
         if w > 0:
             fk = dict(L)
             bx, bh = seg.data["button"]
-            target = F.to_world(bx + PRESS["ds"](tau) * (1 if s > bx else -1), bh + PRESS["dh"](tau))
+            target = F.to_world(bx + P["ds"](tau) * (1 if s > bx else -1), bh + P["dh"](tau))
             self.rig.arm_ik(pose, "n", target, fingertip=True)
             for k in ("upper_arm_n", "forearm_n", "hand_n"):
                 L[k] = lerp_angle(fk.get(k, L[k]), L[k], w)
             pose.hands["n"] = "point"
-        look = PRESS["look"](tau)
-        pose.head_facing = 1.0 if look > 0 else -1.0
         self._legs(pose, F, seg.data["plants"])
+        if hes:
+            self._gaze(pose, seg.data.get("gaze"), P["gaze"](tau), extra_tilt=P["cock"](tau) + P["lookup"](tau))
+            if tau > H + 0.62 and tau < H + 0.8:
+                pose.head_facing = -1.0  # startled glance around the room
+        else:
+            set_lean(L, P["lean"](tau), chest=-0.05, head=-P["head"](tau))
+            pose.head_facing = 1.0 if P["look"](tau) > 0 else -1.0
+        return pose
+
+    # -- point at a target (anticipation dip, snap, excited hold)
+    def _eval_point(self, seg: Segment, t: float) -> Pose:
+        pose, F = self._base(seg, t)
+        tau = t - seg.t0
+        s = self._rec(self.S, t, seg)
+        dip = Track.of((0.0, 0.0), (0.18, 7.0), (0.3, -3.0, "out"), (0.5, 0.0))(tau)
+        bounce = 1.5 * math.sin(tau * 9.0) * smoothstep(0.4, 0.6, tau)
+        pose.root = F.to_world(s, self.stand_h - 2.0 - dip + bounce)
+        L = pose.local
+        snap = smoothstep(0.2, 0.32, tau)
+        set_lean(L, 0.05 + 0.12 * snap)
+        pose.twist = 0.9 * snap
+        pose.eye = 1.0 + 0.45 * snap
+        sy = Track.of((0.2, 1.0), (0.3, 1.06), (0.42, 0.98), (0.55, 1.0))(tau)
+        pose.squash = (1.0 / math.sqrt(sy), sy)
+        pose.pivot_y = -(self.stand_h - 2.0)
+        # far arm: anticipation swing back, then a small fist pump
+        pump = math.sin(PI * clamp((tau - 0.55) / 0.35, 0, 1))
+        set_arm(L, "f", -0.4 * (1 - snap) + 0.6 * snap + 1.0 * pump, 1.6 + 0.7 * pump)
+        set_arm(L, "n", -0.7 * (1 - snap), 0.4)
+        tgt = seg.data.get("gaze")
+        if tgt is not None and snap > 0:
+            ch = self.rig.fk(pose)
+            sh = ch["upper_arm_n"][0]
+            tc = to_character(tgt, pose.root, pose.body_angle, pose.facing)
+            aim = math.atan2(tc[1] - sh[1], tc[0] - sh[0])
+            chest_abs = L["spine"] + L.get("chest", 0.0)
+            L["upper_arm_n"] = lerp_angle(L["upper_arm_n"], wrap_angle(aim - chest_abs), snap)
+            L["forearm_n"] = lerp(L["forearm_n"], 0.05, snap)
+            L["hand_n"] = 0.0
+            pose.hands["n"] = "point"
+        self._legs(pose, F, seg.data["plants"])
+        g, w = self._seg_gaze(seg, t)
+        self._gaze(pose, g, w)
         return pose
 
     # -- airborne (falling / tumbling / jump) with brace toward the predicted surface
@@ -351,6 +535,10 @@ class Animator:
             L["shin_f"] = -(0.6 + 0.45 * abs(math.sin(tau * 9.0 + 4.3))) * fl - 0.15 * b
             pose.eye = 1.6
             pose.hands = {"n": "open", "f": "open"}
+            pose.twist = 0.6 * math.sin(tau * 7.0) * fl
+            bp = seg.data.get("brace_point")
+            if bp is not None and b > 0:
+                self._gaze(pose, bp, clamp(b * 1.5, 0, 1))
         L["foot_n"] = L["foot_f"] = PI / 2
         return pose
 
@@ -374,6 +562,7 @@ class Animator:
         pose.pivot_y = -h
         pose.eye = lerp(1.6, 1.15, smoothstep(0, 0.6, tau))
         pose.hands = {"n": "open", "f": "open"}
+        pose.twist = 0.5 * wind * math.sin(tau * 13)
         self._legs(pose, F, seg.data["plants"])
         return pose
 
@@ -383,7 +572,7 @@ class Animator:
         for seg in self.segments:
             F = self.frames[seg.frame]
             bl = BLEND_IN.get(seg.kind, 0.15) + 1e-3
-            if seg.kind in ("idle", "turn", "press", "landing") and seg.data.get("plants"):
+            if seg.kind in ("idle", "turn", "press", "landing", "point") and seg.data.get("plants"):
                 a = seg.t0 + bl
                 if seg.t1 - a > 0.05:
                     for k, side in enumerate("nf"):

@@ -71,16 +71,27 @@ class PropSpec(Strict):
     mass: float = Field(8.0, gt=0)
 
 
+class ExitSpec(Strict):
+    """A (sealed) exit door set into a room surface; `s` is its centre along that surface."""
+    id: str
+    surface: Literal["floor", "wall_right", "wall_left", "ceiling"] = "wall_right"
+    s: float
+    width: float = Field(170.0, gt=20)
+    sealed: bool = True
+
+
 class EnvironmentSpec(Strict):
     id: str
     room: RoomSpec = Field(default_factory=RoomSpec)
     gravity: Vec2 = (0.0, -1568.0)
     switches: List[SwitchSpec] = Field(default_factory=list)
     props: List[PropSpec] = Field(default_factory=list)
+    exits: List[ExitSpec] = Field(default_factory=list)
+    dust: int = Field(160, ge=0, le=2000)  # ambient particles that visualise the gravity field
 
 
 # ---------------------------------------------------------------- actions (character directives)
-ActionType = Literal["idle", "walk_to", "run_to", "turn", "press", "jump", "look_around", "wait_grounded"]
+ActionType = Literal["idle", "walk_to", "run_to", "turn", "press", "jump", "look_around", "wait_grounded", "look_at", "notice", "point"]
 
 
 class ActionSpec(Strict):
@@ -92,16 +103,24 @@ class ActionSpec(Strict):
     switch: Optional[str] = None
     face: Optional[int] = None  # turn: +1 / -1
     height: Optional[float] = None  # jump apex height
+    target: Optional[str] = None  # look_at / notice / point / gaze while walking: "switch:<id>", "exit:<id>", "point:x,y"
+    style: Literal["normal", "cautious"] = "normal"  # walk_to / run_to movement style
+    hesitate: bool = False  # press: reach, hesitate, pull back, then commit
     note: str = ""
 
     @model_validator(mode="after")
     def _check(self) -> "ActionSpec":
-        need = {"walk_to": ["target_x"], "run_to": ["target_x"], "press": ["switch"], "turn": ["face"], "jump": ["height"]}
+        need = {"walk_to": ["target_x"], "run_to": ["target_x"], "press": ["switch"], "turn": ["face"], "jump": ["height"],
+                "look_at": ["target"], "notice": ["target"], "point": ["target"]}
         for f in need.get(self.type, []):
             if getattr(self, f) is None:
                 raise ValueError(f"action '{self.type}' requires '{f}'")
         if self.type == "turn" and self.face not in (-1, 1):
             raise ValueError("turn.face must be +1 or -1")
+        if self.target is not None:
+            kind, _, ref = self.target.partition(":")
+            if kind not in ("switch", "exit", "point") or not ref:
+                raise ValueError(f"target must be 'switch:<id>', 'exit:<id>' or 'point:x,y' (got {self.target!r})")
         return self
 
 
@@ -122,7 +141,11 @@ class CameraSpec(Strict):
     offset: Vec2 = (0.0, 40.0)
     lead: float = Field(0.25, ge=0, le=2)  # seconds of velocity look-ahead
     stiffness: float = Field(6.0, gt=0)
-    roll: float = 0.0  # degrees
+    roll: float = 0.0  # degrees (fixed mode / start of an eased roll)
+    roll_end: Optional[float] = None  # eased roll transition over the shot
+    roll_mode: Literal["fixed", "align_gravity"] = "fixed"  # align_gravity: screen-down follows the gravity vector
+    focus: Literal["body", "upper", "head"] = "body"  # framing focus for follow cameras (close-ups use head/upper)
+    shake: float = Field(0.0, ge=0, le=3)  # event-driven camera shake amount (impacts, pulses)
     keep_in_frame: bool = True
 
 
@@ -136,6 +159,7 @@ class ShotSpec(Strict):
     id: str
     start: float = Field(ge=0)
     end: float
+    kind: Literal["establishing", "wide", "medium", "close", "insert", "tracking"] = "medium"
     description: str = ""
     camera: CameraSpec = Field(default_factory=CameraSpec)
     character_states: Dict[str, str] = Field(default_factory=dict)  # expected state at shot start (documentation + QA hint)
@@ -210,11 +234,16 @@ class ProjectSpec(Strict):
                 if pl.character not in chars:
                     raise ValueError(f"scene {sc.id}: unknown character {pl.character}")
             placed = {pl.character for pl in sc.placements}
+            exits = {x.id for x in envs[sc.environment].exits}
             for a in sc.actions:
                 if a.character not in placed:
                     raise ValueError(f"scene {sc.id}: action for unplaced character {a.character}")
                 if a.type == "press" and a.switch not in switches:
                     raise ValueError(f"scene {sc.id}: unknown switch {a.switch}")
+                if a.target:
+                    kind, _, ref = a.target.partition(":")
+                    if (kind == "switch" and ref not in switches) or (kind == "exit" and ref not in exits):
+                        raise ValueError(f"scene {sc.id}: unknown target {a.target}")
             for sh in sc.shots:
                 if sh.camera.target and sh.camera.target not in placed:
                     raise ValueError(f"shot {sh.id}: camera target {sh.camera.target} not in scene")

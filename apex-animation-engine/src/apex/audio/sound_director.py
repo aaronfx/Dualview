@@ -108,6 +108,61 @@ class Synth:
     def jump(self) -> np.ndarray:
         return 0.4 * _norm(_bandpass(self.noise(0.2), 600, 4000)) * _env(_n(0.2), 0.01, 0.06)
 
+    def chime(self, notes=(587.3, 880.0), gap: float = 0.09, decay: float = 0.4) -> np.ndarray:
+        d = gap * len(notes) + decay * 3
+        out = np.zeros(_n(d))
+        for k, f in enumerate(notes):
+            i = _n(gap * k)
+            m = len(out) - i
+            t = np.arange(m) / SR
+            out[i:] += (np.sin(2 * np.pi * f * t) + 0.3 * np.sin(2 * np.pi * 2.76 * f * t)) * _env(m, 0.002, decay) * 0.5
+        return out
+
+    def notice(self) -> np.ndarray:
+        """Curious 'what's that?' stinger: two rising notes."""
+        return self.chime((659.3, 987.8), 0.11, 0.35)
+
+    def startle(self) -> np.ndarray:
+        d = 0.9
+        n = _n(d)
+        t = _t(d)
+        stab = sum(np.sin(2 * np.pi * f * t) for f in (146.8, 207.7, 293.7)) / 3 * _env(n, 0.003, 0.25)
+        return 0.8 * stab + 0.35 * self.whoosh(d, 1200, 300)[:n]
+
+    def hum_rise(self, d: float) -> np.ndarray:
+        n = _n(d)
+        t = np.arange(n) / SR
+        f = 70 * (220 / 70) ** (t / d)
+        x = np.sin(2 * np.pi * np.cumsum(f) / SR) + 0.4 * np.sign(np.sin(2 * np.pi * np.cumsum(2 * f) / SR))
+        return _bandpass(x, 60, 3000) * np.minimum(1, t / 0.1) * (0.3 + 0.7 * t / d)
+
+    def music(self, events, duration: float) -> np.ndarray:
+        """Small adaptive score bed: calm minor pad -> tension cluster from the switch until recovery -> brighter
+        resolution when the new path is noticed. Chord changes are placed at engine event times."""
+        n = _n(duration)
+        t = np.arange(n) / SR
+        first = {}
+        for e in events:
+            first.setdefault(e.type, []).append(e.t)
+        t_act = (first.get("switch_activated") or [duration])[0]
+        t_rec = (first.get("recovered") or [duration])[0]
+        notices = first.get("notice") or []
+        t_res = next((x for x in notices if x > t_rec), duration)
+
+        def pad(freqs, a, b):
+            seg = np.zeros(n)
+            m = (t >= a) & (t < b + 1.0)
+            if not m.any():
+                return seg
+            tt = t[m] - a
+            env = np.minimum(1, tt / 0.6) * np.clip((b + 1.0 - t[m]) / 1.0, 0, 1)
+            seg[m] = sum(np.sin(2 * np.pi * f * tt) + 0.3 * np.sin(2 * np.pi * f * 2.003 * tt) for f in freqs) / len(freqs) * env
+            return seg
+        out = 0.5 * pad((73.4, 110.0, 146.8, 174.6), 0.0, t_act)            # D minor, calm
+        out += 0.6 * pad((73.4, 103.8, 146.8, 155.6), t_act, t_rec)          # tension cluster (tritone + minor 2nd)
+        out += 0.55 * pad((73.4, 110.0, 146.8, 185.0, 220.0), t_res, duration)  # D major lift: a way out
+        return out * 0.05
+
     def ambience(self, duration: float) -> np.ndarray:
         n = _n(duration)
         t = np.arange(n) / SR
@@ -123,6 +178,7 @@ def clamp01(x: float) -> float:
 DEFAULT_BINDINGS = {
     "footstep": "footstep", "press_contact": "click", "gravity_shift": "pulse", "lost_support": "whoosh",
     "impact": "impact", "prop_impact": "clang", "takeoff": "jump", "recovered": None, "brace": None,
+    "switch_activated": "startle", "notice": "notice", "point": "chime",
 }
 
 
@@ -135,8 +191,9 @@ class Cue:
 
 
 class SoundDirector:
-    def __init__(self, seed: int = 7, bindings: Optional[Dict[str, Optional[str]]] = None):
+    def __init__(self, seed: int = 7, bindings: Optional[Dict[str, Optional[str]]] = None, music: bool = True):
         self.synth = Synth(seed)
+        self.music_on = music
         self.bindings = dict(DEFAULT_BINDINGS)
         if bindings:
             self.bindings.update(bindings)
@@ -160,7 +217,8 @@ class SoundDirector:
         cues = self.cues_for(events)
         sy = self.synth
         bank: Dict[str, Callable[..., np.ndarray]] = {"footstep": sy.footstep, "click": sy.click, "pulse": sy.pulse, "whoosh": sy.whoosh,
-                                                       "impact": sy.impact, "clang": sy.clang, "jump": sy.jump}
+                                                       "impact": sy.impact, "clang": sy.clang, "jump": sy.jump, "notice": sy.notice,
+                                                       "startle": sy.startle, "chime": sy.chime}
         bank["land"] = bank["impact"]
         unknown = sorted({c.sound for c in cues} - set(bank))
         if unknown:
@@ -180,6 +238,18 @@ class SoundDirector:
             m = min(len(sig), n - i)
             L[i:i + m] += sig[:m] * (cue.gain if cue.sound not in ("impact", "clang", "land") else 1.0) * 0.6
         L += sy.ambience(duration)
+        # rising hum while the mechanism charges (switch activation -> gravity shift), placed from engine events
+        acts = [e for e in events if e.type == "switch_activated"]
+        for a in acts:
+            g = next((e for e in events if e.type == "gravity_shift" and e.t >= a.t), None)
+            if g is not None and g.t - a.t > 0.1:
+                hum = sy.hum_rise(g.t - a.t + 0.15)
+                i = int(round(a.t * SR))
+                m = min(len(hum), n - i)
+                if m > 0:
+                    L[i:i + m] += hum[:m] * 0.25
+        if self.music_on:
+            L += sy.music(events, duration)
         peak = np.max(np.abs(L)) or 1.0
         L = np.tanh(L / peak * 1.2) * 0.89 / math.tanh(1.2)
         fade = np.ones(n)

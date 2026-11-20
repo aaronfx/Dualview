@@ -2,7 +2,7 @@
 
 A standalone, AI-directed procedural animation engine. It turns structured scene plans, which an LLM can generate from a story, into physically grounded stick-figure animation. It renders 1080p MP4s with synchronized sound and automatically checks every render for animation defects.
 
-> **Status:** Milestones 1A and 1B are complete and verified. 1C is partial (camera, effects and sound work; there's no music and no secondary motion yet). 1D, the full 30-second Gravity Switch story, is next. See [docs/MILESTONE_STATUS.md](docs/MILESTONE_STATUS.md).
+> **Status:** Milestones 1A and 1B are complete and verified. 1C (character acting, secondary motion, cinematic direction) is implemented and technically verified, and its 14 s review sequence is rendered; the artistic sign-off is pending the owner's review (see `docs/MILESTONE_STATUS.md`). 1D, the full 30-second story, is planned (`docs/MILESTONE_1D_PLAN.md`) but not started.
 
 The engine is **independent of Creator Studio**. It has its own backend (FastAPI), storage (SQLite now, PostgreSQL planned), character system, physics layer, camera system, renderer, QA and export. The only shared concern is access to AI provider credentials, which are read from backend environment variables. Providers are interchangeable: OpenRouter, OpenAI, Anthropic, or any OpenAI-compatible endpoint.
 
@@ -21,7 +21,13 @@ The engine is **independent of Creator Studio**. It has its own backend (FastAPI
 | Cameras: static, follow, track_x and dolly, with smoothing that resets at cuts and a keep-in-frame guard | `camera/director.py` | QA `subject_in_frame` = 100 % |
 | 2.5D cutaway room renderer (Skia CPU raster) with glow, bloom, reflection, contact shadows, effects and motion blur | `render/skia_renderer.py` | demo MP4s |
 | Event-bound sound (footsteps, click, pulse, whoosh, impacts, clangs), all synthesized | `audio/sound_director.py` | QA `audio_event_sync` |
-| Automated QA, 24–26 checks per scene | `qa/inspector.py` | `docs/evidence/*_qa.json` |
+| Acting layer: notice/double take, gaze at targets, cautious approach, hesitant press (reach, doubt, commit), startle, point, torso twist, weight shift, lagged follow-through | `motion/animator.py`, `motion/controller.py` | `tests/test_cinematic_1c.py` |
+| Secondary motion: two-tail verlet scarf that hangs along gravity, room dust that reacts to impacts and the switch | `motion/secondary.py` | QA `scarf_integrity`, `dust_inside_room` |
+| Shot vocabulary (establishing, close, insert, tracking), gravity-aligned camera roll, event-driven camera shake, exact roll-aware framing guard | `camera/director.py` | QA `camera_roll_rate`, `gravity_aligned_roll`, `subject_in_frame` |
+| Continuity checks: gravity indicator vs physics, screen direction across cuts, static layout | `qa/inspector.py` | QA `check_continuity` |
+| Adaptive synthesized music (calm, tension, resolve) and new cues (notice, startle, chime, rising hum) | `audio/sound_director.py` | `tests/test_cinematic_1c.py` |
+| Review outputs: full-decode check, timestamped contact sheet, per-frame diagnostics JSON and chart | `qa/media.py`, `render/pipeline.py` (`--review-dir`) | `docs/evidence/gravity_switch_1c_*` |
+| Automated QA, 24–31 checks per scene | `qa/inspector.py` | `docs/evidence/*_qa.json` |
 | Schema-validated scene plans; AI director with validation and repair loop; offline template planner | `scene/schema.py`, `ai/` | `tests/test_ai_api.py` |
 | REST API with background render jobs, progress and error capture | `api/` | `tests/test_ai_api.py` |
 
@@ -41,12 +47,13 @@ py -3.12 -m venv .venv
 python -m pip install --upgrade pip
 pip install -e ".[dev]"
 
-# 3. Run the automated tests (about 15 s)
+# 3. Run the automated tests (about 1 minute)
 pytest -v
 
 # 4. Render the milestone demos (1080p, 3-sample motion blur, QA report)
 apex render examples\motion_test.json       -o out\motion_test.mp4       --samples 3 --qa-json out\motion_test_qa.json
 apex render examples\gravity_switch_1b.json -o out\gravity_switch_1b.mp4 --samples 3 --qa-json out\gravity_switch_1b_qa.json
+apex render examples\gravity_switch_1c.json -o out\gravity_switch_1c.mp4 --samples 3 --qa-json out\gravity_switch_1c_qa.json --review-dir out\review_1c
 # fast half-resolution preview:
 apex render examples\gravity_switch_1b.json -o out\preview.mp4 --scale 0.5
 
@@ -93,16 +100,16 @@ All sounds are synthesized by the engine; no third-party audio assets are used.
 src/apex/
   core/      math, easing, timelines (pure functions of time)
   rig/       skeleton, FK, IK, stickman rig, pose blending
-  motion/    ground frames, gait generator, character controller (simulation), animator (pose evaluation)
+  motion/    ground frames, gait generator, character controller (simulation), animator (pose evaluation), secondary motion (scarf, dust)
   physics/   gravity field, PhysicsWorld interface (pymunk backend)
   scene/     schema (pydantic), runtime (simulate + evaluate(t))
   camera/    camera director
   render/    Skia renderer, video encoding, end-to-end pipeline
   audio/     sound director + synthesizer
-  qa/        animation quality inspector
+  qa/        animation quality inspector, decode check, contact sheets, diagnostics charts
   ai/        provider abstraction + story director
   api/       FastAPI app + storage
 examples/    project JSON files (milestone scenes)
-tests/       pytest suite (39 tests)
+tests/       pytest suite (66 tests)
 docs/        architecture, schema, reference analysis, milestone status, roadmap, evidence
 ```

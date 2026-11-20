@@ -55,7 +55,7 @@ story text ──► AI Story Director ──► ProjectSpec (validated JSON; dr
 | Foot placement | Footfalls are planted world points; stance is centred under the pelvis; a reach constraint lowers the hips instead of dragging feet; toes are clamped above the surface |
 | Joint constraints | Per-bone limits; IK stretch capped at 6–8 %; QA bone-length bounds |
 | Impact and recovery | Approach speed drives compression depth (spring, ζ = 0.55); squash on impact; arms follow through; recovery when the spring settles |
-| Arcs and secondary motion | Swing-foot arcs, arm swing; the scarf and cloth secondary motion from the benchmark are **not yet ported** (roadmap) |
+| Arcs and secondary motion | Swing-foot arcs, arm swing, lagged follow-through (arms, chest, head), verlet scarf driven by gravity (`motion/secondary.py`), reactive dust |
 
 ## Technology choices
 

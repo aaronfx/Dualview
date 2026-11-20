@@ -70,6 +70,8 @@ class Pose:
     eye: float = 1.0  # expression: visor/eye opening
     hands: Dict[str, str] = field(default_factory=lambda: {"n": "fist", "f": "fist"})
     state: str = ""
+    twist: float = 0.0  # torso twist: + brings the near shoulder forward (side-view counter-rotation)
+    hip_twist: float = 0.0  # pelvis twist: + brings the near hip forward
 
     def copy(self) -> "Pose":
         return replace(self, local=dict(self.local), stretch=dict(self.stretch), hands=dict(self.hands))
@@ -94,6 +96,8 @@ def blend_poses(a: Pose, b: Pose, w: float) -> Pose:
         eye=lerp(a.eye, b.eye, w),
         hands=dict(b.hands if w >= 0.5 else a.hands),
         state=b.state if w >= 0.5 else a.state,
+        twist=lerp(a.twist, b.twist, w),
+        hip_twist=lerp(a.hip_twist, b.hip_twist, w),
     )
 
 
@@ -105,8 +109,15 @@ class StickmanRig:
         self.skeleton = build_skeleton_cached(proportions)
 
     # ------------------------------------------------------------- evaluation
+    SHOULDER_SPREAD = 4.5
+    HIP_SPREAD = 3.0
+
+    def offsets(self, pose: Pose) -> Dict[str, Tuple[float, float]]:
+        ts, hs = pose.twist * self.SHOULDER_SPREAD, pose.hip_twist * self.HIP_SPREAD
+        return {"upper_arm_n": (ts, 0.0), "upper_arm_f": (-ts, 0.0), "thigh_n": (hs, 0.0), "thigh_f": (-hs, 0.0)}
+
     def fk(self, pose: Pose):
-        return self.skeleton.fk_character(pose.local, pose.stretch)
+        return self.skeleton.fk_character(pose.local, pose.stretch, self.offsets(pose))
 
     def world_joints(self, pose: Pose) -> Dict[str, Vec]:
         """Named world-space joint positions (pelvis, neck, head centre, shoulder, elbows, hands, knees, ankles, toes...)."""
@@ -116,8 +127,10 @@ class StickmanRig:
                              "neck_top": W(ch["neck"][1]), "head_top": W(ch["head"][1])}
         hs, he, _ = ch["head"]
         j["head_center"] = W(((hs[0] + he[0]) / 2, (hs[1] + he[1]) / 2))
-        j["shoulder"] = W(ch["upper_arm_n"][0])
+        sn, sf = ch["upper_arm_n"][0], ch["upper_arm_f"][0]
+        j["shoulder"] = W(((sn[0] + sf[0]) / 2, (sn[1] + sf[1]) / 2))
         for s in SIDES:
+            j[f"shoulder_{s}"] = W(ch[f"upper_arm_{s}"][0])
             j[f"elbow_{s}"] = W(ch[f"upper_arm_{s}"][1])
             j[f"wrist_{s}"] = W(ch[f"forearm_{s}"][1])
             j[f"hand_{s}"] = W(ch[f"hand_{s}"][1])
@@ -146,7 +159,8 @@ class StickmanRig:
         """Place the ankle at a world target. `foot_world_angle` is the foot direction relative to the character
         frame's +x (0 = flat, pointing forward)."""
         tgt = to_character(ankle_world, pose.root, pose.body_angle, pose.facing if abs(pose.facing) > 1e-6 else 1.0)
-        sol = solve_two_bone((0.0, 0.0), tgt, self.p.thigh, self.p.shin, bend=+1, max_stretch=max_stretch)
+        hip = self.offsets(pose)[f"thigh_{side}"]
+        sol = solve_two_bone(hip, tgt, self.p.thigh, self.p.shin, bend=+1, max_stretch=max_stretch)
         pose.local[f"thigh_{side}"] = sol.a1
         pose.local[f"shin_{side}"] = wrap_angle(sol.a2 - sol.a1)
         fa = 0.0 if foot_world_angle is None else foot_world_angle

@@ -60,16 +60,9 @@ def red_flash(events, t: float) -> float:
     return r
 
 
-def render_scene(project: ProjectSpec, scene_id: str, out_path: str, samples: int = 1, qa: bool = True, preview_scale: float = 1.0,
-                 progress: Optional[ProgressFn] = None, qa_path: Optional[str] = None) -> RenderResult:
-    say = progress or (lambda *a: None)
-    t_start = time.time()
-    rt = SceneRuntime(project, scene_id)
-    say("simulate", 0.0, "physics + motion simulation")
-    res = rt.simulate()
-    say("simulate", 1.0, f"{len(res.events)} events")
+def build_camera(rt: SceneRuntime, aspect: float) -> CameraDirector:
+    res = rt.result or rt.simulate()
     rigs = rt.rigs
-    W, H = int(project.width * preview_scale), int(project.height * preview_scale)
 
     def bbox(cid: str, t: float):
         j = rigs[cid].world_joints(res.animators[cid].pose_at(t))
@@ -77,12 +70,78 @@ def render_scene(project: ProjectSpec, scene_id: str, out_path: str, samples: in
         ys = [p[1] for p in j.values()]
         return min(xs) - 12, min(ys) - 6, max(xs) + 12, max(ys) + 14
 
+    def focus(cid: str, t: float, kind: str):
+        j = rigs[cid].world_joints(res.animators[cid].pose_at(t))
+        if kind == "head":
+            c = j["head_center"]
+            return c[0] - 34, c[1] - 30, c[0] + 34, c[1] + 30
+        keys = ["pelvis", "neck_base", "head_center", "head_top", "shoulder_n", "elbow_n", "wrist_n", "hand_n", "elbow_f", "wrist_f"]
+        xs, ys = [j[k][0] for k in keys], [j[k][1] for k in keys]
+        return min(xs) - 14, min(ys) - 10, max(xs) + 14, max(ys) + 16
+
     def vel(cid: str, t: float):
         a, b = res.animators[cid].pose_at(t - 0.05).root, res.animators[cid].pose_at(t + 0.05).root
         return ((b[0] - a[0]) / 0.1, (b[1] - a[1]) / 0.1)
 
+    shake = []
+    for e in res.events:
+        if e.type == "impact":
+            shake.append((e.t, 10.0 * min(2.0, e.data.get("normal_speed", 600) / 700)))
+        elif e.type == "gravity_shift":
+            shake.append((e.t, 7.0))
+        elif e.type == "switch_activated":
+            shake.append((e.t, 4.0))
+        elif e.type == "prop_impact":
+            shake.append((e.t, 2.0))
+    return CameraDirector(rt.scene.shots, aspect, bbox, vel, gravity=res.gravity.at, focus_bbox=focus, shake_events=shake)
+
+
+def compute_diagnostics(rt: SceneRuntime, cam: CameraDirector, fps: int) -> List[dict]:
+    """Per-frame character/physics/camera diagnostics (for review charts and regression comparison)."""
+    res = rt.result or rt.simulate()
+    out = []
+    n = int(round(res.duration * fps))
+    for cid, an in res.animators.items():
+        planted = an.planted_intervals()
+        prev = None
+        for i in range(n):
+            t = i / fps
+            pose = an.pose_at(t)
+            seg = an.segments[an.segment_at(t)]
+            F = res.frames[seg.frame]
+            g = res.gravity.at(t)
+            s, h = F.to_frame(pose.root)
+            speed = 0.0 if prev is None else math.dist(prev, pose.root) * fps
+            prev = pose.root
+            feet = {leg: any(iv.leg == leg and iv.t0 <= t <= iv.t1 for iv in planted) for leg in "nf"}
+            sc = res.scarves.get(cid)
+            tip = 0.0
+            if sc is not None:
+                a, b = sc.at(t - 0.02)[0][-1], sc.at(t + 0.02)[0][-1]
+                tip = math.dist(a, b) / 0.04
+            c = cam.at(t)
+            out.append({"t": round(t, 4), "character": cid, "shot": c.shot, "state": seg.kind, "surface": seg.frame,
+                        "speed": round(speed, 2), "height": round(h, 2), "tilt": round(math.degrees(pose.body_angle - F.body_angle), 3),
+                        "gravity_deg": round(math.degrees(math.atan2(g[1], g[0])), 2), "gravity_state": res.gravity.state_label(t),
+                        "planted_n": feet["n"], "planted_f": feet["f"], "eye": round(pose.eye, 3), "head_facing": pose.head_facing,
+                        "scarf_tip_speed": round(tip, 1), "roll": round(c.roll, 2), "view_h": round(c.view_h, 1)})
+    return out
+
+
+def render_scene(project: ProjectSpec, scene_id: str, out_path: str, samples: int = 1, qa: bool = True, preview_scale: float = 1.0,
+                 progress: Optional[ProgressFn] = None, qa_path: Optional[str] = None, review_dir: Optional[str] = None) -> RenderResult:
+    """Simulate, render, encode and (optionally) inspect one scene. `review_dir` additionally writes a timestamped
+    contact sheet, per-frame diagnostics (JSON + chart) and a full-decode report."""
+    say = progress or (lambda *a: None)
+    t_start = time.time()
+    rt = SceneRuntime(project, scene_id)
+    say("simulate", 0.0, "physics + motion + secondary motion")
+    res = rt.simulate()
+    say("simulate", 1.0, f"{len(res.events)} events")
+    rigs = rt.rigs
+    W, H = int(project.width * preview_scale), int(project.height * preview_scale)
     scene = rt.scene
-    cam = CameraDirector(scene.shots, W / H, bbox, vel)
+    cam = build_camera(rt, W / H)
     styles = {cid: project.character(cid).style for cid in rigs}
     renderer = SkiaRenderer(W, H, rt.env, styles, rigs)
     switches = {s.id: s for s in rt.env.switches}
@@ -124,5 +183,24 @@ def render_scene(project: ProjectSpec, scene_id: str, out_path: str, samples: in
             with open(qa_path, "w") as fh:
                 json.dump(report.to_dict(), fh, indent=1, default=str)
         say("qa", 1.0, "PASSED" if report.passed else "FAILED")
+    if review_dir:
+        from ..qa.media import contact_sheet, decode_check, diagnostics_chart
+        os.makedirs(review_dir, exist_ok=True)
+        base = os.path.join(review_dir, os.path.splitext(os.path.basename(out_path))[0])
+        diag = compute_diagnostics(rt, cam, project.fps)
+        with open(base + "_diagnostics.json", "w") as fh:
+            json.dump(diag, fh)
+        shots = [(sh.id, sh.start, sh.end) for sh in scene.shots]
+        diagnostics_chart(diag, base + "_diagnostics.png", shots, f"{project.title} - {scene_id} - character / physics / camera diagnostics")
+        times = [round(x * 0.5, 2) for x in range(int(res.duration / 0.5) + 1) if x * 0.5 < n / project.fps]
+        labels = []
+        for t in times:
+            seg = res.animators[next(iter(res.animators))].segments
+            an = next(iter(res.animators.values()))
+            labels.append(f"{cam.shot_at(t).id} | {an.segments[an.segment_at(t)].kind} | {res.gravity.state_label(t)}")
+        contact_sheet(out_path, base + "_contact_sheet.png", times, labels, title=f"{project.title} - {scene_id} (t | shot | state | gravity)")
+        with open(base + "_decode.json", "w") as fh:
+            json.dump(decode_check(out_path), fh, indent=1)
+        say("review", 1.0, f"review artefacts in {review_dir}")
     evs = [{"t": round(e.t, 4), "type": e.type, "character": e.character} for e in res.events]
     return RenderResult(out_path, report, n, time.time() - t_start, evs)

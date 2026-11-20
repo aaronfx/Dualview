@@ -6,21 +6,20 @@ Status key: ✅ done · 🟡 partial · ⬜ not started
 |---|---|---|
 | 1. Animation runtime | Scene graph/schema, skeleton, timeline evaluation, rendering | ✅ |
 | 2. Motion intelligence | Locomotion ✅, IK ✅, gravity ✅, collisions ✅, impacts and recovery ✅, balance 🟡 (springs + support cone; no COM/support-polygon controller yet), climbing/rolling/push/pull ⬜ | 🟡 |
-| 3. Cinematic production | Cameras ✅ (static/follow/track/dolly), lighting and effects 🟡, sound effects ✅, music ⬜, shot transitions 🟡 (cuts only) | 🟡 |
+| 3. Cinematic production | Cameras ✅ (static/follow/track/dolly, shot kinds, gravity-aligned roll, shake, exact roll-aware framing), lighting and effects 🟡 (light shafts, dust, soft shadow; no depth of field), sound effects ✅, adaptive music 🟡 (synthesized), character acting 🟡 (gaze, notice, hesitation, point, follow-through; no face), secondary motion ✅ (scarf, dust), shot transitions 🟡 (cuts only) | 🟡 |
 | 4. AI animation direction | Provider abstraction ✅, schema-validated planning with repair loop ✅, offline template ✅, rich story interpretation and multi-scene escalation ⬜ | 🟡 |
 | 5. Advanced action | Multi-character, interaction constraints, fight choreography (attacker/target/contact timing/momentum transfer), acrobatics, weapons | ⬜ |
 | 6. Long-form production | Cross-scene continuity, reusable assets, chapter rendering, job recovery/resume | ⬜ |
 | 7. Professional application | React/TypeScript dashboard, visual editor, previews, asset library | ⬜ |
-| 8. Quality improvement | Image-space checks, scene diagnostics, controlled regeneration, comparative evaluation | ⬜ |
+| 8. Quality improvement | Scene diagnostics ✅ (per-frame JSON and chart), contact sheets ✅, full-decode check ✅, continuity checks ✅; image-space checks, controlled regeneration, comparative evaluation ⬜ | 🟡 |
 
 ## Immediate next steps (Milestone 1D)
 
-1. Scarf and secondary-motion module (verlet chain bound to rig anchors, driven by the gravity field).
-2. Actions: `point`, `duck_slide`, `grab_swing`, `reach_handle`, `vault`. Each action is defined by its preparation, contact and recovery phases plus its IK constraints.
-3. Props: door (lock/unlock/open state), loose panels (pymunk), ledge (static grab target).
-4. Camera: insert and close-up presets, roll transitions, depth staging.
-5. Music layer with event-aware structure.
-6. Author the full 30 s Gravity Switch story as a `ProjectSpec`; render; QA; compare with the benchmark.
+The scarf, `point`, the insert/close-up presets, roll transitions and music were delivered in 1C. What remains for 1D is in `docs/MILESTONE_1D_PLAN.md`:
+1. Actions `duck_slide`, `jump_to` (with an airborne press), `grab_swing`, `reach_exit`.
+2. Door state machine (sealed → open), crate in the path, slide clearance.
+3. A second (180°) gravity reversal with a continuity-preserving camera roll.
+4. Author the 30 s story, render, run QA, and write a separate artistic review. Start only after the 1C review sign-off.
 
 ## Fighting system (Phase 5) — design notes, not implemented
 

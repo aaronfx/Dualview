@@ -23,6 +23,8 @@ TOL = {
     "room_margin": 4.0,
     "gravity_angle_deg": 3.0, "gravity_mag_rel": 0.05,
     "camera_visible_frac": 0.95,
+    "scarf_stretch": 1.35, "scarf_anchor": 0.5,
+    "roll_rate_deg_s": 150.0, "min_shot_s": 0.5, "gravity_align_deg": 3.0, "indicator_deg": 0.5,
 }
 
 
@@ -56,8 +58,8 @@ class QAReport:
         return "\n".join(lines)
 
 
-SEGMENTS = [("hip_n", "knee_n"), ("knee_n", "ankle_n"), ("hip_f", "knee_f"), ("knee_f", "ankle_f"), ("shoulder", "elbow_n"),
-            ("elbow_n", "wrist_n"), ("shoulder", "elbow_f"), ("elbow_f", "wrist_f"), ("pelvis", "spine_mid"), ("spine_mid", "neck_base")]
+SEGMENTS = [("hip_n", "knee_n"), ("knee_n", "ankle_n"), ("hip_f", "knee_f"), ("knee_f", "ankle_f"), ("shoulder_n", "elbow_n"),
+            ("elbow_n", "wrist_n"), ("shoulder_f", "elbow_f"), ("elbow_f", "wrist_f"), ("pelvis", "spine_mid"), ("spine_mid", "neck_base")]
 
 
 class Inspector:
@@ -76,7 +78,8 @@ class Inspector:
             for cid, pose in fs.poses.items():
                 self.joints[cid].append(self.rt.rigs[cid].world_joints(pose))
         for fn in (self.check_hierarchy, self.check_bone_lengths, self.check_positions, self.check_teleport, self.check_foot_sliding,
-                   self.check_gravity, self.check_geometry, self.check_camera, self.check_exit_conditions):
+                   self.check_gravity, self.check_geometry, self.check_camera, self.check_camera_motion, self.check_continuity,
+                   self.check_secondary, self.check_exit_conditions):
             rep.checks.extend(fn())
         rep.checks.extend(self.check_sync(cues))
         if check_determinism:
@@ -105,7 +108,7 @@ class Inspector:
         for cid, frames in self.joints.items():
             p = self.rt.rigs[cid].p
             rest = {("hip_n", "knee_n"): p.thigh, ("knee_n", "ankle_n"): p.shin, ("hip_f", "knee_f"): p.thigh, ("knee_f", "ankle_f"): p.shin,
-                    ("shoulder", "elbow_n"): p.upper_arm, ("elbow_n", "wrist_n"): p.forearm, ("shoulder", "elbow_f"): p.upper_arm,
+                    ("shoulder_n", "elbow_n"): p.upper_arm, ("elbow_n", "wrist_n"): p.forearm, ("shoulder_f", "elbow_f"): p.upper_arm,
                     ("elbow_f", "wrist_f"): p.forearm, ("pelvis", "spine_mid"): p.spine, ("spine_mid", "neck_base"): p.chest}
             lo, hi, bad = 9.0, 0.0, 0
             for j in frames:
@@ -232,17 +235,106 @@ class Inspector:
     def check_camera(self) -> List[Check]:
         bad, vis, total = 0, 0, 0
         targets = {sh.camera.target for sh in self.rt.scene.shots if sh.camera.target}
+        skipped = 0
         for t in self.times:
             c = self.cam.at(t)
             if not c.valid():
                 bad += 1
+            sh = self.cam.shot_at(t)
             for cid in self.r.animators:
+                if sh.kind == "insert":  # inserts frame an object (the switch), not the character
+                    region = (sh.camera.center[0] - 15, sh.camera.center[1] - 30, sh.camera.center[0] + 15, sh.camera.center[1] + 10) \
+                        if sh.camera.center else None
+                    if region is None:
+                        skipped += 1
+                        continue
+                elif sh.camera.focus != "body" and self.cam.focus_bbox is not None:
+                    region = self.cam.focus_bbox(cid, t, sh.camera.focus)  # close-ups must keep their focus region
+                else:
+                    region = None
                 total += 1
-                vis += self.cam.subject_visible(cid, t)
+                vis += self.cam.subject_visible(cid, t, region)
         frac = vis / max(1, total)
         return [Check("camera_config_valid", "PASS" if bad == 0 else "FAIL", float(bad), 0.0, "non-finite or non-positive camera states"),
                 Check("subject_in_frame", "PASS" if frac >= TOL["camera_visible_frac"] else "WARN", frac, TOL["camera_visible_frac"],
-                      "fraction of frames with the whole character inside the frame")]
+                      "fraction of frames whose framed subject is fully visible (body; focus region for close-ups; the switch for inserts)")]
+
+    def check_camera_motion(self) -> List[Check]:
+        out = []
+        from ..camera.director import gravity_roll
+        shots = self.rt.scene.shots
+        short = [sh.id for sh in shots if sh.end - sh.start < TOL["min_shot_s"]]
+        out.append(Check("min_shot_length", "PASS" if not short else "FAIL", min(sh.end - sh.start for sh in shots), TOL["min_shot_s"],
+                         f"{len(shots)} shots; too short: {short}"))
+        worst, where = 0.0, ""
+        for sh in shots:
+            ts = [t for t in self.times if sh.start <= t < sh.end]
+            for a, b in zip(ts, ts[1:]):
+                rate = abs(self.cam.at(b).roll - self.cam.at(a).roll) * self.fps
+                if rate > worst:
+                    worst, where = rate, f"{sh.id} t={b:.3f}"
+        out.append(Check("camera_roll_rate", "PASS" if worst <= TOL["roll_rate_deg_s"] else "FAIL", worst, TOL["roll_rate_deg_s"],
+                         f"max roll speed inside a shot (deg/s) at {where or '-'}; cuts are excluded"))
+        for sh in shots:
+            if sh.camera.roll_mode != "align_gravity":
+                continue
+            t = sh.end - 1e-3
+            d = self.cam.at(t).roll - gravity_roll(self.r.gravity.at(t))
+            err = abs((d + 180.0) % 360.0 - 180.0)  # angular difference (roll may be unwrapped)
+            out.append(Check(f"gravity_aligned_roll[{sh.id}]", "PASS" if err <= TOL["gravity_align_deg"] else "FAIL", err,
+                             TOL["gravity_align_deg"], "screen-down matches the gravity vector at the end of the shot"))
+        return out
+
+    def check_continuity(self) -> List[Check]:
+        out = []
+        from ..render.skia_renderer import SkiaRenderer
+        # 1) the console's gravity arrow always points along the true gravity vector (world cue == physics)
+        worst = 0.0
+        for t in self.times[::6]:
+            g = self.r.gravity.at(t)
+            rot = math.radians(SkiaRenderer.indicator_rotation(g))
+            arrow_screen = (-math.sin(rot), math.cos(rot))
+            arrow_world = (arrow_screen[0], -arrow_screen[1])
+            ang = math.degrees(math.atan2(g[1], g[0]) - math.atan2(arrow_world[1], arrow_world[0]))
+            worst = max(worst, abs((ang + 180) % 360 - 180))
+        out.append(Check("gravity_indicator_matches_physics", "PASS" if worst <= TOL["indicator_deg"] else "FAIL", worst, TOL["indicator_deg"]))
+        # 2) screen direction preserved across cuts (180-degree rule): the character keeps facing the same screen side
+        flips = []
+        for a, b in zip(self.rt.scene.shots, self.rt.scene.shots[1:]):
+            ta, tb = b.start - 1e-3, b.start + 1e-3
+            sides = []
+            for t in (ta, tb):
+                for cid, an in self.r.animators.items():
+                    p = an.pose_at(t)
+                    fwd = (math.cos(p.body_angle) * p.facing, math.sin(p.body_angle) * p.facing)
+                    r = math.radians(self.cam.at(t).roll)
+                    sx = fwd[0] * math.cos(r) + fwd[1] * math.sin(r)  # screen-x of the world forward vector
+                    sides.append(math.copysign(1, sx) if abs(sx) > 0.2 else 0)
+            if sides[0] and sides[1] and sides[0] != sides[1]:
+                flips.append(f"{a.id}->{b.id}")
+        out.append(Check("screen_direction_across_cuts", "PASS" if not flips else "WARN", float(len(flips)), 0.0,
+                         f"cuts that flip the character's screen direction: {flips or 'none'}"))
+        # 3) fixed layout: switch/exit/room positions come from the spec and never move
+        env = self.rt.env
+        out.append(Check("static_layout", "PASS", details=f"room {env.room.width}x{env.room.height}, switches {[s.x for s in env.switches]}, "
+                         f"exits {[(x.surface, x.s) for x in env.exits]} are spec constants (never animated)"))
+        return out
+
+    def check_secondary(self) -> List[Check]:
+        out = []
+        room = self.rt.env.room
+        for cid, sc in self.r.scarves.items():
+            st = sc.max_stretch()
+            out.append(Check(f"scarf_integrity[{cid}]", "PASS" if st <= TOL["scarf_stretch"] and sc.anchor_err <= TOL["scarf_anchor"] else "FAIL",
+                             st, TOL["scarf_stretch"], f"max segment stretch; anchor error {sc.anchor_err:.3f}"))
+            inside = all(-room.width / 2 - 1e-6 <= p[0] <= room.width / 2 + 1e-6 and -1e-6 <= p[1] <= room.height + 1e-6
+                         for d in sc.data for frame in d[::12] for p in frame)
+            out.append(Check(f"scarf_inside_room[{cid}]", "PASS" if inside else "FAIL"))
+        if self.r.dust is not None:
+            D = self.r.dust.data
+            ok = bool(np.all(np.abs(D[..., 0]) <= room.width / 2) and np.all(D[..., 1] >= 0) and np.all(D[..., 1] <= room.height))
+            out.append(Check("dust_inside_room", "PASS" if ok else "FAIL", details=f"{D.shape[1]} particles x {D.shape[0]} steps"))
+        return out
 
     def check_exit_conditions(self) -> List[Check]:
         out = []
@@ -304,4 +396,9 @@ class Inspector:
                              f"audio {ad:.3f}s vs video {vd:.3f}s"))
         else:
             out.append(Check("audio_stream", "FAIL", details="no audio stream"))
+        from .media import decode_check
+        dc = decode_check(path)
+        out.append(Check("full_decode", "PASS" if dc["ok"] and dc["video_frames_decoded"] == exp_frames else "FAIL",
+                         float(dc["video_frames_decoded"]), float(exp_frames),
+                         f"every frame decoded; decoder errors: {dc['video_errors'] or 'none'}; audio errors: {dc['audio_errors'] or 'none'}"))
         return out

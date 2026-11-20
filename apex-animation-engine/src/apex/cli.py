@@ -30,6 +30,7 @@ def main(argv=None) -> int:
     r.add_argument("--scale", type=float, default=1.0, help="preview resolution scale (e.g. 0.5)")
     r.add_argument("--no-qa", action="store_true")
     r.add_argument("--qa-json", help="write the QA report here")
+    r.add_argument("--review-dir", help="write contact sheet, diagnostics (JSON + chart) and decode report here")
     p = sub.add_parser("plan", help="AI Story Director: story text -> validated project JSON")
     p.add_argument("story")
     p.add_argument("-o", "--out", required=True)
@@ -52,7 +53,7 @@ def main(argv=None) -> int:
         from .render.pipeline import render_scene
         proj = _load(a.project)
         sid = a.scene or proj.scenes[0].id
-        res = render_scene(proj, sid, a.out, samples=a.samples, qa=not a.no_qa, preview_scale=a.scale, progress=_progress, qa_path=a.qa_json)
+        res = render_scene(proj, sid, a.out, samples=a.samples, qa=not a.no_qa, preview_scale=a.scale, progress=_progress, qa_path=a.qa_json, review_dir=a.review_dir)
         print(f"wrote {res.video} ({res.frames} frames) in {res.seconds:.1f}s")
         if res.qa:
             print(res.qa.summary())

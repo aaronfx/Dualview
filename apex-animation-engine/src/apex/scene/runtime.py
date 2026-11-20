@@ -15,6 +15,7 @@ from ..core.mathx import Vec
 from ..motion.animator import Animator
 from ..motion.controller import CharacterController, Event
 from ..motion.frames import GroundFrame, room_frames
+from ..motion.secondary import DustField, ScarfSim
 from ..physics.gravity import GravityField
 from ..physics.world import PhysicsWorld
 from ..rig.stickman import Pose, Proportions, StickmanRig
@@ -41,6 +42,9 @@ class FrameState:
     gravity_label: str
     switch_glow: Dict[str, float]
     events_recent: List[Event]
+    scarves: Dict[str, List[np.ndarray]] = field(default_factory=dict)
+    dust: Optional[np.ndarray] = None
+    dust_prev: Optional[np.ndarray] = None
 
 
 @dataclass
@@ -54,6 +58,8 @@ class SimulationResult:
     prop_times: np.ndarray
     prop_tracks: Dict[str, np.ndarray]  # id -> (n, 3) x, y, angle
     static_segments: List[Tuple[str, Vec, Vec, float]]
+    scarves: Dict[str, ScarfSim] = field(default_factory=dict)
+    dust: Optional[DustField] = None
 
 
 class SceneRuntime:
@@ -119,7 +125,18 @@ class SceneRuntime:
         for tr in gravity.transitions:
             events.append(Event(tr.t_start + tr.duration, "gravity_settled", "", {"to": tr.to}))
         events.sort(key=lambda e: (e.t, e.type))
-        self.result = SimulationResult(end, frames, gravity, animators, ctrls, events, times, prop_tracks, world.static_segments())
+        scarves = {}
+        for cid, an in animators.items():
+            if self.project.character(cid).style.has_scarf:
+                scarves[cid] = ScarfSim(an.pose_at, self.rigs[cid], gravity, (-hw, 0.0, hw, room.height), 0.0, end + 0.1,
+                                        seed=self.project.seed)
+        impulses = [(e.t, e.data["point"], 260.0 * min(1.5, e.data.get("normal_speed", 600) / 900)) for e in events
+                    if e.type == "impact" and "point" in e.data]
+        impulses += [(e.t, (switches_x, 60.0), 180.0) for e in events if e.type == "switch_activated"
+                     for switches_x in [next(sw.x for sw in self.env.switches if sw.id == e.data["switch"])]]
+        dust = DustField(self.env.dust, room, gravity, impulses, end + 0.1, seed=self.project.seed) if self.env.dust else None
+        self.result = SimulationResult(end, frames, gravity, animators, ctrls, events, times, prop_tracks, world.static_segments(),
+                                       scarves, dust)
         return self.result
 
     # ------------------------------------------------------------ evaluation
@@ -141,7 +158,10 @@ class SceneRuntime:
                     g += 2.2 * math.exp(-(t - e.t) * 6) + 0.6 * max(0.0, math.sin((t - e.t) * math.pi * 7)) * math.exp(-(t - e.t) * 1.2)
             glow[sw.id] = g
         recent = [e for e in r.events if 0 <= t - e.t < 1.0]
-        return FrameState(t, poses, props, r.gravity.at(t), r.gravity.state_label(t), glow, recent)
+        scarves = {cid: sc.at(t) for cid, sc in r.scarves.items()}
+        dust = r.dust.at(t) if r.dust else None
+        dprev = r.dust.at(t - 0.06) if r.dust else None
+        return FrameState(t, poses, props, r.gravity.at(t), r.gravity.state_label(t), glow, recent, scarves, dust, dprev)
 
     def state_hash(self, times: List[float]) -> str:
         """Hash of character joints over the given times (determinism / regression checks)."""
