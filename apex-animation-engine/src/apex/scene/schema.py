@@ -22,7 +22,7 @@ class CharacterStyle(Strict):
     visor_color: str = "#5ff6ff"
     scarf_color: str = "#19dcc6"
     glow_color: str = "#ffbe3c"
-    limb_width: float = Field(5.2, gt=0, le=20)
+    limb_width: float = Field(7.0, gt=0, le=20)  # bolder strokes read better at film scale (art direction, 1D quality pass)
     has_scarf: bool = True
     # movement style (character-specific motion signature)
     cadence_scale: float = Field(1.0, gt=0.5, lt=2.0)
@@ -110,9 +110,22 @@ class ObstacleSpec(Strict):
     size: Vec2 = (30.0, 120.0)
 
 
+class ThemeSpec(Strict):
+    """Art direction of an environment (renderer colours). Defaults reproduce the original lab look."""
+    accent: str = "#46ecff"  # grid lines, console trims, rail brackets
+    alert: str = "#ff323e"  # warnings, sealed lamps, gravity-shift flash
+    back: str = "#15181e"
+    floor: str = "#0a0c0f"
+    side: str = "#111419"
+    ceiling: str = "#08090b"
+    background: str = "#050608"
+    dust: str = "#bef5ff"
+
+
 class EnvironmentSpec(Strict):
     id: str
     room: RoomSpec = Field(default_factory=RoomSpec)
+    theme: ThemeSpec = Field(default_factory=ThemeSpec)
     gravity: Vec2 = (0.0, -1568.0)
     switches: List[SwitchSpec] = Field(default_factory=list)
     props: List[PropSpec] = Field(default_factory=list)
@@ -188,6 +201,9 @@ class CameraSpec(Strict):
     shake: float = Field(0.0, ge=0, le=3)  # event-driven camera shake amount (impacts, pulses)
     roll_rate: float = Field(110.0, gt=0, le=360)  # max camera roll speed (deg/s) for align_gravity shots
     keep_in_frame: bool = True
+    include: List[str] = Field(default_factory=list)  # world objects kept in frame with the subject ("bar:rail", "exit:door1", ...)
+    include_margin: float = Field(45.0, ge=0)  # world units around each included object
+    min_subject_frac: Optional[float] = None  # composition: subject height / frame height (default by shot kind)
 
 
 class SoundCue(Strict):

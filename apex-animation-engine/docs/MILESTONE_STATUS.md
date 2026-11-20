@@ -8,6 +8,7 @@ All numbers below come from actual runs. Raw evidence is in `docs/evidence/`: `p
 | 1B Physical interaction | **Done**, verified |
 | 1C Character acting + cinematic direction | **Accepted** by the owner as a technically validated foundation. Startle and recovery fixed in 1D |
 | 1D Full 30 s Gravity Switch | **Accepted by the owner as a technically validated milestone.** Revision 1 (owner's Part A review: swing staging, rail visibility, acting, impact weight, ending, QA count) rendered as v2: 58/58 QA checks, 97/97 tests, full decode. Artistic quality: improved, awaiting owner review; not claimed as professional. |
+| Professional quality upgrade (Tasks 1–6) | **Implemented and rendered; awaiting human review.** Motion library with contacts, 5 s original-vs-improved motion test, swing restaged without roll plus composition rules, renderer adapter, themes and audio polish, human review rubric, and the generalization scene (PIP / Foundry Flip). Report: `docs/QUALITY_UPGRADE.md`. No quality level is claimed. |
 
 ---
 
@@ -437,8 +438,8 @@ New in v2:
 
 ## Test results
 
-`pytest -v`: **97 passed**, 0 failed, in about 90 s (Python 3.13, Linux): 39 for 1A/1B, 27 for 1C (`tests/test_cinematic_1c.py`) and 31 for 1D including its revision (`tests/test_escape_1d.py`). Full list in `docs/evidence/pytest_results.txt`.
+`pytest -v`: **115 passed**, 0 failed, in about 150 s (Python 3.13, Linux). That is 39 for 1A/1B, 27 for 1C (`tests/test_cinematic_1c.py`), 31 for 1D (`tests/test_escape_1d.py`) and 18 for the quality upgrade (`tests/test_quality_upgrade.py`). Full list in `docs/evidence/pytest_results.txt`.
 
 ## Next step
 
-Owner review of the 1D v2 film. No further engine features are added until then.
+Human review of the upgraded films with `docs/REVIEW_RUBRIC.md`: the 1D v3 film, the Foundry Flip generalization and the motion test. Then fix the open defects D4–D8 in `docs/QUALITY_UPGRADE.md`, in the order the review ranks them.

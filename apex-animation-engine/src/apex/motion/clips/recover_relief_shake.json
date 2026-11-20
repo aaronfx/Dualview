@@ -1,0 +1,156 @@
+{
+ "name": "recover_relief_shake",
+ "duration": 1.2,
+ "description": "Relief variant: after the first exhale, a disbelieving head shake before straightening up.",
+ "phases": [
+  [
+   "action",
+   0.0,
+   0.75
+  ],
+  [
+   "anticipation",
+   0.75,
+   0.85
+  ],
+  [
+   "follow_through",
+   0.85,
+   1.2
+  ]
+ ],
+ "keys": [
+  {
+   "t": 0.0,
+   "name": "hands_on_knees",
+   "pose": {
+    "crouch": 0.19,
+    "lean": 0.68,
+    "chest": 0.05,
+    "head": 0.4,
+    "arm_n": 0.7,
+    "elbow_n": 1.6,
+    "arm_f": 0.55,
+    "elbow_f": 1.6,
+    "squash": 1.0,
+    "eye": 1.0,
+    "twist": 0.0
+   }
+  },
+  {
+   "t": 0.3,
+   "name": "exhale",
+   "pose": {
+    "crouch": 0.23,
+    "lean": 0.78,
+    "chest": 0.12,
+    "head": 0.55,
+    "squash": 0.955,
+    "eye": 0.3
+   }
+  },
+  {
+   "t": 0.5,
+   "name": "shake_l",
+   "pose": {
+    "head": 0.25,
+    "twist": 0.25
+   }
+  },
+  {
+   "t": 0.6,
+   "name": "shake_r",
+   "pose": {
+    "head": 0.55,
+    "twist": -0.25
+   }
+  },
+  {
+   "t": 0.7,
+   "name": "shake_l2",
+   "pose": {
+    "head": 0.3,
+    "twist": 0.15
+   }
+  },
+  {
+   "t": 0.44,
+   "name": "exhale2",
+   "pose": {
+    "crouch": 0.22,
+    "lean": 0.74,
+    "chest": 0.08,
+    "head": 0.5,
+    "squash": 0.975,
+    "eye": 0.95
+   }
+  },
+  {
+   "t": 0.8,
+   "name": "push_up",
+   "interp": "snap",
+   "pose": {
+    "crouch": 0.24,
+    "lean": 0.76,
+    "chest": 0.06,
+    "head": 0.4,
+    "squash": 1.0,
+    "eye": 1.0,
+    "twist": 0.0
+   }
+  },
+  {
+   "t": 1.0,
+   "name": "straighten",
+   "interp": "back",
+   "pose": {
+    "crouch": 0.0,
+    "lean": -0.04,
+    "chest": -0.06,
+    "head": -0.08,
+    "arm_n": 0.1,
+    "elbow_n": 0.35,
+    "arm_f": -0.15,
+    "elbow_f": 0.4,
+    "squash": 1.0,
+    "eye": 1.1
+   }
+  },
+  {
+   "t": 1.2,
+   "name": "stand",
+   "pose": {
+    "crouch": 0.0,
+    "lean": 0.03,
+    "chest": 0.0,
+    "head": 0.0,
+    "arm_n": 0.12,
+    "elbow_n": 0.3,
+    "arm_f": -0.1,
+    "elbow_f": 0.35,
+    "squash": 1.0,
+    "eye": 1.0
+   }
+  }
+ ],
+ "contacts": [
+  {
+   "effector": "hand_n",
+   "on": "joint:knee_n",
+   "toward": "hip_n",
+   "frac": 0.18,
+   "t0": 0.0,
+   "t1": 0.86,
+   "blend": 0.1
+  },
+  {
+   "effector": "hand_f",
+   "on": "joint:knee_f",
+   "toward": "hip_f",
+   "frac": 0.18,
+   "t0": 0.0,
+   "t1": 0.86,
+   "blend": 0.1
+  }
+ ]
+}

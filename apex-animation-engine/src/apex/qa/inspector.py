@@ -29,7 +29,9 @@ TOL = {
     "grip_drift": 1.5,  # wrist distance from the bar while hanging (units)
     "contact_hand": 22.0,  # hand distance from the button at a press_contact event
     "obstacle_margin": 2.5,  # joints must stay this far outside solid beams (limb half-thickness)
-    "swing_energy_gain": 0.02,  # relative mechanical-energy increase allowed while swinging (solver drift only; no pumping)
+    "swing_energy_gain": 0.02,
+    "subject_frac": {"establishing": 0.07, "wide": 0.12, "tracking": 0.16, "medium": 0.18, "close": 0.3},  # min subject size / frame
+    "roll_while_moving_speed": 260.0,  # u/s: the camera may only roll while the subject is (nearly) still  # relative mechanical-energy increase allowed while swinging (solver drift only; no pumping)
 }
 
 
@@ -96,7 +98,7 @@ class Inspector:
                 self.joints[cid].append(self.rt.rigs[cid].world_joints(pose))
         for fn in (self.check_hierarchy, self.check_bone_lengths, self.check_positions, self.check_teleport, self.check_foot_sliding,
                    self.check_gravity, self.check_geometry, self.check_camera, self.check_camera_motion, self.check_continuity,
-                   self.check_secondary, self.check_exit_conditions, self.check_interactions):
+                   self.check_secondary, self.check_exit_conditions, self.check_interactions, self.check_composition):
             rep.checks.extend(fn())
         rep.checks.extend(self.check_sync(cues))
         if check_determinism:
@@ -499,6 +501,57 @@ class Inspector:
             msg += [f"{k} {v:.2f}s" for k, v in seq if v is not None]
             out.append(Check(f"door_state_machine[{ex.id}]", "PASS" if ok else "FAIL",
                              details="sealed -> " + " -> ".join(msg) if msg else "stays sealed"))
+        return out
+
+    def check_composition(self) -> List[Check]:
+        """Composition rules that favour readable action over dramatic effect."""
+        out: List[Check] = []
+        cid = next(iter(self.r.animators))
+        an = self.r.animators[cid]
+        small, worst_frac, where = [], 9.0, ""
+        for sh in self.rt.scene.shots:
+            if sh.kind == "insert":
+                continue
+            need = sh.camera.min_subject_frac if sh.camera.min_subject_frac is not None else TOL["subject_frac"].get(sh.kind, 0.12)
+            fr = []
+            for t in [x for x in self.times if sh.start <= x < sh.end][::3]:
+                if not self.cam.subject_visible(cid, t):
+                    continue
+                x0, y0, x1, y1 = self.cam.bbox(cid, t)
+                fr.append(max(x1 - x0, y1 - y0) / self.cam.at(t).view_h)  # orientation-independent body size
+            if fr:
+                med = float(np.median(fr))
+                if med < worst_frac:
+                    worst_frac, where = med, sh.id
+                if med < need:
+                    small.append(f"{sh.id} {med:.2f}<{need:.2f}")
+        out.append(Check("composition_subject_size", "PASS" if not small else "FAIL", worst_frac, None,
+                         f"median subject size per shot (body extent / frame height); smallest in {where}; too small: {small or 'none'}"))
+        missing = []
+        for sh in self.rt.scene.shots:
+            for tg in sh.camera.include:
+                p = self.cam.resolve(tg) if self.cam.resolve else None
+                if p is None:
+                    missing.append(f"{sh.id}:{tg}?")
+                    continue
+                m = 20.0
+                for t in [x for x in self.times if sh.start <= x < sh.end]:
+                    if not self.cam.subject_visible(cid, t, (p[0] - m, p[1] - m, p[0] + m, p[1] + m)):
+                        missing.append(f"{sh.id}:{tg}@{t:.2f}")
+                        break
+        out.append(Check("composition_required_objects", "PASS" if not missing else "FAIL", float(len(missing)), 0.0,
+                         f"objects a shot must show (camera.include) left the frame: {missing or 'none'}"))
+        bad, n = [], 0
+        for sh in self.rt.scene.shots:
+            ts = [x for x in self.times if sh.start <= x < sh.end]
+            for a, b in zip(ts, ts[1:]):
+                if abs(self.cam.at(b).roll - self.cam.at(a).roll) > 0.5:
+                    n += 1
+                    v = math.dist(an.pose_at(a).root, an.pose_at(b).root) * self.fps
+                    if v > TOL["roll_while_moving_speed"]:
+                        bad.append(f"{sh.id}@{b:.2f}")
+        out.append(Check("no_roll_during_fast_action", "PASS" if not bad else "FAIL", float(len(bad)), 0.0,
+                         f"{n} rolling frames; rolling while the subject moved faster than {TOL['roll_while_moving_speed']:.0f} u/s: {bad[:6] or 'none'}"))
         return out
 
     def check_sync(self, cues) -> List[Check]:

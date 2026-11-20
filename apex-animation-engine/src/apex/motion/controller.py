@@ -18,6 +18,7 @@ from ..rig.stickman import StickmanRig
 from ..scene.schema import ActionSpec, EnvironmentSpec
 from ..scene.targets import bar_world, exit_world, resolve, switch_world
 from .frames import GroundFrame
+from .library import get_clip, landing_clip
 
 MASS = 70.0
 CAPSULE_R = 9.0
@@ -37,7 +38,7 @@ SLIDE_VMIN = 210.0
 GRAB_REACH = 0.94
 CATCH_KEEP = 0.55
 PUMP_ACC = 1100.0  # tangential acceleration of a pumping kick (u/s^2, per unit mass)
-RECOVER_T = 1.15  # relief beat after a hard landing
+RECOVER_T = get_clip("recover_relief").length()  # relief beat after a hard landing (the clip's own length)
 RECOVER_MIN_APPROACH = 900.0  # grab when the bar is within this fraction of shoulder->wrist reach
 
 
@@ -656,7 +657,9 @@ class CharacterController:
         a, av = damped_spring(L["ang0"], L["w0"], 0.0, 8.0, 0.3, tau)
         self.s, self.h = s, h
         self.world.set_kinematic(self.cid, self.frame.to_world(s, h), self.frame.body_angle + a)
-        if tau > 0.45 and abs(h - self.stand_h) < 1.5 and abs(hv) < 15 and abs(a) < 0.02 and abs(av) < 0.15:
+        name, perf = landing_clip(L["approach"])
+        min_t = max(0.45, get_clip(name).length(perf) - 0.02)  # the landing performance plays out in full
+        if tau > min_t and abs(h - self.stand_h) < 1.5 and abs(hv) < 15 and abs(a) < 0.02 and abs(av) < 0.15:
             self.mode = "grounded"
             self.h = self.stand_h
             self.emit(Event(t, "recovered", self.cid, {"surface": self.frame.tag}))

@@ -61,6 +61,10 @@ def _effects_from_events(events, switches, env=None) -> List[dict]:
             if env is not None:
                 kw = dict(r0=20, speed=380, life=0.7) if surf.startswith("wall") else dict(r0=10, speed=260, life=0.45, rgb=(180, 250, 255), z=0)
                 fx.append(_surface_ring(env, surf, px, py, e.t, **kw))
+                if e.data.get("normal_speed", 0) > 1000:  # hard impact: speed streaks + debris along the surface
+                    from ..scene.targets import surface_normal
+                    fx.append({"kind": "burst", "t": e.t, "x": px, "y": py, "n": surface_normal(surf), "life": 0.32,
+                               "strength": min(1.5, e.data["normal_speed"] / 1200.0), "seed": int(e.t * 1000) % 997})
             elif surf == "wall_right":
                 fx.append({"kind": "ring_wall", "t": e.t, "y": py, "r0": 20, "speed": 380, "life": 0.7})
             else:
@@ -83,6 +87,19 @@ def red_flash(events, t: float) -> float:
         if e.type == "switch_activated" and t >= e.t:
             r += 0.5 * math.exp(-(t - e.t) * 5) + 0.3 * math.exp(-max(0.0, t - e.t - 0.15) * 3.5) * (t > e.t + 0.15)
     return r
+
+
+def _resolve_target(env, target: str):
+    from ..scene.targets import resolve
+    try:
+        return resolve(env, target)
+    except (StopIteration, ValueError):
+        return None
+
+
+def motion_trails(res, t: float) -> dict:
+    """Earlier poses for motion trails (the renderer draws only the limbs that moved fast)."""
+    return {cid: [(an.pose_at(t - 1.0 / 60.0), 0.3), (an.pose_at(t - 1.0 / 30.0), 0.15)] for cid, an in res.animators.items()}
 
 
 def shot_fade(cam: CameraDirector, t: float) -> float:
@@ -127,7 +144,7 @@ def build_camera(rt: SceneRuntime, aspect: float) -> CameraDirector:
         elif e.type == "prop_impact":
             shake.append((e.t, 2.0))
     return CameraDirector(rt.scene.shots, aspect, bbox, vel, gravity=res.gravity.at, focus_bbox=focus, shake_events=shake,
-                          gravity_angle=res.gravity.angle_unwrapped)
+                          gravity_angle=res.gravity.angle_unwrapped, resolve=lambda tg: _resolve_target(rt.env, tg))
 
 
 def compute_diagnostics(rt: SceneRuntime, cam: CameraDirector, fps: int) -> List[dict]:
@@ -195,14 +212,15 @@ def render_scene(project: ProjectSpec, scene_id: str, out_path: str, samples: in
             t = i / project.fps
             fade = shot_fade(cam, t)
             if samples <= 1:
-                frame = renderer.render(rt.evaluate(t), cam.at(t), red_flash(res.events, t), fx, fade)
+                frame = renderer.render(rt.evaluate(t), cam.at(t), red_flash(res.events, t), fx, fade, motion_trails(res, t))
             else:
                 acc = None
                 sh = cam.shot_at(t)
                 for k in range(samples):
                     ts = t + (k / (samples - 1) - 0.5) * 0.4 / project.fps
                     ts = min(max(ts, sh.start), sh.end - 1e-4)
-                    f = renderer.render(rt.evaluate(ts), cam.at(ts), red_flash(res.events, ts), fx, fade).astype(np.float32)
+                    f = renderer.render(rt.evaluate(ts), cam.at(ts), red_flash(res.events, ts), fx, fade,
+                                        motion_trails(res, ts) if k == samples // 2 else None).astype(np.float32)
                     acc = f if acc is None else acc + f
                 frame = (acc / samples).astype(np.uint8)
             writer.write(frame)

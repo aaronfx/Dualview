@@ -30,7 +30,13 @@ The engine is **independent of Creator Studio**. It has its own backend (FastAPI
 | 1D actions: feet-first `duck_slide`, ballistic `jump_to` with a mid-air switch slap, `grab_swing` (hands-overhead catch on a pivot joint, absorbed catch, pumping, release at the top of the swing), `reach_exit` | `motion/controller.py`, `motion/animator.py` | `tests/test_escape_1d.py` |
 | Exit door state machine (sealed → unlocking → unlocked → opening → open → exited) with rendered states and the walk into the light | `scene/runtime.py`, `render/skia_renderer.py` | QA `door_state_machine` |
 | Signed gravity rotations: each state is reported relative to the previous one and to the original, and the camera roll follows the physical direction | `physics/gravity.py`, `camera/director.py` | QA `gravity_angle_report`, `camera_roll_follows_gravity_direction` |
-| Automated QA, 24–39 checks per scene | `qa/inspector.py` | `docs/evidence/*_qa.json` |
+| Motion library: editable key-pose clips (JSON) with per-key interpolation (monotone cubic, ease, snap, slow-in, back, hold), phases, declared contacts and `Performance(tempo, intensity, mirror, emotion, ...)`; rig-relative channels, so the clips play on any proportions | `motion/library.py`, `motion/clips/` | `tests/test_quality_upgrade.py` |
+| Contact-aware motion: IK-enforced hand plants and hands-on-knees contacts, knee-clearance collision constraint, stance widths scaled to leg length | `motion/animator.py` | `tests/test_quality_upgrade.py`, QA `surface_penetration` |
+| Composition rules: minimum subject size per shot kind, `include` objects kept in frame, no camera roll during fast action | `camera/director.py`, `qa/inspector.py` | QA `composition_*`, `no_roll_during_fast_action` |
+| Per-environment art direction (`theme`), motion trails, impact bursts, stereo-panned sound with room reverb | `render/`, `audio/sound_director.py` | `docs/RENDERER_EVALUATION.md` |
+| Human review packet: objective metrics kept apart from a 7-criterion human rubric; AI Director suggestions labelled advisory, never scored | `qa/review.py` (`apex review`) | `docs/REVIEW_RUBRIC.md` |
+| Motion-test tool: original vs improved side by side with a pose timeline, contact bars and diagnostic curves | `scripts/motion_test.py` | `docs/QUALITY_UPGRADE.md` |
+| Automated QA, 24–45 checks per scene | `qa/inspector.py` | `docs/evidence/*_qa.json` |
 | Schema-validated scene plans; AI director with validation and repair loop; offline template planner | `scene/schema.py`, `ai/` | `tests/test_ai_api.py` |
 | REST API with background render jobs, progress and error capture | `api/` | `tests/test_ai_api.py` |
 
@@ -58,6 +64,9 @@ apex render examples\motion_test.json       -o out\motion_test.mp4       --sampl
 apex render examples\gravity_switch_1b.json -o out\gravity_switch_1b.mp4 --samples 3 --qa-json out\gravity_switch_1b_qa.json
 apex render examples\gravity_switch_1c.json -o out\gravity_switch_1c.mp4 --samples 3 --qa-json out\gravity_switch_1c_qa.json --review-dir out\review_1c
 apex render examples\gravity_switch_1d.json -o out\gravity_switch_1d.mp4 --samples 3 --qa-json out\gravity_switch_1d_qa.json --review-dir out\review_1d
+apex render examples\foundry_flip.json      -o out\foundry_flip.mp4      --samples 3 --qa-json out\foundry_flip_qa.json --review-dir out\review_ff
+# human review packet (objective metrics + rubric; scores are filled in by people)
+apex review examples\gravity_switch_1d.json out\review_1d --video out\gravity_switch_1d.mp4 --qa-json out\gravity_switch_1d_qa.json
 # fast half-resolution preview:
 apex render examples\gravity_switch_1b.json -o out\preview.mp4 --scale 0.5
 
@@ -104,16 +113,17 @@ All sounds are synthesized by the engine; no third-party audio assets are used.
 src/apex/
   core/      math, easing, timelines (pure functions of time)
   rig/       skeleton, FK, IK, stickman rig, pose blending
-  motion/    ground frames, gait generator, character controller (simulation), animator (pose evaluation), secondary motion (scarf, dust)
+  motion/    ground frames, gait generator, character controller (simulation), animator (pose evaluation), motion library + clips/, secondary motion (scarf, dust)
   physics/   gravity field, PhysicsWorld interface (pymunk backend)
   scene/     schema (pydantic), runtime (simulate + evaluate(t))
   camera/    camera director
-  render/    Skia renderer, video encoding, end-to-end pipeline
+  render/    renderer adapter (base.py), Skia renderer, video encoding, end-to-end pipeline
   audio/     sound director + synthesizer
-  qa/        animation quality inspector, decode check, contact sheets, diagnostics charts
+  qa/        animation quality inspector, decode check, contact sheets, diagnostics charts, human review packet
   ai/        provider abstraction + story director
   api/       FastAPI app + storage
-examples/    project JSON files (milestone scenes); build_gravity_switch_1d.py regenerates the 1D scene
-tests/       pytest suite (97 tests)
+examples/    project JSON files (milestone scenes); build_gravity_switch_1d.py / build_foundry_flip.py regenerate the 1D and generalization scenes
+scripts/     motion_test.py (original-vs-improved motion comparison)
+tests/       pytest suite (115 tests)
 docs/        architecture, schema, reference analysis, milestone status, roadmap, evidence
 ```

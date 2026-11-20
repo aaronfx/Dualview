@@ -96,7 +96,16 @@ class Synth:
         thud = _sweep(150, 48, d, 0.35) * _env(n, 0.001, 0.18)
         body = _norm(_bandpass(self.noise(d), 60, 1400)) * _env(n, 0.0005, 0.06)
         ring = sum(a * np.sin(2 * np.pi * 523 * r * t) for r, a in [(1, 1), (2.27, 0.6), (3.64, 0.4)]) * _env(n, 0.001, 0.35)
-        return clamp01(strength) * (1.2 * thud + 0.6 * body) + 0.08 * ring
+        # layered for weight: sub-bass drop, a short crunch transient, and a few debris ticks
+        sub = np.sin(2 * np.pi * np.cumsum(55 * (32 / 55) ** (t / d)) / SR) * _env(n, 0.002, 0.25)
+        crunch = _norm(_bandpass(self.noise(d), 1800, 7000)) * _env(n, 0.0003, 0.025)
+        ticks = np.zeros(n)
+        for k in range(5):
+            i = _n(0.06 + 0.07 * k + 0.02 * self.rng.random())
+            m = min(_n(0.03), n - i)
+            ticks[i:i + m] += _norm(_bandpass(self.noise(0.03), 2500, 9000))[:m] * _env(m, 0.0002, 0.006) * (0.5 - 0.08 * k)
+        st = clamp01(strength)
+        return st * (1.1 * thud + 0.55 * body + 0.9 * sub + 0.45 * crunch * st + 0.35 * ticks) + 0.08 * ring
 
     def clang(self, strength: float = 1.0) -> np.ndarray:
         d = 0.9
@@ -265,6 +274,7 @@ class SoundDirector:
     def render(self, events, duration: float, path: str) -> List[Cue]:
         n = _n(duration)
         L = np.zeros(n)
+        Rch = np.zeros(n)  # sound effects are panned by where they happen in the room
         cues = self.cues_for(events)
         sy = self.synth
         bank: Dict[str, Callable[..., np.ndarray]] = {"footstep": sy.footstep, "click": sy.click, "pulse": sy.pulse, "whoosh": sy.whoosh,
@@ -288,8 +298,20 @@ class SoundDirector:
             if i >= n:
                 continue
             m = min(len(sig), n - i)
-            L[i:i + m] += sig[:m] * (cue.gain if cue.sound not in ("impact", "clang", "land") else 1.0) * 0.6
-        L += sy.ambience(duration)
+            amp = sig[:m] * (cue.gain if cue.sound not in ("impact", "clang", "land") else 1.0) * 0.6
+            pt = e.data.get("point") if e is not None else None
+            pan = max(-0.7, min(0.7, pt[0] / 700.0)) if isinstance(pt, (tuple, list)) else 0.0
+            L[i:i + m] += amp * math.sqrt(0.5 * (1 - pan))
+            Rch[i:i + m] += amp * math.sqrt(0.5 * (1 + pan))
+        # short synthetic room reverb on the effects bus (metal chamber: ~0.7 s decay, 14 % wet)
+        ir_n = _n(0.7)
+        ir = self.synth.rng.standard_normal(ir_n) * np.exp(-np.arange(ir_n) / SR / 0.16)
+        ir = _bandpass(ir, 200, 6000) / (np.sqrt(np.sum(ir ** 2)) + 1e-9)
+        N = 1 << int(np.ceil(np.log2(n + ir_n)))
+        IR = np.fft.rfft(ir, N)
+        L = L + 0.14 * np.fft.irfft(np.fft.rfft(L, N) * IR, N)[:n]
+        Rch = Rch + 0.14 * np.fft.irfft(np.fft.rfft(Rch, N) * IR, N)[:n]
+        bed = sy.ambience(duration)
         # rising hum while the mechanism charges (switch activation -> gravity shift), placed from engine events
         acts = [e for e in events if e.type == "switch_activated"]
         for a in acts:
@@ -300,15 +322,20 @@ class SoundDirector:
                 m = min(len(hum), n - i)
                 if m > 0:
                     L[i:i + m] += hum[:m] * 0.25
+                    Rch[i:i + m] += hum[:m] * 0.25
         if self.music_on:
-            L += sy.music(events, duration)
-        peak = np.max(np.abs(L)) or 1.0
+            bed = bed + sy.music(events, duration)
+        L = L + bed
+        Rch = Rch + bed
+        peak = max(np.max(np.abs(L)), np.max(np.abs(Rch))) or 1.0
         L = np.tanh(L / peak * 1.2) * 0.89 / math.tanh(1.2)
+        Rch = np.tanh(Rch / peak * 1.2) * 0.89 / math.tanh(1.2)
         fade = np.ones(n)
         k = _n(0.15)
         fade[-k:] = np.linspace(1, 0, k)
         L *= fade
-        st = np.stack([L, L], 1)
+        Rch *= fade
+        st = np.stack([L, Rch], 1)
         with wave.open(path, "wb") as w:
             w.setnchannels(2)
             w.setsampwidth(2)

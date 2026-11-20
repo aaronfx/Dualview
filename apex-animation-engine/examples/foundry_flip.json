@@ -1,0 +1,489 @@
+{
+ "schema_version": "0.1",
+ "id": "foundry_flip",
+ "title": "Foundry Flip (generalization test)",
+ "fps": 24,
+ "width": 1920,
+ "height": 1080,
+ "seed": 11,
+ "characters": [
+  {
+   "id": "pip",
+   "name": "PIP",
+   "proportions": {
+    "spine": 26,
+    "chest": 25,
+    "neck": 6,
+    "head": 30,
+    "upper_arm": 27,
+    "forearm": 25,
+    "hand": 8,
+    "thigh": 35,
+    "shin": 33,
+    "foot": 13
+   },
+   "style": {
+    "body_color": "#eaf2ff",
+    "far_color": "#8f9bb3",
+    "visor_color": "#ff4f9a",
+    "glow_color": "#ff7ab8",
+    "scarf_color": "#ff4f9a",
+    "has_scarf": false,
+    "limb_width": 8.5,
+    "cadence_scale": 1.22,
+    "stride_scale": 0.86,
+    "lean_scale": 1.35,
+    "arm_swing_scale": 1.45
+   }
+  }
+ ],
+ "environments": [
+  {
+   "id": "foundry",
+   "room": {
+    "width": 1800,
+    "height": 900,
+    "depth_back": 560,
+    "grid_spacing": 90
+   },
+   "theme": {
+    "accent": "#ffae3d",
+    "alert": "#ff3b30",
+    "back": "#1d1611",
+    "floor": "#0e0a07",
+    "side": "#17110d",
+    "ceiling": "#0a0705",
+    "background": "#060403",
+    "dust": "#ffd9a3"
+   },
+   "gravity": [
+    0,
+    -1568
+   ],
+   "switches": [
+    {
+     "id": "flip",
+     "x": 250.0,
+     "height": 92.0,
+     "surface": "wall_right",
+     "effect": {
+      "rotate_deg": -180,
+      "delay": 1.5,
+      "duration": 0.45
+     }
+    }
+   ],
+   "props": [
+    {
+     "id": "can_a",
+     "kind": "canister",
+     "position": [
+      -870,
+      24
+     ],
+     "size": [
+      30,
+      48
+     ],
+     "mass": 6
+    },
+    {
+     "id": "can_b",
+     "kind": "canister",
+     "position": [
+      -838,
+      20
+     ],
+     "size": [
+      26,
+      40
+     ],
+     "mass": 5
+    }
+   ],
+   "exits": [
+    {
+     "id": "hatch",
+     "surface": "wall_right",
+     "s": 810.0,
+     "width": 180,
+     "unlock_on": "switch:flip",
+     "open_radius": 330
+    }
+   ],
+   "obstacles": [
+    {
+     "id": "duct",
+     "kind": "beam",
+     "center": [
+      80.0,
+      112.0
+     ],
+     "size": [
+      150.0,
+      30.0
+     ]
+    }
+   ],
+   "dust": 140
+  }
+ ],
+ "scenes": [
+  {
+   "id": "flip",
+   "title": "Foundry Flip",
+   "environment": "foundry",
+   "duration": 19.5,
+   "placements": [
+    {
+     "character": "pip",
+     "x": -800,
+     "facing": 1
+    }
+   ],
+   "actions": [
+    {
+     "character": "pip",
+     "type": "walk_to",
+     "target_x": -560,
+     "speed": 140
+    },
+    {
+     "character": "pip",
+     "type": "notice",
+     "target": "exit:hatch",
+     "duration": 0.8
+    },
+    {
+     "character": "pip",
+     "type": "point",
+     "target": "exit:hatch",
+     "duration": 0.9
+    },
+    {
+     "character": "pip",
+     "type": "notice",
+     "target": "switch:flip",
+     "duration": 0.6
+    },
+    {
+     "character": "pip",
+     "type": "run_to",
+     "target_x": -150.0
+    },
+    {
+     "character": "pip",
+     "type": "duck_slide",
+     "target_x": 260.0
+    },
+    {
+     "character": "pip",
+     "type": "run_to",
+     "target_x": 735.0
+    },
+    {
+     "character": "pip",
+     "type": "look_at",
+     "target": "switch:flip",
+     "duration": 0.45
+    },
+    {
+     "character": "pip",
+     "type": "jump_to",
+     "target_x": 785.0,
+     "height": 170.0,
+     "switch": "flip"
+    },
+    {
+     "character": "pip",
+     "type": "wait_grounded"
+    },
+    {
+     "character": "pip",
+     "type": "look_at",
+     "target": "exit:hatch",
+     "duration": 1.8
+    },
+    {
+     "character": "pip",
+     "type": "wait_grounded"
+    },
+    {
+     "character": "pip",
+     "type": "notice",
+     "target": "exit:hatch",
+     "duration": 0.7
+    },
+    {
+     "character": "pip",
+     "type": "reach_exit",
+     "target": "exit:hatch",
+     "speed": 170,
+     "duration": 0.6
+    },
+    {
+     "character": "pip",
+     "type": "idle",
+     "duration": 3.0
+    }
+   ],
+   "shots": [
+    {
+     "id": "s01_establish",
+     "start": 0.0,
+     "end": 2.2,
+     "kind": "establishing",
+     "description": "wide push-in: the low foundry hall, the duct, the wall lever and the sealed hatch high on the right wall; PIP walks in",
+     "camera": {
+      "mode": "dolly",
+      "center": [
+       -60,
+       470
+      ],
+      "center_end": [
+       -220,
+       430
+      ],
+      "view_height": 1180,
+      "view_height_end": 980
+     }
+    },
+    {
+     "id": "s02_notice",
+     "start": 2.2,
+     "end": 3.75,
+     "kind": "medium",
+     "description": "PIP spots the hatch and points at it",
+     "camera": {
+      "mode": "follow",
+      "target": "pip",
+      "focus": "upper",
+      "view_height": 430,
+      "offset": [
+       140,
+       40
+      ],
+      "lead": 0.05
+     },
+     "sound_cues": [
+      {
+       "on_event": "notice",
+       "sound": "notice",
+       "gain": 1.0
+      }
+     ],
+     "exit_conditions": [
+      "event:notice",
+      "event:point"
+     ]
+    },
+    {
+     "id": "s03_pov",
+     "start": 3.75,
+     "end": 4.6,
+     "kind": "insert",
+     "description": "POV: the hatch out of reach near the ceiling, the lever below it",
+     "camera": {
+      "mode": "static",
+      "center": [
+       700,
+       600
+      ],
+      "view_height": 780
+     },
+     "sound_cues": [
+      {
+       "on_event": "notice",
+       "sound": "notice",
+       "gain": 0.8
+      }
+     ],
+     "exit_conditions": [
+      "event:notice"
+     ]
+    },
+    {
+     "id": "s04_run_slide",
+     "start": 4.6,
+     "end": 7.1,
+     "kind": "tracking",
+     "description": "sprint and slide under the duct",
+     "camera": {
+      "mode": "follow",
+      "target": "pip",
+      "view_height": 480,
+      "offset": [
+       40,
+       60
+      ],
+      "lead": 0.3,
+      "stiffness": 5.0,
+      "include": [
+       "obstacle:duct"
+      ]
+     },
+     "sound_cues": [
+      {
+       "on_event": "slide_start",
+       "sound": "slide",
+       "gain": 1.0
+      }
+     ],
+     "exit_conditions": [
+      "event:slide_start",
+      "event:slide_end"
+     ]
+    },
+    {
+     "id": "s05_slap",
+     "start": 7.1,
+     "end": 10.0,
+     "kind": "medium",
+     "description": "at the wall: looks up, jumps, slaps the lever mid-air, lands, looks up at the hatch",
+     "camera": {
+      "mode": "static",
+      "center": [
+       700,
+       270
+      ],
+      "view_height": 560
+     },
+     "sound_cues": [
+      {
+       "on_event": "press_contact",
+       "sound": "click",
+       "gain": 1.0
+      },
+      {
+       "on_event": "switch_activated",
+       "sound": "startle",
+       "gain": 1.0
+      },
+      {
+       "on_event": "impact",
+       "sound": "impact",
+       "gain": 0.8
+      }
+     ],
+     "exit_conditions": [
+      "event:press_contact",
+      "event:impact"
+     ]
+    },
+    {
+     "id": "s06_flip",
+     "start": 10.0,
+     "end": 12.75,
+     "kind": "wide",
+     "description": "world-fixed wide: gravity turns 180 deg; PIP loses balance, falls up the wall, braces and lands hard on the ceiling",
+     "camera": {
+      "mode": "static",
+      "center": [
+       520,
+       450
+      ],
+      "view_height": 1000,
+      "shake": 1.0
+     },
+     "sound_cues": [
+      {
+       "on_event": "gravity_shift",
+       "sound": "pulse",
+       "gain": 1.0
+      },
+      {
+       "on_event": "lost_support",
+       "sound": "whoosh",
+       "gain": 1.0
+      },
+      {
+       "on_event": "impact",
+       "sound": "impact",
+       "gain": 1.0
+      }
+     ],
+     "exit_conditions": [
+      "event:gravity_shift",
+      "event:lost_support",
+      "event:impact"
+     ]
+    },
+    {
+     "id": "s07_relief",
+     "start": 12.75,
+     "end": 15.2,
+     "kind": "medium",
+     "description": "relief beat while the camera turns over with gravity (PIP is still); the hatch, now at his feet, opens",
+     "camera": {
+      "mode": "static",
+      "center": [
+       745,
+       790
+      ],
+      "view_height": 600,
+      "roll": 0,
+      "roll_end": -180,
+      "roll_ease": "sine",
+      "include": [
+       "exit:hatch"
+      ]
+     },
+     "sound_cues": [
+      {
+       "on_event": "door_unlocking",
+       "sound": "unlock",
+       "gain": 1.0
+      },
+      {
+       "on_event": "door_open",
+       "sound": "door",
+       "gain": 1.0
+      }
+     ],
+     "exit_conditions": [
+      "event:door_open",
+      "event:notice"
+     ]
+    },
+    {
+     "id": "s08_exit",
+     "start": 15.2,
+     "end": 19.5,
+     "kind": "wide",
+     "description": "walks to the open hatch, looks back, steps through; the hatch closes; fade out",
+     "camera": {
+      "mode": "dolly",
+      "center": [
+       660,
+       700
+      ],
+      "center_end": [
+       700,
+       730
+      ],
+      "view_height": 640,
+      "view_height_end": 580,
+      "roll": -180
+     },
+     "sound_cues": [
+      {
+       "on_event": "exit_reached",
+       "sound": "resolve",
+       "gain": 1.0
+      },
+      {
+       "on_event": "door_close",
+       "sound": "door",
+       "gain": 1.0
+      }
+     ],
+     "exit_conditions": [
+      "event:look_back",
+      "event:exit_reached"
+     ],
+     "fade_out": 0.9
+    }
+   ]
+  }
+ ]
+}

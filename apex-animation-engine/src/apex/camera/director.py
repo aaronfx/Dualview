@@ -60,13 +60,14 @@ def _noise(x: float, seed: float) -> float:
 class CameraDirector:
     def __init__(self, shots: List[ShotSpec], aspect: float, bbox: BBoxFn, velocity: VelFn, gravity: Optional[GravFn] = None,
                  focus_bbox: Optional[FocusFn] = None, shake_events: Optional[List[Tuple[float, float]]] = None,
-                 gravity_angle: Optional[Callable[[float], float]] = None):
+                 gravity_angle: Optional[Callable[[float], float]] = None, resolve: Optional[Callable[[str], Optional[Vec]]] = None):
         self.shots = sorted(shots, key=lambda s: s.start)
         self.aspect = aspect
         self.bbox, self.velocity = bbox, velocity
         self.gravity = gravity or (lambda t: (0.0, -1.0))
         # unwrapped gravity angle (rad): roll follows the physical rotation direction (no shortest-way guessing)
         self.gravity_angle = gravity_angle
+        self.resolve = resolve  # target string -> world point (composition: objects kept in frame)
         self.focus_bbox = focus_bbox
         self.shake_events = shake_events or []  # (time, strength)
         self._tracks: Dict[str, Tuple[np.ndarray, np.ndarray]] = {}
@@ -144,7 +145,7 @@ class CameraDirector:
             else:
                 roll = rt
             if cam.keep_in_frame and cam.target:
-                cx, cy, vh = self._frame_guard(cam.target, float(t), cx, cy, vh, roll, cam.focus)
+                cx, cy, vh = self._frame_guard(cam.target, float(t), cx, cy, vh, roll, cam.focus, self._includes(cam))
             out[i] = (cx, cy, vh, roll)
         return ts, out
 
@@ -152,8 +153,18 @@ class CameraDirector:
         """Screen-axis half extents of the safe area (independent of roll; the guard works in screen space)."""
         return vh * self.aspect / 2 * SAFE, vh / 2 * SAFE
 
+    def _includes(self, cam: CameraSpec) -> List[Tuple[float, float, float, float]]:
+        out = []
+        if self.resolve is not None:
+            for tg in cam.include:
+                p = self.resolve(tg)
+                if p is not None:
+                    m = cam.include_margin
+                    out.append((p[0] - m, p[1] - m, p[0] + m, p[1] + m))
+        return out
+
     def _frame_guard(self, target: str, t: float, cx: float, cy: float, vh: float, roll: float = 0.0,
-                     focus: str = "body") -> Tuple[float, float, float]:
+                     focus: str = "body", extra: Optional[List[Tuple[float, float, float, float]]] = None) -> Tuple[float, float, float]:
         """Keep the framed region (whole body, or the focus region for close-ups) inside the safe area.
 
         Exact for any roll: the region's corners are projected into rolled screen space; the view is widened until
@@ -163,6 +174,8 @@ class CameraDirector:
             x0, y0, x1, y1 = self.focus_bbox(target, t, focus)
         else:
             x0, y0, x1, y1 = self.bbox(target, t)
+        for (a0, b0, a1, b1) in extra or []:  # composition: keep the listed objects in frame with the subject
+            x0, y0, x1, y1 = min(x0, a0), min(y0, b0), max(x1, a1), max(y1, b1)
         r = math.radians(roll)
         c, s_ = math.cos(r), math.sin(r)
         need_w, need_h = (x1 - x0) / 2, (y1 - y0) / 2

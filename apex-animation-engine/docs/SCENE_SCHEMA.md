@@ -12,7 +12,7 @@ The full machine-readable JSON Schema comes from `apex schema` (or `GET /schema`
 | `width`, `height` | int | Output resolution |
 | `seed` | int | Deterministic procedural and audio seed |
 | `characters[]` | CharacterSpec | `id`, `name`, `rig: "stickman"`, `proportions{}` (bone-length overrides), `style` (colours, limb width, movement signature: `cadence_scale`, `stride_scale`, `lean_scale`, `arm_swing_scale`) |
-| `environments[]` | EnvironmentSpec | `room{width,height,depth_*}`, `gravity [gx,gy]`, `switches[]`, `props[]`, `exits[]`, `obstacles[]`, `dust` (particle count, 0 = off) |
+| `environments[]` | EnvironmentSpec | `room{width,height,depth_*}`, `gravity [gx,gy]`, `switches[]`, `props[]`, `exits[]`, `obstacles[]`, `dust` (particle count, 0 = off), `theme` (ThemeSpec: `accent`, `alert`, `back`, `floor`, `side`, `ceiling`, `background`, `dust` hex colours; the defaults reproduce the original lab look) |
 | `scenes[]` | SceneSpec | See below |
 
 Validation covers duplicate ids, unknown references (environment, character, switch, camera target, action `target`) and schema version.
@@ -72,7 +72,7 @@ Required fields per action are validated: for example, `walk_to` needs `target_x
 |---|---|
 | `id`, `start`, `end` | Identifier and timing |
 | `description` | Human-readable intent |
-| `camera` | `mode: static|follow|track_x|dolly`, `target`, `center`, `center_end`, `view_height`, `view_height_end`, `offset`, `lead`, `stiffness`, `roll`, `roll_end`, `roll_mode: fixed|align_gravity`, `roll_rate` (deg/s cap for aligned rolls), `roll_ease: in_out|sine|linear` (easing for `roll → roll_end`; `sine` peaks at 1.57× the average rate, cubic `in_out` at 3×), `focus: body|upper|head` (the framing region, used by the guard), `shake` (strength of the event shake), `keep_in_frame` |
+| `camera` | `mode: static|follow|track_x|dolly`, `target`, `center`, `center_end`, `view_height`, `view_height_end`, `offset`, `lead`, `stiffness`, `roll`, `roll_end`, `roll_mode: fixed|align_gravity`, `roll_rate` (deg/s cap for aligned rolls), `roll_ease: in_out|sine|linear` (easing for `roll → roll_end`; `sine` peaks at 1.57× the average rate, cubic `in_out` at 3×), `focus: body|upper|head` (the framing region, used by the guard), `shake` (strength of the event shake), `keep_in_frame`, `include` (targets kept in frame with the subject, e.g. `bar:rail`, `exit:door1`, `obstacle:duct`; QA `composition_required_objects`), `include_margin` (world units around each), `min_subject_frac` (overrides the per-kind minimum subject size checked by `composition_subject_size`) |
 | `kind` | `establishing|wide|medium|close|insert|tracking`. QA checks inserts frame the switch, and close-ups frame their focus region |
 | `character_states` | Expected state at shot start (documentation / QA hint) |
 | `action_objectives` | What the shot must show |
@@ -84,6 +84,29 @@ Required fields per action are validated: for example, `walk_to` needs `target_x
 | `exit_conditions[]` | `event:<type>`, `state:<idle|loco|press|...>`, `grounded_on:<surface>`. **Checked by QA** |
 
 Character positions per shot are not hand-specified. They are the *output* of simulation: `SceneRuntime.evaluate(t)` returns every character's pose at any time.
+
+Targets (`look_at`, `notice`, `point`, camera `include`): `switch:<id>`, `exit:<id>`, `bar:<id>`, `obstacle:<id>` (any beam or bar, its centre), `point:x,y`.
+
+**Composition rules (QA):** every shot kind has a minimum on-screen subject size, and the `include` objects must stay in frame. The camera may not roll while the subject moves faster than 260 u/s (`no_roll_during_fast_action`). Turn the camera during still beats.
+
+## Motion library (`src/apex/motion/clips/*.json`)
+
+The animator plays character performances from reusable clips, not from code. A clip is a list of named key poses. Each key sets any subset of the rig-relative channels:
+
+- `crouch` and `shift` (fractions of the standing pelvis height);
+- `lean`, `chest`, `head`, `twist`, `hip_twist`;
+- `arm_n`/`arm_f`, `elbow_n`/`elbow_f`;
+- the free-leg offsets;
+- `eye`, `squash`, `gaze`.
+
+Each key also chooses how the curve leaves it: `smooth` (monotone cubic), `ease`, `snap`, `slow_in`, `back` (overshoot), `linear` or `hold`.
+
+Clips also declare:
+
+- **phases** (`anticipation`, `follow_through`, …);
+- **contacts**: `{effector, on: "surface" | "joint:<name>", t0, t1, s, h, toward, frac, blend}`. Examples are a hand planted on the floor in a hard landing, or hands on the knees while catching breath. The animator enforces them with IK.
+
+A request performs a clip with `Performance(tempo, intensity, mirror, emotion, anticipation, follow_through)`. The emotions are `neutral`, `afraid`, `determined`, `relieved`, `tired`, `excited` and `curious`. Because the channels are relative to the rig, the same clip plays on AXEL and PIP. Clips: `lose_balance`, `fall_flail`, `brace`, `land_hard`, `land_medium`, `recover_relief`, `recover_relief_shake`.
 
 ## Events (engine output)
 

@@ -54,6 +54,9 @@ def resolve(env: EnvironmentSpec, target: Optional[str]) -> Optional[Vec]:
         return exit_world(env, ref)
     if kind == "bar":
         return bar_world(env, ref)
+    if kind == "obstacle":  # any fixed structure (beam or bar); used by camera include lists
+        ob = next(o for o in env.obstacles if o.id == ref)
+        return (float(ob.center[0]), float(ob.center[1]))
     if kind == "point":
         x, y = (float(v) for v in ref.split(","))
         return (x, y)

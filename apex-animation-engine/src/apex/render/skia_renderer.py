@@ -53,6 +53,9 @@ class SkiaRenderer:
         r = env.room
         self.hw, self.rh, self.back, self.near = r.width / 2, r.height, r.depth_back, r.depth_front
         self.grid = r.grid_spacing
+        self.theme = env.theme  # per-environment art direction
+        self.accent, self.alert = hex_rgb(self.theme.accent), hex_rgb(self.theme.alert)
+        self.bg, self.dust_rgb = hex_rgb(self.theme.background), hex_rgb(self.theme.dust)
 
     @staticmethod
     def indicator_rotation(g) -> float:
@@ -85,10 +88,11 @@ class SkiaRenderer:
         c.drawLine(pa[0], pa[1], pb[0], pb[1], skia.Paint(AntiAlias=True, Color=col(mix(rgb, WHITE, 0.25), 0.85 * alpha), StrokeWidth=max(0.8, width * k), Style=skia.Paint.kStroke_Style))
 
     # ------------------------------------------------------------ main
-    def render(self, fs: FrameState, cam: CameraState, red_flash: float = 0.0, fx: Optional[List[dict]] = None, fade: float = 0.0) -> np.ndarray:
+    def render(self, fs: FrameState, cam: CameraState, red_flash: float = 0.0, fx: Optional[List[dict]] = None, fade: float = 0.0,
+               trails: Optional[Dict[str, List[Tuple[Pose, float]]]] = None) -> np.ndarray:
         self._setup(cam)
         c = self.surface.getCanvas()
-        c.clear(col((5, 6, 8)))
+        c.clear(col(self.bg))
         c.save()
         sc = self.H / 1080.0
         c.translate(self.W / 2 + cam.shx * sc, self.H / 2 + cam.shy * sc)
@@ -118,6 +122,8 @@ class SkiaRenderer:
             clip = self._interior_clip(fs)
             if clip is not None:
                 c.clipPath(clip, doAntiAlias=True)
+            if trails and cid in trails and vis[cid] > 0.99:
+                self._trail(c, cid, pose, trails[cid])
             self._character(c, cid, pose, alpha=vis[cid], scarf=fs.scarves.get(cid))
             c.restore()
         self._obstacles(c, back=False)
@@ -134,15 +140,15 @@ class SkiaRenderer:
     def _room(self, c: skia.Canvas, fs: FrameState, red: float) -> None:
         hw, rh, bk, nr = self.hw, self.rh, self.back, self.near
         planes = {
-            "back": ([(-hw, 0, bk), (hw, 0, bk), (hw, rh, bk), (-hw, rh, bk)], (21, 24, 30)),
-            "floor": ([(-hw, 0, nr), (hw, 0, nr), (hw, 0, bk), (-hw, 0, bk)], (10, 12, 15)),
-            "left": ([(-hw, 0, nr), (-hw, 0, bk), (-hw, rh, bk), (-hw, rh, nr)], (17, 20, 25)),
-            "right": ([(hw, 0, nr), (hw, 0, bk), (hw, rh, bk), (hw, rh, nr)], (17, 20, 25)),
-            "ceil": ([(-hw, rh, nr), (hw, rh, nr), (hw, rh, bk), (-hw, rh, bk)], (8, 9, 11)),
+            "back": ([(-hw, 0, bk), (hw, 0, bk), (hw, rh, bk), (-hw, rh, bk)], hex_rgb(self.theme.back)),
+            "floor": ([(-hw, 0, nr), (hw, 0, nr), (hw, 0, bk), (-hw, 0, bk)], hex_rgb(self.theme.floor)),
+            "left": ([(-hw, 0, nr), (-hw, 0, bk), (-hw, rh, bk), (-hw, rh, nr)], hex_rgb(self.theme.side)),
+            "right": ([(hw, 0, nr), (hw, 0, bk), (hw, rh, bk), (hw, rh, nr)], hex_rgb(self.theme.side)),
+            "ceil": ([(-hw, rh, nr), (hw, rh, nr), (hw, rh, bk), (-hw, rh, bk)], hex_rgb(self.theme.ceiling)),
         }
         for name, (pts, rgb) in planes.items():
             c.drawPath(self.poly(pts), skia.Paint(AntiAlias=True, Color=col(mix(rgb, (60, 10, 14), red * 0.5))))
-        gcol = mix(CYAN, RED, clamp(red * 1.3, 0, 1))
+        gcol = mix(self.accent, self.alert, clamp(red * 1.3, 0, 1))
         g = self.grid
         xs = np.arange(-hw, hw + 1, g)
         ys = np.arange(0, rh + 1, g)
@@ -162,7 +168,7 @@ class SkiaRenderer:
         # haze toward the ceiling
         top = self.P(0, rh, 300)[1]
         mid = self.P(0, rh - 500, 300)[1]
-        shader = skia.GradientShader.MakeLinear([skia.Point(0, top), skia.Point(0, mid)], [col((4, 5, 7), 0.85), col((4, 5, 7), 0.0)])
+        shader = skia.GradientShader.MakeLinear([skia.Point(0, top), skia.Point(0, mid)], [col(self.bg, 0.85), col(self.bg, 0.0)])
         c.drawRect(skia.Rect(-4000, -4000, 4000, 4000), skia.Paint(Shader=shader))
         if self.env.room.entry_door:
             door = self.poly([(-hw, 0, -75), (-hw, 0, 75), (-hw, 230, 75), (-hw, 230, -75)])
@@ -195,12 +201,12 @@ class SkiaRenderer:
             x, z0, z1, top = sw.x, 20.0, 76.0, sw.height - 6
             fl = self.P(*SP(x, 0, 48))
             if surf in ("floor", "ceiling"):
-                self._glow(c, (fl[0], fl[1]), (220 + 120 * min(glow, 2.5)) * fl[2], RED, 0.16 * min(glow, 2.5), squash=0.25)
+                self._glow(c, (fl[0], fl[1]), (220 + 120 * min(glow, 2.5)) * fl[2], self.alert, 0.16 * min(glow, 2.5), squash=0.25)
             else:
                 c.save()
                 c.translate(fl[0], fl[1])
                 c.scale(0.25, 1.0)
-                self._glow(c, (0, 0), (220 + 120 * min(glow, 2.5)) * fl[2], RED, 0.16 * min(glow, 2.5))
+                self._glow(c, (0, 0), (220 + 120 * min(glow, 2.5)) * fl[2], self.alert, 0.16 * min(glow, 2.5))
                 c.restore()
             body = (34, 38, 46)
             faces = []
@@ -217,7 +223,7 @@ class SkiaRenderer:
             c.drawPath(front, skia.Paint(AntiAlias=True, Color=col(body)))
             c.drawPath(front, skia.Paint(AntiAlias=True, Color=col((255, 80, 90), 0.5 * min(1, glow)), Style=skia.Paint.kStroke_Style, StrokeWidth=1.5))
             strip = self.poly([SP(x - 30, 2, z0 - 0.5), SP(x + 30, 2, z0 - 0.5), SP(x + 30, 6, z0 - 0.5), SP(x - 30, 6, z0 - 0.5)])
-            c.drawPath(strip, skia.Paint(AntiAlias=True, Color=col(RED, 0.9 * min(1.2, glow))))
+            c.drawPath(strip, skia.Paint(AntiAlias=True, Color=col(self.alert, 0.9 * min(1.2, glow))))
             # display: arrow showing the current gravity direction (absolute, world frame)
             sc = self.P(*SP(x, top * 0.55, z0 - 0.5))
             k = sc[2]
@@ -225,9 +231,9 @@ class SkiaRenderer:
             c.translate(sc[0], sc[1])
             c.scale(k, k)
             c.drawRect(skia.Rect(-20, -14, 20, 14), skia.Paint(Color=col((8, 14, 18))))
-            c.drawRect(skia.Rect(-20, -14, 20, 14), skia.Paint(AntiAlias=True, Color=col(CYAN, 0.9), Style=skia.Paint.kStroke_Style, StrokeWidth=1.2))
+            c.drawRect(skia.Rect(-20, -14, 20, 14), skia.Paint(AntiAlias=True, Color=col(self.accent, 0.9), Style=skia.Paint.kStroke_Style, StrokeWidth=1.2))
             c.rotate(self.indicator_rotation(fs.gravity))
-            p = skia.Paint(AntiAlias=True, Color=col(CYAN), Style=skia.Paint.kStroke_Style, StrokeWidth=2.6, StrokeCap=skia.Paint.kRound_Cap)
+            p = skia.Paint(AntiAlias=True, Color=col(self.accent), Style=skia.Paint.kStroke_Style, StrokeWidth=2.6, StrokeCap=skia.Paint.kRound_Cap)
             path = skia.Path()
             path.moveTo(0, -9); path.lineTo(0, 9); path.moveTo(-6, 3); path.lineTo(0, 9); path.lineTo(6, 3)
             c.drawPath(path, p)
@@ -245,7 +251,7 @@ class SkiaRenderer:
             dome = skia.Path()
             dome.addArc(skia.Rect(-11 * kb, -10 * kb, 11 * kb, 6 * kb), 180, 180)
             dome.close()
-            sh = skia.GradientShader.MakeRadial(skia.Point(0, -5 * kb), 14 * kb, [col((255, 220, 220), min(1, 0.6 + glow * 0.4)), col(RED), col((140, 10, 20))], [0.0, 0.45, 1.0])
+            sh = skia.GradientShader.MakeRadial(skia.Point(0, -5 * kb), 14 * kb, [col((255, 220, 220), min(1, 0.6 + glow * 0.4)), col(self.alert), col((140, 10, 20))], [0.0, 0.45, 1.0])
             c.drawPath(dome, skia.Paint(AntiAlias=True, Shader=sh))
             c.restore()
             h = self.P(*SP(x, sw.height, 34))
@@ -276,7 +282,7 @@ class SkiaRenderer:
             base = (44, 50, 58)
             for pts, shade in faces:
                 c.drawPath(self.poly(pts), skia.Paint(AntiAlias=True, Color=col(mix((0, 0, 0), base, shade))))
-                c.drawPath(self.poly(pts), skia.Paint(AntiAlias=True, Color=col(CYAN, 0.35), Style=skia.Paint.kStroke_Style, StrokeWidth=1.0))
+                c.drawPath(self.poly(pts), skia.Paint(AntiAlias=True, Color=col(self.accent, 0.35), Style=skia.Paint.kStroke_Style, StrokeWidth=1.0))
             if not back:  # front cap with hazard stripes
                 cap = self.poly([(x0, y0, nr), (x1, y0, nr), (x1, y1, nr), (x0, y1, nr)])
                 c.drawPath(cap, skia.Paint(AntiAlias=True, Color=col((52, 58, 66))))
@@ -289,7 +295,7 @@ class SkiaRenderer:
                     if i % 2 == 0:
                         c.drawPath(stripe, skia.Paint(AntiAlias=True, Color=col((255, 196, 40), 0.85)))
                 c.restore()
-                c.drawPath(cap, skia.Paint(AntiAlias=True, Color=col(CYAN, 0.6), Style=skia.Paint.kStroke_Style, StrokeWidth=1.4))
+                c.drawPath(cap, skia.Paint(AntiAlias=True, Color=col(self.accent, 0.6), Style=skia.Paint.kStroke_Style, StrokeWidth=1.4))
 
     def _rail(self, c: skia.Canvas, ob, back: bool) -> None:
         """Grab rail spanning the room depth: a steel tube with yellow grip bands, bolted to the back wall by a
@@ -315,7 +321,7 @@ class SkiaRenderer:
             q = self.P(x, y, bk - 0.5)
             s_ = 26 * q[2]
             c.drawRect(skia.Rect(q[0] - s_, q[1] - s_, q[0] + s_, q[1] + s_), skia.Paint(AntiAlias=True, Color=col((70, 80, 92))))
-            c.drawRect(skia.Rect(q[0] - s_, q[1] - s_, q[0] + s_, q[1] + s_), skia.Paint(AntiAlias=True, Color=col(CYAN, 0.6), Style=skia.Paint.kStroke_Style, StrokeWidth=1.2))
+            c.drawRect(skia.Rect(q[0] - s_, q[1] - s_, q[0] + s_, q[1] + s_), skia.Paint(AntiAlias=True, Color=col(self.accent, 0.6), Style=skia.Paint.kStroke_Style, StrokeWidth=1.2))
             for dx, dy in ((-0.6, -0.6), (0.6, -0.6), (-0.6, 0.6), (0.6, 0.6)):
                 c.drawCircle(q[0] + dx * s_, q[1] + dy * s_, max(1.0, 2.5 * q[2]), skia.Paint(AntiAlias=True, Color=col((200, 210, 220))))
         else:  # end cap at the front
@@ -332,7 +338,7 @@ class SkiaRenderer:
         sh = skia.GradientShader.MakeLinear([skia.Point(-w / 2, 0), skia.Point(w / 2, 0)], [col((60, 70, 78)), col((140, 155, 165)), col((50, 58, 66))], [0, 0.45, 1])
         r = skia.Rect(-w / 2, -h / 2, w / 2, h / 2)
         c.drawRect(r, skia.Paint(AntiAlias=True, Shader=sh))
-        c.drawRect(r, skia.Paint(AntiAlias=True, Color=col(CYAN, 0.55), Style=skia.Paint.kStroke_Style, StrokeWidth=1.2))
+        c.drawRect(r, skia.Paint(AntiAlias=True, Color=col(self.accent, 0.55), Style=skia.Paint.kStroke_Style, StrokeWidth=1.2))
         c.drawRect(skia.Rect(-w / 2, -2 * k, w / 2, 2 * k), skia.Paint(Color=col((255, 205, 60), 0.85)))
         c.restore()
 
@@ -358,7 +364,7 @@ class SkiaRenderer:
                   [(hw, 0, z), (hw + th, 0, z), (hw + th, rh, z), (hw, rh, z)],
                   [(-hw - th, 0, z), (-hw, 0, z), (-hw, rh, z), (-hw - th, rh, z)]):
             c.drawPath(self.poly(f), skia.Paint(AntiAlias=True, Color=col(slab)))
-        e = mix(CYAN, RED, clamp(red * 1.3, 0, 1))
+        e = mix(self.accent, self.alert, clamp(red * 1.3, 0, 1))
         for a, b in (((-hw, 0, z), (hw, 0, z)), ((hw, 0, z), (hw, rh, z)), ((-hw, 0, z), (-hw, rh, z))):
             self.line3(c, a, b, e, 1.0, 3.0)
 
@@ -408,6 +414,19 @@ class SkiaRenderer:
                     q = S(j[n])
                     (path.lineTo if i else path.moveTo)(q[0], q[1])
             c.drawPath(path, glow)
+            # dark under-stroke: invisible against the dark rooms, it keeps the silhouette readable against bright
+            # light (an open doorway, a flash) where a light character would otherwise dissolve
+            ol = skia.Path()
+            for chain in (["pelvis", "spine_mid", "neck_base", "neck_top"], ["hip_n", "knee_n", "ankle_n", "toe_n"],
+                          ["hip_f", "knee_f", "ankle_f", "toe_f"], ["shoulder_n", "elbow_n", "wrist_n"], ["shoulder_f", "elbow_f", "wrist_f"]):
+                for i, n in enumerate(chain):
+                    q = S(j[n])
+                    (ol.lineTo if i else ol.moveTo)(q[0], q[1])
+            c.drawPath(ol, skia.Paint(AntiAlias=True, Color=col((12, 12, 16), 0.6 * alpha), Style=skia.Paint.kStroke_Style,
+                                      StrokeWidth=lw * 1.4 + 3.2 * k, StrokeCap=skia.Paint.kRound_Cap, StrokeJoin=skia.Paint.kRound_Join))
+            hc0, up0, fwd0 = rig.head_frame(pose)
+            c.drawCircle(*S(hc0), rig.p.head * 0.55 * k * 1.12 + 1.6 * k,
+                         skia.Paint(AntiAlias=True, Color=col((12, 12, 16), 0.6 * alpha)))
         # far limbs
         if scarf is not None and mirror_y is None:
             self._scarf(c, scarf, S, hex_rgb(st.scarf_color), lw, alpha)
@@ -446,6 +465,29 @@ class SkiaRenderer:
         stroke([j["ankle_n"], j["toe_n"]], near, lw * 1.4)
         stroke([j["shoulder_n"], j["elbow_n"], j["wrist_n"]], near, lw * 0.98)
         self._hand(c, pose, "n", j, S, near, lw, alpha)
+
+    LIMBS = (("shoulder_n", "elbow_n", "wrist_n", "hand_n"), ("shoulder_f", "elbow_f", "wrist_f", "hand_f"),
+             ("hip_n", "knee_n", "ankle_n", "toe_n"), ("hip_f", "knee_f", "ankle_f", "toe_f"))
+
+    def _trail(self, c: skia.Canvas, cid: str, pose: Pose, ghosts: List[Tuple[Pose, float]]) -> None:
+        """Motion trails: fading ghost limbs from slightly earlier poses, drawn only for limbs moving fast on screen
+        (reads the arc of a fast move, in the spirit of hand-drawn smears)."""
+        rig, st, j, k, S = self._char_paths(cid, pose)
+        rgb = hex_rgb(st.glow_color)
+        lw = st.limb_width * k
+        for gpose, alpha in ghosts:
+            jg = rig.world_joints(gpose)
+            for chain in self.LIMBS:
+                a, b = S(j[chain[-1]]), S(jg[chain[-1]])
+                if math.hypot(a[0] - b[0], a[1] - b[1]) < 14.0:
+                    continue
+                path = skia.Path()
+                for i, n in enumerate(chain[:-1] if "hand" in chain[-1] else chain[:-1]):
+                    q = S(jg[n])
+                    (path.lineTo if i else path.moveTo)(q[0], q[1])
+                c.drawPath(path, skia.Paint(AntiAlias=True, Color=col(rgb, alpha), Style=skia.Paint.kStroke_Style, StrokeWidth=lw * 0.9,
+                                            StrokeCap=skia.Paint.kRound_Cap, StrokeJoin=skia.Paint.kRound_Join,
+                                            MaskFilter=skia.MaskFilter.MakeBlur(skia.kNormal_BlurStyle, max(1.0, 1.5 * k))))
 
     def _scarf(self, c, tails, S, rgb, lw, alpha) -> None:
         for ti, P in enumerate(tails):
@@ -525,14 +567,14 @@ class SkiaRenderer:
             c.drawPath(door, skia.Paint(AntiAlias=True, Color=col(WHITE, 0.95), Style=skia.Paint.kStroke_Style, StrokeWidth=3.0))
             if state in ("sealed", "unlocking") and ex.sealed:
                 k = 1.0 - (u if state == "unlocking" else 0.0)  # bars retract into the frame
-                rgb = mix(RED, GREEN, smoothstep(0.0, 0.5, u) if state == "unlocking" else 0.0)
+                rgb = mix(self.alert, GREEN, smoothstep(0.0, 0.5, u) if state == "unlocking" else 0.0)
                 for i in range(1, 5):
                     ss = lerp(a, b, i / 5)
                     zc, zh = (z0 + z1) / 2, (z1 - z0 - 16) / 2 * k
                     c.drawPath(self.poly([SP(ss - 5, 1.2, zc - zh), SP(ss - 5, 1.2, zc + zh), SP(ss + 5, 1.2, zc + zh), SP(ss + 5, 1.2, zc - zh)]),
                                skia.Paint(AntiAlias=True, Color=col(rgb, 0.9)))
             # status lights at the frame ends
-            lamp = RED if state == "sealed" else GREEN
+            lamp = self.alert if state == "sealed" else GREEN
             for ss in (a - 9, b + 9):
                 q = self.P(*SP(ss, 1.0, z0 - 8))
                 c.drawCircle(q[0], q[1], max(1.5, 5 * q[2]), skia.Paint(AntiAlias=True, Color=col(lamp)))
@@ -628,7 +670,7 @@ class SkiaRenderer:
             b = self.P(float(q[0]), float(q[1]), float(q[2]))
             sz = clamp(1.6 * a[2], 0.8, 6.0)
             alpha = clamp(0.55 - (float(p[2]) + self.Fd) / 6000.0, 0.12, 0.5)
-            paint = skia.Paint(AntiAlias=True, Color=col((190, 245, 255), alpha), StrokeWidth=sz, StrokeCap=skia.Paint.kRound_Cap, Style=skia.Paint.kStroke_Style)
+            paint = skia.Paint(AntiAlias=True, Color=col(self.dust_rgb, alpha), StrokeWidth=sz, StrokeCap=skia.Paint.kRound_Cap, Style=skia.Paint.kStroke_Style)
             if math.hypot(a[0] - b[0], a[1] - b[1]) > 2.5:
                 c.drawLine(b[0], b[1], a[0], a[1], paint)
             else:
@@ -674,7 +716,7 @@ class SkiaRenderer:
             c.save()
             c.translate(p[0], p[1])
             c.scale(1, 0.22)
-            c.drawCircle(0, 0, R * p[2], skia.Paint(AntiAlias=True, Color=col(e.get("rgb", RED), 0.8 * (1 - u)), Style=skia.Paint.kStroke_Style, StrokeWidth=(6 * (1 - u) + 1) * 4))
+            c.drawCircle(0, 0, R * p[2], skia.Paint(AntiAlias=True, Color=col(e.get("rgb", self.alert), 0.8 * (1 - u)), Style=skia.Paint.kStroke_Style, StrokeWidth=(6 * (1 - u) + 1) * 4))
             c.restore()
         elif kind == "ring_wall":
             u = age / e.get("life", 0.7)
@@ -696,6 +738,36 @@ class SkiaRenderer:
             a = math.sin(math.pi * u)
             c.drawPath(self.poly([(x - 10, 0, 690), (x + 10, 0, 690), (x + 10, self.rh, 690), (x - 10, self.rh, 690)]),
                        skia.Paint(AntiAlias=True, Color=col((150, 250, 255), 0.5 * a), BlendMode=skia.BlendMode.kPlus))
+        elif kind == "burst":  # hard impact: radial speed streaks hugging the surface + debris flicks
+            u = age / e.get("life", 0.32)
+            if not 0 <= u <= 1:
+                return
+            nx, ny = e["n"]
+            tx_, ty_ = ny, -nx
+            rng = np.random.default_rng(e.get("seed", 1))
+            st = e.get("strength", 1.0)
+            grow = 1 - (1 - u) ** 3
+            for i in range(14):
+                ang = rng.uniform(-1.25, 1.25)  # mostly along the surface, some lifting off it
+                side = 1 if i % 2 else -1
+                dx = tx_ * side * math.cos(ang) + nx * abs(math.sin(ang))
+                dy = ty_ * side * math.cos(ang) + ny * abs(math.sin(ang))
+                L = rng.uniform(60, 150) * st
+                r0, r1 = 14 + L * 0.35 * grow, 14 + L * grow
+                a3 = self.P(e["x"] + dx * r0, e["y"] + dy * r0, 0)
+                b3 = self.P(e["x"] + dx * r1, e["y"] + dy * r1, 0)
+                c.drawLine(a3[0], a3[1], b3[0], b3[1], skia.Paint(AntiAlias=True, Color=col((235, 250, 255), 0.85 * (1 - u)),
+                                                                 StrokeWidth=max(1.0, 2.6 * a3[2] * (1 - u)), StrokeCap=skia.Paint.kRound_Cap))
+            for i in range(10):  # debris specks thrown off the surface
+                ang = rng.uniform(-1.4, 1.4)
+                v = rng.uniform(140, 320) * st
+                dx = tx_ * math.sin(ang) + nx * math.cos(ang)
+                dy = ty_ * math.sin(ang) + ny * math.cos(ang)
+                d = v * age
+                p3 = self.P(e["x"] + dx * d, e["y"] + dy * d, rng.uniform(-30, 30))
+                c.drawCircle(p3[0], p3[1], max(1.0, 2.2 * p3[2]), skia.Paint(AntiAlias=True, Color=col((200, 225, 235), 0.9 * (1 - u))))
+            p0 = self.P(e["x"], e["y"], 0)
+            self._glow(c, (p0[0], p0[1]), (40 + 160 * grow) * p0[2], (230, 250, 255), 0.55 * (1 - u))
         elif kind == "flash":  # short light burst (grab spark, door unlock, door open)
             u = age / e.get("life", 0.5)
             if not 0 <= u <= 1:

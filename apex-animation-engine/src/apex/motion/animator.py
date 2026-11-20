@@ -19,6 +19,15 @@ from ..scene.schema import CharacterStyle
 from .controller import NOTICE_DOUBLE_TAKE, PRESS_CONTACT_T, PRESS_H_CONTACT_T, SLIDE_DROP, TURN_DURATION, Event, Segment, StepRecord
 from .frames import GroundFrame
 from .gait import Gait, GaitParams
+from .library import NEUTRAL, MotionClip, Performance, get_clip, landing_clip
+
+
+def _ramp(t: float, a: float, b: float, blend: float) -> float:
+    if t < a or t > b:
+        return 0.0
+    return min(1.0, (t - a) / max(blend, 1e-6), (b - t) / max(blend, 1e-6))
+
+KNEE_CLEARANCE = 2.0  # knee may rest on a surface (kneeling) but not pass through it
 
 BLEND_IN = {"airborne": 0.16, "landing": 0.12, "loco": 0.18, "idle": 0.2, "press": 0.18, "turn": 0.06, "point": 0.12,
             "slide": 0.1, "crouch": 0.14, "swing": 0.08}
@@ -120,6 +129,7 @@ class Animator:
 
     def _prepare(self) -> None:
         plants: Optional[Tuple[float, float]] = None
+        u = (self.p.thigh + self.p.shin) / 86.0  # stance widths are authored for the reference leg (44 + 42); scale per rig
         for seg in self.segments:
             F = self.frames[seg.frame]
             f = seg.facing
@@ -132,21 +142,21 @@ class Animator:
                 prev = self.segments[self.segments.index(seg) - 1]
                 j = self.rig.world_joints(self._eval(prev, seg.t0))
                 ps = []
-                for side, default in (("n", s0 + 12.0 * f), ("f", s0 - 10.0 * f)):
+                for side, default in (("n", s0 + 12.0 * u * f), ("f", s0 - 10.0 * u * f)):
                     sa, _ = F.to_frame(j[f"ankle_{side}"])
-                    ps.append(clamp(sa, s0 - 24.0, s0 + 24.0) if math.isfinite(sa) else default)
-                if abs(ps[0] - ps[1]) < 10.0:  # keep a stable stance width
+                    ps.append(clamp(sa, s0 - 24.0 * u, s0 + 24.0 * u) if math.isfinite(sa) else default)
+                if abs(ps[0] - ps[1]) < 10.0 * u:  # keep a stable stance width
                     mid = (ps[0] + ps[1]) / 2
-                    ps = [mid + 6.0 * f, mid - 6.0 * f]
+                    ps = [mid + 6.0 * u * f, mid - 6.0 * u * f]
                 plants = (ps[0], ps[1])
                 seg.data["plants"] = plants
                 continue
             if plants is None:
                 s0 = self._rec(self.S, seg.t0, seg)
                 if seg.data.get("landing") or seg.data.get("from_slide"):
-                    plants = (s0 + 18.0 * f, s0 - 6.0 * f)
+                    plants = (s0 + 18.0 * u * f, s0 - 6.0 * u * f)
                 else:
-                    plants = (s0 + 9.0 * f, s0 - 9.0 * f)
+                    plants = (s0 + 9.0 * u * f, s0 - 9.0 * u * f)
             if seg.kind == "loco":
                 m = (self.T >= seg.t0 - 1e-9) & (self.T <= seg.t1 + 1e-9)
                 ts, ss = self.T[m], self.S[m]
@@ -178,7 +188,8 @@ class Animator:
         """After stopping, step any foot that ended far from the pelvis back under the body (balance correction)."""
         s = self._rec(self.S, seg.t0, seg)
         f = seg.facing
-        want = (s + 9.0 * f, s - 9.0 * f)
+        u = (self.p.thigh + self.p.shin) / 86.0
+        want = (s + 9.0 * u * f, s - 9.0 * u * f)
         steps, t = [], seg.t0 + 0.04
         order = sorted((0, 1), key=lambda k: -abs(plants[k] - want[k]))
         cur = list(plants)
@@ -245,6 +256,52 @@ class Animator:
             L[f"forearm_{side}"] = clamp(L.get(f"forearm_{side}", 0.3) + 0.55 * abs(da) + 0.4 * max(0.0, -dn), -0.05, 2.75)
         L["chest"] = L.get("chest", 0.0) + 0.4 * dn
         L["head"] = L.get("head", 0.0) + 0.7 * dn + 0.25 * da
+
+    # ------------------------------------------------------------ motion library (key-pose clips)
+    def _apply(self, pose: Pose, F: GroundFrame, s: float, v: Dict[str, float], grounded: bool = True) -> None:
+        """Apply character-agnostic channel values (see motion/library.py) to a pose."""
+        g = lambda c: v.get(c, NEUTRAL[c])
+        L = pose.local
+        h = (self.stand_h - 2.0) * (1.0 - g("crouch"))
+        if grounded:
+            pose.root = F.to_world(s + g("shift") * self.stand_h * pose.facing, h)
+        set_lean(L, g("lean"), chest=g("chest"), head=g("head"))
+        set_arm(L, "n", g("arm_n"), g("elbow_n"))
+        set_arm(L, "f", g("arm_f"), g("elbow_f"))
+        pose.twist, pose.hip_twist = g("twist"), g("hip_twist")
+        pose.eye = g("eye")
+        sy = g("squash")
+        if abs(sy - 1.0) > 1e-4:  # mostly vertical squash (horizontal squash would slide planted feet)
+            pose.squash = (1.0 + 0.3 * (1.0 - sy), sy)
+            pose.pivot_y = -h if grounded else 0.0
+        if not grounded:
+            for leg in ("thigh_n", "thigh_f"):
+                L[leg] = -PI / 2 + g(leg)
+            L["shin_n"], L["shin_f"] = g("shin_n"), g("shin_f")
+            L["foot_n"] = L["foot_f"] = PI / 2
+
+    def _contacts(self, pose: Pose, F: GroundFrame, clip: MotionClip, tc: float, s_mid: float) -> List[Tuple[str, float]]:
+        """Enforce a clip's declared contacts with IK (blended in position space). Returns active (effector, weight)."""
+        active = []
+        for c in clip.contacts:
+            w = _ramp(tc, c.t0, c.t1, c.blend)
+            if w <= 0.0:
+                continue
+            side = c.effector[-1]
+            j = self.rig.world_joints(pose)
+            if c.on == "surface":
+                tgt, tip = F.to_world(s_mid + pose.facing * c.s * self.stand_h, c.h * self.stand_h), True
+            else:
+                p0 = j[c.on.split(":", 1)[1]]
+                if c.toward:
+                    q = j[c.toward]
+                    p0 = (p0[0] + (q[0] - p0[0]) * c.frac, p0[1] + (q[1] - p0[1]) * c.frac)
+                tgt, tip = p0, False
+            cur = j[f"hand_{side}"] if tip else j[f"wrist_{side}"]
+            self.rig.arm_ik(pose, side, (cur[0] + (tgt[0] - cur[0]) * w, cur[1] + (tgt[1] - cur[1]) * w), fingertip=tip)
+            pose.hands[side] = "open"
+            active.append((c.effector, w))
+        return active
 
     # ------------------------------------------------------------ gaze
     def _gaze(self, pose: Pose, target: Optional[Vec], w: float, extra_tilt: float = 0.0) -> None:
@@ -345,15 +402,23 @@ class Animator:
                 if d < reach:
                     hmax = math.sqrt(reach * reach - d * d) + self.p.ankle_height
                     hp = min(hp, hmax)
-        pose.root = F.to_world(sp, hp)
         # foot pitch is authored relative to the SURFACE; convert to the (possibly tilted) character frame
         tilt = (pose.body_angle - F.body_angle) * (1.0 if pose.facing >= 0 else -1.0)
-        for k, side in enumerate("nf"):
-            h = lift[k] + self.p.ankle_height
-            # keep the toe above the surface: foot pitch may not point the toe below h=0
-            min_ang = -math.asin(clamp(h / self.p.foot, 0.0, 1.0))
-            ankle = F.to_world(plants[k], h)
-            self.rig.leg_ik(pose, side, ankle, max(angles[k], min_ang) - tilt)
+        for _ in range(4):
+            pose.root = F.to_world(sp, hp)
+            for k, side in enumerate("nf"):
+                h = lift[k] + self.p.ankle_height
+                # keep the toe above the surface: foot pitch may not point the toe below h=0
+                min_ang = -math.asin(clamp(h / self.p.foot, 0.0, 1.0))
+                ankle = F.to_world(plants[k], h)
+                self.rig.leg_ik(pose, side, ankle, max(angles[k], min_ang) - tilt)
+            # joint-level collision constraint: a knee may touch the surface (kneeling) but never pass through it;
+            # lift the pelvis by the deficit and re-solve the legs
+            j = self.rig.world_joints(pose)
+            low = min(F.to_frame(j["knee_n"])[1], F.to_frame(j["knee_f"])[1])
+            if low >= KNEE_CLEARANCE - 0.05:
+                break
+            hp += (KNEE_CLEARANCE - low) * 1.2
 
     def _base(self, seg: Segment, t: float) -> Tuple[Pose, GroundFrame]:
         F = self.frames[seg.frame]
@@ -392,33 +457,20 @@ class Animator:
             tilt = Track.of((0.0, 0.0), (0.3, -0.35), (0.55, -0.1), (1.15, -0.15), (1.4, 0.05))
             pose.head_facing = 1.0 if look(tau) > 0 else -1.0
             L["head"] = -tilt(tau)
-        knees = 0.0
-        if seg.data.get("settle"):
-            R = RECOVER
-            k = seg.data.get("settle_k", 1.0)  # harder landing -> deeper, longer relief
-            var = seg.data.get("variant", 0)
-            pant = 2.2 * k * math.sin(2 * PI * tau / 0.42) * smoothstep(0.2, 0.35, tau) * (1 - smoothstep(0.8, 1.1, tau))  # catching breath
-            pose.root = F.to_world(s + 2.5 * sway * seg.facing, self.stand_h - 2.0 - k * R["crouch"](tau) + 1.2 * breath + pant)
-            shake = 0.0
-            if var % 2 == 1:  # second relief: a disbelieving head shake before straightening up
-                shake = 0.32 * math.sin(2 * PI * (tau - 0.55) / 0.26) * smoothstep(0.5, 0.6, tau) * (1 - smoothstep(0.85, 0.98, tau))
-            set_lean(L, k * R["lean"](tau), chest=-0.1 * R["knees"](tau), head=R["head"](tau) + shake)
-            sy = 1.0 + (R["sy"](tau) - 1.0) * k
-            pose.squash = (1.0 / math.sqrt(sy), sy)
-            pose.pivot_y = -(self.stand_h - 2.0)
-            pose.eye = R["eye"](tau)
-            knees = R["knees"](tau)
-        if seg.data.get("tense"):  # braced, eyes on what is coming
-            whoa = 0.0
-            for ts in self.shift_times:  # the floor starts to tilt away: arms fly out, knees give, eyes wide
-                if seg.t0 <= ts <= t:
-                    whoa = smoothstep(ts, ts + 0.14, t)
-            pose.root = F.to_world(s, self.stand_h - 8.0 - 10.0 * whoa + 1.5 * math.sin(2 * PI * tau / 1.1))
-            set_lean(L, 0.16 - 0.22 * whoa, chest=-0.05)
-            set_arm(L, "n", lerp(0.55, 1.9, whoa), lerp(1.2, 0.4, whoa))
-            set_arm(L, "f", lerp(0.35, -1.5, whoa), lerp(1.4, 0.5, whoa))
-            pose.eye = 1.3 + 0.5 * whoa
-            if whoa > 0.5:
+        clip, ctau = None, 0.0
+        if seg.data.get("settle"):  # relief after a hard landing (motion library; second relief = head-shake variant)
+            clip = get_clip("recover_relief_shake" if seg.data.get("variant", 0) % 2 == 1 else "recover_relief")
+            perf = Performance(intensity=seg.data.get("settle_k", 1.0), emotion="relieved")
+            ctau = tau * perf.effective()[0]
+            v = clip.sample(tau, perf)
+            self._apply(pose, F, s + 2.5 * sway * seg.facing * smoothstep(0.9, 1.2, tau), v)
+        if seg.data.get("tense"):  # braced, eyes on what is coming; when the floor tilts away: lose balance
+            lb = get_clip("lose_balance")
+            ts_hit = max((ts for ts in self.shift_times if seg.t0 <= ts <= t), default=None)
+            v = lb.sample(0.0 if ts_hit is None else t - ts_hit)
+            v["crouch"] = v.get("crouch", 0.0) - 0.017 * math.sin(2 * PI * tau / 1.1)  # tense breathing
+            self._apply(pose, F, s, v)
+            if ts_hit is not None and t - ts_hit > 0.12:
                 pose.hands = {"n": "open", "f": "open"}
         if seg.data.get("look_back"):  # last look at the room from the doorway
             lb = smoothstep(0.0, 0.3, tau) * (1 - smoothstep(seg.data.get("pause", 1.0) - 0.25, seg.data.get("pause", 1.0), tau))
@@ -429,16 +481,8 @@ class Animator:
             pose.eye = 1.0 + 0.2 * lb
         plants, lift, ang = self._settle_feet(seg, t)
         self._legs(pose, F, plants, lift, ang)
-        if knees > 0:  # hands on the knees (IK to just above each knee)
-            j = self.rig.world_joints(pose)
-            for side in "nf":
-                fk = {k: L[k] for k in (f"upper_arm_{side}", f"forearm_{side}")}
-                kp, hp = j[f"knee_{side}"], j[f"hip_{side}"]
-                tgt = (kp[0] + (hp[0] - kp[0]) * 0.18, kp[1] + (hp[1] - kp[1]) * 0.18)
-                self.rig.arm_ik(pose, side, tgt)
-                for k, v in fk.items():
-                    L[k] = lerp_angle(v, L[k], knees)
-                pose.hands[side] = "open" if knees > 0.5 else pose.hands.get(side, "fist")
+        if clip is not None and clip.contacts:  # hands on the knees etc. (declared clip contacts)
+            self._contacts(pose, F, clip, ctau, (plants[0] + plants[1]) / 2)
         g, w = self._seg_gaze(seg, t)
         self._gaze(pose, g, w)
         return pose
@@ -714,18 +758,18 @@ class Animator:
                         pose.hands["n"] = "open"
                         pose.eye = 1.15 + 0.5 * w
         else:
-            fl = 1.0 - b
-            w = 11.0
-            set_lean(L, -0.25 * fl + 0.15 * b + 0.15 * math.sin(tau * 6) * fl, head=0.3 * fl - 0.35 * b)
-            set_arm(L, "n", (2.3 + 0.6 * math.sin(tau * w)) * fl + 1.5 * b, 0.35 + 0.3 * abs(math.sin(tau * w + 1)) * fl)
-            set_arm(L, "f", (-2.1 + 0.6 * math.sin(tau * w + 2.1)) * fl - 0.7 * b, 0.4 + 0.3 * abs(math.sin(tau * w + 3)) * fl)
-            L["thigh_n"] = -PI / 2 + (0.5 + 0.55 * math.sin(tau * 9.0)) * fl + 0.15 * b
-            L["shin_n"] = -(0.5 + 0.45 * abs(math.sin(tau * 9.0 + 1.2))) * fl - 0.12 * b
-            L["thigh_f"] = -PI / 2 + (-0.2 + 0.55 * math.sin(tau * 9.0 + PI)) * fl - 0.1 * b
-            L["shin_f"] = -(0.6 + 0.45 * abs(math.sin(tau * 9.0 + 4.3))) * fl - 0.15 * b
-            pose.eye = 1.6
+            # key-posed fall (motion library): balance lost -> irregular flail (reach / windmill / kick / scramble)
+            # -> brace toward the predicted landing as the surface approaches
+            lose = get_clip("lose_balance").sample(0.24 + 0.6 * tau)
+            fall = get_clip("fall_flail").sample(tau, Performance(emotion="afraid"))
+            k = smoothstep(0.06, 0.34, tau)
+            v = {c: lerp(lose.get(c, NEUTRAL[c]), fall.get(c, NEUTRAL[c]), k) for c in set(lose) | set(fall)}
+            if b > 0:
+                br = get_clip("brace").sample(0.3 * b)
+                wb = smoothstep(0.0, 1.0, b)
+                v = {c: lerp(v.get(c, NEUTRAL[c]), br.get(c, NEUTRAL[c]), wb) for c in set(v) | set(br)}
+            self._apply(pose, None, 0.0, v, grounded=False)
             pose.hands = {"n": "open", "f": "open"}
-            pose.twist = 0.6 * math.sin(tau * 7.0) * fl
             bp = seg.data.get("brace_point")
             if bp is not None and b > 0:
                 self._gaze(pose, bp, clamp(b * 1.5, 0, 1))
@@ -744,46 +788,24 @@ class Animator:
 
     # -- landing: compression, follow-through, balance wobble (feet stay planted)
     def _eval_landing(self, seg: Segment, t: float) -> Pose:
+        """Landing as a key-pose performance (motion library) chosen and scaled by impact speed; the physics supplies
+        the contact point, planted feet and the balance wobble of the body angle."""
         pose, F = self._base(seg, t)
         tc = clamp(t, seg.t0, seg.t1)
         pose.body_angle = self._rec(self.ANG, tc)
         tau = tc - seg.t0
-        h = self._rec(self.H, tc)
-        c = clamp((self.stand_h - h) / 50.0, 0.0, 1.2)
+        name, perf = landing_clip(seg.data.get("approach", 600.0))
+        clip = get_clip(name)
+        v = clip.sample(tau, perf)
+        s = self._rec(self.S, tc)
+        self._apply(pose, F, s, v)
         err = pose.body_angle - F.body_angle
-        L = pose.local
-        set_lean(L, 0.12 + 0.95 * c, chest=-0.15 * c, head=-0.55 * c)
-        wind = clamp(abs(err) * 4.0, 0, 1)
-        tp = smoothstep(0.55, 0.8, clamp((seg.data.get("approach", 600.0) - 700.0) / 800.0, 0.0, 1.0))  # three-point amount
-        set_arm(L, "n", 0.5 + 1.5 * c + wind * 1.2 * math.sin(tau * 13), 0.5 + 0.4 * c)
-        set_arm(L, "f", 0.3 + 1.2 * c - wind * 1.2 * math.sin(tau * 13 + 1.5), 0.6 + 0.4 * c)
-        if tp > 0:  # hard landing: the far arm keeps the orientation it had at touchdown (thrown back for balance)
-            i = self.segments.index(seg)
-            if i > 0:
-                pa = self._eval(self.segments[i - 1], seg.t0)
-                ca = pa.local.get("spine", PI / 2) + pa.local.get("chest", 0.0) + pa.body_angle * pa.facing
-                cl = L.get("spine", PI / 2) + L.get("chest", 0.0) + pose.body_angle * pose.facing
-                L["upper_arm_f"] = lerp_angle(L["upper_arm_f"], wrap_angle(pa.local["upper_arm_f"] + ca - cl), tp)
-                L["forearm_f"] = lerp(L["forearm_f"], pa.local["forearm_f"], tp)
-        heavy = clamp((seg.data.get("approach", 600.0) - 700.0) / 800.0, 0.0, 1.0)
-        imp = smoothstep(0.0, 0.03, tau) * (1 - smoothstep(0.05 + 0.04 * heavy, 0.16 + 0.08 * heavy, tau))
-        sy = 1.0 - 0.12 * imp  # heavier impact: same squash depth (bone/foot limits), held longer
-        # mostly vertical: horizontal squash scales about the pelvis and would slide the planted feet
-        pose.squash = (1.0 + 0.03 * imp, sy)
-        pose.pivot_y = -h
-        pose.eye = lerp(1.6, 1.15, smoothstep(0, 0.6, tau))
+        wind = clamp(abs(err) * 4.0, 0, 1)  # balance: arms counter the body's wobble
+        pose.twist += 0.35 * wind * math.sin(tau * 13)
         pose.hands = {"n": "open", "f": "open"}
-        pose.twist = 0.5 * wind * math.sin(tau * 13)
-        L["head"] = L.get("head", 0.0) - 0.35 * heavy * imp  # head keeps travelling into the impact
         self._legs(pose, F, seg.data["plants"])
-        if heavy > 0.55:  # hard landing: three-point touch, the near hand slams down ahead of the feet
-            w = smoothstep(0.03, 0.22, tau) * (1 - smoothstep(0.36, 0.64, tau)) * smoothstep(0.55, 0.8, heavy)
-            if w > 0:
-                fk = {kk: L[kk] for kk in ("upper_arm_n", "forearm_n", "hand_n")}
-                s0 = seg.data["s0"]
-                self.rig.arm_ik(pose, "n", F.to_world(s0 + pose.facing * 30.0, 3.0), fingertip=True)
-                for kk, v in fk.items():
-                    L[kk] = lerp_angle(v, L[kk], w)
+        plants = seg.data["plants"]
+        self._contacts(pose, F, clip, tau * perf.effective()[0], (plants[0] + plants[1]) / 2)
         return pose
 
     # ------------------------------------------------------------ for QA

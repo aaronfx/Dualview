@@ -230,26 +230,26 @@ def test_camera_rolls_with_gravity_both_ways(escape_runtime, escape_project):
     from apex.render.pipeline import build_camera
     cam = build_camera(escape_runtime, 16 / 9)
     s06 = next(s for s in cam.shots if s.id == "s06_recover")
-    turn = next(s for s in cam.shots if s.id == "s14_turn")
-    swing = next(s for s in cam.shots if s.id == "s15_swing")
+    relief = next(s for s in cam.shots if s.id == "s15_relief_door")
     assert abs(cam.at(s06.end - 1e-3).roll - 90) < 3
-    assert abs(cam.at(turn.end - 1e-3).roll + 90) < 3  # turned back the other way (CW gravity sweep)
-    rates = [abs(cam.at(t + 1 / 24).roll - cam.at(t).roll) * 24 for t in np.arange(turn.start, turn.end - 0.05, 1 / 24)]
+    assert abs(cam.at(relief.end - 1e-3).roll + 90) < 3  # turned back the other way (CW gravity sweep)
+    rates = [abs(cam.at(t + 1 / 24).roll - cam.at(t).roll) * 24 for t in np.arange(relief.start, relief.end - 0.05, 1 / 24)]
     assert max(rates) <= 150
 
 
-def test_camera_turn_happens_while_dangling_not_while_swinging(escape_runtime):
-    """1D review: the 180-degree roll made the swing hard to read. The roll now completes while AXEL dangles
-    (before pumping starts) and the swing plays under a stable camera."""
+def test_no_roll_during_the_catch_swing_and_drop(escape_runtime):
+    """Quality upgrade: the swing is staged world-fixed (re-establishing wide, then catch/swing/drop with no roll) so
+    spatial orientation is preserved; the single quarter-turn to the new gravity happens in the still relief beat."""
     from apex.render.pipeline import build_camera
     cam = build_camera(escape_runtime, 16 / 9)
-    an = escape_runtime.result.animators["axel"]
-    seg = next(s for s in an.segments if s.kind == "swing")
-    pump0 = seg.data["pumps"][0][0]
-    assert pump0 >= seg.t0 + seg.data["hang"] - 1e-6
-    swing = next(s for s in cam.shots if s.id == "s15_swing")
-    rolls = [cam.at(float(t)).roll for t in np.arange(max(pump0, swing.start), swing.end - 1e-3, 1 / 24)]
-    assert max(rolls) - min(rolls) < 1.0  # no camera roll while pumping, releasing and dropping
+    shots = {s.id: s for s in cam.shots}
+    for sid in ("s12_reestablish", "s13_catch_swing", "s14_drop_land"):
+        sh = shots[sid]
+        rolls = [cam.at(float(t)).roll for t in np.arange(sh.start, sh.end - 1e-3, 1 / 24)]
+        assert max(rolls) - min(rolls) < 1.0, sid
+    sw = shots["s13_catch_swing"]
+    g = _ev(escape_runtime, "grab")
+    assert sw.start < g.t < sw.end and "bar:rail" in sw.camera.include
 
 
 def test_inspector_passes_1d(escape_report):

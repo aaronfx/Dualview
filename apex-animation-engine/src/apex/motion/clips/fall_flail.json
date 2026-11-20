@@ -1,0 +1,99 @@
+{
+ "name": "fall_flail",
+ "duration": 1.05,
+ "loop": true,
+ "description": "Uncontrolled fall: irregular key poses (reach, windmill, kick, scramble), arcs not sine waves.",
+ "keys": [
+  {
+   "t": 0.0,
+   "name": "reach",
+   "pose": {
+    "lean": -0.25,
+    "head": -0.2,
+    "arm_n": 2.6,
+    "elbow_n": 0.3,
+    "arm_f": 1.9,
+    "elbow_f": 0.55,
+    "thigh_n": 0.65,
+    "shin_n": -0.35,
+    "thigh_f": -0.3,
+    "shin_f": -0.95,
+    "eye": 1.75,
+    "twist": 0.3
+   }
+  },
+  {
+   "t": 0.28,
+   "name": "windmill",
+   "pose": {
+    "lean": -0.08,
+    "head": 0.05,
+    "arm_n": 0.5,
+    "elbow_n": 1.25,
+    "arm_f": 3.05,
+    "elbow_f": 0.2,
+    "thigh_n": -0.25,
+    "shin_n": -1.05,
+    "thigh_f": 0.85,
+    "shin_f": -0.3,
+    "eye": 1.6,
+    "twist": -0.4
+   }
+  },
+  {
+   "t": 0.52,
+   "name": "kick",
+   "interp": "snap",
+   "pose": {
+    "lean": -0.32,
+    "head": -0.15,
+    "arm_n": 2.9,
+    "elbow_n": 0.25,
+    "arm_f": 0.75,
+    "elbow_f": 0.9,
+    "thigh_n": 1.0,
+    "shin_n": -0.2,
+    "thigh_f": 0.05,
+    "shin_f": -1.25,
+    "eye": 1.85,
+    "twist": 0.45
+   }
+  },
+  {
+   "t": 0.8,
+   "name": "scramble",
+   "pose": {
+    "lean": -0.12,
+    "head": 0.1,
+    "arm_n": 1.3,
+    "elbow_n": 1.05,
+    "arm_f": 2.25,
+    "elbow_f": 0.5,
+    "thigh_n": 0.2,
+    "shin_n": -0.7,
+    "thigh_f": 0.7,
+    "shin_f": -0.45,
+    "eye": 1.65,
+    "twist": -0.2
+   }
+  },
+  {
+   "t": 1.05,
+   "name": "reach",
+   "pose": {
+    "lean": -0.25,
+    "head": -0.2,
+    "arm_n": 2.6,
+    "elbow_n": 0.3,
+    "arm_f": 1.9,
+    "elbow_f": 0.55,
+    "thigh_n": 0.65,
+    "shin_n": -0.35,
+    "thigh_f": -0.3,
+    "shin_f": -0.95,
+    "eye": 1.75,
+    "twist": 0.3
+   }
+  }
+ ]
+}

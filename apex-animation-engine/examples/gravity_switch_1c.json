@@ -238,7 +238,7 @@
     {
      "id": "s5_shift",
      "start": 8.0,
-     "end": 9.75,
+     "end": 10.4,
      "kind": "tracking",
      "description": "wide tracking: gravity rotates, AXEL loses support, falls, braces, lands",
      "camera": {
@@ -274,7 +274,7 @@
     },
     {
      "id": "s6_recover",
-     "start": 9.75,
+     "start": 10.4,
      "end": 14.0,
      "kind": "medium",
      "description": "camera rolls to the new gravity: wall becomes floor; AXEL recovers, notices and points at the exit",

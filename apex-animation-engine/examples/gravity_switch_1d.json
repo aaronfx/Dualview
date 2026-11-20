@@ -210,7 +210,7 @@
      "release_deg": 30.0,
      "swings": 1,
      "face": -1,
-     "duration": 1.85
+     "duration": 1.0
     },
     {
      "character": "axel",
@@ -333,7 +333,7 @@
     },
     {
      "start": 7.25,
-     "end": 8.95,
+     "end": 9.6,
      "id": "s05_shift",
      "kind": "tracking",
      "description": "G0 -> G1 (+90 deg): loses support, falls to the right wall, braces, lands",
@@ -373,8 +373,8 @@
      ]
     },
     {
-     "start": 8.95,
-     "end": 11.0,
+     "start": 9.6,
+     "end": 11.45,
      "id": "s06_recover",
      "kind": "medium",
      "description": "the camera turns with gravity; relief (exhale, hands on knees); double take: something far above",
@@ -404,8 +404,8 @@
      ]
     },
     {
-     "start": 11.0,
-     "end": 11.7,
+     "start": 11.45,
+     "end": 12.15,
      "id": "s07_door_pov",
      "kind": "insert",
      "description": "POV: the sealed exit, high on the far end wall (the old ceiling)",
@@ -430,8 +430,8 @@
      ]
     },
     {
-     "start": 11.7,
-     "end": 12.75,
+     "start": 12.15,
+     "end": 13.2,
      "id": "s08_point",
      "kind": "medium",
      "description": "AXEL points at it, then spots the second switch",
@@ -459,8 +459,8 @@
      ]
     },
     {
-     "start": 12.75,
-     "end": 13.4,
+     "start": 13.2,
+     "end": 13.85,
      "id": "s09_switch_pov",
      "kind": "insert",
      "description": "POV: the second switch on the end wall",
@@ -475,8 +475,8 @@
      }
     },
     {
-     "start": 13.4,
-     "end": 16.0,
+     "start": 13.85,
+     "end": 16.45,
      "id": "s10_slide",
      "kind": "tracking",
      "description": "sprint along the wall, slide under the conduit beam",
@@ -505,8 +505,8 @@
      ]
     },
     {
-     "start": 16.0,
-     "end": 18.45,
+     "start": 16.45,
+     "end": 19.0,
      "id": "s11_slap",
      "kind": "medium",
      "description": "end wall: looks up, jumps, slaps the switch mid-air, lands",
@@ -536,39 +536,19 @@
      ]
     },
     {
-     "start": 18.45,
-     "end": 18.95,
-     "id": "s12_rail_pov",
-     "kind": "insert",
-     "description": "POV: he eyes the rail mid-room (braced, waiting for the switch to act)",
+     "start": 19.0,
+     "end": 19.95,
+     "id": "s12_reestablish",
+     "kind": "establishing",
+     "description": "re-establishing wide in the film's home orientation: AXEL high on the right wall, the rail mid-room, the far wall; the second switch acts",
      "camera": {
       "mode": "static",
       "center": [
-       330,
-       1270
+       40,
+       1010
       ],
-      "view_height": 440,
-      "roll": 90
-     }
-    },
-    {
-     "start": 18.95,
-     "end": 20.05,
-     "id": "s13_reverse",
-     "kind": "wide",
-     "description": "G1 -> G2 (-180 deg, back through the original down): he falls 'up' the screen, tumbles feet-first, catches the rail",
-     "camera": {
-      "mode": "follow",
-      "target": "axel",
-      "view_height": 640,
-      "offset": [
-       60,
-       -300
-      ],
-      "lead": 0.2,
-      "stiffness": 5.0,
-      "roll": 90,
-      "shake": 0.8
+      "view_height": 1150,
+      "roll": 0
      },
      "sound_cues": [
       {
@@ -580,7 +560,36 @@
        "on_event": "lost_support",
        "sound": "whoosh",
        "gain": 1.0
-      },
+      }
+     ],
+     "exit_conditions": [
+      "event:gravity_shift",
+      "event:lost_support"
+     ]
+    },
+    {
+     "start": 19.95,
+     "end": 22.1,
+     "id": "s13_catch_swing",
+     "kind": "tracking",
+     "description": "no roll: he falls across the room, tumbles feet-first, catches the rail (kept in frame), dangles, pumps, lets go at the top",
+     "camera": {
+      "mode": "follow",
+      "target": "axel",
+      "view_height": 720,
+      "offset": [
+       -110,
+       -170
+      ],
+      "lead": 0.15,
+      "stiffness": 5.0,
+      "roll": 0,
+      "shake": 0.8,
+      "include": [
+       "bar:rail"
+      ]
+     },
+     "sound_cues": [
       {
        "on_event": "grab",
        "sound": "clank",
@@ -588,49 +597,28 @@
       }
      ],
      "exit_conditions": [
-      "event:gravity_shift",
-      "event:grab"
+      "event:grab",
+      "event:release"
      ]
     },
     {
-     "start": 20.05,
-     "end": 21.95,
-     "id": "s14_turn",
-     "kind": "medium",
-     "description": "dangling from the rail: the room turns with gravity around him; he looks down at the drop, then at the door",
-     "camera": {
-      "mode": "follow",
-      "target": "axel",
-      "view_height": 600,
-      "offset": [
-       -110,
-       0
-      ],
-      "lead": 0.0,
-      "stiffness": 6.0,
-      "roll": 90,
-      "roll_end": -90,
-      "roll_ease": "sine"
-     }
-    },
-    {
-     "start": 21.95,
-     "end": 24.75,
-     "id": "s15_swing",
+     "start": 22.1,
+     "end": 23.75,
+     "id": "s14_drop_land",
      "kind": "tracking",
-     "description": "pumps, swings, lets go at the top, drops, lands hard by the door",
+     "description": "drop to the far wall, three-point landing",
      "camera": {
       "mode": "follow",
       "target": "axel",
-      "view_height": 820,
+      "view_height": 640,
       "offset": [
-       -150,
-       60
+       60,
+       40
       ],
-      "lead": 0.15,
-      "stiffness": 4.0,
-      "roll": -90,
-      "shake": 0.8
+      "lead": 0.2,
+      "stiffness": 4.5,
+      "roll": 0,
+      "shake": 1.0
      },
      "sound_cues": [
       {
@@ -640,27 +628,30 @@
       }
      ],
      "exit_conditions": [
-      "event:release",
       "grounded_on:wall_left"
      ]
     },
     {
-     "start": 24.75,
-     "end": 26.3,
-     "id": "s16_relief",
+     "start": 23.75,
+     "end": 25.9,
+     "id": "s15_relief_door",
      "kind": "medium",
-     "description": "relief (head shake); the door slides open behind him",
+     "description": "relief (head shake) while the camera turns a quarter with gravity (he is still); the door slides open",
      "camera": {
       "mode": "follow",
       "target": "axel",
       "view_height": 600,
       "offset": [
-       -40,
-       140
+       60,
+       40
       ],
       "lead": 0.1,
-      "stiffness": 2.5,
-      "roll": -90
+      "stiffness": 3.0,
+      "roll": 0,
+      "roll_mode": "align_gravity",
+      "include": [
+       "exit:door1"
+      ]
      },
      "sound_cues": [
       {
@@ -679,15 +670,15 @@
      ]
     },
     {
-     "start": 26.3,
+     "start": 25.9,
      "end": 30.0,
-     "id": "s17_exit",
+     "id": "s16_exit",
      "kind": "wide",
-     "description": "walks to the doorway, stops, looks back at the room, steps into the light; the door closes; fade out",
+     "description": "walks to the doorway, looks back at the room, steps into the light; the door closes; fade out",
      "camera": {
       "mode": "dolly",
       "center": [
-       -440,
+       -430,
        1250
       ],
       "center_end": [

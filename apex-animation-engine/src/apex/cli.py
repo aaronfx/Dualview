@@ -39,6 +39,13 @@ def main(argv=None) -> int:
     s.add_argument("--host", default="127.0.0.1")
     s.add_argument("--port", type=int, default=8077)
     sub.add_parser("schema", help="print the JSON schema")
+    rv = sub.add_parser("review", help="write a human-review packet (rubric + objective metrics) for a render")
+    rv.add_argument("project")
+    rv.add_argument("out_dir")
+    rv.add_argument("--scene")
+    rv.add_argument("--video")
+    rv.add_argument("--qa-json")
+    rv.add_argument("--ai", action="store_true", help="add AI Director correction suggestions (needs a configured provider)")
     a = ap.parse_args(argv)
 
     if a.cmd == "validate":
@@ -58,6 +65,12 @@ def main(argv=None) -> int:
         if res.qa:
             print(res.qa.summary())
             return 0 if res.qa.passed else 2
+        return 0
+    if a.cmd == "review":
+        from .qa.review import build_review_packet
+        proj = _load(a.project)
+        md = build_review_packet(proj, a.scene or proj.scenes[0].id, a.out_dir, a.video, a.qa_json, with_ai=a.ai)
+        print(f"wrote {md} and review_scores.json (human reviewers score; metrics are listed separately)")
         return 0
     if a.cmd == "plan":
         from .ai.director import StoryDirector
