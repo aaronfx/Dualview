@@ -33,6 +33,9 @@ def test_jointed_rescue_samples_are_physical_and_deterministic():
             pose = rt.result.animators["milo"].pose_at(t)
             assert all(math.isfinite(a) for a in pose.local.values())
         assert any(e.type == "body_fall" and e.character == "milo" for e in rt.result.events)
+        # All downstream story beats must survive the experimental fall.
+        event_types = {event.type for event in rt.result.events}
+        assert {"pinned", "crawl_start", "freed", "hand_grab", "stood_up", "fist_bump"} <= event_types
     finally:
         for key, value in previous.items():
             if value is None:
