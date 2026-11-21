@@ -94,7 +94,9 @@ class PhysicsWorld:
         body.position = pos
         shape = pymunk.Segment(body, a, b, radius)
         shape.friction, shape.elasticity, shape.collision_type = 0.9, 0.0, CT_CHARACTER
-        shape.filter = pymunk.ShapeFilter(categories=CAT_CHAR, mask=ALL ^ CAT_PROP)  # standing bodies pass props by
+        # Physical props must collide with standing *and* prone characters.
+        # Props explicitly marked collide_characters=False still exclude CAT_CHAR.
+        shape.filter = pymunk.ShapeFilter(categories=CAT_CHAR, mask=ALL)
         self._shapes[tag] = shape
         self._mass_moment[tag] = (mass, moment)
         self.space.add(body, shape)
@@ -214,7 +216,11 @@ class PhysicsWorld:
         sh.body.each_arbiter(upd)
 
     def set_solid_to_props(self, tag: str, solid: bool) -> None:
-        """A standing character passes in front of props (2.5D); a lying one is solid, so props can come to rest on it."""
+        """Control prop collision explicitly (e.g. ghosts), independent of posture.
+
+        Ordinary standing, falling and prone characters are solid to props.
+        Individual props may opt out via collide_characters=False.
+        """
         sh = self._shapes[tag]
         sh.filter = pymunk.ShapeFilter(group=sh.filter.group, categories=CAT_CHAR, mask=ALL if solid else ALL ^ CAT_PROP)
 
