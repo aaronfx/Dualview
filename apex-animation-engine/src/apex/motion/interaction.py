@@ -289,7 +289,7 @@ class InteractionMixin:
             # previous kinematic path, the body is now simulated by Chipmunk.
             self.world.make_dynamic(
                 self.cid,
-                vel=(d * v0 * 0.72 * tangent[0], d * v0 * 0.72 * tangent[1]),
+                vel=(d * v0 * 0.44 * tangent[0], d * v0 * 0.44 * tangent[1]),
                 angvel=-self.facing * 1.5,
             )
         self._open("fall", t, dir=d, s0=self.s, active_fall=active)
@@ -338,7 +338,7 @@ class InteractionMixin:
             target_s = I["s0"] + d * (I["v0"] * 0.12 * u + 0.55 * self.stand_h * target_progress)
             tangent = self.frame.tangent
             speed_s = st.vel[0] * tangent[0] + st.vel[1] * tangent[1]
-            drive = clamp(70.0 * (target_s - s) - 17.0 * speed_s, -3800.0, 3800.0) * 70.0
+            drive = clamp(125.0 * (target_s - s) - 23.0 * speed_s, -5000.0, 5000.0) * 70.0
             self.world.apply_force(self.cid, (tangent[0] * drive, tangent[1] * drive), st.pos)
             final_angle = self.frame.body_angle - self.facing * math.pi / 2
             remain = abs(math.atan2(math.sin(final_angle - st.angle), math.cos(final_angle - st.angle)))
