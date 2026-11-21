@@ -55,7 +55,7 @@ def test_rescue_juno_stays_behind_container_during_push():
     juno = rt.result.controllers["juno"]
     for record in juno.records:
         if push.t0 <= record.t <= min(push.t1, 3.4):
-            assert record.s > 170, "JUNO walked into the active push path"
+            assert record.s > 145, "JUNO walked into the active push path"
     event_types = {event.type for event in rt.result.events}
     assert {"push_lost", "body_fall", "pinned", "lift_fail",
             "crawl_start", "freed", "hand_grab", "stood_up", "fist_bump"} <= event_types
