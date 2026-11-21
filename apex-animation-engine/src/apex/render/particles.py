@@ -91,7 +91,7 @@ class Particles:
                 kind = "dust"
             elif e.type == "hit":
                 kind = "spark"
-            elif e.type == "break":
+            elif e.type in ("break", "creature_break"):
                 kind = "debris"
             elif e.type == "morph":
                 kind = "collect"  # a shimmer where the new shape appears

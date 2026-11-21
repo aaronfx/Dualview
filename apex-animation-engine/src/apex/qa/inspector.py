@@ -132,7 +132,7 @@ class Inspector:
                    self.check_gravity, self.check_geometry, self.check_camera, self.check_camera_motion, self.check_continuity,
                    self.check_secondary, self.check_exit_conditions, self.check_interactions, self.check_composition,
                    self.check_combat, self.check_acrobatics, self._props_through_bodies, self.check_arcade, self.check_particles,
-                   self.check_breakables, self.check_morphs, self.check_diagrams):
+                   self.check_breakables, self.check_morphs, self.check_diagrams, self.check_creatures):
             rep.checks.extend(fn())
         rep.checks.extend(self.check_time_fx())
         rep.checks.extend(self.check_beats(video))
@@ -1156,6 +1156,36 @@ class Inspector:
                       f"{n} shown values re-derived independently; worst relative disagreement ({where})"),
                 Check("diagrams_in_frame", "PASS" if tot == 0 or vis / tot >= 0.9 else "WARN", vis / max(1, tot), 0.9,
                       "share of shown annotations whose anchor is on screen")]
+
+    def check_creatures(self) -> List[Check]:
+        """Composite creatures (Milestone 5), from the tracks:
+        - creature_joints_hold: until it is torn apart, every limb stays on its joint (the two ends of each joint agree);
+        - creature_breaks_at_threshold: it only came apart under a blow at or above its threshold;
+        - creature_follows_path: while intact and unhindered, the body keeps to its path (a lag means the drive or the
+          gait is fighting the physics)."""
+        drivers = getattr(self.r, "creatures", []) or []
+        if not drivers:
+            return []
+        worst_j, worst_p, n = 0.0, 0.0, 0
+        T = self.r.prop_times
+        for dv in drivers:
+            end = dv.broken_t if dv.broken_t is not None else T[-1]
+            for i in range(0, len(T), 12):
+                if T[i] >= end:
+                    break
+                worst_j = max(worst_j, dv.joint_error(self.r.prop_tracks, i))
+                if dv.pt[0] + 0.6 <= T[i] <= dv.pt[-1]:
+                    x = self.r.prop_tracks[dv.body_tag][i][0]
+                    worst_p = max(worst_p, abs(x - dv.target(T[i])[0]))
+                n += 1
+        brk = [e for e in self.r.events if e.type == "creature_break"]
+        under = [e for e in brk if e.data["impulse"] < e.data["threshold"]]
+        return [Check("creature_joints_hold", "PASS" if worst_j <= 3.0 else "FAIL", worst_j, 3.0,
+                      f"{len(drivers)} creature(s), {n} samples: largest gap between the two ends of a joint (units)"),
+                Check("creature_breaks_at_threshold", "PASS" if not under else "FAIL", float(len(under)), 0.0,
+                      f"{len(brk)} creature(s) torn apart, each by a blow at or above its threshold"),
+                Check("creature_follows_path", "PASS" if worst_p <= 40.0 else "WARN", worst_p, 40.0,
+                      "largest lag behind the path while intact (units)")]
 
     def check_particles(self) -> List[Check]:
         """Event particles (Milestone 4): deterministic (two independent builds give identical particles at every

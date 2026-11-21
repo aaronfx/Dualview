@@ -355,7 +355,7 @@ DEFAULT_BINDINGS = {
     "orb_jump": "jump", "orb_boost": "whoosh", "orb_pad": "jump", "collect": "chime", "portal_enter": "pulse", "portal_exit": None,
     "beat_wait_end": None,
     # breakables, morphs, creatures (Milestone 5)
-    "break": "snap", "morph_start": "chime", "morph": None, "morph_blocked": None,
+    "break": "snap", "morph_start": "chime", "morph": None, "morph_blocked": None, "creature_break": "snap",
 }
 
 

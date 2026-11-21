@@ -151,6 +151,7 @@ class PropSpec(Strict):
     fragment_of: Optional[str] = None  # a piece of a breakable prop (made by the engine; exists once it breaks)
     local: Vec2 = (0.0, 0.0)  # a box piece's centre in its parent's frame
     morphs: List[MorphSpec] = Field(default_factory=list)  # Milestone 5: shape changes (glyph props)
+    creature_of: Optional[str] = None  # a part of a composite creature (made by the engine)
 
     @model_validator(mode="after")
     def _glyph(self) -> "PropSpec":
@@ -266,6 +267,61 @@ class LevelSpec(Strict):
     expanded: bool = False  # set once the grid has been expanded into the environment (re-validation does not repeat it)
 
 
+class CreaturePart(Strict):
+    """A limb or feature of a composite creature: a glyph hung on the body at `at` (body frame) by its `pivot` point
+    (its own frame; default: the top of a leg or arm, its centre otherwise)."""
+    glyph: str
+    size: Vec2 = (30.0, 40.0)
+    at: Vec2 = (0.0, 0.0)
+    pivot: Optional[Vec2] = None
+    role: Literal["leg", "arm", "tail", "head", "eye"] = "leg"
+    mass: float = Field(1.0, gt=0)
+    weight: Optional[float] = Field(None, gt=0)
+    color: Optional[str] = None
+    swing: float = Field(0.45, ge=0, le=1.5)  # gait swing of a leg or arm (rad)
+    phase: float = 0.0  # gait phase offset (rad); legs on alternate sides use 0 and pi
+
+    @model_validator(mode="after")
+    def _g(self) -> "CreaturePart":
+        from .glyphs import canonical
+        self.glyph = canonical(self.glyph)
+        if self.pivot is None:
+            self.pivot = (0.0, self.size[1] / 2) if self.role in ("leg", "arm") else (0.0, 0.0)
+        return self
+
+
+class CreatureSpec(Strict):
+    """A composite creature (Milestone 5): a body glyph with glyph limbs on pivot joints. Each part is a physical glyph
+    prop (it collides, is drawn and is checked like any prop). The body follows `path` (time, x) with at most
+    `max_force` and holds itself up at `height` (the centre's height above the floor) with at most `max_lift`; its legs
+    swing in a gait paced by the distance travelled. A contact impulse of `breaks` or more on any part tears the joints:
+    the creature falls apart into its parts."""
+    id: str
+    body: str
+    size: Vec2 = (70.0, 50.0)
+    position: Vec2
+    mass: float = Field(6.0, gt=0)
+    weight: Optional[float] = Field(None, gt=0)
+    color: Optional[str] = None
+    parts: List[CreaturePart] = Field(default_factory=list)
+    path: List[Tuple[float, float]] = Field(default_factory=list)  # (time, x) waypoints, linear between them
+    height: Optional[float] = None
+    stride: float = Field(60.0, gt=5)
+    max_force: float = Field(9000.0, gt=0)
+    max_lift: float = Field(30000.0, gt=0)
+    breaks: Optional[float] = Field(None, gt=0)
+    z: float = 0.0
+    depth: float = Field(30.0, gt=0)
+
+    @model_validator(mode="after")
+    def _g(self) -> "CreatureSpec":
+        from .glyphs import canonical
+        self.body = canonical(self.body)
+        if self.height is None:
+            self.height = self.position[1]
+        return self
+
+
 class ThemeSpec(Strict):
     """Art direction of an environment (renderer colours). Defaults reproduce the original lab look."""
     accent: str = "#46ecff"  # grid lines, console trims, rail brackets
@@ -292,6 +348,24 @@ class EnvironmentSpec(Strict):
     orbs: List[OrbSpec] = Field(default_factory=list)
     portals: List[PortalSpec] = Field(default_factory=list)
     level: Optional[LevelSpec] = None  # a grid level, expanded into obstacles, orbs, portals and markers
+    creatures: List[CreatureSpec] = Field(default_factory=list)  # composite creatures (Milestone 5)
+
+    @model_validator(mode="after")
+    def _creatures(self) -> "EnvironmentSpec":
+        """Each creature's body and parts become glyph props of their own (`creature_of` ties them together)."""
+        have = {p.creature_of for p in self.props if p.creature_of}
+        for cr in self.creatures:
+            if cr.id in have:
+                continue
+            bx, by = cr.position
+            self.props.append(PropSpec(id=f"{cr.id}.body", kind="glyph", glyph=cr.body, position=(bx, by), size=cr.size, mass=cr.mass,
+                                       weight=cr.weight, color=cr.color, z=cr.z, depth=cr.depth, creature_of=cr.id))
+            for k, pt in enumerate(cr.parts):
+                pos = (bx + pt.at[0] - pt.pivot[0], by + pt.at[1] - pt.pivot[1])
+                self.props.append(PropSpec(id=f"{cr.id}.{k}", kind="glyph", glyph=pt.glyph, position=pos, size=pt.size, mass=pt.mass,
+                                           weight=pt.weight, color=pt.color or cr.color, z=cr.z, depth=cr.depth, creature_of=cr.id,
+                                           friction=0.9))
+        return self
 
     @model_validator(mode="after")
     def _fragments(self) -> "EnvironmentSpec":

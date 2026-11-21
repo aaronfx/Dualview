@@ -98,6 +98,7 @@ class SimulationResult:
     morphs: Dict[str, List[dict]] = field(default_factory=dict)  # prop id -> its shape changes (Milestone 5)
     broken: Dict[str, float] = field(default_factory=dict)  # breakable prop id -> when it broke (Milestone 5)
     fragment_parent: Dict[str, str] = field(default_factory=dict)  # piece id -> the prop it came from
+    creatures: list = field(default_factory=list)  # creature drivers (Milestone 5)
 
     def glyph_at(self, pid: str, t: float, base: Optional[str]):
         """(the glyph a prop physically is at t, (from, to, u) while it is visibly morphing or None)."""
@@ -226,6 +227,8 @@ class SceneRuntime:
                           collide_characters=pr.collide_characters, com=pr.com, solid=pr.solid)
         for pr in self.env.props:  # depth extents for the character-body contact filter
             world.depth[pr.id] = (float(pr.z), pr.depth / 2)
+        from ..motion.creatures import CreatureDriver
+        drivers = [CreatureDriver(cr, world, k) for k, cr in enumerate(self.env.creatures)]
         frag_of = {p.id: p.fragment_of for p in self.env.props if p.fragment_of}
         breakables = {p.id: p for p in self.env.props if p.breakable is not None}
         for fid in frag_of:  # pieces are out of play until their prop breaks
@@ -397,7 +400,11 @@ class SceneRuntime:
                     park(fid)
             for c in ctrls.values():
                 c.update(t, dt)
+            for dv in drivers:
+                dv.tick(t, gravity.at(t))
             contacts = world.step(dt)
+            for dv in drivers:
+                dv.after_step(t + dt, events, Event)
             if morph_q:
                 morph_tick(t + dt, i)
             for pid, sp in breakables.items():  # a blow hard enough breaks it
@@ -469,7 +476,7 @@ class SceneRuntime:
         if physics_only:
             events.sort(key=lambda e: (e.t, e.type))
             self.result = SimulationResult(end, frames, gravity, {}, ctrls, events, times, prop_tracks, world.static_segments(),
-                                           {}, None, doors, snapped, rope_peak, prop_cuts, dict(shared["taken"]), morph_log, broken, frag_of)
+                                           {}, None, doors, snapped, rope_peak, prop_cuts, dict(shared["taken"]), morph_log, broken, frag_of, drivers)
             return self.result
         animators = {}
         for cid, c in ctrls.items():
@@ -504,7 +511,7 @@ class SceneRuntime:
                      for e in events if e.type == "switch_activated"]
         dust = DustField(self.env.dust, room, gravity, impulses, end + 0.1, seed=self.project.seed) if self.env.dust else None
         self.result = SimulationResult(end, frames, gravity, animators, ctrls, events, times, prop_tracks, world.static_segments(),
-                                       scarves, dust, doors, snapped, rope_peak, prop_cuts, dict(shared["taken"]), morph_log, broken, frag_of)
+                                       scarves, dust, doors, snapped, rope_peak, prop_cuts, dict(shared["taken"]), morph_log, broken, frag_of, drivers)
         return self.result
 
     # ------------------------------------------------------------ evaluation
