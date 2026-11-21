@@ -504,7 +504,7 @@ class InteractionMixin:
         self._place(t)
         if u >= 1.0:
             self.posture, self.body_tilt, self.h = "stand", 0.0, self.stand_h
-            self.world.set_solid_to_props(self.cid, False)
+            self.world.set_solid_to_props(self.cid, True)
             self.inter["phase"] = "done"
             self.emit(self._ev(t, "stood_up", {"helper": helper}))
             self._next_action(t)
