@@ -175,7 +175,25 @@ class CharacterController(InteractionMixin):
         if self.posture == "prone":
             self._check_pinned(t)
         st = self.world.state(self.cid)
-        if self.mode in ("airborne", "swing"):
+        if self.mode == "falling" and self.inter.get("active_fall"):
+            # Active falling uses actual simulated body position and orientation.
+            self.s, self.h = self.frame.to_frame(st.pos)
+            self.body_tilt = clamp(self.facing * wrap_angle(self.frame.body_angle - st.angle), 0.0, math.pi / 2)
+            # Contact events are only emitted on the first collision, so also
+            # inspect the capsule's lowest material point each fixed step.
+            a = v_rot(self.cap_a, st.angle)
+            b = v_rot(self.cap_b, st.angle)
+            low = min(
+                self.frame.to_frame((st.pos[0] + p[0], st.pos[1] + p[1]))[1]
+                for p in (a, b)
+            ) - CAPSULE_R
+            if self.body_tilt >= 0.68 and low <= 3.5:
+                self.inter["floor_touch"] = True
+                vn = abs(v_dot(st.vel, self.frame.normal))
+                self.inter["impact_speed"] = max(self.inter.get("impact_speed", 0.0), vn)
+        if self.mode in ("airborne", "swing", "falling") and self.inter.get("active_fall"):
+            s, h = self.frame.to_frame(st.pos)
+        elif self.mode in ("airborne", "swing"):
             s, h = self.frame.to_frame(st.pos)
         else:
             s, h = self.s, self.h
