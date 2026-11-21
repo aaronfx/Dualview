@@ -150,7 +150,7 @@ The 1C film's s5/s6 cut moved from 9.75 s to 10.4 s so that its roll also starts
 | The character dissolves against bright light (doorway) | Yes | Dark under-stroke silhouette (D7) | The open-door bloom still blows out to white for about 0.5 s as the door opens (1D, 24.0 s) |
 | Fast limbs strobe at 24 fps | Partly | Motion trails (ghost limbs) plus 3-sample temporal blur | A velocity-buffer blur would be smoother |
 | Impacts look thin | Yes | Burst effect (streaks, debris, glow), layered impact sound, panned stereo, room reverb | — |
-| Synthetic-sounding audio | Yes, follow-up | 33 recorded CC0 samples (footsteps, body thuds, metal impacts, switch, gravity hum, doors, room tone) layered with the synthesiser; credits in `audio/sfx/CREDITS.md` | Levels were set by measurement, not by a listening pass. The music and the slide scrape are still synthesised |
+| Synthetic-sounding audio | Yes, follow-up | 32 recorded CC0 samples (footsteps, body thuds, crate hits, rail knock, switch, gravity hum, doors, room tone) layered with the synthesiser; credits in `audio/sfx/CREDITS.md` | Levels were set by measurement, not by a listening pass. The music and the slide scrape are still synthesised |
 | Only one look; colours hard-coded | Yes | `EnvironmentSpec.theme` | The open-door light is not themed yet (it stays cyan) |
 | No reusable performance system | Yes | Motion library with key poses, interpolation, phases, contacts and `Performance` | Locomotion and the press/point/notice acting are still procedural (in code), not clips |
 | No way to judge quality beyond QA | Yes | `apex review`: objective metrics separate from the human rubric; AI text advisory only | No human scores have been recorded yet. That needs the owner and reviewers |

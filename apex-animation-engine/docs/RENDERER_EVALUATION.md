@@ -47,10 +47,11 @@ img = r.render(frame_state, camera_state, red_flash, fx, fade=..., trails=...)  
   - the impact rebuilt as layers: thud, body, sub-bass sweep, crunch, debris ticks and ring;
   - the hum and the music bed on both channels.
 
-**Recorded samples (added after the first quality pass).** A curated library of 33 freely licensed recordings is layered with the synthesiser (`apex/audio/samples.py`, `audio/sfx/`, credits in `audio/sfx/CREDITS.md`). The recordings are:
+**Recorded samples (added after the first quality pass).** A curated library of 32 freely licensed recordings is layered with the synthesiser (`apex/audio/samples.py`, `audio/sfx/`, credits in `audio/sfx/CREDITS.md`). The recordings are:
 
 - metal footsteps;
-- body thuds on the floor and metal impacts;
+- body thuds on the floor (wet-towel slaps and low wooden thumps);
+- dull crate hits and a short metal knock for the rail grab;
 - the switch click;
 - a force-field hum and a low boom for the gravity shift;
 - air whooshes;
@@ -68,5 +69,16 @@ All are CC0 packs from OpenGameArt, and the licence on each pack's page was chec
 **Layer levels** were matched to the synthesised sounds by measuring each isolated sound (peak and RMS), not by ear. A human listening pass is still needed.
 
 **Result:** the footsteps changed from pitched tonal blips to broadband transients (checked on spectrograms). The integrated loudness of the 1D mix is −17.8 LUFS (−16.9 synth-only) with a −1.0 dBFS peak and no clipped samples.
+
+**Correction after the owner's review.** The first selection made the metal sounds "very off". Measuring them showed why:
+
+- Kenney's `impactMetal` samples are almost pure tones (spectral flatness 0.001–0.006, ringing at 160–290 Hz). They were layered into every body landing and crate hit.
+- The rail grab used tinny 6–7 kHz pings and a pot-like ring that lasted 0.44 s.
+
+These were replaced:
+
+- the rail grab, by short mid-range knocks (centroid about 1.8 kHz, decay ≤0.23 s);
+- crate hits, by dull heavy hits (about 1.4 kHz);
+- the metal layer in body landings, by low wooden thumps.
 
 **Not covered by samples:** the music stingers (notice, startle, chime, resolve) and the slide scrape are still synthesised.

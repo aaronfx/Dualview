@@ -3,10 +3,10 @@
  "sounds": {
   "footstep": {"layers": [{"files": ["metal_footsteps/metal_steps_01.wav", "metal_footsteps/metal_steps_02.wav", "metal_footsteps/metal_steps_03.wav", "metal_footsteps/metal_steps_04.wav", "metal_footsteps/metal_steps_05.wav", "metal_footsteps/metal_steps_06.wav", "metal_footsteps/metal_steps_07.wav", "metal_footsteps/metal_steps_08.wav"], "gain": 1.0}], "synth_mix": 0.25, "pitch": 0.06},
   "impact": {"layers": [{"files": ["wet_towel/wet_towel_on_floor-03.flac", "wet_towel/wet_towel_on_floor-05.flac", "wet_towel/wet_towel_on_floor-02.flac", "wet_towel/wet_towel_on_floor-06.flac"], "gain": 1.2, "pitch_base": 0.8},
-                        {"files": ["kenney_scifi/impactMetal_001.ogg", "kenney_scifi/impactMetal_003.ogg"], "gain": 0.85}], "synth_mix": 0.55, "pitch": 0.04},
+                        {"files": ["rubberduck_100cc0_v2/sfx100v2_wood_hit_01.ogg", "rubberduck_100cc0_v2/sfx100v2_wood_hit_02.ogg"], "gain": 0.8, "pitch_base": 0.85}], "synth_mix": 0.55, "pitch": 0.04},
   "land": {"alias": "impact"},
-  "clang": {"layers": [{"files": ["kenney_scifi/impactMetal_000.ogg", "kenney_scifi/impactMetal_002.ogg", "kenney_scifi/impactMetal_004.ogg"], "gain": 1.4}], "synth_mix": 0.2, "pitch": 0.08},
-  "clank": {"layers": [{"files": ["rubberduck_100cc0_v2/sfx100v2_metal_01.ogg", "rubberduck_100cc0_v2/sfx100v2_metal_04.ogg", "rubberduck_100cc0/metal_05.ogg"], "gain": 1.65}], "synth_mix": 0.3, "pitch": 0.05},
+  "clang": {"layers": [{"files": ["rubberduck_100cc0/hit_03.ogg", "rubberduck_100cc0/hit_04.ogg"], "gain": 1.1, "pitch_base": 0.9}, {"files": ["rubberduck_100cc0/metal_03.ogg", "rubberduck_100cc0/metal_09.ogg"], "gain": 0.4}], "synth_mix": 0.1, "pitch": 0.06},
+  "clank": {"layers": [{"files": ["rubberduck_100cc0/metal_03.ogg", "rubberduck_100cc0/metal_01.ogg", "rubberduck_100cc0/metal_09.ogg"], "gain": 1.5, "pitch_base": 0.92}], "synth_mix": 0.15, "pitch": 0.04},
   "click": {"layers": [{"files": ["kenney_interface/switch_003.ogg", "kenney_interface/switch_002.ogg"], "gain": 0.8}], "synth_mix": 0.2, "pitch": 0.03},
   "pulse": {"layers": [{"files": ["kenney_scifi/forceField_000.ogg", "kenney_scifi/forceField_002.ogg"], "gain": 0.8}, {"files": ["kenney_scifi/lowFrequency_explosion_001.ogg"], "gain": 0.7}], "synth_mix": 0.4, "pitch": 0.03},
   "whoosh": {"layers": [{"files": ["rubberduck_100cc0_v2/sfx100v2_air_02.ogg"], "gain": 0.7}], "synth_mix": 0.4, "pitch": 0.06},

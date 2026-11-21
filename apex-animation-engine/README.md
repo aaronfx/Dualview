@@ -105,7 +105,7 @@ sudo apt-get install -y ffmpeg libegl1
 | pytest (dev) | tests | MIT |
 | FFmpeg (external binary, not bundled) | H.264/AAC encoding and probing | LGPL-2.1+; builds with libx264 are GPL. It is invoked as a separate process and is not linked or redistributed. Check your build's licence before distributing binaries |
 
-**Sound effects.** The engine layers its synthesised sounds with a curated set of 33 recorded samples in `src/apex/audio/sfx/`. They come from OpenGameArt packs by Kenney, rubberduck, thimras, artisticdude and qubodup.
+**Sound effects.** The engine layers its synthesised sounds with a curated set of 32 recorded samples in `src/apex/audio/sfx/`. They come from OpenGameArt packs by Kenney, rubberduck, thimras, artisticdude and qubodup.
 
 - All of them are CC0 (public domain) and safe for commercial videos.
 - The wet-towel pack also carries an MIT/zlib/BSD notice, which is kept in `sfx/licenses/`.
