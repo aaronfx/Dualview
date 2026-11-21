@@ -335,10 +335,10 @@ class InteractionMixin:
             self.world.apply_torque(self.cid, torque)
             # Muscular momentum after a failed push drives the root toward its
             # intended prone position; the actual floor and props still collide.
-            target_s = I["s0"] + d * (I["v0"] * 0.12 * u + 0.55 * self.stand_h * target_progress)
+            target_s = I["s0"] + d * (I["v0"] * 0.12 * u + 0.30 * self.stand_h * target_progress)
             tangent = self.frame.tangent
             speed_s = st.vel[0] * tangent[0] + st.vel[1] * tangent[1]
-            drive = clamp(125.0 * (target_s - s) - 23.0 * speed_s, -5000.0, 5000.0) * 70.0
+            drive = clamp(230.0 * (target_s - s) - 30.0 * speed_s, -6500.0, 6500.0) * 70.0
             self.world.apply_force(self.cid, (tangent[0] * drive, tangent[1] * drive), st.pos)
             final_angle = self.frame.body_angle - self.facing * math.pi / 2
             remain = abs(math.atan2(math.sin(final_angle - st.angle), math.cos(final_angle - st.angle)))
