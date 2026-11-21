@@ -308,7 +308,9 @@ class InteractionMixin:
         self.v = 0.0
         self.emit(self._ev(t, "body_fall", {"point": self.frame.to_world(self.s, 0.0),
                                             "normal_speed": max(0.0, normal_speed),
-                                            "simulated": bool(self.inter.get("active_fall"))}))
+                                            "simulated": bool(self.inter.get("active_fall")),
+                                            "fallback_settle": bool(self.inter.get("fallback_settle")),
+                                            "floor_contact": bool(self.inter.get("floor_touch"))}))
         self._open("prone", t)
         self.cur = None
         self._place(t)
@@ -325,10 +327,11 @@ class InteractionMixin:
             # Active ragdoll phase I: simulated torso capsule and floor contact,
             # with a soft pose-following motor. Limbs still use the authored rig.
             # A full jointed ragdoll is a separate engineering milestone.
-            target_progress = u * u * (3.0 - 2.0 * u)
+            phase = clamp(u / 0.78, 0.0, 1.0)
+            target_progress = phase * phase * (3.0 - 2.0 * phase)
             goal_angle = self.frame.body_angle - self.facing * (math.pi / 2) * target_progress
             error = math.atan2(math.sin(goal_angle - st.angle), math.cos(goal_angle - st.angle))
-            torque = self.moment * clamp(85.0 * error - 17.0 * st.angvel, -140.0, 140.0)
+            torque = self.moment * clamp(185.0 * error - 21.0 * st.angvel, -260.0, 260.0)
             self.world.apply_torque(self.cid, torque)
             # Muscular momentum after a failed push drives the root toward its
             # intended prone position; the actual floor and props still collide.
@@ -340,8 +343,8 @@ class InteractionMixin:
             final_angle = self.frame.body_angle - self.facing * math.pi / 2
             remain = abs(math.atan2(math.sin(final_angle - st.angle), math.cos(final_angle - st.angle)))
             contacted = bool(I.get("floor_touch")) and h <= LIE_H + 16.0
-            if (elapsed >= 0.43 and contacted and remain < 0.23) or elapsed >= 0.86:
-                I["fallback_settle"] = not contacted or remain >= 0.23
+            if (elapsed >= 0.43 and contacted and remain < 0.17) or elapsed >= 1.02:
+                I["fallback_settle"] = not contacted or remain >= 0.17
                 self._complete_fall(t, I.get("impact_speed") or abs(st.vel[1]))
             return
 
