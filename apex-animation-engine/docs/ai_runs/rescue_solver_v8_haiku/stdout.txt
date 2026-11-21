@@ -1,0 +1,8 @@
+paid experiment 20261121T080813Z-49d8c5: model anthropic/claude-haiku-5.5; reason: Owner-approved run: second worked example (Runaway Crate) in the prompt, lenient patches, up to 5 calls; at most 5 call(s); worst-case estimate $0.0223 (hard caps: $0.10 per experiment, $1.00 total, $0.0109 already spent)
+cost: model anthropic/claude-haiku-5.5, 5 call(s), estimated up to $0.0179, actual $0.0053
+planning failed: PlanningError: planner output failed validation after 5 attempts: 2 validation errors for ProjectSpec
+environments.0.switches.0.effect.type
+  Extra inputs are not permitted [type=extra_forbidden, input_value='gravity_shift', input_type=str]
+    For further information visit https://errors.pydantic.dev/2.14/v/extra_forbidden
+environments.0.switches.0.effect.unlock_exit
+  Extra inputs are not permit

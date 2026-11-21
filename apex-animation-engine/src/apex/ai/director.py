@@ -79,7 +79,8 @@ Shots: contiguous, start at 0, end exactly at the scene duration; kinds establis
 static|follow|track_x|dolly; camera.include lists targets to keep in frame (e.g. "char:<id>", "prop:<id>").
 exit_conditions: "event:<type>" with types from: {EVENT_TYPES}.
 sound_cues: {{on_event, sound, gain}}; sound must be one of: {", ".join(SOUND_NAMES)}.
-Keep characters consistent: one CharacterSpec per character, referenced by id everywhere.
+Keep characters consistent: one CharacterSpec per character, referenced by id everywhere. Include only what the story
+needs: no switches, exits or gravity changes unless the story asks for them.
 REPAIRS: when told your previous output was invalid, reply with ONLY {{"patch": [...]}}: RFC 6902 operations
 ({{"op": "replace"|"add"|"remove", "path": "/scenes/0/actions/3/until", "value": ...}}) against your previous JSON, not a full
 rewrite."""
@@ -90,6 +91,31 @@ SYSTEM = system_prompt.__doc__  # kept for backwards compatibility; the live pro
 
 class PlanningError(RuntimeError):
     pass
+
+
+def _allowed_at(loc) -> Optional[List[str]]:
+    """The field names allowed at a validation-error location (walks ProjectSpec's annotations)."""
+    import typing
+    from ..scene import schema as S
+    model = S.ProjectSpec
+    for part in list(loc)[:-1]:
+        if isinstance(part, int):
+            continue
+        f = model.model_fields.get(part)
+        if f is None:
+            return None
+        ann, found = f.annotation, None
+        stack = [ann]
+        while stack:
+            a = stack.pop()
+            if isinstance(a, type) and issubclass(a, S.BaseModel):
+                found = a
+                break
+            stack.extend(typing.get_args(a))
+        if found is None:
+            return None
+        model = found
+    return sorted(model.model_fields)
 
 
 def _field_names() -> List[str]:
@@ -153,9 +179,12 @@ class StoryDirector:
     def plan(self, story: str) -> ProjectSpec:
         if self.provider is None:
             return TemplatePlanner().plan(story)
-        example = EXAMPLE.read_text(encoding="utf-8") if EXAMPLE.exists() else ""
+        # the gravity/switch example only when the story is about that (otherwise its hatch and switch get copied)
+        gravity_story = re.search(r"gravity|switch|button|hatch|ceiling|wall", story, re.I) is not None
+        example = EXAMPLE.read_text(encoding="utf-8") if (EXAMPLE.exists() and gravity_story) else ""
         inter = INTERACTION_EXAMPLE.read_text(encoding="utf-8") if INTERACTION_EXAMPLE.exists() else ""
-        user = (f"STORY:\n{story}\n\nEXAMPLE OF A VALID PROJECT (structure reference, do not copy its story):\n{example}"
+        user = (f"STORY:\n{story}"
+                + (f"\n\nEXAMPLE OF A VALID PROJECT (structure reference, do not copy its story):\n{example}" if example else "")
                 + (f"\n\nEXAMPLE OF A TWO-CHARACTER PHYSICAL INTERACTION (structure reference: events, posture order, goals, "
                    f"cut_on; do not copy its story):\n{inter}" if inter else ""))
         errors: List[str] = []
@@ -230,9 +259,12 @@ class StoryDirector:
             for err in e.errors():
                 if err.get("type") == "extra_forbidden" and err.get("loc"):
                     bad = str(err["loc"][-1])
-                    near = difflib.get_close_matches(bad, _field_names(), n=3, cutoff=0.5)
+                    allowed = _allowed_at(err["loc"])
+                    near = difflib.get_close_matches(bad, allowed or _field_names(), n=3, cutoff=0.5)
+                    near = [n for n in near if n != bad]
                     hints.append(f"unknown field '{bad}' at {'/'.join(map(str, err['loc']))}"
-                                 + (f": did you mean {' or '.join(repr(n) for n in near)}?" if near else ""))
+                                 + (f": did you mean {' or '.join(repr(n) for n in near)}?" if near else "")
+                                 + (f" (allowed there: {', '.join(allowed)})" if allowed else ""))
             return str(e) + ("\nHINTS: " + "; ".join(hints) if hints else "")
         return str(e)
 

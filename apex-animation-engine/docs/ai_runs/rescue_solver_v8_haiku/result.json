@@ -1,0 +1,94 @@
+{
+ "story": "The Rescue (15-20 seconds, no dialogue). Two original stickman characters enter an industrial workshop. One tries to move a heavy metal container, loses control, and becomes trapped beneath a falling support. The second character notices the danger, runs to help, struggles to lift the obstruction, and uses a nearby lever to free the first character. The final moment should communicate relief and friendship without dialogue.",
+ "planner": "openrouter",
+ "model": "anthropic/claude-haiku-5.5",
+ "started_utc": "2026-11-21T08:08:13Z",
+ "status": "failed",
+ "error": "PlanningError: planner output failed validation after 5 attempts: 2 validation errors for ProjectSpec\nenvironments.0.switches.0.effect.type\n  Extra inputs are not permitted [type=extra_forbidden, input_value='gravity_shift', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.14/v/extra_forbidden\nenvironments.0.switches.0.effect.unlock_exit\n  Extra inputs are not permitted [type=extra_forbidden, input_value='hatch', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.14/v/extra_forbidden\nHINTS: unknown fi",
+ "attempts": 5,
+ "seconds": 18.0,
+ "cost": {
+  "experiment": "20261121T080813Z-49d8c5",
+  "started_utc": "2026-11-21T08:08:13Z",
+  "finished_utc": "2026-11-21T08:08:31Z",
+  "model": "anthropic/claude-haiku-5.5",
+  "reason": "Owner-approved run: second worked example (Runaway Crate) in the prompt, lenient patches, up to 5 calls",
+  "status": "failed",
+  "note": "2 validation errors for ProjectSpec\nenvironments.0.switches.0.effect.type\n  Extra inputs are not permitted [type=extra_forbidden, input_value='gravity_shift', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.14/v/extra_forbidden\nenvironments.0.switches.0.effect.unlock_exit\n  Extra inputs are not permitted [type=extra_forbidden, input_value='hatch', input_type=str]\n    For further information visit https://errors.pydantic.dev/2.14/v/extra_forbidden\nHINTS: unknown fi",
+  "limits": {
+   "max_calls": 5,
+   "max_output_tokens": 6000,
+   "experiment_budget_usd": 0.1,
+   "total_budget_usd": 1.0
+  },
+  "estimated_usd_upper": 0.01794,
+  "actual_usd": 0.005304,
+  "calls": [
+   {
+    "estimated_usd_upper": 0.003821,
+    "output_cap": 6000,
+    "estimated_input_tokens": 8207,
+    "n": 1,
+    "model": "anthropic/claude-haiku-5.5",
+    "input_tokens": 8434,
+    "output_tokens": 4242,
+    "reasoning_tokens": 0,
+    "visible_chars": 6402,
+    "actual_usd": 0.002964,
+    "actual_source": "provider usage report"
+   },
+   {
+    "estimated_usd_upper": 0.003521,
+    "output_cap": 6000,
+    "estimated_input_tokens": 5206,
+    "n": 2,
+    "model": "anthropic/claude-haiku-5.5",
+    "input_tokens": 5407,
+    "output_tokens": 50,
+    "reasoning_tokens": 0,
+    "visible_chars": 100,
+    "actual_usd": 0.000566,
+    "actual_source": "provider usage report"
+   },
+   {
+    "estimated_usd_upper": 0.00352,
+    "output_cap": 6000,
+    "estimated_input_tokens": 5204,
+    "n": 3,
+    "model": "anthropic/claude-haiku-5.5",
+    "input_tokens": 5405,
+    "output_tokens": 103,
+    "reasoning_tokens": 0,
+    "visible_chars": 219,
+    "actual_usd": 0.000592,
+    "actual_source": "provider usage report"
+   },
+   {
+    "estimated_usd_upper": 0.003557,
+    "output_cap": 6000,
+    "estimated_input_tokens": 5571,
+    "n": 4,
+    "model": "anthropic/claude-haiku-5.5",
+    "input_tokens": 5765,
+    "output_tokens": 64,
+    "reasoning_tokens": 0,
+    "visible_chars": 129,
+    "actual_usd": 0.000608,
+    "actual_source": "provider usage report"
+   },
+   {
+    "estimated_usd_upper": 0.003521,
+    "output_cap": 6000,
+    "estimated_input_tokens": 5214,
+    "n": 5,
+    "model": "anthropic/claude-haiku-5.5",
+    "input_tokens": 5409,
+    "output_tokens": 66,
+    "reasoning_tokens": 0,
+    "visible_chars": 135,
+    "actual_usd": 0.000574,
+    "actual_source": "provider usage report"
+   }
+  ]
+ }
+}

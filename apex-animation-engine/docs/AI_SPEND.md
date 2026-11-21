@@ -47,7 +47,22 @@ From now on, every paid experiment is listed here from its ledger record, with i
 
 | 2026-11-21 | `20261121T075646Z-e9f466` (`docs/ai_runs/rescue_solver_v7_haiku/`) | anthropic/claude-haiku-5.5 | Owner-approved re-test after the v6 fixes | $0.0134 before the run (upper bound), $0.0107 summed per call | **$0.0040** (provider usage report) | **Failed** after 3 calls. See the findings below |
 
-**Running total of new experiments:** $0.0109. **Ledger total:** $0.0109 of the $1.00 cap.
+| 2026-11-21 | `20261121T080813Z-49d8c5` (`docs/ai_runs/rescue_solver_v8_haiku/`) | anthropic/claude-haiku-5.5 | Owner-approved: second worked example (*Runaway Crate*) in the prompt, lenient patches, up to 5 calls | $0.0223 before the run (upper bound), $0.0179 summed per call | **$0.0053** (provider usage report) | **Failed** after 5 calls. See the findings below |
+
+**Running total of new experiments:** $0.0162. **Ledger total:** $0.0162 of the $1.00 cap.
+
+**Findings from `rescue_solver_v8_haiku`:**
+
+- **The first plan was much better structured.** Unlike v7, the lever targets the support, the helper waits for `body_fall`, and the goals are real events. Hidden reasoning was again 0 tokens.
+- **Haiku copied an exit hatch from the Foundry Flip example**, wired to a switch that didn't exist. It spent all four repairs on that hatch.
+  - **Fix:** the gravity/switch example is now included only when the story is about gravity or switches. The prompt says to include only what the story needs.
+- **The field hints were wrong.** One suggested `position` for `position`.
+  - **Fix:** hints now list the fields allowed at that exact location and never suggest the same name.
+- **Offline diagnosis.** I replayed the paid response, removing the stray hatch by hand for diagnosis only, so the plan is not counted as AI-generated.
+  - The solver reached push, break loose and strap snap.
+  - Ordered goals were too strict: a fall 0.4 s before the strap snapped failed `rope_snap` → `body_fall`.
+    - **Fix:** beats may be out of order by up to 0.75 s.
+  - It then reaches the fall, and stops at `pinned`. Haiku's support is a 520-long post tilted almost flat and strapped at its foot. The solver's placement rule assumes an upright post, which is a known limitation.
 
 **Findings from `rescue_solver_v7_haiku`:**
 

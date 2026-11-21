@@ -62,13 +62,16 @@ def derive_goals(scene) -> List[str]:
     return out
 
 
-def progress(goals: Sequence[str], events, ordered: bool = True, before: Optional[float] = None):
-    """How many goals happened (in order, if `ordered`), their times, and the first goal still missing."""
+ORDER_TOLERANCE = 0.75  # s: beats that happen almost together (a fall and a strap snapping) may come in either order
+
+
+def progress(goals: Sequence[str], events, ordered: bool = True, before: Optional[float] = None, tol: float = ORDER_TOLERANCE):
+    """How many goals happened (in order, if `ordered`, within `tol` seconds), their times, and the first goal missing."""
     t_prev = -1.0
     times: List[Optional[float]] = []
     met = 0
     for g in goals:
-        hit = next((e for e in events if matches(g, e) and (not ordered or e.t >= t_prev)
+        hit = next((e for e in events if matches(g, e) and (not ordered or e.t >= t_prev - tol)
                     and (before is None or e.t <= before)), None)
         times.append(hit.t if hit else None)
         if hit is None:
@@ -78,6 +81,6 @@ def progress(goals: Sequence[str], events, ordered: bool = True, before: Optiona
             continue
         met += 1
         if ordered:
-            t_prev = hit.t
+            t_prev = max(t_prev, hit.t)
     missing = next((g for g, t in zip(goals, times) if t is None), None)
     return met, times, missing
