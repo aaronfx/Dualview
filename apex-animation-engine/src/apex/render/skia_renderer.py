@@ -53,6 +53,7 @@ class SkiaRenderer:
         self.small = skia.Surface.MakeRaster(sinfo)
         r = env.room
         self.hw, self.rh, self.back, self.near = r.width / 2, r.height, r.depth_back, r.depth_front
+        self.GLYPH_DEPTH = 90.0
         self.grid = r.grid_spacing
         self.theme = env.theme  # per-environment art direction
         self.accent, self.alert = hex_rgb(self.theme.accent), hex_rgb(self.theme.alert)
@@ -279,6 +280,9 @@ class SkiaRenderer:
             if ob.kind == "bar":
                 self._rail(c, ob, back)
                 continue
+            if ob.kind == "glyph":
+                self._glyph_structure(c, ob, back)
+                continue
             hx, hy = ob.size[0] / 2, ob.size[1] / 2
             x0, x1, y0, y1 = cx_ - hx, cx_ + hx, cy_ - hy, cy_ + hy
             za, zb = (0.0, bk) if back else (nr, 0.0)
@@ -291,11 +295,19 @@ class SkiaRenderer:
                 faces.append(([(x0, y1, za), (x1, y1, za), (x1, y1, zb), (x0, y1, zb)], 0.95))
             if cam[1] < y0:
                 faces.append(([(x0, y0, za), (x1, y0, za), (x1, y0, zb), (x0, y0, zb)], 0.55))
-            base = (44, 50, 58)
+            base = (44, 50, 58) if ob.kind == "beam" else mix((30, 34, 42), self.accent, 0.12)
             for pts, shade in faces:
                 c.drawPath(self.poly(pts), skia.Paint(AntiAlias=True, Color=col(mix((0, 0, 0), base, shade))))
                 c.drawPath(self.poly(pts), skia.Paint(AntiAlias=True, Color=col(self.accent, 0.35), Style=skia.Paint.kStroke_Style, StrokeWidth=1.0))
-            if not back:  # front cap with hazard stripes
+            if not back and ob.kind == "platform":  # front face of a slab: dark, with a glowing top edge
+                cap = self.poly([(x0, y0, nr), (x1, y0, nr), (x1, y1, nr), (x0, y1, nr)])
+                c.drawPath(cap, skia.Paint(AntiAlias=True, Color=col(mix((22, 25, 32), self.accent, 0.1))))
+                a3, b3 = self.P(x0, y1, nr), self.P(x1, y1, nr)
+                c.drawLine(a3[0], a3[1], b3[0], b3[1], skia.Paint(AntiAlias=True, Color=col(self.accent, 0.9), StrokeWidth=max(1.5, 3.0 * a3[2]),
+                                                                  MaskFilter=skia.MaskFilter.MakeBlur(skia.kNormal_BlurStyle, 2.0)))
+                c.drawLine(a3[0], a3[1], b3[0], b3[1], skia.Paint(AntiAlias=True, Color=col((255, 255, 255), 0.7), StrokeWidth=max(1.0, 1.2 * a3[2])))
+                c.drawPath(cap, skia.Paint(AntiAlias=True, Color=col(self.accent, 0.35), Style=skia.Paint.kStroke_Style, StrokeWidth=1.0))
+            elif not back:  # front cap with hazard stripes
                 cap = self.poly([(x0, y0, nr), (x1, y0, nr), (x1, y1, nr), (x0, y1, nr)])
                 c.drawPath(cap, skia.Paint(AntiAlias=True, Color=col((52, 58, 66))))
                 c.save()
@@ -308,6 +320,67 @@ class SkiaRenderer:
                         c.drawPath(stripe, skia.Paint(AntiAlias=True, Color=col((255, 196, 40), 0.85)))
                 c.restore()
                 c.drawPath(cap, skia.Paint(AntiAlias=True, Color=col(self.accent, 0.6), Style=skia.Paint.kStroke_Style, StrokeWidth=1.4))
+
+    # ------------------------------------------------------------ symbols (glyph structures and props)
+    GLYPH_DEPTH = 90.0
+
+    def _glyph_strokes_path(self, strokes, z: float) -> Tuple[skia.Path, float]:
+        path = skia.Path()
+        k = 1.0
+        for st in strokes:
+            for i, (x, y) in enumerate(st):
+                px, py, k = self.P(x, y, z)
+                if i == 0:
+                    path.moveTo(px, py)
+                else:
+                    path.lineTo(px, py)
+            if len(st) == 2 and math.dist(st[0], st[1]) < 1.0:  # a dot
+                px, py, k = self.P(st[0][0], st[0][1], z)
+                path.lineTo(px + 0.01, py)
+        return path, k
+
+    def _draw_glyph(self, c: skia.Canvas, strokes, weight: float, rgb, z_front: float, z_back: float, layers: int = 6,
+                    part: str = "all", alpha: float = 1.0) -> None:
+        """An extruded glyph: dark layers from the back plane to the front, then a glowing front face."""
+        dark = mix((8, 9, 12), rgb, 0.22)
+        side = mix((12, 14, 18), rgb, 0.45)
+        rng = range(layers + 1)
+        for i in rng:
+            u = i / layers
+            z = z_back + (z_front - z_back) * u
+            front = i == layers
+            if (part == "back" and z < 0.0) or (part == "front" and z >= 0.0):
+                continue  # behind the character plane in the back pass, nearer than it in the front pass
+            path, k = self._glyph_strokes_path(strokes, z)
+            w = max(1.5, weight * k)
+            if front:
+                c.drawPath(path, skia.Paint(AntiAlias=True, Color=col(rgb, 0.55 * alpha), Style=skia.Paint.kStroke_Style, StrokeWidth=w * 1.25,
+                                            StrokeCap=skia.Paint.kRound_Cap, StrokeJoin=skia.Paint.kRound_Join,
+                                            MaskFilter=skia.MaskFilter.MakeBlur(skia.kNormal_BlurStyle, max(2.0, 0.35 * w))))
+                c.drawPath(path, skia.Paint(AntiAlias=True, Color=col(mix(rgb, (255, 255, 255), 0.15), alpha), Style=skia.Paint.kStroke_Style,
+                                            StrokeWidth=w, StrokeCap=skia.Paint.kRound_Cap, StrokeJoin=skia.Paint.kRound_Join))
+                c.drawPath(path, skia.Paint(AntiAlias=True, Color=col((255, 255, 255), 0.55 * alpha), Style=skia.Paint.kStroke_Style,
+                                            StrokeWidth=max(1.0, w * 0.22), StrokeCap=skia.Paint.kRound_Cap, StrokeJoin=skia.Paint.kRound_Join))
+            else:
+                c.drawPath(path, skia.Paint(AntiAlias=True, Color=col(mix(dark, side, u), alpha), Style=skia.Paint.kStroke_Style, StrokeWidth=w,
+                                            StrokeCap=skia.Paint.kRound_Cap, StrokeJoin=skia.Paint.kRound_Join))
+
+    def _glyph_structure(self, c: skia.Canvas, ob, back: bool) -> None:
+        from ..scene import glyphs
+        from ..scene.structures import glyph_weight
+        cx, cy = ob.center
+        strokes = [[(cx + x, cy + y) for x, y in st] for st in glyphs.strokes(ob.glyph, ob.size)]
+        rgb = hex_rgb(ob.color) if ob.color else self.accent
+        D = self.GLYPH_DEPTH
+        self._draw_glyph(c, strokes, glyph_weight(ob), rgb, -D / 2, D / 2, layers=8, part="back" if back else "front")
+
+    def _glyph_prop(self, c: skia.Canvas, pr) -> None:
+        from ..scene import glyphs
+        sp = next(p for p in self.env.props if p.id == pr.id)
+        ca, sa = math.cos(pr.angle), math.sin(pr.angle)
+        strokes = [[(pr.pos[0] + x * ca - y * sa, pr.pos[1] + x * sa + y * ca) for x, y in st] for st in glyphs.strokes(sp.glyph, sp.size)]
+        rgb = hex_rgb(sp.color) if sp.color else self.accent
+        self._draw_glyph(c, strokes, sp.weight or glyphs.default_weight(sp.size), rgb, pr.z - pr.depth / 2, pr.z + pr.depth / 2, layers=4)
 
     def _rail(self, c: skia.Canvas, ob, back: bool) -> None:
         """Grab rail spanning the room depth: a steel tube with yellow grip bands, bolted to the back wall by a
@@ -385,6 +458,9 @@ class SkiaRenderer:
 
     def _prop(self, c: skia.Canvas, pr) -> None:
         kind = pr.kind
+        if kind == "glyph":
+            self._glyph_prop(c, pr)
+            return
         hx, hy = pr.size[0] / 2, pr.size[1] / 2
         if kind == "container":  # ribbed steel container with corner posts and a pull handle
             self._box3d(c, pr, (78, 92, 104), (52, 60, 70), self.accent)

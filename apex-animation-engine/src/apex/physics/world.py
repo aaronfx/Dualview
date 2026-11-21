@@ -60,6 +60,7 @@ class PhysicsWorld:
         self._ropes: Dict[str, tuple] = {}
         self._mass_moment: Dict[str, Tuple[float, float]] = {}
         self._shapes: Dict[str, pymunk.Shape] = {}
+        self._extra: Dict[str, List[pymunk.Shape]] = {}  # further shapes of a compound body (a glyph's strokes)
         self.events: List[ContactEvent] = []
         self._pending: List[ContactEvent] = []
         self.space.on_collision(None, None, begin=self._on_begin)
@@ -87,6 +88,33 @@ class PhysicsWorld:
         self.space.add(body, shape)
         self._tags[shape] = tag
         self._bodies[tag] = body
+
+    def add_compound(self, tag: str, pos: Vec, segs: List[Tuple[Vec, Vec]], radius: float, masses: List[float], com: Vec,
+                     angle: float = 0.0, friction: float = 0.6, elasticity: float = 0.2, collide_characters: bool = True,
+                     solid: bool = True) -> None:
+        """A dynamic body made of rounded segments (a glyph's strokes), mass spread along them."""
+        mass = sum(masses)
+        moment = sum(pymunk.moment_for_segment(m, (a[0] - com[0], a[1] - com[1]), (b[0] - com[0], b[1] - com[1]), radius)
+                     for (a, b), m in zip(segs, masses))
+        body = pymunk.Body(mass, moment, body_type=pymunk.Body.DYNAMIC if solid else pymunk.Body.KINEMATIC)
+        body.center_of_gravity = com
+        body.position, body.angle = pos, angle
+        shapes = []
+        for a, b in segs:
+            sh = pymunk.Segment(body, a, b, radius)
+            sh.friction, sh.elasticity, sh.collision_type = friction, elasticity, CT_PROP
+            sh.filter = pymunk.ShapeFilter(categories=CAT_PROP, mask=ALL if collide_characters else ALL ^ CAT_CHAR)
+            sh.sensor = not solid
+            shapes.append(sh)
+            self._tags[sh] = tag
+        self._mass_moment[tag] = (mass, moment)
+        self._shapes[tag] = shapes[0]
+        self._extra[tag] = shapes[1:]
+        self.space.add(body, *shapes)
+        self._bodies[tag] = body
+
+    def shapes_of(self, tag: str) -> List[pymunk.Shape]:
+        return [self._shapes[tag]] + self._extra.get(tag, [])
 
     def add_capsule(self, tag: str, pos: Vec, a: Vec, b: Vec, radius: float, mass: float, kinematic: bool = True) -> None:
         moment = pymunk.moment_for_segment(mass, a, b, radius)
@@ -196,7 +224,8 @@ class PhysicsWorld:
     def make_dynamic(self, tag: str, vel: Vec = (0.0, 0.0), angvel: float = 0.0) -> None:
         """Return a prop that was carried kinematically to normal dynamics (its own mass and moment)."""
         m, mo = self._mass_moment[tag]
-        self._shapes[tag].sensor = False
+        for sh in self.shapes_of(tag):
+            sh.sensor = False
         self.set_dynamic(tag, vel, angvel, m, mo)
 
     def set_friction(self, tag: str, friction: float) -> None:
@@ -204,7 +233,8 @@ class PhysicsWorld:
         sh = self._shapes[tag]
         if sh.friction == friction:
             return
-        sh.friction = friction
+        for x in self.shapes_of(tag):
+            x.friction = friction
 
         def upd(arb: pymunk.Arbiter) -> None:
             a, b = arb.shapes
@@ -220,9 +250,9 @@ class PhysicsWorld:
     def set_group(self, tags: List[str], group: int) -> None:
         """Shapes sharing a non-zero group never collide with each other (a lever resting in its fulcrum)."""
         for t in tags:
-            sh = self._shapes[t]
-            f = sh.filter
-            sh.filter = pymunk.ShapeFilter(group=group, categories=f.categories, mask=f.mask)
+            for sh in self.shapes_of(t):
+                f = sh.filter
+                sh.filter = pymunk.ShapeFilter(group=group, categories=f.categories, mask=f.mask)
 
     def apply_force(self, tag: str, force: Vec, point: Vec) -> None:
         """Force applied at a world point for the next step (character effort on a prop: push, lift, lever)."""

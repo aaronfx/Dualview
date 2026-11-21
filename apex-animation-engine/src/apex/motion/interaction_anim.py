@@ -19,6 +19,8 @@ STANCE = {  # (front foot, rear foot) as multiples of the leg-length unit, relat
     "push": (8.0, -36.0), "lift": (16.0, -20.0), "lever": (10.0, -26.0), "offer": (12.0, -16.0), "gesture": (9.0, -9.0),
     # combat: a staggered fighting stance
     "strike": (16.0, -18.0), "guard": (16.0, -18.0), "dodge": (16.0, -18.0), "hurt": (16.0, -18.0),
+    # symbols (Milestone 2)
+    "pick_up": (14.0, -20.0), "throw": (22.0, -24.0),
 }
 LYING = ("fall", "prone", "crawl", "getup", "ragdoll", "supine")
 MOVING_STANCE = ("dodge", "hurt")  # the feet step to follow the pelvis (back-steps, staggers)

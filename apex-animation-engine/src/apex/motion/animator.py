@@ -19,6 +19,7 @@ from ..scene.schema import CharacterStyle
 from .controller import NOTICE_DOUBLE_TAKE, PRESS_CONTACT_T, PRESS_H_CONTACT_T, SLIDE_DROP, TURN_DURATION, Event, Segment, StepRecord
 from .frames import GroundFrame
 from .gait import Gait, GaitParams
+from .acro_anim import AcroAnimMixin
 from .combat_anim import FIGHT_STANCE, CombatAnimMixin
 from .interaction_anim import LYING, MOVING_STANCE, STANCE, InteractionAnimMixin
 from .library import NEUTRAL, MotionClip, Performance, get_clip, landing_clip
@@ -34,7 +35,8 @@ KNEE_CLEARANCE = 2.0  # knee may rest on a surface (kneeling) but not pass throu
 BLEND_IN = {"airborne": 0.16, "landing": 0.12, "loco": 0.18, "idle": 0.2, "press": 0.18, "turn": 0.06, "point": 0.12,
             "slide": 0.1, "crouch": 0.14, "swing": 0.08, "push": 0.28, "fall": 0.06, "prone": 0.22, "crawl": 0.2, "getup": 0.12,
             "lift": 0.25, "lever": 0.22, "offer": 0.25, "gesture": 0.2,
-            "strike": 0.07, "guard": 0.14, "dodge": 0.06, "hurt": 0.03, "ragdoll": 0.06, "supine": 0.3}
+            "strike": 0.07, "guard": 0.14, "dodge": 0.06, "hurt": 0.03, "ragdoll": 0.06, "supine": 0.3,
+            "roll": 0.08, "vault": 0.08, "climb": 0.1, "wall_run": 0.06, "pick_up": 0.18, "throw": 0.12}
 
 # press action: hand target offsets relative to the button (ds toward the character, dh above), IK weight, body
 PRESS = {
@@ -100,7 +102,10 @@ class PlantedInterval:
     reason: str
 
 
-class Animator(InteractionAnimMixin, CombatAnimMixin):
+FREE = ("roll", "vault", "climb", "wall_run")  # acrobatic moves: the feet are not planted on the segment's surface
+
+
+class Animator(InteractionAnimMixin, CombatAnimMixin, AcroAnimMixin):
     def __init__(self, cid: str, rig: StickmanRig, style: CharacterStyle, segments: List[Segment], records: List[StepRecord],
                  frames: Dict[str, GroundFrame], events: List[Event]):
         self.cid, self.rig, self.style = cid, rig, style
@@ -141,7 +146,7 @@ class Animator(InteractionAnimMixin, CombatAnimMixin):
         for seg in self.segments:
             F = self.frames[seg.frame]
             f = seg.facing
-            if seg.kind in ("airborne", "swing", "slide") or seg.kind in LYING:
+            if seg.kind in ("airborne", "swing", "slide") + FREE or seg.kind in LYING:
                 plants = None
                 continue
             if seg.kind == "landing":
@@ -260,7 +265,7 @@ class Animator(InteractionAnimMixin, CombatAnimMixin):
             self.FX[i], self.FY[i] = yx, yy
 
     def _overlap(self, pose: Pose, t: float) -> None:
-        if pose.state in ("airborne", "swing", "slide") + LYING:
+        if pose.state in ("airborne", "swing", "slide") + LYING + FREE:
             return
         fx, fy = float(np.interp(t, self.T, self.FX)), float(np.interp(t, self.T, self.FY))
         da = clamp(-0.00042 * fx, -0.75, 0.75)
@@ -373,12 +378,13 @@ class Animator(InteractionAnimMixin, CombatAnimMixin):
                 if seg.kind == "swing":  # the grip is a hard constraint: re-solve the arms after blending
                     for side in "nf":
                         self.rig.arm_ik(pose, side, seg.data["anchor"])
-                elif seg.kind not in ("airborne",) + LYING and self.segments[i - 1].kind not in LYING:
+                elif seg.kind not in ("airborne",) + LYING + FREE and self.segments[i - 1].kind not in LYING + FREE:
                     # blended legs may not dip through the support surface
                     self._ground_clamp(pose, self.frames[seg.frame])
                 elif seg.kind in ("getup", "crawl", "prone", "supine"):  # blending between lying poses: feet stay above the floor
                     self._ground_clamp(pose, self.frames[seg.frame])
         self._overlap(pose, t)
+        self._hold_carried(pose, t)
         self._hands_in_room(pose)
         return pose
 
@@ -770,6 +776,14 @@ class Animator(InteractionAnimMixin, CombatAnimMixin):
             L["thigh_f"] = -PI / 2 + lerp(-0.4, 1.0, tuck) + 0.1 * b
             L["shin_f"] = -lerp(0.4, 1.6, tuck) - 0.15 * b
             pose.eye = 1.15
+            if seg.data.get("flip"):  # somersault: a tight tuck through the rotation, opening out to land
+                T = seg.data.get("T", 0.8)
+                wf = smoothstep(0.04 * T, 0.2 * T, tau) * (1 - smoothstep(0.6 * T, 0.8 * T, tau))
+                set_lean(L, lerp(0.1, 0.85, wf), chest=0.25 * wf, head=lerp(-0.2, 0.6, wf))
+                self._tuck(L, max(wf, 0.25 * tuck))
+                set_arm(L, "n", lerp(2.4, 1.2, wf) - 1.0 * b, 0.4)
+                set_arm(L, "f", lerp(2.2, 1.1, wf) - 0.9 * b, 0.5)
+                self._hands_on_shins(pose, wf)
             btn, pt = seg.data.get("button"), seg.data.get("press_t")
             if btn is not None:
                 self._gaze(pose, btn, smoothstep(0.0, 0.15, tau))
@@ -845,6 +859,8 @@ class Animator(InteractionAnimMixin, CombatAnimMixin):
                     for k, side in enumerate("nf"):
                         if seg.kind == "strike" and seg.data.get("limb", "").endswith("_" + side) and seg.data["limb"].startswith("foot"):
                             continue  # the kicking foot leaves the floor
+                        if seg.kind == "strike" and seg.data.get("move") == "flying_kick":
+                            continue  # both feet leave the floor
                         steps = [st for st in seg.data.get("settle_steps", []) if st[0] == k]
                         if steps:  # planted before the corrective step (if any time remains) and after it
                             st = steps[0]

@@ -18,6 +18,7 @@ from ..rig.stickman import StickmanRig
 from ..scene.schema import ActionSpec, EnvironmentSpec
 from ..scene.targets import bar_world, exit_world, resolve, switch_world
 from .frames import GroundFrame
+from .acrobatics import ACRO, AcroMixin
 from .combat import COMBAT, CombatMixin
 from .interaction import INTERACTIONS, LIE_H, InteractionMixin
 from .library import get_clip, landing_clip
@@ -78,7 +79,7 @@ class StepRecord:
     ttc: float = -1.0
 
 
-class CharacterController(InteractionMixin, CombatMixin):
+class CharacterController(InteractionMixin, CombatMixin, AcroMixin):
     def __init__(self, cid: str, rig: StickmanRig, world: PhysicsWorld, frames: Dict[str, GroundFrame], gravity: GravityField,
                  env: EnvironmentSpec, x: float, facing: int, actions: List[ActionSpec], emit: Callable[[Event], None],
                  doors: Optional[Dict[str, Dict[str, Any]]] = None):
@@ -129,6 +130,7 @@ class CharacterController(InteractionMixin, CombatMixin):
         self.dodging: Optional[Dict[str, Any]] = None
         self.knocked = False
         self.ragdoll = None
+        self._acro_init()
         world.add_capsule(cid, self.frame.to_world(self.s, self.h), self.cap_a, self.cap_b, CAPSULE_R, MASS, kinematic=True)
         self._open("idle", 0.0)
 
@@ -176,13 +178,20 @@ class CharacterController(InteractionMixin, CombatMixin):
             for c in contacts:
                 if c.a == self.cid and c.b in self.frames and c.normal_speed > 1.0:
                     # only a surface that can hold the body under the current gravity is a landing; anything else
-                    # (e.g. grazing the ceiling while gravity points at a wall) is a glancing contact
-                    if -v_dot(g, self.frames[c.b].normal) >= SUPPORT_COS:
+                    # (e.g. grazing the ceiling while gravity points at a wall) is a glancing contact. A structure top
+                    # only counts from above and within its ends; a flip only lands once it has come round.
+                    fr = self.frames[c.b]
+                    top_ok = not fr.bounded or (v_dot(c.normal, fr.normal) > 0.6 and fr.lo - 8.0 <= fr.to_frame(c.point)[0] <= fr.hi + 8.0)
+                    st_ = self.world.state(self.cid)
+                    flip_ok = not self.air.get("flip") or abs(wrap_angle(st_.angle - fr.body_angle)) < 1.1
+                    if -v_dot(g, fr.normal) >= SUPPORT_COS and top_ok and flip_ok:
                         self._touch_down(t, c)
                         break
                     self.emit(Event(t, "graze", self.cid, {"surface": c.b, "normal_speed": c.normal_speed, "point": c.point}))
         if self.mode == "ragdoll":
             self._ragdoll_after_step(t, contacts)
+        if self.thrown is not None:
+            self._thrown_tick(t)
         if self.posture == "prone":
             self._check_pinned(t)
         st = self.world.state(self.cid)
@@ -227,6 +236,9 @@ class CharacterController(InteractionMixin, CombatMixin):
         if a.type in COMBAT:
             self._start_combat(t, a)
             return
+        if a.type in ACRO:
+            self._start_acro(t, a)
+            return
         if a.type in ("gesture", "offer_hand"):
             self.fight_mode = False
         if a.type in ("walk_to", "run_to") and a.target_x is None:  # walk to a character / prop
@@ -237,6 +249,8 @@ class CharacterController(InteractionMixin, CombatMixin):
                 lo, hi = self._prop_extent_s(self._pid(a.target))
                 ts = lo if d0 > 0 else hi
             a = self.cur = a.model_copy(update={"target_x": ts - d0 * stop})
+        if a.type in ("walk_to", "run_to") and not self.lying:
+            a = self.cur = self._check_walk(t, a)
         if a.type in INTERACTIONS:
             if not (self.inter_action is a and a.type == "use_lever"):
                 self.inter_action = a
@@ -353,6 +367,13 @@ class CharacterController(InteractionMixin, CombatMixin):
                 if self.mode == "grounded":
                     self._place(t)
                 return
+        elif a.type in ACRO:
+            self._tick_acro(t, dt, a)
+            if self.cur is not a:
+                if self.mode == "grounded":
+                    self._carry_tick()
+                    self._place(t)
+                return
         elif a.type in INTERACTIONS:
             self._tick_interaction(t, dt, a)
             if self.cur is not a:  # the interaction finished or handed over (placement already done)
@@ -376,6 +397,8 @@ class CharacterController(InteractionMixin, CombatMixin):
             pass  # armed; holds until support is lost
         elif a.type == "reach_exit":
             self._reach_exit(t, dt, a)
+        if self._edge_check(t):
+            return
         self._carry_tick()
         self._place(t)
 
@@ -470,17 +493,30 @@ class CharacterController(InteractionMixin, CombatMixin):
         g = self.gravity.at(t)
         gm = math.hypot(*g)
         vn = math.sqrt(2 * gm * a.height)
-        T = 2 * vn / gm
+        # landing surface: `onto` a structure top, else the floor when jumping off a structure, else this surface
+        dest = self._top_of(a.onto, a.target_x) if a.onto else (self.frames["floor"] if self.frame.owner is not None else self.frame)
+        dh = (dest.origin[1] - self.frame.origin[1]) if dest is not self.frame else 0.0
+        if dest is not self.frame and not (dest.lo - 1.0 <= a.target_x <= dest.hi + 1.0):
+            self._fail(f"{self.cid}: jump_to target_x {a.target_x:.0f} is off '{dest.tag}' (x {dest.lo:.0f}..{dest.hi:.0f})")
+        if dh > a.height - 12.0:
+            self._fail(f"{self.cid}: jump_to apex {a.height:.0f} cannot clear the {dh:.0f} rise onto '{dest.tag}' (use height > {dh + 12:.0f})")
+            dh = a.height - 12.0
+        T = (vn + math.sqrt(max(0.0, vn * vn - 2 * gm * dh))) / gm
         vt = (a.target_x - self.s) / T
         tan, nrm = self.frame.tangent, self.frame.normal
         vel = (tan[0] * vt + nrm[0] * vn, tan[1] * vt + nrm[1] * vn)
         self.world.set_dynamic(self.cid, vel, 0.0, MASS, self.moment)
         self.mode = "airborne"
         sw = next((x for x in self.env.switches if x.id == a.switch), None) if a.switch else None
-        self.air = {"intent": "jump", "t0": t, "switch": sw.id if sw else None, "button": switch_world(self.env, sw) if sw else None}
-        self._open("airborne", t, intent="jump", button=self.air["button"], target_x=a.target_x)
+        st = self.world.state(self.cid)
+        sgn = 0.0 if not a.flip else (-self.facing if a.flip == "front" else self.facing)
+        self.air = {"intent": "jump", "t0": t, "switch": sw.id if sw else None, "button": switch_world(self.env, sw) if sw else None,
+                    "T": T, "flip": a.flip, "sgn": sgn, "ang0": st.angle}
+        self._open("airborne", t, intent="jump", button=self.air["button"], target_x=a.target_x, flip=a.flip, T=T, onto=dest.tag)
         self.cur = None
-        self.emit(Event(t, "takeoff", self.cid, {"surface": self.frame.tag, "speed": vt, "apex": a.height}))
+        self.emit(Event(t, "takeoff", self.cid, {"surface": self.frame.tag, "speed": vt, "apex": a.height, "onto": dest.tag}))
+        if a.flip:
+            self.emit(Event(t, "flip", self.cid, {"dir": a.flip}))
 
     def _try_grab(self, t: float) -> bool:
         if not self.queue or self.queue[0].type != "grab_swing":
@@ -659,8 +695,11 @@ class CharacterController(InteractionMixin, CombatMixin):
             hit = self.world.raycast(st.pos, end, radius=4.0)
         self.ttc = hit.fraction * look if hit else -1.0
         if intent == "jump":
-            self.world.set_angular_velocity(self.cid, clamp(10.0 * wrap_angle(self.frame.body_angle - st.angle), -12, 12))
-            self.brace = clamp(1 - self.ttc / 0.3, 0, 1) if hit else 0.0
+            if self.air.get("flip"):
+                self._flip_control(t)
+            else:
+                self.world.set_angular_velocity(self.cid, clamp(10.0 * wrap_angle(self.frame.body_angle - st.angle), -12, 12))
+            self.brace = clamp(1 - self.ttc / 0.3, 0, 1) if hit and self.air.get("flip_u", 1.0) > 0.85 else 0.0
             sw = self.air.get("switch")
             if sw and not self.air.get("pressed"):
                 d = math.dist(self._shoulder_world(), self.air["button"])
@@ -707,6 +746,15 @@ class CharacterController(InteractionMixin, CombatMixin):
         self.emit(Event(t, "impact", self.cid, {"surface": fr.tag, "normal_speed": approach, "point": c.point, "tangent_speed": vt}))
         intent = self.air.get("intent")
         nxt = self.queue[0] if self.queue else None
+        if nxt is not None and nxt.type == "roll":  # landing roll: the roll absorbs the drop
+            self.mode = "grounded"
+            self.queue.popleft()
+            self.s, self.h, self.v = s, min(h, self.stand_h), vt
+            self.cur, self.cur_t0 = nxt, t
+            self.world.set_kinematic(self.cid, st.pos, fr.body_angle)
+            self._start_roll(t, nxt, landing=approach)
+            self._place(t)
+            return
         if intent == "jump" and nxt is not None and nxt.type in ("walk_to", "run_to") and abs(vt) > 60:
             self.mode = "grounded"
             self.s, self.h, self.v = s, min(h, self.stand_h), vt

@@ -97,10 +97,15 @@ class SwitchSpec(Strict):
 
 class PropSpec(Strict):
     """A dynamic rigid body. `container` (heavy box with handles), `post` (tall steel support), `bar` (pry bar /
-    lever), `toolbox` (small block, a typical fulcrum). `z` is the depth of the prop's centre (negative = nearer the
-    camera than the character plane); props with collide_characters=false pass in front of / behind characters."""
+    lever), `toolbox` (small block, a typical fulcrum), `glyph` (a symbol built from its strokes, see scene/glyphs.py:
+    `glyph` names it, `size` is its box, `weight` its stroke thickness). `z` is the depth of the prop's centre
+    (negative = nearer the camera than the character plane); props with collide_characters=false pass in front of /
+    behind characters."""
     id: str
-    kind: Literal["crate", "canister", "container", "post", "bar", "toolbox"] = "crate"
+    kind: Literal["crate", "canister", "container", "post", "bar", "toolbox", "glyph"] = "crate"
+    glyph: Optional[str] = None  # kind glyph: "+", "-", "x", "÷", "=", "<", ">", "!", "?", "π", "√", "0".."9"
+    weight: Optional[float] = Field(None, gt=0)  # glyph stroke thickness (default 15% of the smaller side)
+    color: Optional[str] = None  # glyph colour (default: the theme accent)
     position: Vec2
     size: Vec2 = (40.0, 40.0)
     mass: float = Field(8.0, gt=0)
@@ -112,6 +117,15 @@ class PropSpec(Strict):
     com: Vec2 = (0.0, 0.0)  # centre of mass in the prop's local frame (e.g. a post with a heavy steel cap is top-heavy)
     z: float = 0.0
     depth: float = Field(60.0, gt=0)  # visual extent along the room depth
+
+    @model_validator(mode="after")
+    def _glyph(self) -> "PropSpec":
+        if self.kind == "glyph":
+            from .glyphs import canonical
+            if not self.glyph:
+                raise ValueError(f"prop {self.id}: kind 'glyph' needs 'glyph' (the symbol)")
+            self.glyph = canonical(self.glyph)
+        return self
 
 
 class RopeSpec(Strict):
@@ -150,11 +164,26 @@ class ExitSpec(Strict):
 
 class ObstacleSpec(Strict):
     """Fixed structure spanning the room's depth. `beam`: a solid static collider (box cross-section `size`).
-    `bar`: a thin grab rail (radius size[0]/2); it is a grip anchor for grab_swing, not a collider."""
+    `bar`: a thin grab rail (radius size[0]/2); it is a grip anchor for grab_swing, not a collider.
+    `platform`: a solid box whose top can be stood on (walk off its end and you fall). `glyph`: a fixed symbol
+    (scene/glyphs.py) built from its strokes; its near-horizontal strokes can be stood on. Characters cannot walk
+    through a structure: they `vault` over it, `climb` onto it or `jump_to` onto it."""
     id: str
-    kind: Literal["beam", "bar"] = "beam"
+    kind: Literal["beam", "bar", "platform", "glyph"] = "beam"
     center: Vec2
     size: Vec2 = (30.0, 120.0)
+    glyph: Optional[str] = None
+    weight: Optional[float] = Field(None, gt=0)  # glyph stroke thickness
+    color: Optional[str] = None
+
+    @model_validator(mode="after")
+    def _glyph(self) -> "ObstacleSpec":
+        if self.kind == "glyph":
+            from .glyphs import canonical
+            if not self.glyph:
+                raise ValueError(f"obstacle {self.id}: kind 'glyph' needs 'glyph' (the symbol)")
+            self.glyph = canonical(self.glyph)
+        return self
 
 
 class ThemeSpec(Strict):
@@ -214,8 +243,11 @@ ActionType = Literal["idle", "walk_to", "run_to", "turn", "press", "jump", "look
                      # physical interaction (Rescue milestone)
                      "push", "lift", "use_lever", "struggle", "crawl_out", "get_up", "offer_hand", "gesture", "wait_for",
                      # combat (Milestone 1)
-                     "strike", "guard", "dodge"]
-StrikeMove = Literal["jab", "cross", "hook", "uppercut", "front_kick", "side_kick", "roundhouse", "sweep"]
+                     "strike", "guard", "dodge",
+                     # acrobatics and symbols (Milestone 2)
+                     "roll", "vault", "climb", "wall_kick", "pick_up", "throw"]
+StrikeMove = Literal["jab", "cross", "hook", "uppercut", "front_kick", "side_kick", "roundhouse", "sweep", "flying_kick",
+                     "swing_weapon"]
 
 
 class ActionSpec(Strict):
@@ -243,6 +275,8 @@ class ActionSpec(Strict):
     power: float = Field(1.0, gt=0, le=2.0)  # strike: how hard (with the move's own weight it picks the reaction)
     reaction: Optional[Literal["auto", "flinch", "stagger", "knockdown"]] = None  # strike: force the target's reaction
     dodge: Literal["back", "duck"] = "back"  # dodge: step back out of reach, or duck under a high strike
+    onto: Optional[str] = None  # jump_to: land on this structure's top ("obstacle:<id>"); default: the floor (from a top)
+    flip: Optional[Literal["front", "back"]] = None  # jump_to / wall_kick: a somersault in the air
     note: str = ""
 
     @model_validator(mode="after")
@@ -251,7 +285,8 @@ class ActionSpec(Strict):
                 "look_at": ["target"], "notice": ["target"], "point": ["target"], "duck_slide": ["target_x"],
                 "jump_to": ["target_x", "height"], "grab_swing": ["target"], "reach_exit": ["target"],
                 "push": ["target"], "lift": ["target"], "use_lever": ["target", "tool", "fulcrum"], "offer_hand": ["target"],
-                "gesture": ["target", "gesture"], "wait_for": ["until"], "strike": ["target", "move"]}
+                "gesture": ["target", "gesture"], "wait_for": ["until"], "strike": ["target", "move"],
+                "vault": ["target"], "climb": ["target"], "wall_kick": ["target_x"], "pick_up": ["target"], "throw": ["target"]}
         if self.type in ("walk_to", "run_to") and self.target_x is None and not (self.target or "").split(":", 1)[0] in ("char", "prop"):
             raise ValueError(f"action '{self.type}' requires 'target_x' (or a 'char:'/'prop:' target)")
         for f in need.get(self.type, []):
@@ -261,13 +296,23 @@ class ActionSpec(Strict):
             raise ValueError("turn.face must be +1 or -1")
         if self.target is not None:
             kind, _, ref = self.target.partition(":")
-            if kind not in ("switch", "exit", "point", "bar", "prop", "char") or not ref:
-                raise ValueError(f"target must be 'switch:<id>', 'exit:<id>', 'bar:<id>', 'prop:<id>', 'char:<id>' or 'point:x,y' "
-                                 f"(got {self.target!r})")
+            if kind not in ("switch", "exit", "point", "bar", "prop", "char", "obstacle") or not ref:
+                raise ValueError(f"target must be 'switch:<id>', 'exit:<id>', 'bar:<id>', 'prop:<id>', 'char:<id>', 'obstacle:<id>' "
+                                 f"or 'point:x,y' (got {self.target!r})")
         for f in ("tool", "fulcrum"):
             v = getattr(self, f)
             if v is not None and not v.startswith("prop:"):
                 raise ValueError(f"{f} must be 'prop:<id>'")
+        if self.type == "vault" and not (self.target or "").startswith(("obstacle:", "prop:")):
+            raise ValueError("vault.target must be 'obstacle:<id>' or 'prop:<id>'")
+        if self.type == "climb" and not (self.target or "").startswith("obstacle:"):
+            raise ValueError("climb.target must be 'obstacle:<id>' (a platform or glyph top)")
+        if self.onto is not None and not self.onto.startswith("obstacle:"):
+            raise ValueError("onto must be 'obstacle:<id>'")
+        if self.type == "pick_up" and not (self.target or "").startswith("prop:"):
+            raise ValueError("pick_up.target must be 'prop:<id>'")
+        if self.type == "throw" and not (self.target or "").startswith(("char:", "point:")):
+            raise ValueError("throw.target must be 'char:<id>' or 'point:x,y'")
         if self.type in ("push", "lift", "use_lever") and not (self.target or "").startswith("prop:"):
             raise ValueError(f"{self.type}.target must be 'prop:<id>'")
         if self.type in ("offer_hand", "gesture", "strike") and not (self.target or "").startswith("char:"):

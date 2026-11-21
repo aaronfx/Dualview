@@ -27,7 +27,7 @@ ACTION_HELP = {
     "idle": "stand (duration)", "walk_to": "walk to target_x, or to a 'char:'/'prop:' target", "run_to": "run (same targets as walk_to)",
     "turn": "face=+1/-1", "press": "press a switch (switch)", "jump": "running jump (height)", "look_around": "look around (duration)",
     "wait_grounded": "wait until standing on a surface again", "look_at": "look at target (duration)", "notice": "double take at target",
-    "point": "point at target", "duck_slide": "slide feet-first to target_x", "jump_to": "standing jump to target_x (height, optional switch)",
+    "point": "point at target", "duck_slide": "slide feet-first to target_x", "jump_to": "standing jump to target_x (height, optional switch; onto obstacle: lands on its top; flip front|back)",
     "grab_swing": "catch a bar while falling (target bar:)", "reach_exit": "walk out through an open exit (target exit:)",
     "push": "push a prop (target prop:, effort 0.5-1.6 of the character's strength); if it breaks loose and outruns the character, "
             "contact is lost and the character stumbles and FALLS PRONE (physics decides)",
@@ -41,16 +41,24 @@ ACTION_HELP = {
     "gesture": "gesture with another character (target char:, gesture fist_bump|shoulder_pat|wave)",
     "wait_for": "wait until an event happens (until 'event:<type>[@<who>]' = has happened at any time; "
                 "'next:<type>[@<who>]' = the next one after this action starts)",
-    "strike": "attack another character (target char:, move jab|cross|hook|uppercut|front_kick|side_kick|roundhouse|sweep, "
+    "strike": "attack another character (target char:, move jab|cross|hook|uppercut|front_kick|side_kick|roundhouse|sweep|"
+              "flying_kick (a jumping kick)|swing_weapon (swing the carried prop), "
               "power 0.3-2, optional reaction flinch|stagger|knockdown); closes to range first; the simulation decides "
               "hit / blocked (target guarding and facing) / whiff (out of reach, ducked); knockdowns are physics falls",
     "guard": "fighting stance with fists up (duration or until); blocks head and body strikes from the front",
     "dodge": "dodge = back (step out of reach) or duck (under head-height strikes)",
+    "roll": "forward roll along the floor (distance, or target_x); right after a jump it is a landing roll",
+    "vault": "vault over a low structure or prop (target obstacle:/prop:, top under ~0.95 body height)",
+    "climb": "climb onto the top of a platform or glyph structure from beside it (target obstacle:): hang, pull up, stand",
+    "wall_kick": "run at a wall (room wall, or target obstacle:), two steps up it, push off to land at target_x (height; flip back)",
+    "pick_up": "pick up a light prop, e.g. a glyph (target prop:); carried in both hands until thrown",
+    "throw": "throw the carried prop at a character or point (target char:/point:); the simulation decides hit / blocked / miss",
 }
 EVENT_TYPES = ("footstep turn notice point press_contact switch_activated gravity_shift lost_support impact recovered takeoff "
                "push_start push_lost rope_taut rope_snap body_fall pinned load_off lift_start lift_fail lift_ok pick_up lever_place "
                "lever_engage lever_release crawl_start freed get_up_start hand_offered hand_grab stood_up fist_bump shoulder_pat prop_impact "
-               "strike_start swing hit hurt blocked block_hit whiff evaded knockdown settled dodge gesture_start")
+               "strike_start swing hit hurt blocked block_hit whiff evaded knockdown settled dodge gesture_start "
+               "step_off flip roll_start roll_end vault climbed ledge_grab wall_contact wall_kick throw prop_hit")
 
 
 def system_prompt() -> str:

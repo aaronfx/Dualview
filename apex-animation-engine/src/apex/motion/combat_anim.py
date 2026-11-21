@@ -81,6 +81,8 @@ class CombatAnimMixin:
     # ------------------------------------------------------------ strikes
     def _eval_strike(self, seg: Segment, t: float) -> Pose:
         d = seg.data
+        if d.get("move") == "flying_kick":
+            return self._eval_flying_kick(seg, t)
         tau = t - seg.t0
         ta, tc, dur = d["t_a"], d["t_c"], d["dur"]
         move, limb, f = d["move"], d["limb"], seg.facing

@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Tuple
+from typing import Optional, Tuple
 
 from ..core.mathx import Vec, v_dot
 
@@ -13,6 +13,13 @@ class GroundFrame:
     tag: str
     origin: Vec  # a point on the surface
     normal: Vec  # unit normal pointing into free space
+    lo: float = -math.inf  # extent along the tangent (s): room surfaces are unbounded; a platform top ends
+    hi: float = math.inf
+    owner: Optional[str] = None  # the structure this top belongs to (None: a room surface)
+
+    @property
+    def bounded(self) -> bool:
+        return math.isfinite(self.lo) or math.isfinite(self.hi)
 
     @property
     def tangent(self) -> Vec:

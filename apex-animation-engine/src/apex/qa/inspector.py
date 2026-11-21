@@ -17,6 +17,7 @@ from ..scene.targets import in_portal, switch_world
 
 # Each tolerance below is named so failures can be traced back to an explicit, documented threshold.
 TOL = {
+    "structure_depth": 6.0, "top_overhang": 10.0, "flip_land": 0.45,
     "bone_ratio_min": 0.86, "bone_ratio_max": 1.13,  # allows authored squash/stretch and IK stretch (<=8%) only
     "foot_slide": 1.5,  # world units a planted ankle may drift
     "joint_speed": 3200.0,  # units/s; above this a joint "teleports" (fastest authored motion ~1500)
@@ -101,7 +102,7 @@ class Inspector:
         for fn in (self.check_hierarchy, self.check_bone_lengths, self.check_positions, self.check_teleport, self.check_foot_sliding,
                    self.check_gravity, self.check_geometry, self.check_camera, self.check_camera_motion, self.check_continuity,
                    self.check_secondary, self.check_exit_conditions, self.check_interactions, self.check_composition,
-                   self.check_combat):
+                   self.check_combat, self.check_acrobatics):
             rep.checks.extend(fn())
         rep.checks.extend(self.check_sync(cues))
         if check_determinism:
@@ -271,7 +272,10 @@ class Inspector:
             if not c.valid():
                 bad += 1
             sh = self.cam.shot_at(t)
-            for cid in self.r.animators:
+            framed = list(self.r.animators)
+            if sh.camera.target and sh.kind != "insert":  # a following shot frames its target and the characters it includes
+                framed = [sh.camera.target] + [r.split(":", 1)[1] for r in (sh.camera.include or []) if r.startswith("char:")]
+            for cid in framed:
                 if sh.kind == "insert":  # inserts frame an object (the switch), not the character
                     region = (sh.camera.center[0] - 15, sh.camera.center[1] - 30, sh.camera.center[0] + 15, sh.camera.center[1] + 10) \
                         if sh.camera.center else None
@@ -568,13 +572,19 @@ class Inspector:
         for e in hits:
             an = self.r.animators[e.character]
             seg = an.segments[an.segment_at(e.t)]
-            if seg.kind != "strike":
+            if e.data.get("move") == "throw":  # a thrown glyph: the prop itself must touch the body
+                err = self._prop_body_gap(e.data["prop"], e.data["target"], e.t)
+            elif seg.kind != "strike":
                 continue
-            limb = seg.data["limb"]
-            joint = ("hand_" if limb.startswith("hand") else "ankle_") + limb[-1]
-            j = self.rt.rigs[e.character].world_joints(an.pose_at(e.t))
-            tp = an._target_point(seg.data["other"], e.t, seg.data["height"], seg.facing)
-            err = math.dist(j[joint], tp)
+            elif seg.data.get("weapon"):  # a wielded glyph: the prop must reach the struck point
+                tp = an._target_point(seg.data["other"], e.t, seg.data["height"], seg.facing)
+                err = self._prop_point_gap(seg.data["weapon"], tp, e.t)
+            else:
+                limb = seg.data["limb"]
+                joint = ("hand_" if limb.startswith("hand") else "ankle_") + limb[-1]
+                j = self.rt.rigs[e.character].world_joints(an.pose_at(e.t))
+                tp = an._target_point(seg.data["other"], e.t, seg.data["height"], seg.facing)
+                err = math.dist(j[joint], tp)
             if err > worst:
                 worst, where = err, f"{e.character} {seg.data['move']} at t={e.t:.2f}s"
         out.append(Check("strike_contact", "PASS" if worst <= TOL["strike_contact"] else "FAIL", worst, TOL["strike_contact"],
@@ -598,6 +608,84 @@ class Inspector:
         ok = all(any(s.character == k.character and s.t > k.t for s in settled) for k in kd)
         out.append(Check("knockdowns_settle", "PASS" if ok or not kd else "WARN", float(len(kd)), None,
                          f"{len(kd)} physics fall(s), {len(settled)} settled before the end"))
+        return out
+
+    # ------------------------------------------------------------ acrobatics and symbols
+    def _prop_segments(self, pid: str, t: float):
+        from ..scene import glyphs
+        sp = next(p for p in self.rt.env.props if p.id == pid)
+        an = next(iter(self.r.animators.values()))
+        if sp.kind == "glyph":
+            r = (sp.weight or glyphs.default_weight(sp.size)) / 2
+            return [(an._prop_world(pid, t, a), an._prop_world(pid, t, b)) for a, b in glyphs.segments(sp.glyph, sp.size)], r
+        return [(an._prop_world(pid, t, (-sp.size[0] / 2, 0)), an._prop_world(pid, t, (sp.size[0] / 2, 0)))], sp.size[1] / 2
+
+    def _prop_point_gap(self, pid: str, p, t: float) -> float:
+        from ..motion.acrobatics import _seg_dist
+        segs, r = self._prop_segments(pid, t)
+        return max(0.0, min(_seg_dist(p, p, a, b)[0] for a, b in segs) - r)
+
+    def _prop_body_gap(self, pid: str, cid: str, t: float) -> float:
+        """Distance between a prop's surface and a character's body (pelvis-neck-head chain) at time t."""
+        from ..motion.acrobatics import _seg_dist
+        segs, r = self._prop_segments(pid, t)
+        j = self.rt.rigs[cid].world_joints(self.r.animators[cid].pose_at(t))
+        chain = [j["pelvis"], j["neck_base"], j["head_center"]]
+        d = min(_seg_dist(p, q, a, b)[0] for a, b in segs for p, q in zip(chain, chain[1:]))
+        return max(0.0, d - r - 9.0)
+
+    def check_acrobatics(self) -> List[Check]:
+        """Bodies never pass inside structures; feet stay within the tops they stand on; flips land upright."""
+        from ..scene import structures
+        blocks = structures.blocks(self.rt.env)
+        ev = self.r.events
+        acro = any(e.type in ("flip", "roll_start", "vault", "climbed", "wall_kick", "step_off", "throw") for e in ev)
+        if not blocks and not acro:
+            return []
+        out = []
+        worst, where = 0.0, ""
+        for cid, js in self.joints.items():
+            for i, t in enumerate(self.times):
+                for name in ("pelvis", "neck_base", "head_center"):
+                    x, y = js[i][name]
+                    for b in blocks:
+                        if b.x0 < x < b.x1 and b.y0 < y < b.y1:
+                            depth = min(x - b.x0, b.x1 - x, y - b.y0, b.y1 - y)
+                            if depth > worst:
+                                worst, where = depth, f"{cid} {name} in '{b.owner}' at t={t:.2f}s"
+        if blocks:
+            out.append(Check("body_outside_structures", "PASS" if worst <= TOL["structure_depth"] else "FAIL", worst, TOL["structure_depth"],
+                             f"deepest a body point goes inside a structure ({where or 'never'})"))
+        worst, where = 0.0, ""
+        for cid, an in self.r.animators.items():
+            for iv in an.planted_intervals():
+                seg = an.segments[an.segment_at((iv.t0 + iv.t1) / 2)]
+                F = self.r.frames[seg.frame]
+                if not F.bounded:
+                    continue
+                s, _ = F.to_frame(iv.point)
+                off = max(0.0, F.lo - s, s - F.hi)
+                if off > worst:
+                    worst, where = off, f"{cid} on '{F.tag}' at t={iv.t0:.2f}s"
+        if any(f.bounded for f in self.r.frames.values()):
+            out.append(Check("feet_on_tops", "PASS" if worst <= TOL["top_overhang"] else "FAIL", worst, TOL["top_overhang"],
+                             f"how far a planted foot is past the end of the top it stands on ({where or 'none'})"))
+        flips = [e for e in ev if e.type == "flip"]
+        if flips:
+            worst, where = 0.0, ""
+            for e in flips:
+                land = next((x for x in ev if x.type in ("impact",) and x.character == e.character and x.t > e.t), None)
+                if land is None:
+                    worst, where = math.pi, f"{e.character} flip at t={e.t:.2f}s never lands"
+                    continue
+                c = self.r.controllers[e.character]
+                rec = max((r_ for r_ in c.records if r_.t < land.t - 1e-9), key=lambda r_: r_.t)  # just before touchdown
+                F = self.r.frames[land.data["surface"]]
+                err = abs(math.atan2(math.sin(rec.angle - F.body_angle), math.cos(rec.angle - F.body_angle)))
+                if err > worst:
+                    worst, where = err, f"{e.character} at t={land.t:.2f}s"
+            out.append(Check("flips_land_upright", "PASS" if worst <= TOL["flip_land"] else "FAIL", worst, TOL["flip_land"],
+                             f"body angle from upright at the landing of each flip (rad; {len(flips)} flips; worst {where})"))
         return out
 
     def check_sync(self, cues) -> List[Check]:

@@ -602,5 +602,7 @@ class InteractionMixin:
 
     def _carry_tick(self) -> None:
         if self.carrying is not None:
-            c, a = self._carry_pose()
+            if self.cur is not None and self.cur.type == "strike" and self.cur.move == "swing_weapon":
+                return  # the swing poses the prop itself
+            c, a = self._hold_pose(self.carrying) if self.props[self.carrying].kind == "glyph" else self._carry_pose()
             self.world.set_kinematic(self.carrying, c, a)

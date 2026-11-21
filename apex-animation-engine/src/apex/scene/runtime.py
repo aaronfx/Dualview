@@ -15,6 +15,7 @@ from ..core.mathx import Vec
 from ..motion.animator import Animator
 from ..motion.controller import CharacterController, Event
 from ..motion.frames import GroundFrame, room_frames
+from . import glyphs, structures
 from ..motion.secondary import DustField, ScarfSim
 from ..physics.gravity import GravityField
 from ..physics.world import PhysicsWorld
@@ -129,9 +130,18 @@ class SceneRuntime:
         world.add_static_segment("wall_left", (-hw, -50), (-hw, room.height + 50), 2.0)
         world.add_static_segment("ceiling", (-hw - 50, room.height), (hw + 50, room.height), 2.0)
         for ob in self.env.obstacles:
-            if ob.kind == "beam":
+            if ob.kind in ("beam", "platform"):
                 world.add_static_box(ob.id, ob.center, ob.size)
+            elif ob.kind == "glyph":
+                for a, b, r, tag in structures.shape_tags(ob):
+                    world.add_static_segment(tag, a, b, r)
         for pr in self.env.props:
+            if pr.kind == "glyph":
+                wgt = pr.weight or glyphs.default_weight(pr.size)
+                com, masses = glyphs.mass_props(pr.glyph, pr.size, wgt, pr.mass)
+                world.add_compound(pr.id, pr.position, glyphs.segments(pr.glyph, pr.size), wgt / 2, masses, com, angle=pr.angle,
+                                   friction=pr.friction, elasticity=0.25, collide_characters=pr.collide_characters, solid=pr.solid)
+                continue
             world.add_box(pr.id, pr.position, pr.size, pr.mass, angle=pr.angle, friction=pr.friction,
                           elasticity=0.15 if pr.mass < 20 else 0.02,  # heavy steel does not bounce
                           collide_characters=pr.collide_characters, com=pr.com, solid=pr.solid)
@@ -147,6 +157,7 @@ class SceneRuntime:
         snapped: Dict[str, float] = {}
         last_hit: Dict[Tuple[str, str], float] = {}
         frames = room_frames(room.width, room.height)
+        frames.update(structures.top_frames(self.env))
         gravity = GravityField(initial=self.env.gravity)
         events: List[Event] = []
         doors: Dict[str, Dict[str, Optional[float]]] = {ex.id: {"unlock_t": None, "open_t": None, "exit_t": None} for ex in self.env.exits}
@@ -241,6 +252,7 @@ class SceneRuntime:
             spec = self.project.character(cid)
             animators[cid] = Animator(cid, self.rigs[cid], spec.style, c.segments, c.records, frames, events)
             animators[cid].portals = [exit_portal(self.env, ex.id) for ex in self.env.exits if ex.unlock_on]
+            animators[cid].carry_spans = c.carry_log
         _pt = np.array(times)
         _tracks = {pid: (tr[:, 0].copy(), tr[:, 1].copy(), np.unwrap(tr[:, 2])) for pid, tr in prop_tracks.items()}
 

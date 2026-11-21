@@ -306,6 +306,10 @@ DEFAULT_BINDINGS = {
     # combat
     "swing": "whoosh", "hit": "impact", "block_hit": "clang", "dodge": "whoosh", "strike_start": None, "hurt": None,
     "blocked": None, "whiff": None, "evaded": None, "knockdown": None, "settled": None,
+    # acrobatics and symbols
+    "flip": "whoosh", "roll_start": "slide", "roll_end": None, "vault": "tap", "vault_start": None, "ledge_grab": "clank",
+    "climb_start": None, "climbed": "footstep", "step_off": None, "wall_run": None, "wall_contact": "footstep", "wall_kick": "whoosh",
+    "throw_start": None, "throw": "whoosh", "prop_hit": "clang",
 }
 
 
@@ -354,6 +358,12 @@ class SoundDirector:
                     gain = 0.3
                 elif e.type == "block_hit":
                     gain = 0.8
+                elif e.type in ("flip", "wall_kick", "throw"):
+                    gain = 0.5
+                elif e.type == "prop_hit":
+                    gain = 0.5 + 0.5 * clamp01(e.data.get("normal_speed", 800) / 1200)
+                elif e.type in ("roll_start", "wall_contact", "climbed", "vault"):
+                    gain = 0.55
                 cues.append(Cue(e.t, e.type, snd, gain))
         return cues
 

@@ -43,7 +43,13 @@ MOVES: Dict[str, Dict[str, Any]] = {
     "side_kick": dict(limb="foot_f", height="body", t_a=0.22, t_c=0.38, dur=0.82, reach=1.08, power=1.25, push=(1.0, 0.2), lunge=16.0),
     "roundhouse": dict(limb="foot_f", height="head", t_a=0.26, t_c=0.44, dur=0.9, reach=1.0, power=1.3, push=(1.0, 0.3), lunge=10.0),
     "sweep": dict(limb="foot_n", height="legs", t_a=0.20, t_c=0.36, dur=0.85, reach=1.05, power=1.1, push=(0.45, 0.35), lunge=8.0),
+    # Milestone 2: a jumping kick (contact at the top of the arc) and a swing of a carried prop (glyph) as a weapon
+    "flying_kick": dict(limb="foot_n", height="body", t_a=0.22, t_c=0.42, dur=0.95, reach=1.0, power=1.4, push=(1.0, 0.3), lunge=78.0,
+                        air=0.48),
+    "swing_weapon": dict(limb="hand_n", height="body", t_a=0.22, t_c=0.36, dur=0.78, reach=1.0, power=1.15, push=(1.0, 0.25), lunge=18.0,
+                         weapon=True),
 }
+AIR_T = (0.7, 0.70)  # flying kick: takeoff at 0.7 x t_a, landing at this time (s)
 HURT_T = {"flinch": 0.38, "stagger": 0.75, "block": 0.32}
 DUCK_T, DODGE_BACK_T = 0.55, 0.38
 
@@ -52,10 +58,15 @@ class CombatMixin:
     # ------------------------------------------------------------ geometry
     def _strike_reach(self, move: str) -> float:
         m = MOVES[move]
+        if m.get("weapon"):  # the arm and the prop held in the hands
+            pid = getattr(self, "carrying", None)
+            sp = self.props[pid] if pid else None
+            L = (sp.size[0] - (sp.weight or 8.0)) if sp else 0.0  # from the grip to the far end
+            return 20.0 + 0.5 * self.arm_reach + L + 8.0 + m["lunge"]
         if m["limb"].startswith("hand"):  # arm + forward lean + lunge + the target's body depth
             return self.arm_reach * m["reach"] + 34.0 + m["lunge"]
         # a kick reaches along the leg from the hip: the higher the target, the closer the kicker has to be
-        hip = self.stand_h + (8.0 if move == "roundhouse" else -4.0)
+        hip = self.stand_h + (8.0 if move == "roundhouse" else -4.0) + m.get("air", 0.0) * self.stand_h
         dy = self._body_height(m["height"]) - hip
         L = self.p_leg * 1.04 * m["reach"]
         return math.sqrt(max(0.0, L * L - dy * dy)) + 9.0 + m["lunge"]
@@ -98,9 +109,11 @@ class CombatMixin:
             if self._face(t, a, direction):
                 return
             m = MOVES[a.move]
+            if m.get("weapon") and getattr(self, "carrying", None) is None:
+                raise ValueError(f"{self.cid}: swing_weapon needs a carried prop (pick_up first)")
             I.update(other=other, move=a.move, dir=direction, s0=self.s, resolved=False)
             self._open("strike", t, move=a.move, other=other, dir=direction, t_a=m["t_a"], t_c=m["t_c"], dur=m["dur"],
-                       limb=m["limb"], height=m["height"])
+                       limb=m["limb"], height=m["height"], weapon=getattr(self, "carrying", None) if m.get("weapon") else None)
             self.emit(self._ev(t, "strike_start", {"move": a.move, "target": other}))
             self.emit(self._ev(t + m["t_a"], "swing", {"move": a.move, "target": other}))
         elif a.type == "guard":
@@ -122,7 +135,23 @@ class CombatMixin:
             # the step-in starts in the wind-up (push off the rear foot) and lands with the blow, then steps back out
             t0 = 0.4 * m["t_a"]
             u = _smooth((tau - t0) / max(0.05, m["t_c"] - t0)) * (1.0 - _smooth((tau - m["t_c"] - 0.06) / 0.3))
+            if m.get("air"):  # a jumping lunge: up and over, contact near the top of the arc, land in stance
+                t_up, t_dn = AIR_T[0] * m["t_a"], AIR_T[1]
+                ua = clamp((tau - t_up) / (t_dn - t_up), 0.0, 1.0)
+                self.h = self.stand_h + m["air"] * self.stand_h * 4.0 * ua * (1.0 - ua)
+                u = _smooth((tau - t_up) / (t_dn - t_up)) if tau < t_dn else 1.0
+                if not I.get("up") and tau >= t_up:
+                    I["up"] = True
+                    self.emit(self._ev(t, "takeoff", {"surface": self.frame.tag, "speed": m["lunge"] / (t_dn - t_up), "apex": m["air"] * self.stand_h}))
+                if not I.get("down") and tau >= t_dn:
+                    I["down"] = True
+                    self.h = self.stand_h
+                    self.emit(self._ev(t, "impact", {"surface": self.frame.tag, "normal_speed": 420.0,
+                                                     "point": self.frame.to_world(self.s, 0.0), "tangent_speed": 0.0}))
             self.s = I["s0"] + I["dir"] * m["lunge"] * u
+            if m.get("weapon") and self.carrying is not None:  # the prop follows the swing (simulation-side pose)
+                ext = clamp(1.0 - abs(tau - m["t_c"]) / 0.22, 0.0, 1.0)
+                self.world.set_kinematic(self.carrying, *self._hold_pose(self.carrying, self._weapon_angle(tau, m), ext))
             if not I["resolved"] and tau >= m["t_c"]:
                 I["resolved"] = True
                 self._resolve_strike(t, a, m)
@@ -153,6 +182,20 @@ class CombatMixin:
             if tau >= dur:
                 self._next_action(t)
 
+    @staticmethod
+    def _weapon_angle(tau: float, m: Dict[str, Any]) -> float:
+        """Swing angle of a wielded prop, relative to forward: raised back over the shoulder, cut down through the
+        target level at contact, follow through low, then back to the carry angle."""
+        ta, tc, dur = m["t_a"], m["t_c"], m["dur"]
+        if tau < ta:
+            return 0.35 + 1.75 * _smooth(tau / ta)
+        if tau < tc:
+            u = (tau - ta) / (tc - ta)
+            return 2.1 - 2.1 * (1.0 - (1.0 - u) ** 3)
+        if tau < tc + 0.16:
+            return -0.55 * _smooth((tau - tc) / 0.16)
+        return -0.55 + 0.9 * _smooth((tau - tc - 0.16) / max(0.1, dur - tc - 0.16))
+
     def _resolve_strike(self, t: float, a: ActionSpec, m: Dict[str, Any]) -> None:
         I = self.inter
         oc = self.others[I["other"]]
@@ -164,7 +207,7 @@ class CombatMixin:
         dodge = getattr(oc, "dodging", None)
         if oc.lying or oc.mode != "grounded":
             outcome = "whiff"
-        elif dx > self._strike_reach(I["move"]) or dx < 0:
+        elif dx > self._strike_reach(I["move"]) - abs(self.s - I["s0"]) or dx < 0:  # reach from where the lunge has brought him
             outcome = "whiff"
         elif dodge and dodge["kind"] == "duck" and part == "head" and dodge["t0"] <= t <= dodge["t1"]:
             outcome = "whiff"

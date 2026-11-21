@@ -80,6 +80,30 @@ Standing characters pass in front of props (2.5D). A character lying down is sol
 - `fighters_do_not_overlap`;
 - `knockdowns_settle`.
 
+## Structures, acrobatics and symbols (Milestone 2)
+
+**Structures.** Two new `ObstacleSpec.kind` values:
+- `platform`: a solid box (`center`, `size`) whose top can be stood on.
+- `glyph`: a fixed symbol (`glyph`, `size`, `weight` = stroke thickness, `color`). Its near-horizontal strokes can be stood on: the top bar of a `7` or a `π`, a `-`, both bars of a `=`.
+
+Glyphs: `+ - x ÷ = < > ! ? π √ 0-9`. Aliases: `× − * /`. The strokes are defined in `scene/glyphs.py`. One definition drives the physics (rounded segments), the standable tops and the rendering.
+
+Each standable top is a support surface with ends. Walking past an end steps off it (`step_off`) and drops. A walk that runs into a structure is rejected with the structure's name. Use `vault`, `climb` or `jump_to … onto` instead.
+
+**Symbols as props.** `PropSpec.kind: "glyph"` (with `glyph`, `size`, `weight`, `mass`, `color`) is a dynamic compound body built from the glyph's strokes. It can be pushed, picked up, carried, swung and thrown.
+
+| Action | Fields | What the simulation does | Events |
+|---|---|---|---|
+| `jump_to` | `target_x`, `height`, `onto: "obstacle:<id>"`, `flip: front\|back` | Ballistic jump that accounts for the height difference to the landing top (from a top, it lands on the floor by default). A flip rotates the body along a planned somersault that completes before landing | `takeoff`, `flip`, `impact` |
+| `roll` | `distance` or `target_x` | Forward roll. Directly after a jump, it starts at touchdown (a landing roll) | `roll_start`, `roll_end` |
+| `vault` | `target: "obstacle:<id>"\|"prop:<id>"` | Over a structure lower than 0.95 × body height: hand plant, legs over, landing | `vault_start`, `vault`, `impact` |
+| `climb` | `target: "obstacle:<id>"` | From beside a top within reach: jump, hang from the edge, pull up, mantle, stand on it | `climb_start`, `ledge_grab`, `climbed` |
+| `wall_kick` | `target_x`, `target: "obstacle:<id>"` (else the room wall ahead), `height`, `flip` | Run at the wall, two steps up it, push off on a ballistic arc to `target_x` | `wall_run`, `wall_contact` ×2, `wall_kick`, `flip` |
+| `pick_up` | `target: "prop:<id>"` | Grip a light prop (mass × g ≤ 0.9 × strength) and carry it in both hands | `pick_up` |
+| `throw` | `target: "char:<id>"\|"point:x,y"`, `power` | Wind up and release on a ballistic arc at the target. In flight, contact with a body is a **hit** (a reaction from the momentum) or **blocked** (guarding and facing). A duck or a step back can make it miss | `throw_start`, `throw`, `hit`/`blocked`, `prop_hit` |
+| `strike` `move: flying_kick` | as for other strikes | A jumping lunge, with contact near the top of the arc | `takeoff`, `impact` |
+| `strike` `move: swing_weapon` | as for other strikes, while carrying | Swings the carried prop. The reach is the arm plus the prop | as for other strikes |
+
 ## Gravity angles (GravityEffect)
 
 Each switch changes gravity in exactly one of two ways:
