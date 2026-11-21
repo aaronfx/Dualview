@@ -19,4 +19,48 @@ Toward the benchmark film (a character fighting a symbolic world) and the 80/100
 | QA | `strike_contact` (fist or foot on the struck point at contact), `fighters_do_not_overlap`, `knockdowns_settle` | `qa/inspector.check_combat` |
 | AI Director | The prompt documents `strike`, `guard`, `dodge`, `next:` and the combat events; goals and cuts can name them | `ai/director.py`, `scene/goals.py` |
 
-RESULTS_PLACEHOLDER
+## Test film: *First Exchange* (original, hand-authored)
+
+| | |
+|---|---|
+| Video | 1080p, 24 fps, 16.67 s, H.264 + AAC (`docs/evidence/ffprobe_first_exchange.txt`). Delivered separately; MP4s are not committed |
+| Source | `examples/first_exchange.json` (built by `examples/build_first_exchange.py`) |
+| Who wrote it | **Hand-authored choreography.** The engine decides the outcomes and the timing. No AI planning was used |
+| QA | **45 PASS / 2 SKIP / 1 WARN** (`docs/evidence/first_exchange_qa.json`) |
+| Strike contact at impact | worst 11.8 units, limit 24 (`strike_contact`) |
+| Fighters' closest approach | 58.7 units, limit 28 (`fighters_do_not_overlap`) |
+| Audio | 32 cues, each placed at its engine event time; audio and video durations match within 0.7 ms; every frame decodes |
+| Tests | **158 passed**, including 7 in `tests/test_combat.py` |
+
+**What happens in it, as decided by the simulation:**
+1. KAI's jab is **blocked** (sparks, and the guard recoils).
+2. The cross is **ducked** (whiff).
+3. RHO's counter-hook **hits** (a flinch).
+4. The front kick is **dodged** with a back-step (whiff).
+5. RHO's roundhouse is **ducked** (whiff).
+6. The uppercut **hits** (a stagger).
+7. The sweep **knocks RHO down.** He falls as a ragdoll and settles **face up**.
+8. RHO gets up from his back. They fist-bump.
+
+The 6 shot cuts are placed at the simulated events (`cut_on`).
+
+**Evidence:**
+- `docs/media/first_exchange_contact_sheet.jpg`
+- `docs/media/first_exchange_key_moments.jpg`
+- `docs/media/first_exchange_interaction_diagnostics.jpg` (a state timeline per character, and contact error at impact)
+
+## Known defects (honest list)
+
+| # | Defect | Severity |
+|---|---|---|
+| C1 | **Close exchanges crowd the frame.** Pelvises stay 59 or more apart, but arms and guards overlap in many frames (around 5.0–6.0 s, 7.5 s and 10 s). Both fighters are drawn on one depth plane. This is the same root cause as R2 and R7 in *The Rescue* | Medium |
+| C2 | **The fist-bump ending is too tight.** The two figures nearly overlap at 14–16 s | Medium |
+| C3 | **The QA flags screen-direction flips** at 5 cuts (WARN). Following KAI, then RHO, who face opposite ways, flips which side each character is on. The camera grammar should keep one side of the action line | Low–medium |
+| C4 | **A body lies straight while it waits to settle.** A ragdoll on a flat floor straightens out before the face-up pose blends in. The sprawl springs are too weak to bend the limbs against floor friction | Low |
+| C5 | **No hit-stop or slow motion.** Impacts have effects and shake, but no freeze frames or speed ramps (planned for Milestone 3) | Medium |
+| C6 | **The opening is long and dark.** The walk-in establishing shot runs 4.2 s, and in the very dark void theme the figures read small | Low |
+| C7 | **Choreography is written by hand.** The author picks each move and its `next:` waits. A bad wait leaves a character stuck, though the dry run reports it. There is no automatic choreographer yet | — |
+| C8 | **The *Rescue*'s push-and-fall still uses its scripted fall,** kept deliberately because its pinning depends on it | Low |
+
+**No quality level is claimed.** These are technical results, and the score in the roadmap is an estimate until a human reviews it.
+

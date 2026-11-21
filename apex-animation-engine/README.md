@@ -138,6 +138,6 @@ src/apex/
   api/       FastAPI app + storage
 examples/    project JSON files (milestone scenes); build_gravity_switch_1d.py / build_foundry_flip.py / build_rescue.py regenerate them
 scripts/     motion_test.py (original-vs-improved motion comparison), interaction_diagnostics.py
-tests/       pytest suite (128 tests)
+tests/       pytest suite (158 tests)
 docs/        architecture, schema, reference analysis, milestone status, roadmap, evidence
 ```
