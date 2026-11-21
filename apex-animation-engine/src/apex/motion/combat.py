@@ -140,7 +140,9 @@ class CombatMixin:
             if I["kind"] == "back":
                 self.s = I["s0"] - self.facing * 0.7 * self.stand_h * _smooth(tau / dur)
             else:
-                self.h = self.stand_h - 0.46 * self.stand_h * (_smooth(tau / 0.12) - _smooth((tau - dur + 0.2) / 0.2))
+                down = _smooth(tau / 0.12) - _smooth((tau - dur + 0.2) / 0.2)
+                self.h = self.stand_h - 0.46 * self.stand_h * down
+                self.s = I["s0"] - self.facing * 0.12 * self.stand_h * down  # sit back, away from the blow
             if tau >= dur:
                 self.h = self.stand_h
                 self.dodging = None
@@ -279,6 +281,7 @@ class CombatMixin:
         v, _ = rag.max_speed()
         if t - self.inter["t0"] > 0.35 and v < 160.0:  # down and slowing: the body relaxes into its sprawl
             self.inter["slow_t"] = self.inter.get("slow_t") or t
+            self.seg.data.setdefault("relax_t", t)  # the animation eases the limbs into a sprawl from here
             rag.set_tone(1.0 + 7.0 * min(1.0, (t - self.inter["slow_t"]) / 0.45))
         if t - self.inter["t0"] > 0.5 and (rag.settled(t) or t - self.inter["t0"] > 3.5):
             self._ragdoll_settle(t)

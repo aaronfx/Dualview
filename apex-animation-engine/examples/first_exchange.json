@@ -78,12 +78,14 @@
    "placements": [
     {
      "character": "kai",
-     "x": -400.0
+     "x": -400.0,
+     "z": -14.0
     },
     {
      "character": "rho",
      "x": 320.0,
-     "facing": -1
+     "facing": -1,
+     "z": 14.0
     }
    ],
    "actions": [

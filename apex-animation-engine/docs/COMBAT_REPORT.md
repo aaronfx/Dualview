@@ -49,16 +49,28 @@ The 6 shot cuts are placed at the simulated events (`cut_on`).
 - `docs/media/first_exchange_key_moments.jpg`
 - `docs/media/first_exchange_interaction_diagnostics.jpg` (a state timeline per character, and contact error at impact)
 
-## Known defects (honest list)
+## Revision 1: the owner's review of *First Exchange*
+
+| Review note | Change | Result (720p draft, QA 46 PASS / 2 SKIP / 0 WARN) |
+|---|---|---|
+| 4.5–6.5 s: figures crowd each other; some attacks resemble pushing | Fighters stand further apart and step in with each strike: the step-in is 20–30 units for punches, 8–16 for kicks. The strike now winds up (a dip and counter-turn), snaps out faster than the body moves, holds contact for 35 ms, and retracts within 0.16 s. Each fighter is also drawn on its own **depth lane** (`placement.z`): the nearer one is drawn slightly larger and on top | Strikes read as snaps, not shoves. Overlaps now read as layered in depth. The whiffed cross over the duck still overlaps briefly, because the miss carries the attacker through |
+| 7–9 s: needs stronger weight transfer | A deeper dip and forward lean on punches. Kicks get a stronger counter-lean (0.42 rad) and hip turn. The back-step goes 0.7× body height with more lean. The duck goes 0.46× body height and sits the weight back, away from the blow | Visibly heavier |
+| 10–11.5 s: the body becomes unnaturally straight on the floor | Diagnosis: the joint springs could not lift limbs against gravity (spring torque about 80k against about 138k for gravity). Fix: physics keeps the trunk where it landed, and the animation eases the limbs into a loose sprawl over 0.55 s once the body is nearly still. The springs also stiffen | Settles with bent knees and soft elbows |
+| 12–13 s: getting up feels too mechanical | Uneven key timing: a quick sit-up with momentum, a beat while a hand plants, a forward rock over the feet, the rise, then a small overshoot as he steadies. The head leads with the chin tucked. One hand pushes off the floor while the other arm swings forward | More organic |
+| 14–16 s: the characters stand too close and overlap | The gesture gap is now set per action (`distance`, 86 here, against 68 before). The new `gesture_start` event lets the other character meet the gesture, so both fists land together | Clear gap; the bump is simultaneous |
+| Camera direction (from the report) | **This was a QA bug.** The check compared one character's screen direction with *the other character's* across each cut, so any two characters facing each other were always flagged. It now compares each character with itself. The fight shots also follow one fighter throughout | 0 flips |
+| Hit-stop and slow motion (from the report) | Still planned for Milestone 3 | — |
+
+## Known defects (honest list; status after revision 1)
 
 | # | Defect | Severity |
 |---|---|---|
-| C1 | **Close exchanges crowd the frame.** Pelvises stay 59 or more apart, but arms and guards overlap in many frames (around 5.0–6.0 s, 7.5 s and 10 s). Both fighters are drawn on one depth plane. This is the same root cause as R2 and R7 in *The Rescue* | Medium |
-| C2 | **The fist-bump ending is too tight.** The two figures nearly overlap at 14–16 s | Medium |
-| C3 | **The QA flags screen-direction flips** at 5 cuts (WARN). Following KAI, then RHO, who face opposite ways, flips which side each character is on. The camera grammar should keep one side of the action line | Low–medium |
-| C4 | **A body lies straight while it waits to settle.** A ragdoll on a flat floor straightens out before the face-up pose blends in. The sprawl springs are too weak to bend the limbs against floor friction | Low |
+| C1 | *Improved in revision 1 (spacing, step-ins, depth lanes); the whiffed cross over the duck still overlaps briefly.* **Close exchanges crowd the frame.** Pelvises stay 59 or more apart, but arms and guards overlap in many frames (around 5.0–6.0 s, 7.5 s and 10 s). Both fighters are drawn on one depth plane. This is the same root cause as R2 and R7 in *The Rescue* | Medium |
+| C2 | *Fixed in revision 1.* **The fist-bump ending is too tight.** The two figures nearly overlap at 14–16 s | Medium |
+| C3 | *Fixed in revision 1: it was a QA bug.* **The QA flags screen-direction flips** at 5 cuts (WARN). Following KAI, then RHO, who face opposite ways, flips which side each character is on. The camera grammar should keep one side of the action line | Low–medium |
+| C4 | *Fixed in revision 1.* **A body lies straight while it waits to settle.** A ragdoll on a flat floor straightens out before the face-up pose blends in. The sprawl springs are too weak to bend the limbs against floor friction | Low |
 | C5 | **No hit-stop or slow motion.** Impacts have effects and shake, but no freeze frames or speed ramps (planned for Milestone 3) | Medium |
-| C6 | **The opening is long and dark.** The walk-in establishing shot runs 4.2 s, and in the very dark void theme the figures read small | Low |
+| C6 | *Improved in revision 1: the walk-in is shorter (3.25 s) and the void is lighter.* **The opening is long and dark.** The walk-in establishing shot runs 4.2 s, and in the very dark void theme the figures read small | Low |
 | C7 | **Choreography is written by hand.** The author picks each move and its `next:` waits. A bad wait leaves a character stuck, though the dry run reports it. There is no automatic choreographer yet | — |
 | C8 | **The *Rescue*'s push-and-fall still uses its scripted fall,** kept deliberately because its pinning depends on it | Low |
 

@@ -286,6 +286,7 @@ class CharacterPlacement(Strict):
     character: str
     x: float
     facing: Literal[-1, 1] = 1
+    z: float = Field(0.0, ge=-60, le=60)  # drawing depth lane (negative = nearer the camera); does not affect physics
 
 
 # ---------------------------------------------------------------- cinematography / sound / shots

@@ -332,16 +332,16 @@ class Inspector:
         flips = []
         for a, b in zip(self.rt.scene.shots, self.rt.scene.shots[1:]):
             ta, tb = b.start - 1e-3, b.start + 1e-3
-            sides = []
-            for t in (ta, tb):
-                for cid, an in self.r.animators.items():
+            for cid, an in self.r.animators.items():  # each character compared with itself across the cut
+                sides = []
+                for t in (ta, tb):
                     p = an.pose_at(t)
                     fwd = (math.cos(p.body_angle) * p.facing, math.sin(p.body_angle) * p.facing)
                     r = math.radians(self.cam.at(t).roll)
                     sx = fwd[0] * math.cos(r) + fwd[1] * math.sin(r)  # screen-x of the world forward vector
                     sides.append(math.copysign(1, sx) if abs(sx) > 0.2 else 0)
-            if sides[0] and sides[1] and sides[0] != sides[1]:
-                flips.append(f"{a.id}->{b.id}")
+                if sides[0] and sides[1] and sides[0] != sides[1]:
+                    flips.append(f"{a.id}->{b.id} ({cid})")
         out.append(Check("screen_direction_across_cuts", "PASS" if not flips else "WARN", float(len(flips)), 0.0,
                          f"cuts that flip the character's screen direction: {flips or 'none'}"))
         # 3) fixed layout: switch/exit/room positions come from the spec and never move

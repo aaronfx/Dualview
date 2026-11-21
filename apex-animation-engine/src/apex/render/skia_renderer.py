@@ -45,6 +45,7 @@ class SkiaRenderer:
         self.W, self.H = width, height
         self.env, self.styles, self.rigs = env, styles, rigs
         self.bloom = bloom
+        self.depth: Dict[str, float] = {}  # character id -> drawing depth lane (CharacterPlacement.z)
         self.focal = height * FOV_K
         info = skia.ImageInfo.Make(width, height, skia.ColorType.kRGBA_8888_ColorType, skia.AlphaType.kPremul_AlphaType)
         self.surface = skia.Surface.MakeRaster(info)
@@ -122,7 +123,8 @@ class SkiaRenderer:
                 self._contact_shadow(c, cid, pose)
         for e in fx or []:
             self._effect(c, e, fs.t)
-        order = sorted(fs.poses.items(), key=lambda kv: kv[1].state in ("fall", "prone", "crawl", "getup"))  # lying bodies in front
+        # lying bodies in front; otherwise far depth lanes first (painter's order)
+        order = sorted(fs.poses.items(), key=lambda kv: (kv[1].state in ("fall", "prone", "crawl", "getup"), -self.depth.get(kv[0], 0.0)))
         for cid, pose in order:
             if vis[cid] <= 0.0:
                 continue
@@ -491,7 +493,8 @@ class SkiaRenderer:
     def _char_paths(self, cid: str, pose: Pose):
         rig, st = self.rigs[cid], self.styles[cid]
         j = rig.world_joints(pose)
-        k = self._zfn()
+        dz = self.depth.get(cid, 0.0)  # depth lane: nearer characters draw slightly larger
+        k = self.focal / max(self.Fd + dz, 20.0) if dz else self._zfn()
         S = lambda p: ((p[0] - self.cam.cx) * k, -(p[1] - self.cam.cy) * k)
         return rig, st, j, k, S
 

@@ -247,6 +247,7 @@ def render_scene(project: ProjectSpec, scene_id: str, out_path: str, samples: in
     cam = build_camera(rt, W / H)
     styles = {cid: project.character(cid).style for cid in rigs}
     renderer = SkiaRenderer(W, H, rt.env, styles, rigs)
+    renderer.depth = {pl.character: pl.z for pl in scene.placements if pl.z}
     switches = {s.id: s for s in rt.env.switches}
     for e in res.events:  # attach world x to footsteps for dust placement
         if e.type == "footstep":

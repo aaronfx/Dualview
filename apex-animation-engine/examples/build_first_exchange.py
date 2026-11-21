@@ -86,7 +86,7 @@ def project(duration: float = 22.0) -> dict:
         "scenes": [{"id": "exchange", "title": "First Exchange", "environment": "void", "duration": duration,
                     "goals": ["blocked@kai", "evaded@rho", "hurt@kai", "evaded@rho", "evaded@kai", "hurt@rho", "knockdown@rho",
                               "settled@rho", "stood_up@rho", "fist_bump@kai"],
-                    "placements": [{"character": K, "x": -400, "facing": 1}, {"character": R, "x": 320, "facing": -1}],
+                    "placements": [{"character": K, "x": -400, "facing": 1, "z": -14}, {"character": R, "x": 320, "facing": -1, "z": 14}],
                     "actions": acts, "shots": shots}]}
 
 

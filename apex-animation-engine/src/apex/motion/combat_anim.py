@@ -26,6 +26,7 @@ from .controller import Segment
 from .ragdoll import pose_from_sample
 
 FIGHT_STANCE = (16.0, -18.0)
+SPRAWL = {"shin_n": -0.75, "shin_f": -0.3, "forearm_n": 0.75, "forearm_f": 0.45}  # a body at rest: soft knees and elbows
 
 
 def _snap(u: float) -> float:
@@ -223,6 +224,15 @@ class CombatAnimMixin:
             a = out
         pose = pose_from_sample(self.rig, a, d["facing0"], d["foot_local"], d["half"])
         pose.state = "ragdoll"
+        rt = d.get("relax_t")
+        if rt is not None and t > rt:
+            # come to rest: physics keeps the trunk where it landed; the limbs ease into a loose sprawl (knees and
+            # elbows bent away from the floor) instead of lying straight. Floor contact is re-checked afterwards.
+            w = smoothstep(rt, rt + 0.55, t)
+            for k, v in SPRAWL.items():
+                cur = pose.local.get(k, v)
+                pose.local[k] = cur + wrap_angle(v - cur) * w
+            self._ground_clamp(pose, self.frames[seg.frame])
         return pose
 
     def _eval_supine(self, seg: Segment, t: float) -> Pose:
