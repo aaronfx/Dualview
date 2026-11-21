@@ -27,6 +27,43 @@ Validation covers duplicate ids, unknown references (environment, character, swi
   - A `beam` is a solid static collider.
   - A `bar` is a grab rail: a grip anchor for `grab_swing`, not a collider.
 
+## Props, ropes and characters' strength (physical interaction)
+
+**PropSpec** `{id, kind, position, size, mass, angle, friction, static_friction, collide_characters, solid, com, z, depth}`. Every prop is a dynamic rigid body.
+
+- **`kind`** is `crate`, `canister`, `container`, `post`, `bar` (pry bar / lever) or `toolbox`.
+- **`friction` / `static_friction`**: the sliding coefficient, and an optional higher coefficient used while the prop is at rest. This gives stick-slip: a heavy container "breaks loose" once the push exceeds static friction.
+- **`com`**: centre-of-mass offset in the prop's local frame (a top-heavy post).
+- **`solid: false`**: fixed set dressing (a tool on a wall rack, a fulcrum block) until a character picks it up.
+- **`z` / `depth`**: the prop's depth in the room. A negative `z` is nearer the camera than the characters.
+
+Standing characters pass in front of props (2.5D). A character lying down is solid, so a load can come to rest on it.
+
+**RopeSpec** `{id, a, a_local, b, b_local, length, break_force, color}`: a strap between two props, or between a prop and `world:x,y`.
+
+- It is slack below `length` and taut at it. `rope_taut` fires when it snaps taut.
+- With `break_force`, it breaks when its tension exceeds that force (`rope_snap`).
+
+**CharacterSpec.strength**: the maximum sustained hand force for pushing, lifting and levers. Efforts are regulated toward a goal and clamped to this value, so physics decides what a character can move.
+
+## Interaction actions
+
+| Action | Fields | What happens (outcomes come from the simulation) |
+|---|---|---|
+| `push` | `target: prop:`, `effort`, `duration` | Walks up, braces and strains with a bounded force. If the prop breaks loose and outruns the character: `push_lost`, then a stumble and a fall to prone (`body_fall`) |
+| `lift` | `target: prop:`, `effort`, `duration` | Grips the prop's nearest end and lifts. The force is clamped to strength. Emits `lift_ok` or `lift_fail` (with the measured rise) |
+| `use_lever` | `tool`, `fulcrum`, `target` (all `prop:`), `until` | Runs to the bar and picks it up (`pick_up`), carries it, places it over the fulcrum with its tip under the load (`lever_place`), then bears down on the handle (`lever_engage`). Holds until the `until` event, then releases (`lever_release`) |
+| `struggle` | `duration` / `until` | Lying only. Struggles under the load |
+| `crawl_out` | `distance` | Lying only. Waits until the load is off (`load_off`), crawls (`crawl_start`), and clears it with a margin (`freed`) |
+| `get_up` | `target: char:` (optional) | Lying only. Push-up, knees, stand. With a helper it reaches for their hand (`hand_grab`) and is pulled up (`stood_up`) |
+| `offer_hand` | `target: char:` | Goes to the character, offers a hand (`hand_offered`) and pulls once it is taken |
+| `gesture` | `target: char:`, `gesture: fist_bump \| shoulder_pat \| wave` | Both characters' hands meet at a shared contact point |
+| `wait_for` | `until: event:<type>[@<character>]` | Synchronises one character with another's events |
+
+`walk_to` / `run_to` accept a `char:` or `prop:` target instead of `target_x`.
+
+**Automatic events:** `pinned` / `load_off` (a prop resting on a lying character, detected from vertical contact impulses), `rope_taut` and `rope_snap`.
+
 ## Gravity angles (GravityEffect)
 
 Each switch changes gravity in exactly one of two ways:

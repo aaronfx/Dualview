@@ -82,3 +82,7 @@
 1. Rerun the AI Director on the same story with the upgraded schema, and preserve and render its plan.
 2. Produce the final 15–20 s film.
 3. If the AI plan needs manual edits, record every edit as a diff. The film is labelled AI-generated only if no edits were made.
+
+## Outcome
+
+The interaction layer was built as proposed, and the film was rendered. Results are in `docs/RESCUE_REPORT.md`.

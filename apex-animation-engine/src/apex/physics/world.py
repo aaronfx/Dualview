@@ -14,6 +14,9 @@ import pymunk
 from ..core.mathx import Vec
 
 CT_STATIC, CT_CHARACTER, CT_PROP = 1, 2, 3
+CAT_CHAR = 0b10  # collision category of character bodies
+CAT_PROP = 0b100  # collision category of props
+ALL = pymunk.ShapeFilter.ALL_MASKS()
 
 
 @dataclass
@@ -54,6 +57,9 @@ class PhysicsWorld:
         self._bodies: Dict[str, pymunk.Body] = {}
         self._static_shapes: List[Tuple[str, Vec, Vec, float]] = []
         self._pins: Dict[str, pymunk.Constraint] = {}
+        self._ropes: Dict[str, tuple] = {}
+        self._mass_moment: Dict[str, Tuple[float, float]] = {}
+        self._shapes: Dict[str, pymunk.Shape] = {}
         self.events: List[ContactEvent] = []
         self._pending: List[ContactEvent] = []
         self.space.on_collision(None, None, begin=self._on_begin)
@@ -67,11 +73,17 @@ class PhysicsWorld:
         self._static_shapes.append((tag, a, b, radius))
 
     def add_box(self, tag: str, pos: Vec, size: Vec, mass: float, angle: float = 0.0, friction: float = 0.6,
-                elasticity: float = 0.15) -> None:
-        body = pymunk.Body(mass, pymunk.moment_for_box(mass, size))
+                elasticity: float = 0.15, collide_characters: bool = True, com: Vec = (0.0, 0.0), solid: bool = True) -> None:
+        body = pymunk.Body(mass, pymunk.moment_for_box(mass, size) + mass * (com[0] ** 2 + com[1] ** 2),
+                           body_type=pymunk.Body.DYNAMIC if solid else pymunk.Body.KINEMATIC)
+        body.center_of_gravity = com
         body.position, body.angle = pos, angle
         shape = pymunk.Poly.create_box(body, size, radius=1.0)
         shape.friction, shape.elasticity, shape.collision_type = friction, elasticity, CT_PROP
+        shape.filter = pymunk.ShapeFilter(categories=CAT_PROP, mask=ALL if collide_characters else ALL ^ CAT_CHAR)
+        shape.sensor = not solid  # set dressing: no contact response until it becomes a real body
+        self._mass_moment[tag] = (mass, body.moment if solid else pymunk.moment_for_box(mass, size))
+        self._shapes[tag] = shape
         self.space.add(body, shape)
         self._tags[shape] = tag
         self._bodies[tag] = body
@@ -82,9 +94,23 @@ class PhysicsWorld:
         body.position = pos
         shape = pymunk.Segment(body, a, b, radius)
         shape.friction, shape.elasticity, shape.collision_type = 0.9, 0.0, CT_CHARACTER
+        shape.filter = pymunk.ShapeFilter(categories=CAT_CHAR, mask=ALL ^ CAT_PROP)  # standing bodies pass props by
+        self._shapes[tag] = shape
         self.space.add(body, shape)
         self._tags[shape] = tag
         self._bodies[tag] = body
+
+    def add_lever(self, tag: str, center: Vec, size: Vec, mass: float, pivot: Vec, angle: float = 0.0,
+                  limits: Optional[Tuple[float, float]] = None, friction: float = 0.8) -> None:
+        """A rigid bar pinned to a fixed fulcrum (pry bar / lever arm), optionally with angle stops (world angle, rad)."""
+        self.add_box(tag, center, size, mass, angle=angle, friction=friction, elasticity=0.05)
+        b = self._bodies[tag]
+        j = pymunk.PivotJoint(self.space.static_body, b, pivot)
+        j.collide_bodies = False
+        self.space.add(j)
+        if limits is not None:
+            lim = pymunk.RotaryLimitJoint(self.space.static_body, b, limits[0], limits[1])
+            self.space.add(lim)
 
     def add_static_box(self, tag: str, center: Vec, size: Vec, friction: float = 0.9) -> None:
         """Axis-aligned static box (a beam spanning the room depth), recorded as its four edge segments."""
@@ -109,6 +135,29 @@ class PhysicsWorld:
         self.space.add(j)
         self._pins[tag] = j
         return (local.x, local.y)
+
+    def add_rope(self, name: str, a: str, local_a: Vec, b: str, local_b: Vec, length: float) -> None:
+        """A strap/rope between two bodies (or a body and the world, b="world"): slack below `length`, taut at it."""
+        ba = self._bodies[a]
+        bb = self.space.static_body if b == "world" else self._bodies[b]
+        j = pymunk.SlideJoint(ba, bb, local_a, local_b, 0.0, length)
+        j.collide_bodies = True
+        self.space.add(j)
+        self._ropes[name] = (j, a, local_a, b, local_b, length)
+
+    def rope_tension(self, name: str, dt: float) -> float:
+        return self._ropes[name][0].impulse / dt if name in self._ropes else 0.0
+
+    def cut_rope(self, name: str) -> None:
+        j = self._ropes[name][0]
+        if j in self.space.constraints:
+            self.space.remove(j)
+
+    def rope_points(self, name: str) -> Tuple[Vec, Vec, float]:
+        j, a, la, b, lb, length = self._ropes[name]
+        pa = self.body_to_world(a, la)
+        pb = lb if b == "world" else self.body_to_world(b, lb)
+        return pa, pb, length
 
     def remove_pin(self, tag: str) -> None:
         j = self._pins.pop(tag, None)
@@ -143,6 +192,67 @@ class PhysicsWorld:
             b.body_type = pymunk.Body.DYNAMIC
             b.mass, b.moment = mass, moment
         b.velocity, b.angular_velocity = vel, angvel
+
+    def make_dynamic(self, tag: str, vel: Vec = (0.0, 0.0), angvel: float = 0.0) -> None:
+        """Return a prop that was carried kinematically to normal dynamics (its own mass and moment)."""
+        m, mo = self._mass_moment[tag]
+        self._shapes[tag].sensor = False
+        self.set_dynamic(tag, vel, angvel, m, mo)
+
+    def set_friction(self, tag: str, friction: float) -> None:
+        """Change a body's friction, including its ongoing contacts (Chipmunk caches friction per contact)."""
+        sh = self._shapes[tag]
+        if sh.friction == friction:
+            return
+        sh.friction = friction
+
+        def upd(arb: pymunk.Arbiter) -> None:
+            a, b = arb.shapes
+            arb.friction = a.friction * b.friction
+
+        sh.body.each_arbiter(upd)
+
+    def set_solid_to_props(self, tag: str, solid: bool) -> None:
+        """A standing character passes in front of props (2.5D); a lying one is solid, so props can come to rest on it."""
+        sh = self._shapes[tag]
+        sh.filter = pymunk.ShapeFilter(group=sh.filter.group, categories=CAT_CHAR, mask=ALL if solid else ALL ^ CAT_PROP)
+
+    def set_group(self, tags: List[str], group: int) -> None:
+        """Shapes sharing a non-zero group never collide with each other (a lever resting in its fulcrum)."""
+        for t in tags:
+            sh = self._shapes[t]
+            f = sh.filter
+            sh.filter = pymunk.ShapeFilter(group=group, categories=f.categories, mask=f.mask)
+
+    def apply_force(self, tag: str, force: Vec, point: Vec) -> None:
+        """Force applied at a world point for the next step (character effort on a prop: push, lift, lever)."""
+        self._bodies[tag].apply_force_at_world_point(force, point)
+
+    def touching(self, a: str, b: str, vertical_only: bool = False) -> Tuple[bool, float]:
+        """Whether bodies a and b are in contact, and the magnitude of the last step's contact impulse between them.
+        vertical_only: count only contacts whose normal is mostly vertical (a load resting on top, not a side bump)."""
+        ba, bb = self._bodies[a], self._bodies.get(b)
+        found, imp = [False], [0.0]
+
+        def visit(arb: pymunk.Arbiter) -> None:
+            s1, s2 = arb.shapes
+            cps = arb.contact_point_set
+            if (s1.body is bb or s2.body is bb) and cps.points:
+                if vertical_only and abs(cps.normal.y) < 0.6:
+                    return
+                found[0] = True
+                imp[0] += abs(arb.total_impulse.length)
+
+        if bb is not None:
+            ba.each_arbiter(visit)
+        return found[0], imp[0]
+
+    def local_point(self, tag: str, world: Vec) -> Vec:
+        p = self._bodies[tag].world_to_local(world)
+        return (p.x, p.y)
+
+    def tags(self) -> List[str]:
+        return list(self._bodies)
 
     def apply_impulse(self, tag: str, impulse: Vec) -> None:
         """Impulse through the centre of mass (character muscular effort, e.g. a pumping kick while hanging)."""

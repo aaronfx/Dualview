@@ -35,6 +35,7 @@ def main(argv=None) -> int:
     p.add_argument("story")
     p.add_argument("-o", "--out", required=True)
     p.add_argument("--offline", action="store_true", help="use the deterministic template planner (no AI provider)")
+    p.add_argument("--log-dir", help="preserve every raw model response, the repair errors and the accepted plan here")
     s = sub.add_parser("serve", help="run the FastAPI backend")
     s.add_argument("--host", default="127.0.0.1")
     s.add_argument("--port", type=int, default=8077)
@@ -74,11 +75,38 @@ def main(argv=None) -> int:
         return 0
     if a.cmd == "plan":
         from .ai.director import StoryDirector
+        import json as _json
+        import os as _os
+        import time as _time
         director = StoryDirector.from_env(offline=a.offline)
-        proj = director.plan(a.story)
+        t0 = _time.time()
+        result = {"story": a.story, "planner": director.name, "model": getattr(director.provider, "model", None),
+                  "started_utc": _time.strftime("%Y-%m-%dT%H:%M:%SZ", _time.gmtime())}
+        try:
+            proj = director.plan(a.story)
+            result["status"] = "accepted"
+        except Exception as e:  # preserve the failure as well
+            result.update(status="failed", error=f"{type(e).__name__}: {e}"[:4000])
+            proj = None
+        result.update(attempts=len(director.log), seconds=round(_time.time() - t0, 1))
+        if a.log_dir:
+            _os.makedirs(a.log_dir, exist_ok=True)
+            from .ai.director import system_prompt
+            with open(_os.path.join(a.log_dir, "raw_responses.json"), "w", encoding="utf-8") as fh:
+                _json.dump(director.log, fh, indent=1)
+            with open(_os.path.join(a.log_dir, "system_prompt.txt"), "w", encoding="utf-8") as fh:
+                fh.write(system_prompt())
+            with open(_os.path.join(a.log_dir, "result.json"), "w", encoding="utf-8") as fh:
+                _json.dump(result, fh, indent=1)
+        if proj is None:
+            print(f"planning failed: {result['error'][:400]}")
+            return 1
         with open(a.out, "w", encoding="utf-8") as fh:
             fh.write(proj.model_dump_json(indent=1))
-        print(f"planned {proj.id}: {len(proj.scenes)} scene(s) -> {a.out} (planner: {director.name})")
+        if a.log_dir:
+            with open(_os.path.join(a.log_dir, "accepted_plan.json"), "w", encoding="utf-8") as fh:
+                fh.write(proj.model_dump_json(indent=1))
+        print(f"planned {proj.id}: {len(proj.scenes)} scene(s) -> {a.out} (planner: {director.name}, {result['attempts']} call(s))")
         return 0
     if a.cmd == "serve":
         import uvicorn

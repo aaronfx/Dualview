@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from typing import Dict, List, Literal, Optional, Tuple
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
 
 SCHEMA_VERSION = "0.1"
 Vec2 = Tuple[float, float]
@@ -37,6 +37,7 @@ class CharacterSpec(Strict):
     rig: Literal["stickman"] = "stickman"
     proportions: Dict[str, float] = Field(default_factory=dict)
     style: CharacterStyle = Field(default_factory=CharacterStyle)
+    strength: float = Field(45000.0, gt=0)  # max sustained hand force (push / lift / lever), in physics force units
 
 
 # ---------------------------------------------------------------- environment
@@ -81,11 +82,34 @@ class SwitchSpec(Strict):
 
 
 class PropSpec(Strict):
+    """A dynamic rigid body. `container` (heavy box with handles), `post` (tall steel support), `bar` (pry bar /
+    lever), `toolbox` (small block, a typical fulcrum). `z` is the depth of the prop's centre (negative = nearer the
+    camera than the character plane); props with collide_characters=false pass in front of / behind characters."""
     id: str
-    kind: Literal["crate", "canister"] = "crate"
+    kind: Literal["crate", "canister", "container", "post", "bar", "toolbox"] = "crate"
     position: Vec2
     size: Vec2 = (40.0, 40.0)
     mass: float = Field(8.0, gt=0)
+    angle: float = 0.0  # initial rotation (rad, CCW)
+    friction: float = Field(0.6, ge=0, le=2)  # sliding (kinetic) friction
+    static_friction: Optional[float] = Field(None, ge=0, le=2)  # while at rest (stick-slip: heavy things "break loose")
+    collide_characters: bool = True
+    solid: bool = True  # false: fixed set dressing (a tool on a wall rack, a fulcrum block) until a character picks it up
+    com: Vec2 = (0.0, 0.0)  # centre of mass in the prop's local frame (e.g. a post with a heavy steel cap is top-heavy)
+    z: float = 0.0
+    depth: float = Field(60.0, gt=0)  # visual extent along the room depth
+
+
+class RopeSpec(Strict):
+    """A strap / rope between two props (or a prop and a fixed world point "world:x,y"): slack below `length`."""
+    id: str
+    a: str  # "prop:<id>"
+    a_local: Vec2 = Field((0.0, 0.0), validation_alias=AliasChoices("a_local", "local_a"))  # attachment in a's local frame
+    b: str  # "prop:<id>" or "world:x,y"
+    b_local: Vec2 = Field((0.0, 0.0), validation_alias=AliasChoices("b_local", "local_b"))
+    length: float = Field(gt=0)
+    break_force: Optional[float] = Field(None, gt=0)  # the strap snaps when its tension exceeds this (force units)
+    color: str = "#ffc21a"
 
 
 class ExitSpec(Strict):
@@ -131,12 +155,15 @@ class EnvironmentSpec(Strict):
     props: List[PropSpec] = Field(default_factory=list)
     exits: List[ExitSpec] = Field(default_factory=list)
     obstacles: List[ObstacleSpec] = Field(default_factory=list)
+    ropes: List[RopeSpec] = Field(default_factory=list)
     dust: int = Field(160, ge=0, le=2000)  # ambient particles that visualise the gravity field
 
 
 # ---------------------------------------------------------------- actions (character directives)
 ActionType = Literal["idle", "walk_to", "run_to", "turn", "press", "jump", "look_around", "wait_grounded", "look_at", "notice", "point",
-                     "duck_slide", "jump_to", "grab_swing", "reach_exit"]
+                     "duck_slide", "jump_to", "grab_swing", "reach_exit",
+                     # physical interaction (Rescue milestone)
+                     "push", "lift", "use_lever", "struggle", "crawl_out", "get_up", "offer_hand", "gesture", "wait_for"]
 
 
 class ActionSpec(Strict):
@@ -153,13 +180,24 @@ class ActionSpec(Strict):
     hesitate: bool = False  # press: reach, hesitate, pull back, then commit
     release_deg: float = Field(35.0, ge=0, le=89)  # grab_swing: release when the swing passes this angle (from hanging)
     swings: int = Field(1, ge=1, le=4)  # grab_swing: release on this forward swing
+    effort: float = Field(1.0, gt=0, le=1.6)  # push / lift / use_lever: fraction of the character's strength used
+    tool: Optional[str] = None  # use_lever: "prop:<bar id>"
+    fulcrum: Optional[str] = None  # use_lever: "prop:<fulcrum id>"
+    until: Optional[str] = None  # use_lever / struggle / wait_for: "event:<type>" or "event:<type>@<character>"
+    gesture: Optional[Literal["fist_bump", "shoulder_pat", "wave"]] = None
+    distance: Optional[float] = None  # crawl_out: how far to crawl
+    emotion: Optional[str] = None  # acting colour for clips (see motion/library.py EMOTIONS)
     note: str = ""
 
     @model_validator(mode="after")
     def _check(self) -> "ActionSpec":
-        need = {"walk_to": ["target_x"], "run_to": ["target_x"], "press": ["switch"], "turn": ["face"], "jump": ["height"],
+        need = { "press": ["switch"], "turn": ["face"], "jump": ["height"],
                 "look_at": ["target"], "notice": ["target"], "point": ["target"], "duck_slide": ["target_x"],
-                "jump_to": ["target_x", "height"], "grab_swing": ["target"], "reach_exit": ["target"]}
+                "jump_to": ["target_x", "height"], "grab_swing": ["target"], "reach_exit": ["target"],
+                "push": ["target"], "lift": ["target"], "use_lever": ["target", "tool", "fulcrum"], "offer_hand": ["target"],
+                "gesture": ["target", "gesture"], "wait_for": ["until"]}
+        if self.type in ("walk_to", "run_to") and self.target_x is None and not (self.target or "").split(":", 1)[0] in ("char", "prop"):
+            raise ValueError(f"action '{self.type}' requires 'target_x' (or a 'char:'/'prop:' target)")
         for f in need.get(self.type, []):
             if getattr(self, f) is None:
                 raise ValueError(f"action '{self.type}' requires '{f}'")
@@ -167,8 +205,19 @@ class ActionSpec(Strict):
             raise ValueError("turn.face must be +1 or -1")
         if self.target is not None:
             kind, _, ref = self.target.partition(":")
-            if kind not in ("switch", "exit", "point", "bar") or not ref:
-                raise ValueError(f"target must be 'switch:<id>', 'exit:<id>', 'bar:<id>' or 'point:x,y' (got {self.target!r})")
+            if kind not in ("switch", "exit", "point", "bar", "prop", "char") or not ref:
+                raise ValueError(f"target must be 'switch:<id>', 'exit:<id>', 'bar:<id>', 'prop:<id>', 'char:<id>' or 'point:x,y' "
+                                 f"(got {self.target!r})")
+        for f in ("tool", "fulcrum"):
+            v = getattr(self, f)
+            if v is not None and not v.startswith("prop:"):
+                raise ValueError(f"{f} must be 'prop:<id>'")
+        if self.type in ("push", "lift", "use_lever") and not (self.target or "").startswith("prop:"):
+            raise ValueError(f"{self.type}.target must be 'prop:<id>'")
+        if self.type in ("offer_hand", "gesture") and not (self.target or "").startswith("char:"):
+            raise ValueError(f"{self.type}.target must be 'char:<id>'")
+        if self.until is not None and not self.until.startswith("event:"):
+            raise ValueError("until must be 'event:<type>' or 'event:<type>@<character>'")
         if self.type == "grab_swing" and not (self.target or "").startswith("bar:"):
             raise ValueError("grab_swing.target must be 'bar:<id>'")
         if self.type == "reach_exit" and not (self.target or "").startswith("exit:"):
@@ -294,6 +343,12 @@ class ProjectSpec(Strict):
             placed = {pl.character for pl in sc.placements}
             exits = {x.id for x in envs[sc.environment].exits}
             bars = {o.id for o in envs[sc.environment].obstacles if o.kind == "bar"}
+            props = {p.id for p in envs[sc.environment].props}
+            for r in envs[sc.environment].ropes:
+                for end in (r.a, r.b):
+                    k, _, ref = end.partition(":")
+                    if not ((k == "prop" and ref in props) or (k == "world" and end == r.b)):
+                        raise ValueError(f"rope {r.id}: end {end!r} must be 'prop:<id>' (or 'world:x,y' for b)")
             for ex in envs[sc.environment].exits:
                 if ex.unlock_on and (not ex.unlock_on.startswith("switch:") or ex.unlock_on.split(":", 1)[1] not in switches):
                     raise ValueError(f"exit {ex.id}: unlock_on must be 'switch:<id>' of a known switch")
@@ -302,10 +357,13 @@ class ProjectSpec(Strict):
                     raise ValueError(f"scene {sc.id}: action for unplaced character {a.character}")
                 if a.type in ("press", "jump_to") and a.switch is not None and a.switch not in switches:
                     raise ValueError(f"scene {sc.id}: unknown switch {a.switch}")
-                if a.target:
-                    kind, _, ref = a.target.partition(":")
-                    if (kind == "switch" and ref not in switches) or (kind == "exit" and ref not in exits) or (kind == "bar" and ref not in bars):
-                        raise ValueError(f"scene {sc.id}: unknown target {a.target}")
+                for ref_s in (a.target, a.tool, a.fulcrum):
+                    if not ref_s:
+                        continue
+                    kind, _, ref = ref_s.partition(":")
+                    if ((kind == "switch" and ref not in switches) or (kind == "exit" and ref not in exits) or (kind == "bar" and ref not in bars)
+                            or (kind == "prop" and ref not in props) or (kind == "char" and ref not in placed)):
+                        raise ValueError(f"scene {sc.id}: unknown target {ref_s}")
             for sh in sc.shots:
                 if sh.camera.target and sh.camera.target not in placed:
                     raise ValueError(f"shot {sh.id}: camera target {sh.camera.target} not in scene")

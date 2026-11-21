@@ -1,0 +1,10 @@
+{
+ "story": "The Rescue (15-20 seconds, no dialogue). Two original stickman characters enter an industrial workshop. One tries to move a heavy metal container, loses control, and becomes trapped beneath a falling support. The second character notices the danger, runs to help, struggles to lift the obstruction, and uses a nearby lever to free the first character. The final moment should communicate relief and friendship without dialogue.",
+ "planner": "openrouter",
+ "model": "anthropic/claude-sonnet-5.5",
+ "started_utc": "2026-11-21T04:32:55Z",
+ "status": "failed",
+ "error": "PlanningError: planner output failed validation after 8 attempts: ori: action 'struggle' needs the character to be lying down at t=6.30s, but it is standing (nothing has knocked it down by then)",
+ "attempts": 8,
+ "seconds": 606.7
+}

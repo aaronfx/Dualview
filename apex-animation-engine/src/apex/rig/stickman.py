@@ -172,14 +172,14 @@ class StickmanRig:
             pose.stretch.pop(f"shin_{side}", None)
         return sol
 
-    def arm_ik(self, pose: Pose, side: str, target_world: Vec, fingertip: bool = False) -> TwoBoneSolution:
+    def arm_ik(self, pose: Pose, side: str, target_world: Vec, fingertip: bool = False, bend: int = -1) -> TwoBoneSolution:
         """Place the wrist (or the fingertip with a straight hand) at a world target. Elbow bends backward/down."""
         ch = self.fk(pose)
         shoulder = ch[f"upper_arm_{side}"][0]
         chest_abs = ch["chest"][2]
         tgt = to_character(target_world, pose.root, pose.body_angle, pose.facing if abs(pose.facing) > 1e-6 else 1.0)
         l2 = self.p.forearm + (self.p.hand if fingertip else 0.0)
-        sol = solve_two_bone(shoulder, tgt, self.p.upper_arm, l2, bend=-1)
+        sol = solve_two_bone(shoulder, tgt, self.p.upper_arm, l2, bend=bend)
         pose.local[f"upper_arm_{side}"] = wrap_angle(sol.a1 - chest_abs)
         pose.local[f"forearm_{side}"] = wrap_angle(sol.a2 - sol.a1)
         if fingertip:

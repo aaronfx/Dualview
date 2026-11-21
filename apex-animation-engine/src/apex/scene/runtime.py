@@ -37,6 +37,19 @@ class PropState:
     size: Vec
     pos: Vec
     angle: float
+    z: float = 0.0
+    depth: float = 60.0
+    front: bool = False  # drawn in front of the characters (nearer the camera than the character plane)
+
+
+@dataclass
+class RopeState:
+    id: str
+    a: Vec
+    b: Vec
+    length: float
+    color: str
+    snapped: bool = False
 
 
 @dataclass
@@ -52,6 +65,7 @@ class FrameState:
     dust: Optional[np.ndarray] = None
     dust_prev: Optional[np.ndarray] = None
     doors: Dict[str, Tuple[str, float]] = field(default_factory=dict)  # exit id -> (state, progress 0..1)
+    ropes: List[RopeState] = field(default_factory=list)
 
 
 @dataclass
@@ -68,6 +82,7 @@ class SimulationResult:
     scarves: Dict[str, ScarfSim] = field(default_factory=dict)
     dust: Optional[DustField] = None
     doors: Dict[str, Dict[str, Optional[float]]] = field(default_factory=dict)  # exit id -> state-machine times
+    rope_snaps: Dict[str, float] = field(default_factory=dict)  # rope id -> time it broke
 
 
 def door_state(d: Dict[str, Optional[float]], t: float) -> Tuple[str, float]:
@@ -113,7 +128,19 @@ class SceneRuntime:
             if ob.kind == "beam":
                 world.add_static_box(ob.id, ob.center, ob.size)
         for pr in self.env.props:
-            world.add_box(pr.id, pr.position, pr.size, pr.mass)
+            world.add_box(pr.id, pr.position, pr.size, pr.mass, angle=pr.angle, friction=pr.friction,
+                          elasticity=0.15 if pr.mass < 20 else 0.02,  # heavy steel does not bounce
+                          collide_characters=pr.collide_characters, com=pr.com, solid=pr.solid)
+        for rp in self.env.ropes:
+            a_id = rp.a.split(":", 1)[1]
+            if rp.b.startswith("world:"):
+                bx, by = (float(v) for v in rp.b.split(":", 1)[1].split(","))
+                world.add_rope(rp.id, a_id, rp.a_local, "world", (bx, by), rp.length)
+            else:
+                world.add_rope(rp.id, a_id, rp.a_local, rp.b.split(":", 1)[1], rp.b_local, rp.length)
+        rope_prev = {rp.id: 0.0 for rp in self.env.ropes}
+        snapped: Dict[str, float] = {}
+        last_hit: Dict[Tuple[str, str], float] = {}
         frames = room_frames(room.width, room.height)
         gravity = GravityField(initial=self.env.gravity)
         events: List[Event] = []
@@ -138,6 +165,9 @@ class SceneRuntime:
             acts = [a for a in self.scene.actions if a.character == pl.character]
             ctrls[pl.character] = CharacterController(pl.character, self.rigs[pl.character], world, frames, gravity, self.env,
                                                       pl.x, pl.facing, acts, emit, doors)
+            ctrls[pl.character].strength = self.project.character(pl.character).strength
+        for c in ctrls.values():  # characters can see each other, the props and everything that has happened so far
+            c.others, c.all_events = ctrls, events
         dt = 1.0 / SIM_HZ
         n = int(round(self.scene.duration * SIM_HZ)) + 1
         prop_ids = [p.id for p in self.env.props]
@@ -145,9 +175,13 @@ class SceneRuntime:
         times = np.zeros(n)
         t = 0.0
         prop_speed_prev: Dict[str, float] = {}
+        stick = {p.id: p for p in self.env.props if p.static_friction is not None}
         for i in range(n):
             t = i * dt
             world.set_gravity(gravity.at(t))
+            for pid, sp in stick.items():  # stick-slip friction: static while (nearly) at rest, kinetic once sliding
+                st = world.state(pid)
+                world.set_friction(pid, sp.static_friction if math.hypot(*st.vel) < 4.0 else sp.friction)
             for c in ctrls.values():
                 c.update(t, dt)
             contacts = world.step(dt)
@@ -162,8 +196,24 @@ class SceneRuntime:
                             d["open_t"] = t
                             events.append(Event(t, "door_open", cid, {"exit": ex.id}))
                             break
+            for rp in self.env.ropes:  # a strap snapping taut (or breaking) is an event (sound, camera shake, QA)
+                if rp.id in snapped:
+                    continue
+                if rp.break_force is not None and world.rope_tension(rp.id, dt) > rp.break_force:
+                    pa, pb, ln = world.rope_points(rp.id)
+                    world.cut_rope(rp.id)
+                    snapped[rp.id] = t + dt
+                    events.append(Event(t + dt, "rope_snap", rp.id, {"rope": rp.id, "point": ((pa[0] + pb[0]) / 2, (pa[1] + pb[1]) / 2)}))
+                    continue
+                pa, pb, ln = world.rope_points(rp.id)
+                d = math.dist(pa, pb)
+                if rope_prev[rp.id] < 0.985 * ln <= d:
+                    events.append(Event(t + dt, "rope_taut", rp.id, {"rope": rp.id, "point": ((pa[0] + pb[0]) / 2, (pa[1] + pb[1]) / 2)}))
+                rope_prev[rp.id] = d
             for ce in contacts:
-                if ce.a in prop_tracks and ce.normal_speed > 120:
+                key = (ce.a, ce.b)
+                if ce.a in prop_tracks and ce.normal_speed > 120 and t - last_hit.get(key, -1.0) > 0.15:
+                    last_hit[key] = t
                     events.append(Event(ce.t, "prop_impact", ce.a, {"surface": ce.b, "normal_speed": ce.normal_speed, "point": ce.point}))
             times[i] = t + dt
             for pid in prop_ids:
@@ -177,6 +227,16 @@ class SceneRuntime:
             spec = self.project.character(cid)
             animators[cid] = Animator(cid, self.rigs[cid], spec.style, c.segments, c.records, frames, events)
             animators[cid].portals = [exit_portal(self.env, ex.id) for ex in self.env.exits if ex.unlock_on]
+        _pt = np.array(times)
+        _tracks = {pid: (tr[:, 0].copy(), tr[:, 1].copy(), np.unwrap(tr[:, 2])) for pid, tr in prop_tracks.items()}
+
+        def prop_at(pid: str, tt: float) -> Tuple[float, float, float]:
+            x, y, a = _tracks[pid]
+            return float(np.interp(tt, _pt, x)), float(np.interp(tt, _pt, y)), float(np.interp(tt, _pt, a))
+
+        for an in animators.values():
+            an.prop_at, an.others = prop_at, animators
+            an.prop_specs = {p.id: p for p in self.env.props}
             events.extend(animators[cid].footsteps)
         for tr in gravity.transitions:
             events.append(Event(tr.t_start + tr.duration, "gravity_settled", "", {"to": tr.to}))
@@ -193,7 +253,7 @@ class SceneRuntime:
                      for e in events if e.type == "switch_activated"]
         dust = DustField(self.env.dust, room, gravity, impulses, end + 0.1, seed=self.project.seed) if self.env.dust else None
         self.result = SimulationResult(end, frames, gravity, animators, ctrls, events, times, prop_tracks, world.static_segments(),
-                                       scarves, dust, doors)
+                                       scarves, dust, doors, snapped)
         return self.result
 
     # ------------------------------------------------------------ evaluation
@@ -206,7 +266,19 @@ class SceneRuntime:
             x = float(np.interp(t, r.prop_times, tr[:, 0]))
             y = float(np.interp(t, r.prop_times, tr[:, 1]))
             a = float(np.interp(t, r.prop_times, np.unwrap(tr[:, 2])))
-            props.append(PropState(pr.id, pr.kind, pr.size, (x, y), a))
+            props.append(PropState(pr.id, pr.kind, pr.size, (x, y), a, pr.z, pr.depth, pr.z < -5.0))
+        ropes = []
+        for rp in self.env.ropes:
+            ends = []
+            for ref, loc in ((rp.a, rp.a_local), (rp.b, rp.b_local)):
+                k, _, v = ref.partition(":")
+                if k == "world":
+                    ends.append(tuple(float(c) for c in v.split(",")))
+                else:
+                    ps = next(p for p in props if p.id == v)
+                    ca, sa = math.cos(ps.angle), math.sin(ps.angle)
+                    ends.append((ps.pos[0] + loc[0] * ca - loc[1] * sa, ps.pos[1] + loc[0] * sa + loc[1] * ca))
+            ropes.append(RopeState(rp.id, ends[0], ends[1], rp.length, rp.color, t >= r.rope_snaps.get(rp.id, 1e9)))
         glow = {}
         for sw in self.env.switches:
             g = 0.55 + 0.08 * math.sin(t * 5)
@@ -219,7 +291,7 @@ class SceneRuntime:
         dust = r.dust.at(t) if r.dust else None
         dprev = r.dust.at(t - 0.06) if r.dust else None
         doors = {ex_id: door_state(d, t) for ex_id, d in r.doors.items()}
-        return FrameState(t, poses, props, r.gravity.at(t), r.gravity.state_label(t), glow, recent, scarves, dust, dprev, doors)
+        return FrameState(t, poses, props, r.gravity.at(t), r.gravity.state_label(t), glow, recent, scarves, dust, dprev, doors, ropes)
 
     def state_hash(self, times: List[float]) -> str:
         """Hash of character joints over the given times (determinism / regression checks)."""

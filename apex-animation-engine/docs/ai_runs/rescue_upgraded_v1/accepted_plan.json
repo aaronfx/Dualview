@@ -1,0 +1,1167 @@
+{
+ "schema_version": "0.1",
+ "id": "the_rescue",
+ "title": "The Rescue",
+ "fps": 24,
+ "width": 1920,
+ "height": 1080,
+ "seed": 7,
+ "characters": [
+  {
+   "id": "odo",
+   "name": "ODO",
+   "rig": "stickman",
+   "proportions": {
+    "spine": 28.0,
+    "chest": 26.0,
+    "neck": 6.0,
+    "head": 28.0,
+    "upper_arm": 28.0,
+    "forearm": 26.0,
+    "hand": 8.0,
+    "thigh": 36.0,
+    "shin": 34.0,
+    "foot": 13.0
+   },
+   "style": {
+    "body_color": "#f2e9d8",
+    "far_color": "#9a917f",
+    "visor_color": "#ffb02e",
+    "scarf_color": "#ffb02e",
+    "glow_color": "#ffcf70",
+    "limb_width": 9.5,
+    "has_scarf": false,
+    "cadence_scale": 0.95,
+    "stride_scale": 1.0,
+    "lean_scale": 1.1,
+    "arm_swing_scale": 1.0
+   },
+   "strength": 50000.0
+  },
+  {
+   "id": "mina",
+   "name": "MINA",
+   "rig": "stickman",
+   "proportions": {
+    "spine": 26.0,
+    "chest": 24.0,
+    "neck": 6.0,
+    "head": 29.0,
+    "upper_arm": 26.0,
+    "forearm": 24.0,
+    "hand": 8.0,
+    "thigh": 35.0,
+    "shin": 33.0,
+    "foot": 12.0
+   },
+   "style": {
+    "body_color": "#e4f1ff",
+    "far_color": "#8ea3b8",
+    "visor_color": "#3fd0c9",
+    "scarf_color": "#3fd0c9",
+    "glow_color": "#7ff0e8",
+    "limb_width": 8.0,
+    "has_scarf": true,
+    "cadence_scale": 1.2,
+    "stride_scale": 0.9,
+    "lean_scale": 1.3,
+    "arm_swing_scale": 1.3
+   },
+   "strength": 42000.0
+  }
+ ],
+ "environments": [
+  {
+   "id": "workshop",
+   "room": {
+    "width": 1800.0,
+    "height": 800.0,
+    "depth_back": 520.0,
+    "depth_front": -120.0,
+    "entry_door": true,
+    "grid_spacing": 90.0
+   },
+   "theme": {
+    "accent": "#ffb02e",
+    "alert": "#ff3b30",
+    "back": "#1b1a1f",
+    "floor": "#0d0c10",
+    "side": "#16151a",
+    "ceiling": "#09080b",
+    "background": "#050507",
+    "dust": "#ffe2b0"
+   },
+   "gravity": [
+    0.0,
+    -1568.0
+   ],
+   "switches": [],
+   "props": [
+    {
+     "id": "crate",
+     "kind": "container",
+     "position": [
+      -250.0,
+      60.0
+     ],
+     "size": [
+      160.0,
+      120.0
+     ],
+     "mass": 260.0,
+     "angle": 0.0,
+     "friction": 0.5,
+     "static_friction": 0.9,
+     "collide_characters": true,
+     "solid": true,
+     "com": [
+      0.0,
+      0.0
+     ],
+     "z": 0.0,
+     "depth": 60.0
+    },
+    {
+     "id": "post",
+     "kind": "post",
+     "position": [
+      -100.0,
+      120.0
+     ],
+     "size": [
+      28.0,
+      240.0
+     ],
+     "mass": 110.0,
+     "angle": 0.0,
+     "friction": 0.6,
+     "static_friction": 0.8,
+     "collide_characters": true,
+     "solid": true,
+     "com": [
+      0.0,
+      50.0
+     ],
+     "z": 0.0,
+     "depth": 60.0
+    },
+    {
+     "id": "block",
+     "kind": "crate",
+     "position": [
+      120.0,
+      20.0
+     ],
+     "size": [
+      40.0,
+      40.0
+     ],
+     "mass": 80.0,
+     "angle": 0.0,
+     "friction": 0.8,
+     "static_friction": 1.0,
+     "collide_characters": true,
+     "solid": true,
+     "com": [
+      0.0,
+      0.0
+     ],
+     "z": 0.0,
+     "depth": 60.0
+    },
+    {
+     "id": "pry",
+     "kind": "bar",
+     "position": [
+      420.0,
+      10.0
+     ],
+     "size": [
+      220.0,
+      12.0
+     ],
+     "mass": 8.0,
+     "angle": 0.0,
+     "friction": 0.6,
+     "static_friction": null,
+     "collide_characters": true,
+     "solid": false,
+     "com": [
+      0.0,
+      0.0
+     ],
+     "z": -20.0,
+     "depth": 60.0
+    },
+    {
+     "id": "toolbox",
+     "kind": "toolbox",
+     "position": [
+      600.0,
+      18.0
+     ],
+     "size": [
+      60.0,
+      36.0
+     ],
+     "mass": 10.0,
+     "angle": 0.0,
+     "friction": 0.6,
+     "static_friction": null,
+     "collide_characters": true,
+     "solid": true,
+     "com": [
+      0.0,
+      0.0
+     ],
+     "z": -40.0,
+     "depth": 60.0
+    }
+   ],
+   "exits": [],
+   "obstacles": [],
+   "ropes": [],
+   "dust": 120
+  }
+ ],
+ "scenes": [
+  {
+   "id": "rescue",
+   "title": "The Rescue",
+   "environment": "workshop",
+   "duration": 19.0,
+   "placements": [
+    {
+     "character": "odo",
+     "x": -820.0,
+     "facing": 1
+    },
+    {
+     "character": "mina",
+     "x": -890.0,
+     "facing": 1
+    }
+   ],
+   "actions": [
+    {
+     "type": "walk_to",
+     "character": "odo",
+     "target_x": -440.0,
+     "speed": 130.0,
+     "duration": null,
+     "switch": null,
+     "face": null,
+     "height": null,
+     "target": null,
+     "style": "normal",
+     "hesitate": false,
+     "release_deg": 35.0,
+     "swings": 1,
+     "effort": 1.0,
+     "tool": null,
+     "fulcrum": null,
+     "until": null,
+     "gesture": null,
+     "distance": null,
+     "emotion": null,
+     "note": ""
+    },
+    {
+     "type": "look_at",
+     "character": "odo",
+     "target_x": null,
+     "speed": null,
+     "duration": 0.6,
+     "switch": null,
+     "face": null,
+     "height": null,
+     "target": "prop:crate",
+     "style": "normal",
+     "hesitate": false,
+     "release_deg": 35.0,
+     "swings": 1,
+     "effort": 1.0,
+     "tool": null,
+     "fulcrum": null,
+     "until": null,
+     "gesture": null,
+     "distance": null,
+     "emotion": null,
+     "note": ""
+    },
+    {
+     "type": "push",
+     "character": "odo",
+     "target_x": null,
+     "speed": null,
+     "duration": 3.0,
+     "switch": null,
+     "face": null,
+     "height": null,
+     "target": "prop:crate",
+     "style": "normal",
+     "hesitate": false,
+     "release_deg": 35.0,
+     "swings": 1,
+     "effort": 1.5,
+     "tool": null,
+     "fulcrum": null,
+     "until": null,
+     "gesture": null,
+     "distance": null,
+     "emotion": null,
+     "note": ""
+    },
+    {
+     "type": "struggle",
+     "character": "odo",
+     "target_x": null,
+     "speed": null,
+     "duration": 2.0,
+     "switch": null,
+     "face": null,
+     "height": null,
+     "target": null,
+     "style": "normal",
+     "hesitate": false,
+     "release_deg": 35.0,
+     "swings": 1,
+     "effort": 1.0,
+     "tool": null,
+     "fulcrum": null,
+     "until": null,
+     "gesture": null,
+     "distance": null,
+     "emotion": null,
+     "note": ""
+    },
+    {
+     "type": "crawl_out",
+     "character": "odo",
+     "target_x": null,
+     "speed": null,
+     "duration": null,
+     "switch": null,
+     "face": null,
+     "height": null,
+     "target": null,
+     "style": "normal",
+     "hesitate": false,
+     "release_deg": 35.0,
+     "swings": 1,
+     "effort": 1.0,
+     "tool": null,
+     "fulcrum": null,
+     "until": null,
+     "gesture": null,
+     "distance": null,
+     "emotion": null,
+     "note": ""
+    },
+    {
+     "type": "get_up",
+     "character": "odo",
+     "target_x": null,
+     "speed": null,
+     "duration": null,
+     "switch": null,
+     "face": null,
+     "height": null,
+     "target": "char:mina",
+     "style": "normal",
+     "hesitate": false,
+     "release_deg": 35.0,
+     "swings": 1,
+     "effort": 1.0,
+     "tool": null,
+     "fulcrum": null,
+     "until": null,
+     "gesture": null,
+     "distance": null,
+     "emotion": null,
+     "note": ""
+    },
+    {
+     "type": "gesture",
+     "character": "odo",
+     "target_x": null,
+     "speed": null,
+     "duration": null,
+     "switch": null,
+     "face": null,
+     "height": null,
+     "target": "char:mina",
+     "style": "normal",
+     "hesitate": false,
+     "release_deg": 35.0,
+     "swings": 1,
+     "effort": 1.0,
+     "tool": null,
+     "fulcrum": null,
+     "until": null,
+     "gesture": "fist_bump",
+     "distance": null,
+     "emotion": null,
+     "note": ""
+    },
+    {
+     "type": "idle",
+     "character": "odo",
+     "target_x": null,
+     "speed": null,
+     "duration": 1.5,
+     "switch": null,
+     "face": null,
+     "height": null,
+     "target": null,
+     "style": "normal",
+     "hesitate": false,
+     "release_deg": 35.0,
+     "swings": 1,
+     "effort": 1.0,
+     "tool": null,
+     "fulcrum": null,
+     "until": null,
+     "gesture": null,
+     "distance": null,
+     "emotion": null,
+     "note": ""
+    },
+    {
+     "type": "walk_to",
+     "character": "mina",
+     "target_x": -640.0,
+     "speed": 150.0,
+     "duration": null,
+     "switch": null,
+     "face": null,
+     "height": null,
+     "target": null,
+     "style": "normal",
+     "hesitate": false,
+     "release_deg": 35.0,
+     "swings": 1,
+     "effort": 1.0,
+     "tool": null,
+     "fulcrum": null,
+     "until": null,
+     "gesture": null,
+     "distance": null,
+     "emotion": null,
+     "note": ""
+    },
+    {
+     "type": "look_around",
+     "character": "mina",
+     "target_x": null,
+     "speed": null,
+     "duration": 0.8,
+     "switch": null,
+     "face": null,
+     "height": null,
+     "target": null,
+     "style": "normal",
+     "hesitate": false,
+     "release_deg": 35.0,
+     "swings": 1,
+     "effort": 1.0,
+     "tool": null,
+     "fulcrum": null,
+     "until": null,
+     "gesture": null,
+     "distance": null,
+     "emotion": null,
+     "note": ""
+    },
+    {
+     "type": "wait_for",
+     "character": "mina",
+     "target_x": null,
+     "speed": null,
+     "duration": null,
+     "switch": null,
+     "face": null,
+     "height": null,
+     "target": null,
+     "style": "normal",
+     "hesitate": false,
+     "release_deg": 35.0,
+     "swings": 1,
+     "effort": 1.0,
+     "tool": null,
+     "fulcrum": null,
+     "until": "event:pinned",
+     "gesture": null,
+     "distance": null,
+     "emotion": null,
+     "note": ""
+    },
+    {
+     "type": "notice",
+     "character": "mina",
+     "target_x": null,
+     "speed": null,
+     "duration": 0.6,
+     "switch": null,
+     "face": null,
+     "height": null,
+     "target": "char:odo",
+     "style": "normal",
+     "hesitate": false,
+     "release_deg": 35.0,
+     "swings": 1,
+     "effort": 1.0,
+     "tool": null,
+     "fulcrum": null,
+     "until": null,
+     "gesture": null,
+     "distance": null,
+     "emotion": null,
+     "note": ""
+    },
+    {
+     "type": "run_to",
+     "character": "mina",
+     "target_x": null,
+     "speed": null,
+     "duration": null,
+     "switch": null,
+     "face": null,
+     "height": null,
+     "target": "char:odo",
+     "style": "normal",
+     "hesitate": false,
+     "release_deg": 35.0,
+     "swings": 1,
+     "effort": 1.0,
+     "tool": null,
+     "fulcrum": null,
+     "until": null,
+     "gesture": null,
+     "distance": null,
+     "emotion": null,
+     "note": ""
+    },
+    {
+     "type": "lift",
+     "character": "mina",
+     "target_x": null,
+     "speed": null,
+     "duration": 2.0,
+     "switch": null,
+     "face": null,
+     "height": null,
+     "target": "prop:post",
+     "style": "normal",
+     "hesitate": false,
+     "release_deg": 35.0,
+     "swings": 1,
+     "effort": 1.4,
+     "tool": null,
+     "fulcrum": null,
+     "until": null,
+     "gesture": null,
+     "distance": null,
+     "emotion": null,
+     "note": ""
+    },
+    {
+     "type": "look_at",
+     "character": "mina",
+     "target_x": null,
+     "speed": null,
+     "duration": 0.6,
+     "switch": null,
+     "face": null,
+     "height": null,
+     "target": "prop:pry",
+     "style": "normal",
+     "hesitate": false,
+     "release_deg": 35.0,
+     "swings": 1,
+     "effort": 1.0,
+     "tool": null,
+     "fulcrum": null,
+     "until": null,
+     "gesture": null,
+     "distance": null,
+     "emotion": null,
+     "note": ""
+    },
+    {
+     "type": "use_lever",
+     "character": "mina",
+     "target_x": null,
+     "speed": null,
+     "duration": null,
+     "switch": null,
+     "face": null,
+     "height": null,
+     "target": "prop:post",
+     "style": "normal",
+     "hesitate": false,
+     "release_deg": 35.0,
+     "swings": 1,
+     "effort": 1.0,
+     "tool": "prop:pry",
+     "fulcrum": "prop:block",
+     "until": "event:load_off",
+     "gesture": null,
+     "distance": null,
+     "emotion": null,
+     "note": ""
+    },
+    {
+     "type": "offer_hand",
+     "character": "mina",
+     "target_x": null,
+     "speed": null,
+     "duration": null,
+     "switch": null,
+     "face": null,
+     "height": null,
+     "target": "char:odo",
+     "style": "normal",
+     "hesitate": false,
+     "release_deg": 35.0,
+     "swings": 1,
+     "effort": 1.0,
+     "tool": null,
+     "fulcrum": null,
+     "until": null,
+     "gesture": null,
+     "distance": null,
+     "emotion": null,
+     "note": ""
+    },
+    {
+     "type": "gesture",
+     "character": "mina",
+     "target_x": null,
+     "speed": null,
+     "duration": null,
+     "switch": null,
+     "face": null,
+     "height": null,
+     "target": "char:odo",
+     "style": "normal",
+     "hesitate": false,
+     "release_deg": 35.0,
+     "swings": 1,
+     "effort": 1.0,
+     "tool": null,
+     "fulcrum": null,
+     "until": null,
+     "gesture": "fist_bump",
+     "distance": null,
+     "emotion": null,
+     "note": ""
+    },
+    {
+     "type": "idle",
+     "character": "mina",
+     "target_x": null,
+     "speed": null,
+     "duration": 1.5,
+     "switch": null,
+     "face": null,
+     "height": null,
+     "target": null,
+     "style": "normal",
+     "hesitate": false,
+     "release_deg": 35.0,
+     "swings": 1,
+     "effort": 1.0,
+     "tool": null,
+     "fulcrum": null,
+     "until": null,
+     "gesture": null,
+     "distance": null,
+     "emotion": null,
+     "note": ""
+    }
+   ],
+   "shots": [
+    {
+     "id": "s01_establish",
+     "start": 0.0,
+     "end": 2.5,
+     "kind": "establishing",
+     "description": "wide push-in on the workshop: the heavy container, the tall post, the pry bar on the floor; two figures enter",
+     "camera": {
+      "mode": "dolly",
+      "target": null,
+      "center": [
+       -100.0,
+       380.0
+      ],
+      "center_end": [
+       -300.0,
+       320.0
+      ],
+      "view_height": 1000.0,
+      "view_height_end": 800.0,
+      "offset": [
+       0.0,
+       40.0
+      ],
+      "lead": 0.25,
+      "stiffness": 6.0,
+      "roll": 0.0,
+      "roll_end": null,
+      "roll_ease": "in_out",
+      "roll_mode": "fixed",
+      "focus": "body",
+      "shake": 0.0,
+      "roll_rate": 110.0,
+      "keep_in_frame": true,
+      "include": [],
+      "include_margin": 45.0,
+      "min_subject_frac": null
+     },
+     "character_states": {},
+     "action_objectives": [],
+     "object_interactions": [],
+     "environment_state": {},
+     "physics_requirements": [],
+     "sound_cues": [
+      {
+       "on_event": "footstep",
+       "sound": "footstep",
+       "gain": 0.6
+      }
+     ],
+     "exit_conditions": [],
+     "fade_out": 0.0
+    },
+    {
+     "id": "s02_push",
+     "start": 2.5,
+     "end": 6.0,
+     "kind": "medium",
+     "description": "ODO leans into the heavy container and pushes; it breaks loose, outruns him and he stumbles",
+     "camera": {
+      "mode": "follow",
+      "target": "odo",
+      "center": null,
+      "center_end": null,
+      "view_height": 520.0,
+      "view_height_end": null,
+      "offset": [
+       120.0,
+       80.0
+      ],
+      "lead": 0.2,
+      "stiffness": 6.0,
+      "roll": 0.0,
+      "roll_end": null,
+      "roll_ease": "in_out",
+      "roll_mode": "fixed",
+      "focus": "body",
+      "shake": 0.0,
+      "roll_rate": 110.0,
+      "keep_in_frame": true,
+      "include": [
+       "prop:crate"
+      ],
+      "include_margin": 45.0,
+      "min_subject_frac": null
+     },
+     "character_states": {},
+     "action_objectives": [],
+     "object_interactions": [],
+     "environment_state": {},
+     "physics_requirements": [],
+     "sound_cues": [
+      {
+       "on_event": "push_start",
+       "sound": "strain",
+       "gain": 0.9
+      },
+      {
+       "on_event": "push_lost",
+       "sound": "slide",
+       "gain": 1.0
+      },
+      {
+       "on_event": "body_fall",
+       "sound": "impact",
+       "gain": 0.9
+      }
+     ],
+     "exit_conditions": [
+      "event:push_start",
+      "event:push_lost",
+      "event:body_fall"
+     ],
+     "fade_out": 0.0
+    },
+    {
+     "id": "s03_pinned",
+     "start": 6.0,
+     "end": 8.2,
+     "kind": "close",
+     "description": "the container hits the post; it topples and pins ODO to the floor",
+     "camera": {
+      "mode": "static",
+      "target": null,
+      "center": [
+       -150.0,
+       120.0
+      ],
+      "center_end": null,
+      "view_height": 420.0,
+      "view_height_end": null,
+      "offset": [
+       0.0,
+       40.0
+      ],
+      "lead": 0.25,
+      "stiffness": 6.0,
+      "roll": 0.0,
+      "roll_end": null,
+      "roll_ease": "in_out",
+      "roll_mode": "fixed",
+      "focus": "body",
+      "shake": 0.8,
+      "roll_rate": 110.0,
+      "keep_in_frame": true,
+      "include": [
+       "prop:post",
+       "char:odo"
+      ],
+      "include_margin": 45.0,
+      "min_subject_frac": null
+     },
+     "character_states": {},
+     "action_objectives": [],
+     "object_interactions": [],
+     "environment_state": {},
+     "physics_requirements": [],
+     "sound_cues": [
+      {
+       "on_event": "prop_impact",
+       "sound": "clang",
+       "gain": 1.0
+      },
+      {
+       "on_event": "pinned",
+       "sound": "impact",
+       "gain": 1.0
+      }
+     ],
+     "exit_conditions": [
+      "event:prop_impact",
+      "event:pinned"
+     ],
+     "fade_out": 0.0
+    },
+    {
+     "id": "s04_notice",
+     "start": 8.2,
+     "end": 10.0,
+     "kind": "medium",
+     "description": "MINA looks up, notices her friend trapped, and breaks into a run",
+     "camera": {
+      "mode": "follow",
+      "target": "mina",
+      "center": null,
+      "center_end": null,
+      "view_height": 480.0,
+      "view_height_end": null,
+      "offset": [
+       100.0,
+       60.0
+      ],
+      "lead": 0.3,
+      "stiffness": 6.0,
+      "roll": 0.0,
+      "roll_end": null,
+      "roll_ease": "in_out",
+      "roll_mode": "fixed",
+      "focus": "body",
+      "shake": 0.0,
+      "roll_rate": 110.0,
+      "keep_in_frame": true,
+      "include": [],
+      "include_margin": 45.0,
+      "min_subject_frac": null
+     },
+     "character_states": {},
+     "action_objectives": [],
+     "object_interactions": [],
+     "environment_state": {},
+     "physics_requirements": [],
+     "sound_cues": [
+      {
+       "on_event": "notice",
+       "sound": "notice",
+       "gain": 1.0
+      },
+      {
+       "on_event": "footstep",
+       "sound": "footstep",
+       "gain": 0.8
+      }
+     ],
+     "exit_conditions": [
+      "event:notice"
+     ],
+     "fade_out": 0.0
+    },
+    {
+     "id": "s05_lift",
+     "start": 10.0,
+     "end": 12.5,
+     "kind": "medium",
+     "description": "MINA grabs the post and strains; it will not rise",
+     "camera": {
+      "mode": "static",
+      "target": null,
+      "center": [
+       -150.0,
+       150.0
+      ],
+      "center_end": null,
+      "view_height": 460.0,
+      "view_height_end": null,
+      "offset": [
+       0.0,
+       40.0
+      ],
+      "lead": 0.25,
+      "stiffness": 6.0,
+      "roll": 0.0,
+      "roll_end": null,
+      "roll_ease": "in_out",
+      "roll_mode": "fixed",
+      "focus": "body",
+      "shake": 0.0,
+      "roll_rate": 110.0,
+      "keep_in_frame": true,
+      "include": [
+       "char:mina",
+       "char:odo",
+       "prop:post"
+      ],
+      "include_margin": 45.0,
+      "min_subject_frac": null
+     },
+     "character_states": {},
+     "action_objectives": [],
+     "object_interactions": [],
+     "environment_state": {},
+     "physics_requirements": [],
+     "sound_cues": [
+      {
+       "on_event": "lift_start",
+       "sound": "strain",
+       "gain": 0.9
+      },
+      {
+       "on_event": "lift_fail",
+       "sound": "clank",
+       "gain": 0.9
+      }
+     ],
+     "exit_conditions": [
+      "event:lift_start",
+      "event:lift_fail"
+     ],
+     "fade_out": 0.0
+    },
+    {
+     "id": "s06_lever",
+     "start": 12.5,
+     "end": 15.5,
+     "kind": "wide",
+     "description": "MINA fetches the pry bar, sets it over the block under the post and bears down; the post lifts",
+     "camera": {
+      "mode": "dolly",
+      "target": null,
+      "center": [
+       100.0,
+       200.0
+      ],
+      "center_end": [
+       0.0,
+       170.0
+      ],
+      "view_height": 620.0,
+      "view_height_end": 480.0,
+      "offset": [
+       0.0,
+       40.0
+      ],
+      "lead": 0.25,
+      "stiffness": 6.0,
+      "roll": 0.0,
+      "roll_end": null,
+      "roll_ease": "in_out",
+      "roll_mode": "fixed",
+      "focus": "body",
+      "shake": 0.0,
+      "roll_rate": 110.0,
+      "keep_in_frame": true,
+      "include": [
+       "prop:pry",
+       "prop:block",
+       "prop:post"
+      ],
+      "include_margin": 45.0,
+      "min_subject_frac": null
+     },
+     "character_states": {},
+     "action_objectives": [],
+     "object_interactions": [],
+     "environment_state": {},
+     "physics_requirements": [],
+     "sound_cues": [
+      {
+       "on_event": "pick_up",
+       "sound": "tap",
+       "gain": 0.8
+      },
+      {
+       "on_event": "lever_place",
+       "sound": "clang",
+       "gain": 0.9
+      },
+      {
+       "on_event": "lever_engage",
+       "sound": "creak",
+       "gain": 1.0
+      },
+      {
+       "on_event": "load_off",
+       "sound": "unlock",
+       "gain": 0.9
+      }
+     ],
+     "exit_conditions": [
+      "event:lever_place",
+      "event:lever_engage",
+      "event:load_off"
+     ],
+     "fade_out": 0.0
+    },
+    {
+     "id": "s07_free",
+     "start": 15.5,
+     "end": 17.5,
+     "kind": "medium",
+     "description": "ODO crawls out; MINA offers a hand and pulls him to his feet",
+     "camera": {
+      "mode": "follow",
+      "target": "odo",
+      "center": null,
+      "center_end": null,
+      "view_height": 400.0,
+      "view_height_end": null,
+      "offset": [
+       60.0,
+       60.0
+      ],
+      "lead": 0.25,
+      "stiffness": 6.0,
+      "roll": 0.0,
+      "roll_end": null,
+      "roll_ease": "in_out",
+      "roll_mode": "fixed",
+      "focus": "body",
+      "shake": 0.0,
+      "roll_rate": 110.0,
+      "keep_in_frame": true,
+      "include": [
+       "char:mina"
+      ],
+      "include_margin": 45.0,
+      "min_subject_frac": null
+     },
+     "character_states": {},
+     "action_objectives": [],
+     "object_interactions": [],
+     "environment_state": {},
+     "physics_requirements": [],
+     "sound_cues": [
+      {
+       "on_event": "freed",
+       "sound": "slide",
+       "gain": 0.8
+      },
+      {
+       "on_event": "hand_grab",
+       "sound": "tap",
+       "gain": 0.9
+      },
+      {
+       "on_event": "stood_up",
+       "sound": "resolve",
+       "gain": 0.9
+      }
+     ],
+     "exit_conditions": [
+      "event:freed",
+      "event:hand_offered",
+      "event:stood_up"
+     ],
+     "fade_out": 0.0
+    },
+    {
+     "id": "s08_friendship",
+     "start": 17.5,
+     "end": 19.0,
+     "kind": "close",
+     "description": "both stand side by side and share a fist bump, relieved; fade out",
+     "camera": {
+      "mode": "static",
+      "target": null,
+      "center": [
+       -120.0,
+       140.0
+      ],
+      "center_end": null,
+      "view_height": 360.0,
+      "view_height_end": null,
+      "offset": [
+       0.0,
+       40.0
+      ],
+      "lead": 0.25,
+      "stiffness": 6.0,
+      "roll": 0.0,
+      "roll_end": null,
+      "roll_ease": "in_out",
+      "roll_mode": "fixed",
+      "focus": "body",
+      "shake": 0.0,
+      "roll_rate": 110.0,
+      "keep_in_frame": true,
+      "include": [
+       "char:odo",
+       "char:mina"
+      ],
+      "include_margin": 45.0,
+      "min_subject_frac": null
+     },
+     "character_states": {},
+     "action_objectives": [],
+     "object_interactions": [],
+     "environment_state": {},
+     "physics_requirements": [],
+     "sound_cues": [
+      {
+       "on_event": "fist_bump",
+       "sound": "chime",
+       "gain": 1.0
+      }
+     ],
+     "exit_conditions": [
+      "event:fist_bump"
+     ],
+     "fade_out": 0.8
+    }
+   ]
+  }
+ ]
+}

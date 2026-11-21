@@ -89,8 +89,20 @@ def red_flash(events, t: float) -> float:
     return r
 
 
-def _resolve_target(env, target: str):
+def _resolve_target(env, target: str, rt=None, t: float = 0.0):
+    """A target's world point at time t: static targets from the environment; props and characters from the
+    simulation (`prop:<id>` = the prop's centre, `char:<id>` = the character's chest)."""
     from ..scene.targets import resolve
+    kind, _, ref = target.partition(":")
+    if rt is not None and rt.result is not None:
+        if kind == "prop" and ref in rt.result.prop_tracks:
+            an = next(iter(rt.result.animators.values()))
+            x, y, _ = an.prop_at(ref, t)
+            return (x, y)
+        if kind == "char" and ref in rt.result.animators:
+            an = rt.result.animators[ref]
+            x, y = an.root_at(t)
+            return (x, y + 0.45 * an.stand_h)
     try:
         return resolve(env, target)
     except (StopIteration, ValueError):
@@ -144,7 +156,7 @@ def build_camera(rt: SceneRuntime, aspect: float) -> CameraDirector:
         elif e.type == "prop_impact":
             shake.append((e.t, 2.0))
     return CameraDirector(rt.scene.shots, aspect, bbox, vel, gravity=res.gravity.at, focus_bbox=focus, shake_events=shake,
-                          gravity_angle=res.gravity.angle_unwrapped, resolve=lambda tg: _resolve_target(rt.env, tg))
+                          gravity_angle=res.gravity.angle_unwrapped, resolve=lambda tg, t=0.0: _resolve_target(rt.env, tg, rt, t))
 
 
 def compute_diagnostics(rt: SceneRuntime, cam: CameraDirector, fps: int) -> List[dict]:

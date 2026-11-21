@@ -145,7 +145,7 @@ class CameraDirector:
             else:
                 roll = rt
             if cam.keep_in_frame and cam.target:
-                cx, cy, vh = self._frame_guard(cam.target, float(t), cx, cy, vh, roll, cam.focus, self._includes(cam))
+                cx, cy, vh = self._frame_guard(cam.target, float(t), cx, cy, vh, roll, cam.focus, self._includes(cam, float(t)))
             out[i] = (cx, cy, vh, roll)
         return ts, out
 
@@ -153,11 +153,11 @@ class CameraDirector:
         """Screen-axis half extents of the safe area (independent of roll; the guard works in screen space)."""
         return vh * self.aspect / 2 * SAFE, vh / 2 * SAFE
 
-    def _includes(self, cam: CameraSpec) -> List[Tuple[float, float, float, float]]:
+    def _includes(self, cam: CameraSpec, t: float = 0.0) -> List[Tuple[float, float, float, float]]:
         out = []
         if self.resolve is not None:
             for tg in cam.include:
-                p = self.resolve(tg)
+                p = self.resolve(tg, t)
                 if p is not None:
                     m = cam.include_margin
                     out.append((p[0] - m, p[1] - m, p[0] + m, p[1] + m))

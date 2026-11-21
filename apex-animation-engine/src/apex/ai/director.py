@@ -17,18 +17,58 @@ from pydantic import ValidationError
 from ..scene.schema import SCHEMA_VERSION, ProjectSpec
 from .providers import Provider, provider_from_env
 
-EXAMPLE = Path(__file__).resolve().parents[3] / "examples" / "gravity_switch_1b.json"
+EXAMPLE = Path(__file__).resolve().parents[3] / "examples" / "foundry_flip.json"
 
-SYSTEM = f"""You are the APEX Story Director. Convert the user's story into ONE JSON object that validates against the
-APEX scene schema v{SCHEMA_VERSION}. Output JSON only. Rules:
-- Use only action types: idle, walk_to, run_to, turn, press, jump, look_around, wait_grounded.
-- Coordinates are centimetres on the support surface; the room spans x in [-width/2, width/2].
-- Shots must be contiguous, start at 0 and end exactly at the scene duration.
-- Every shot needs: id, start, end, description, camera, action_objectives, physics_requirements, sound_cues, exit_conditions.
-- exit_conditions use: "event:<press_contact|gravity_shift|lost_support|impact|recovered|takeoff>", "state:<idle|loco|press>",
-  "grounded_on:<floor|wall_right|wall_left|ceiling>".
-- Gravity changes only happen through a switch's effect (no free-form gravity edits).
-- Keep characters consistent: one CharacterSpec per character, referenced by id everywhere."""
+ACTION_HELP = {
+    "idle": "stand (duration)", "walk_to": "walk to target_x, or to a 'char:'/'prop:' target", "run_to": "run (same targets as walk_to)",
+    "turn": "face=+1/-1", "press": "press a switch (switch)", "jump": "running jump (height)", "look_around": "look around (duration)",
+    "wait_grounded": "wait until standing on a surface again", "look_at": "look at target (duration)", "notice": "double take at target",
+    "point": "point at target", "duck_slide": "slide feet-first to target_x", "jump_to": "standing jump to target_x (height, optional switch)",
+    "grab_swing": "catch a bar while falling (target bar:)", "reach_exit": "walk out through an open exit (target exit:)",
+    "push": "push a prop (target prop:, effort 0.5-1.6 of the character's strength); if it breaks loose and outruns the character, "
+            "contact is lost and the character stumbles and FALLS PRONE (physics decides)",
+    "lift": "try to lift the nearest end of a prop by hand (target prop:, effort, duration); too heavy simply does not rise",
+    "use_lever": "fetch a bar (tool prop:), place it over a fulcrum (fulcrum prop:) under the load (target prop:) and bear down; "
+                 "holds until `until` event",
+    "struggle": "while lying prone: struggle (duration or until)", "crawl_out": "while prone: wait until the load is off, crawl out (emits freed)",
+    "get_up": "while prone: get up; with target char: take that character's offered hand",
+    "offer_hand": "walk to a lying/kneeling character (target char:) and offer a hand, pull them up",
+    "gesture": "gesture with another character (target char:, gesture fist_bump|shoulder_pat|wave)",
+    "wait_for": "wait until an event happens (until 'event:<type>' or 'event:<type>@<character>')",
+}
+EVENT_TYPES = ("footstep turn notice point press_contact switch_activated gravity_shift lost_support impact recovered takeoff "
+               "push_start push_lost rope_taut rope_snap body_fall pinned load_off lift_start lift_fail lift_ok pick_up lever_place "
+               "lever_engage lever_release crawl_start freed get_up_start hand_offered hand_grab stood_up fist_bump shoulder_pat prop_impact")
+
+
+def system_prompt() -> str:
+    """The planner's contract, generated from the live schema (action list, required fields, names)."""
+    from ..audio.sound_director import SOUND_NAMES
+    from ..scene.schema import ActionSpec, PropSpec
+    import typing
+    acts = typing.get_args(ActionSpec.model_fields["type"].annotation)
+    kinds = typing.get_args(PropSpec.model_fields["kind"].annotation)
+    lines = "\n".join(f"  - {a}: {ACTION_HELP.get(a, '')}" for a in acts)
+    return f"""You are the APEX Story Director. Convert the user's story into ONE JSON object that validates against the
+APEX scene schema v{SCHEMA_VERSION}. Output JSON only. The engine SIMULATES physics: you describe intentions and the
+physical setup; the simulation decides outcomes. Do not fake an action with `idle` + a note when an action exists for it.
+Action types (each action has `character`; durations in seconds):
+{lines}
+Props (environment.props): kinds {", ".join(kinds)}; fields id, kind, position [x, y-centre], size [w, h], mass, angle (rad),
+friction (sliding), static_friction (at rest: heavy things break loose), collide_characters, solid (false = fixed set dressing
+until picked up, e.g. a tool on a rack), com (centre of mass offset, e.g. a top-heavy post), z (depth; negative = nearer the camera).
+Ropes (environment.ropes): straps between props ("prop:<id>" ends, local attachment points), length (slack), break_force (snaps).
+Characters: id, name, proportions, style (colours, cadence/stride/lean/arm_swing scales), strength (max hand force, ~40000-60000).
+Targets: "switch:<id>", "exit:<id>", "bar:<id>", "prop:<id>", "char:<id>", "point:x,y". Coordinates: x along the floor, room spans
+[-width/2, width/2]; gravity [0,-1568]; standing pelvis ~95 above the floor; a character is ~175 tall.
+Shots: contiguous, start at 0, end exactly at the scene duration; kinds establishing|wide|medium|close|insert|tracking; camera modes
+static|follow|track_x|dolly; camera.include lists targets to keep in frame (e.g. "char:<id>", "prop:<id>").
+exit_conditions: "event:<type>" with types from: {EVENT_TYPES}.
+sound_cues: {{on_event, sound, gain}}; sound must be one of: {", ".join(SOUND_NAMES)}.
+Keep characters consistent: one CharacterSpec per character, referenced by id everywhere."""
+
+
+SYSTEM = system_prompt.__doc__  # kept for backwards compatibility; the live prompt is system_prompt()
 
 
 class PlanningError(RuntimeError):
@@ -36,9 +76,10 @@ class PlanningError(RuntimeError):
 
 
 class StoryDirector:
-    def __init__(self, provider: Optional[Provider] = None, max_repairs: int = 2):
+    def __init__(self, provider: Optional[Provider] = None, max_repairs: int = 7):
         self.provider = provider
         self.max_repairs = max_repairs
+        self.log: List[dict] = []  # every raw response and the error fed back to it (preserved by `apex plan --log-dir`)
 
     @property
     def name(self) -> str:
@@ -57,28 +98,96 @@ class StoryDirector:
         errors: List[str] = []
         for attempt in range(self.max_repairs + 1):
             prompt = user if not errors else user + "\n\nYOUR PREVIOUS OUTPUT WAS INVALID:\n" + "\n".join(errors[-1:]) + "\nReturn a corrected JSON object."
-            raw = self.provider.complete(SYSTEM, prompt)
+            raw = self.provider.complete(system_prompt(), prompt, max_tokens=16000) or ""
+            self.log.append({"attempt": attempt + 1, "raw_response": raw, "fed_back_error": errors[-1] if errors else None})
             try:
                 proj = self._parse(raw)
                 self._dry_run(proj)
                 return proj
-            except (ValidationError, ValueError, KeyError) as e:
+            except (ValidationError, ValueError, KeyError, TypeError, json.JSONDecodeError) as e:
                 errors.append(str(e)[:2000])
         raise PlanningError(f"planner output failed validation after {self.max_repairs + 1} attempts: {errors[-1][:500]}")
 
     @staticmethod
     def _parse(raw: str) -> ProjectSpec:
-        m = re.search(r"\{.*\}", raw, re.S)
+        m = re.search(r"\{.*\}", raw or "", re.S)
         if not m:
-            raise ValueError("no JSON object in response")
+            raise ValueError("no JSON object in response (empty or truncated output: return the complete JSON object)")
         return ProjectSpec.model_validate(json.loads(m.group(0)))
 
     @staticmethod
     def _dry_run(proj: ProjectSpec) -> None:
-        """A plan is only accepted if every scene simulates (catches impossible directives early)."""
+        """A plan is only accepted if every sound exists and every scene simulates (catches impossible directives early)."""
+        from ..audio.sound_director import SOUND_NAMES
         from ..scene.runtime import SceneRuntime
         for sc in proj.scenes:
-            SceneRuntime(proj, sc.id).simulate()
+            for sh in sc.shots:
+                for cue in sh.sound_cues:
+                    if cue.sound not in SOUND_NAMES:
+                        raise ValueError(f"shot {sh.id}: unknown sound {cue.sound!r}; use one of {', '.join(SOUND_NAMES)}")
+            r = SceneRuntime(proj, sc.id).simulate()
+            # every character must get through its action list: a step that never completes means the physical setup
+            # did not produce what the story needs (e.g. a wait_for event that never happened)
+            stuck = []
+            for cid, c in r.controllers.items():
+                a = c.cur
+                if a is None:
+                    continue
+                ph = getattr(c, "inter", {}).get("phase")
+                waiting = (a.type == "wait_for" or (a.type == "crawl_out" and ph == "wait")
+                           or (a.type == "get_up" and ph == "up" and c.inter.get("wait", 0.0) > 1.0)
+                           or (a.type == "use_lever" and ph == "hold" and a.until) or (a.type == "struggle" and a.until))
+                if waiting:
+                    stuck.append(f"{cid} was still waiting in '{a.type}'" + (f" (until {a.until})" if a.until else "")
+                                 + f" when the scene ended, with {len(c.queue)} action(s) never reached")
+            if stuck:
+                happened = ", ".join(f"{e.t:.1f}s {e.type}@{e.character}" for e in r.events
+                                     if e.type not in ("footstep", "turn", "prop_impact"))[:1500]
+                raise ValueError(f"scene {sc.id}: the simulation did not play the story out: {'; '.join(stuck)}. "
+                                 f"Events that actually happened: {happened or 'none'}. Physics diagnostics: "
+                                 f"{StoryDirector._diagnose(proj, sc, r)}. Adjust the physical setup "
+                                 "(masses, friction, positions, ropes) or the actions so the needed events occur.")
+
+    @staticmethod
+    def _diagnose(proj: ProjectSpec, sc, r) -> str:
+        """Numbers the planner needs to tune a physical setup: push force vs static friction, strap geometry, loads."""
+        import math as _m
+        env = proj.environment(sc.environment)
+        props = {p.id: p for p in env.props}
+        chars = {c.id: c for c in proj.characters}
+        g = _m.hypot(*env.gravity)
+        out = []
+        for a in sc.actions:
+            if a.type == "push" and a.target:
+                p = props.get(a.target.split(":", 1)[1])
+                if p:
+                    mu = (p.static_friction if p.static_friction is not None else p.friction) * 0.9
+                    need, have = mu * p.mass * g, a.effort * chars[a.character].strength
+                    out.append(f"push {a.character}->{p.id}: force {have:.0f} vs static friction {need:.0f} "
+                               f"({'breaks loose' if have > need else 'cannot move it'}); once sliding, friction "
+                               f"{p.friction * 0.9 * p.mass * g:.0f}")
+            if a.type == "lift" and a.target:
+                p = props.get(a.target.split(":", 1)[1])
+                if p:
+                    out.append(f"lift {a.character}->{p.id}: weight {p.mass * g:.0f}, max hand force "
+                               f"{a.effort * chars[a.character].strength:.0f} (lifting one end of a long prop needs ~half its weight)")
+        for rp in env.ropes:
+            snap = r.rope_snaps.get(rp.id)
+            ends = []
+            for ref, loc in ((rp.a, rp.a_local), (rp.b, rp.b_local)):
+                k, _, v = ref.partition(":")
+                if k == "prop" and v in props:
+                    pp = props[v]
+                    ca, sa = _m.cos(pp.angle), _m.sin(pp.angle)
+                    ends.append((pp.position[0] + loc[0] * ca - loc[1] * sa, pp.position[1] + loc[0] * sa + loc[1] * ca))
+                elif k == "world":
+                    ends.append(tuple(float(c) for c in v.split(",")))
+            if len(ends) == 2:
+                d0 = _m.dist(*ends)
+                out.append(f"rope {rp.id}: length {rp.length:.0f} vs initial end distance {d0:.0f}"
+                           + (" (SHORTER than the distance: it starts taut)" if rp.length < d0 else f" (slack {rp.length - d0:.0f})")
+                           + (f", snapped at {snap:.2f}s" if snap is not None else ", never snapped"))
+        return "; ".join(out) or "none"
 
 
 class TemplatePlanner:

@@ -18,6 +18,7 @@ from ..rig.stickman import StickmanRig
 from ..scene.schema import ActionSpec, EnvironmentSpec
 from ..scene.targets import bar_world, exit_world, resolve, switch_world
 from .frames import GroundFrame
+from .interaction import INTERACTIONS, LIE_H, InteractionMixin
 from .library import get_clip, landing_clip
 
 MASS = 70.0
@@ -76,7 +77,7 @@ class StepRecord:
     ttc: float = -1.0
 
 
-class CharacterController:
+class CharacterController(InteractionMixin):
     def __init__(self, cid: str, rig: StickmanRig, world: PhysicsWorld, frames: Dict[str, GroundFrame], gravity: GravityField,
                  env: EnvironmentSpec, x: float, facing: int, actions: List[ActionSpec], emit: Callable[[Event], None],
                  doors: Optional[Dict[str, Dict[str, Any]]] = None):
@@ -106,6 +107,20 @@ class CharacterController:
         top = rig.p.spine + rig.p.chest + rig.p.neck + rig.p.head
         self.cap_a, self.cap_b = (0.0, -self.stand_h + CAPSULE_R), (0.0, top - CAPSULE_R)
         self.moment = capsule_moment(MASS, top + self.stand_h, CAPSULE_R)
+        # physical interaction state (see interaction.py)
+        self.posture = "stand"  # stand | prone
+        self.body_tilt = 0.0  # rotation of the body toward the facing direction (pi/2 = lying prone)
+        self.p_leg = rig.p.thigh + rig.p.shin
+        self.strength = 45000.0
+        self.others: Dict[str, "CharacterController"] = {}
+        self.all_events: List[Event] = []
+        self.props = {p.id: p for p in env.props}
+        self.inter: Dict[str, Any] = {}
+        self.inter_action: Optional[ActionSpec] = None
+        self.pinned_by: Optional[str] = None
+        self.free_t: Optional[float] = None
+        self.unpinned_t: Optional[float] = None
+        self.carrying: Optional[str] = None
         world.add_capsule(cid, self.frame.to_world(self.s, self.h), self.cap_a, self.cap_b, CAPSULE_R, MASS, kinematic=True)
         self._open("idle", 0.0)
 
@@ -143,6 +158,8 @@ class CharacterController:
             self._landing(t, dt)
         elif self.mode == "swing":
             self._swing(t, dt, g)
+        elif self.mode == "falling":
+            self._falling(t, dt)
 
     def after_step(self, t: float, contacts: List[ContactEvent]) -> None:
         if self.mode == "airborne":
@@ -155,6 +172,8 @@ class CharacterController:
                         self._touch_down(t, c)
                         break
                     self.emit(Event(t, "graze", self.cid, {"surface": c.b, "normal_speed": c.normal_speed, "point": c.point}))
+        if self.posture == "prone":
+            self._check_pinned(t)
         st = self.world.state(self.cid)
         if self.mode in ("airborne", "swing"):
             s, h = self.frame.to_frame(st.pos)
@@ -175,7 +194,8 @@ class CharacterController:
                 h = self.stand_h
         self.h = h
         tan = self.frame.tangent
-        self.world.set_kinematic(self.cid, self.frame.to_world(self.s, h), self.frame.body_angle, (tan[0] * self.v, tan[1] * self.v))
+        self.world.set_kinematic(self.cid, self.frame.to_world(self.s, h), self.frame.body_angle - self.facing * self.body_tilt,
+                                 (tan[0] * self.v, tan[1] * self.v))
 
     def _next_action(self, t: float) -> None:
         self.cur = self.queue.popleft() if self.queue else None
@@ -183,8 +203,29 @@ class CharacterController:
         self.cur_dir = None
         a = self.cur
         if a is None:
-            if self.seg.kind != "idle":
+            if self.posture == "prone":
+                if self.seg.kind not in ("prone",):
+                    self._open("prone", t)
+            elif self.seg.kind != "idle":
                 self._open("idle", t)
+            return
+        if a.type in ("walk_to", "run_to") and a.target_x is None:  # walk to a character / prop
+            ts = self._target_s(a.target)
+            d0 = 1.0 if ts >= self.s else -1.0
+            stop = 0.75 * self.stand_h if a.target.startswith("char:") else 0.35 * self.stand_h
+            if a.target.startswith("prop:"):
+                lo, hi = self._prop_extent_s(self._pid(a.target))
+                ts = lo if d0 > 0 else hi
+            a = self.cur = a.model_copy(update={"target_x": ts - d0 * stop})
+        if a.type in INTERACTIONS:
+            if not (self.inter_action is a and a.type == "use_lever"):
+                self.inter_action = a
+            self._start_or_resume(t, a)
+            return
+        if self.posture == "prone":  # looking / waiting while lying down
+            dyn = a.target if a.target and a.target.split(":", 1)[0] in ("prop", "char") else None
+            self._open("prone", t, gaze_ref=dyn, gaze=None if dyn or not a.target else resolve(self.env, a.target),
+                       gaze_mode=a.type, rest=True)
             return
         if a.type in ("walk_to", "run_to"):
             direction = 1.0 if a.target_x - self.s >= 0 else -1.0
@@ -199,11 +240,12 @@ class CharacterController:
                 self.queue.appendleft(a)
                 self.cur = ActionSpec(type="turn", character=self.cid, face=int(-self.facing))
                 a = self.cur
-        gaze = resolve(self.env, a.target) if a.target else None
+        dyn = a.target if a.target and a.target.split(":", 1)[0] in ("prop", "char") else None
+        gaze = None if dyn or not a.target else resolve(self.env, a.target)
         if a.type in ("idle", "look_around", "wait_grounded"):
             self._open("idle", t, look=(a.type == "look_around"))
         elif a.type in ("look_at", "notice"):
-            self._open("idle", t, gaze=gaze, gaze_mode=a.type, gaze_target=a.target)
+            self._open("idle", t, gaze=gaze, gaze_mode=a.type, gaze_target=a.target, gaze_ref=dyn)
             if a.type == "notice":
                 self.emit(Event(t + NOTICE_DOUBLE_TAKE, "notice", self.cid, {"target": a.target}))
         elif a.type == "point":
@@ -211,7 +253,7 @@ class CharacterController:
             self.emit(Event(t + 0.25, "point", self.cid, {"target": a.target}))
         elif a.type in ("walk_to", "run_to"):
             if self.seg.kind != "loco":
-                self._open("loco", t, run=(a.type == "run_to"), style=a.style, gaze=gaze)
+                self._open("loco", t, run=(a.type == "run_to"), style=a.style, gaze=gaze, gaze_ref=dyn, carry=self.carrying)
         elif a.type == "turn":
             self._open("turn", t, face_from=self.facing, face_to=float(a.face))
             self.emit(Event(t, "turn", self.cid, {"to": a.face}))
@@ -285,6 +327,13 @@ class CharacterController:
                 self._next_action(t)
         elif a.type in ("walk_to", "run_to"):
             self._locomote(t, dt, a)
+        elif a.type in INTERACTIONS:
+            self._tick_interaction(t, dt, a)
+            if self.cur is not a:  # the interaction finished or handed over (placement already done)
+                self._carry_tick()
+                if self.mode == "grounded":
+                    self._place(t)
+                return
         elif a.type == "jump":
             self.s += self.v * dt
             if tau >= JUMP_PREP:
@@ -301,6 +350,7 @@ class CharacterController:
             pass  # armed; holds until support is lost
         elif a.type == "reach_exit":
             self._reach_exit(t, dt, a)
+        self._carry_tick()
         self._place(t)
 
     def _locomote(self, t: float, dt: float, a: ActionSpec) -> None:

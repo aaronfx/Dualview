@@ -107,15 +107,23 @@ class SkiaRenderer:
         for cid, pose in fs.poses.items():
             if vis[cid] > 0.99:
                 self._back_shadow(c, cid, pose, fs)
-        for pr in fs.props:
-            self._prop(c, pr)
+        lying = [self.rigs[cid].world_joints(pose) for cid, pose in fs.poses.items() if pose.state in ("fall", "prone", "crawl", "getup")]
+        front = []
+        for pr in sorted(fs.props, key=lambda p: -p.z):  # far props first (painter's order)
+            if pr.front or self._on_lying(pr, lying):  # a load resting on a lying character is drawn over the body
+                front.append(pr)
+            else:
+                self._prop(c, pr)
+        for rp in fs.ropes:
+            self._rope(c, rp)
         for cid, pose in fs.poses.items():
             if vis[cid] > 0.99:
                 self._reflection(c, cid, pose)
                 self._contact_shadow(c, cid, pose)
         for e in fx or []:
             self._effect(c, e, fs.t)
-        for cid, pose in fs.poses.items():
+        order = sorted(fs.poses.items(), key=lambda kv: kv[1].state in ("fall", "prone", "crawl", "getup"))  # lying bodies in front
+        for cid, pose in order:
             if vis[cid] <= 0.0:
                 continue
             c.save()
@@ -126,6 +134,8 @@ class SkiaRenderer:
                 self._trail(c, cid, pose, trails[cid])
             self._character(c, cid, pose, alpha=vis[cid], scarf=fs.scarves.get(cid))
             c.restore()
+        for pr in sorted(front, key=lambda p: -p.z):
+            self._prop(c, pr)
         self._obstacles(c, back=False)
         self._dust(c, fs, front=True)
         self._cutaway(c, red_flash, fs)
@@ -329,7 +339,113 @@ class SkiaRenderer:
             c.drawCircle(q[0], q[1], max(2.0, 1.6 * r * q[2]), skia.Paint(AntiAlias=True, Color=col((255, 196, 40))))
             c.drawCircle(q[0], q[1], max(2.0, 1.6 * r * q[2]), skia.Paint(AntiAlias=True, Color=col((40, 30, 10)), Style=skia.Paint.kStroke_Style, StrokeWidth=1.5))
 
+    @staticmethod
+    def _on_lying(pr, lying) -> bool:
+        if not lying or pr.kind not in ("post", "container", "crate"):
+            return False
+        ca, sa = math.cos(pr.angle), math.sin(pr.angle)
+        hx, hy = pr.size[0] / 2, pr.size[1] / 2
+        xs = [pr.pos[0] + x * ca - y * sa for x in (-hx, hx) for y in (-hy, hy)]
+        ys = [pr.pos[1] + x * sa + y * ca for x in (-hx, hx) for y in (-hy, hy)]
+        for j in lying:
+            jx = [p[0] for p in j.values()]
+            jy = [p[1] for p in j.values()]
+            if min(xs) < max(jx) and max(xs) > min(jx) and min(ys) < max(jy) + 6 and max(ys) > min(jy):
+                return True
+        return False
+
+    def _box3d(self, c: skia.Canvas, pr, face: Tuple[int, int, int], side: Tuple[int, int, int], edge, alpha: float = 1.0) -> List[Tuple[float, float]]:
+        """An extruded, rotated box: back face, side faces, front face. Returns the front face's screen corners."""
+        ca, sa = math.cos(pr.angle), math.sin(pr.angle)
+        hx, hy = pr.size[0] / 2, pr.size[1] / 2
+        corners = [(pr.pos[0] + x * ca - y * sa, pr.pos[1] + x * sa + y * ca) for x, y in ((-hx, -hy), (hx, -hy), (hx, hy), (-hx, hy))]
+        zf, zb = pr.z - pr.depth / 2, pr.z + pr.depth / 2
+        back = [(x, y, zb) for x, y in corners]
+        fr = [(x, y, zf) for x, y in corners]
+        c.drawPath(self.poly(back), skia.Paint(AntiAlias=True, Color=col(mix(side, (0, 0, 0), 0.45), alpha)))
+        for i in range(4):
+            j = (i + 1) % 4
+            c.drawPath(self.poly([fr[i], fr[j], back[j], back[i]]), skia.Paint(AntiAlias=True, Color=col(mix(side, face, 0.15 * (i % 2)), alpha)))
+        c.drawPath(self.poly(fr), skia.Paint(AntiAlias=True, Color=col(face, alpha)))
+        c.drawPath(self.poly(fr), skia.Paint(AntiAlias=True, Color=col(edge, 0.7 * alpha), Style=skia.Paint.kStroke_Style, StrokeWidth=1.3))
+        return [self.P(*p)[:2] for p in fr]
+
+    def _local3(self, pr, lx: float, ly: float, z: Optional[float] = None) -> Tuple[float, float]:
+        ca, sa = math.cos(pr.angle), math.sin(pr.angle)
+        x, y = pr.pos[0] + lx * ca - ly * sa, pr.pos[1] + lx * sa + ly * ca
+        return self.P(x, y, pr.z - pr.depth / 2 if z is None else z)[:2]
+
+    def _prop_line(self, c: skia.Canvas, pr, a: Vec, b: Vec, rgb, w: float, alpha: float = 1.0) -> None:
+        p0, p1 = self._local3(pr, *a), self._local3(pr, *b)
+        k = self.P(pr.pos[0], pr.pos[1], pr.z - pr.depth / 2)[2]
+        c.drawLine(p0[0], p0[1], p1[0], p1[1], skia.Paint(AntiAlias=True, Color=col(rgb, alpha), StrokeWidth=max(1.0, w * k),
+                                                         StrokeCap=skia.Paint.kRound_Cap))
+
     def _prop(self, c: skia.Canvas, pr) -> None:
+        kind = pr.kind
+        hx, hy = pr.size[0] / 2, pr.size[1] / 2
+        if kind == "container":  # ribbed steel container with corner posts and a pull handle
+            self._box3d(c, pr, (78, 92, 104), (52, 60, 70), self.accent)
+            for i in range(1, 6):
+                x = -hx + i * pr.size[0] / 6
+                self._prop_line(c, pr, (x, -hy + 6), (x, hy - 6), (110, 126, 138), 2.2)
+            for sx in (-1, 1):
+                self._prop_line(c, pr, (sx * (hx - 4), -hy), (sx * (hx - 4), hy), (40, 46, 52), 5.0)
+            self._prop_line(c, pr, (-hx + 8, hy - 6), (hx - 8, hy - 6), (40, 46, 52), 4.0)
+            self._prop_line(c, pr, (-hx - 3, 4), (-hx - 3, 26), (255, 196, 40), 3.0)
+            return
+        if kind == "post":  # steel support column (I-beam), heavy cap plate at the top, hazard bands at the base
+            self._box3d(c, pr, (96, 104, 112), (58, 64, 70), self.accent)
+            self._prop_line(c, pr, (0, -hy + 4), (0, hy - 4), (60, 66, 72), 3.0)
+            self._prop_line(c, pr, (-hx - 4, hy - 4), (hx + 4, hy - 4), (150, 160, 168), 7.0)  # cap plate
+            for i in range(4):
+                y0 = -hy + 6 + i * 14
+                self._prop_line(c, pr, (-hx + 1, y0), (hx - 1, y0 + 7), (255, 190, 30) if i % 2 == 0 else (25, 25, 25), 5.0)
+            return
+        if kind == "bar":  # pry bar: dark steel, chisel tip (-x end), yellow grip (+x end)
+            self._prop_line(c, pr, (-hx, 0), (hx, 0), (70, 76, 84), max(5.0, pr.size[1] * 1.1))
+            self._prop_line(c, pr, (-hx, 0), (hx, 0), (150, 158, 166), max(1.5, pr.size[1] * 0.3))
+            self._prop_line(c, pr, (hx - 34, 0), (hx, 0), (255, 196, 40), max(6.0, pr.size[1] * 1.3))
+            self._prop_line(c, pr, (-hx, -2), (-hx + 10, 2), (190, 200, 210), 3.0)
+            return
+        if kind == "toolbox":  # red steel toolbox with a lid seam and a handle
+            self._box3d(c, pr, (176, 44, 40), (112, 28, 26), (255, 150, 120))
+            self._prop_line(c, pr, (-hx + 2, hy * 0.35), (hx - 2, hy * 0.35), (90, 20, 18), 2.0)
+            self._prop_line(c, pr, (-hx * 0.4, hy + 5), (hx * 0.4, hy + 5), (60, 62, 66), 3.0)
+            self._prop_line(c, pr, (-hx * 0.4, hy), (-hx * 0.4, hy + 5), (60, 62, 66), 2.5)
+            self._prop_line(c, pr, (hx * 0.4, hy), (hx * 0.4, hy + 5), (60, 62, 66), 2.5)
+            return
+        self._prop_flat(c, pr)
+
+    def _rope(self, c: skia.Canvas, rp) -> None:
+        """Ratchet strap: sags when slack, straight when taut; after it snaps, two ends hang down."""
+        rgb = hex_rgb(rp.color)
+        k = self.P(rp.a[0], rp.a[1], 0)[2]
+        paint = skia.Paint(AntiAlias=True, Color=col(rgb, 0.95), StrokeWidth=max(1.5, 3.2 * k), Style=skia.Paint.kStroke_Style,
+                           StrokeCap=skia.Paint.kRound_Cap)
+        if rp.snapped:
+            for end, other in ((rp.a, rp.b), (rp.b, rp.a)):
+                L = 0.32 * rp.length
+                dx = other[0] - end[0]
+                tip = (end[0] + math.copysign(0.25 * L, dx), max(2.0, end[1] - 0.9 * L))
+                ctrl = (end[0] + math.copysign(0.3 * L, dx), end[1] - 0.2 * L)
+                path = skia.Path()
+                p0, p1, p2 = self.P(*end, 0), self.P(*ctrl, 0), self.P(*tip, 0)
+                path.moveTo(p0[0], p0[1])
+                path.quadTo(p1[0], p1[1], p2[0], p2[1])
+                c.drawPath(path, paint)
+            return
+        d = math.dist(rp.a, rp.b)
+        sag = 0.5 * math.sqrt(max(0.0, rp.length ** 2 - d ** 2))
+        mid = ((rp.a[0] + rp.b[0]) / 2, (rp.a[1] + rp.b[1]) / 2 - sag)
+        mid = (mid[0], max(1.0, mid[1]))
+        path = skia.Path()
+        p0, p1, p2 = self.P(*rp.a, 0), self.P(*mid, 0), self.P(*rp.b, 0)
+        path.moveTo(p0[0], p0[1])
+        path.quadTo(2 * p1[0] - (p0[0] + p2[0]) / 2, 2 * p1[1] - (p0[1] + p2[1]) / 2, p2[0], p2[1])
+        c.drawPath(path, paint)
+
+    def _prop_flat(self, c: skia.Canvas, pr) -> None:
         sx, sy, k = self.P(pr.pos[0], pr.pos[1], 0)
         w, h = pr.size[0] * k, pr.size[1] * k
         c.save()

@@ -530,12 +530,12 @@ class Inspector:
         missing = []
         for sh in self.rt.scene.shots:
             for tg in sh.camera.include:
-                p = self.cam.resolve(tg) if self.cam.resolve else None
-                if p is None:
+                if self.cam.resolve is None or self.cam.resolve(tg, sh.start) is None:
                     missing.append(f"{sh.id}:{tg}?")
                     continue
                 m = 20.0
                 for t in [x for x in self.times if sh.start <= x < sh.end]:
+                    p = self.cam.resolve(tg, float(t))  # props and characters move: resolve at each sampled time
                     if not self.cam.subject_visible(cid, t, (p[0] - m, p[1] - m, p[0] + m, p[1] + m)):
                         missing.append(f"{sh.id}:{tg}@{t:.2f}")
                         break

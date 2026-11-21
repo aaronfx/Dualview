@@ -19,6 +19,7 @@ from ..scene.schema import CharacterStyle
 from .controller import NOTICE_DOUBLE_TAKE, PRESS_CONTACT_T, PRESS_H_CONTACT_T, SLIDE_DROP, TURN_DURATION, Event, Segment, StepRecord
 from .frames import GroundFrame
 from .gait import Gait, GaitParams
+from .interaction_anim import LYING, STANCE, InteractionAnimMixin
 from .library import NEUTRAL, MotionClip, Performance, get_clip, landing_clip
 
 
@@ -30,7 +31,8 @@ def _ramp(t: float, a: float, b: float, blend: float) -> float:
 KNEE_CLEARANCE = 2.0  # knee may rest on a surface (kneeling) but not pass through it
 
 BLEND_IN = {"airborne": 0.16, "landing": 0.12, "loco": 0.18, "idle": 0.2, "press": 0.18, "turn": 0.06, "point": 0.12,
-            "slide": 0.1, "crouch": 0.14, "swing": 0.08}
+            "slide": 0.1, "crouch": 0.14, "swing": 0.08, "push": 0.28, "fall": 0.06, "prone": 0.22, "crawl": 0.2, "getup": 0.12,
+            "lift": 0.25, "lever": 0.22, "offer": 0.25, "gesture": 0.2}
 
 # press action: hand target offsets relative to the button (ds toward the character, dh above), IK weight, body
 PRESS = {
@@ -96,7 +98,7 @@ class PlantedInterval:
     reason: str
 
 
-class Animator:
+class Animator(InteractionAnimMixin):
     def __init__(self, cid: str, rig: StickmanRig, style: CharacterStyle, segments: List[Segment], records: List[StepRecord],
                  frames: Dict[str, GroundFrame], events: List[Event]):
         self.cid, self.rig, self.style = cid, rig, style
@@ -118,6 +120,10 @@ class Animator:
         self.shift_times = [e.t for e in events if e.type == "gravity_shift"]
         self.portals: List[Tuple[float, float, float, float]] = []  # open-doorway regions (set by the runtime)
         self.FAC = np.array([r.facing for r in records])
+        self.prop_at = None  # set by the runtime: prop id, t -> (x, y, angle)
+        self.others: Dict[str, "Animator"] = {}
+        self.prop_specs: Dict[str, object] = {}
+        self.shoulder_up_rest = rig.p.spine + 0.86 * rig.p.chest
         self._prepare()
         self._follow_through()
 
@@ -133,7 +139,7 @@ class Animator:
         for seg in self.segments:
             F = self.frames[seg.frame]
             f = seg.facing
-            if seg.kind in ("airborne", "swing", "slide"):
+            if seg.kind in ("airborne", "swing", "slide") or seg.kind in LYING:
                 plants = None
                 continue
             if seg.kind == "landing":
@@ -183,13 +189,17 @@ class Animator:
                 seg.data["plants"] = plants
                 if seg.kind == "idle" and not seg.data.get("settle"):
                     plants = self._settle(seg, F, plants)
+                elif seg.kind in STANCE:  # step into a working stance (push / lift / lever / offer / gesture)
+                    plants = self._settle(seg, F, plants, STANCE[seg.kind])
 
-    def _settle(self, seg: Segment, F: GroundFrame, plants: Tuple[float, float]) -> Tuple[float, float]:
-        """After stopping, step any foot that ended far from the pelvis back under the body (balance correction)."""
+    def _settle(self, seg: Segment, F: GroundFrame, plants: Tuple[float, float],
+                stance: Tuple[float, float] = (9.0, -9.0)) -> Tuple[float, float]:
+        """After stopping, step any foot that ended far from the pelvis back under the body (balance correction), or
+        into a working stance (e.g. the long rear leg of a push)."""
         s = self._rec(self.S, seg.t0, seg)
         f = seg.facing
         u = (self.p.thigh + self.p.shin) / 86.0
-        want = (s + 9.0 * u * f, s - 9.0 * u * f)
+        want = (s + stance[0] * u * f, s + stance[1] * u * f)
         steps, t = [], seg.t0 + 0.04
         order = sorted((0, 1), key=lambda k: -abs(plants[k] - want[k]))
         cur = list(plants)
@@ -243,7 +253,7 @@ class Animator:
             self.FX[i], self.FY[i] = yx, yy
 
     def _overlap(self, pose: Pose, t: float) -> None:
-        if pose.state in ("airborne", "swing", "slide"):
+        if pose.state in ("airborne", "swing", "slide") + LYING:
             return
         fx, fy = float(np.interp(t, self.T, self.FX)), float(np.interp(t, self.T, self.FY))
         da = clamp(-0.00042 * fx, -0.75, 0.75)
@@ -328,7 +338,7 @@ class Animator:
             pose.head_facing = -1.0
 
     def _seg_gaze(self, seg: Segment, t: float) -> Tuple[Optional[Vec], float]:
-        g = seg.data.get("gaze")
+        g = self._dyn_gaze(seg.data.get("gaze_ref"), t) if seg.data.get("gaze_ref") and self.prop_at else seg.data.get("gaze")
         if g is None:
             return None, 0.0
         tau = t - seg.t0
@@ -356,7 +366,10 @@ class Animator:
                 if seg.kind == "swing":  # the grip is a hard constraint: re-solve the arms after blending
                     for side in "nf":
                         self.rig.arm_ik(pose, side, seg.data["anchor"])
-                elif seg.kind not in ("airborne",):  # blended legs may not dip through the support surface
+                elif seg.kind not in ("airborne",) + LYING and self.segments[i - 1].kind not in LYING:
+                    # blended legs may not dip through the support surface
+                    self._ground_clamp(pose, self.frames[seg.frame])
+                elif seg.kind in ("getup", "crawl", "prone"):  # blending between lying poses: feet stay above the floor
                     self._ground_clamp(pose, self.frames[seg.frame])
         self._overlap(pose, t)
         self._hands_in_room(pose)
@@ -365,7 +378,7 @@ class Animator:
     def _hands_in_room(self, pose: Pose) -> None:
         """Limb-environment constraint: a hand that would pass through a room surface is placed on it instead
         (it reads as bracing against the wall)."""
-        if pose.state == "swing":
+        if pose.state == "swing" or pose.state in LYING:  # lying poses place their hands on the floor themselves
             return
         hw, rh = self.frames["wall_right"].origin[0], self.frames["ceiling"].origin[1]
         j = None
@@ -375,7 +388,7 @@ class Animator:
             if self.portals and any(x0 <= hx <= x1 and y0 <= hy <= y1 for (x0, y0, x1, y1) in self.portals):
                 continue
             cx, cy = clamp(hx, -hw + 3.0, hw - 3.0), clamp(hy, 3.0, rh - 3.0)
-            if (cx, cy) != (hx, hy):
+            if abs(cx - hx) > 0.5 or abs(cy - hy) > 0.5:
                 self.rig.arm_ik(pose, side, (cx, cy), fingertip=True)
                 pose.hands[side] = "open"
                 j = None
@@ -562,6 +575,9 @@ class Animator:
             pose.eye = 1.0 + 0.12 * rb
         g, w = self._seg_gaze(seg, t)
         self._gaze(pose, g, 0.75 * w)
+        if seg.data.get("carry") and self.prop_at:  # carrying a bar: both hands on it
+            a, b = self._bar_grips(seg.data["carry"], t, "carry")
+            self._hands_to(pose, [("n", a), ("f", b)])
         return pose
 
     # -- press a physical button (anticipation -> reach -> contact -> recoil)
@@ -814,7 +830,7 @@ class Animator:
         for seg in self.segments:
             F = self.frames[seg.frame]
             bl = BLEND_IN.get(seg.kind, 0.15) + 1e-3
-            if seg.kind in ("idle", "turn", "press", "landing", "point", "crouch") and seg.data.get("plants"):
+            if seg.kind in ("idle", "turn", "press", "landing", "point", "crouch") + tuple(STANCE) and seg.data.get("plants"):
                 a = seg.t0 + bl
                 if seg.t1 - a > 0.05:
                     for k, side in enumerate("nf"):

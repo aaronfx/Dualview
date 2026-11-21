@@ -146,6 +146,40 @@ class Synth:
         rumble = _norm(_bandpass(self.noise(d), 80, 400)) * (1 - t / d) * 0.6
         return 0.45 * scrape + 0.35 * rumble
 
+    def strain(self, d: float = 0.9) -> np.ndarray:
+        """Effort: a breathy, low exhale under load (no voice), with a trembling envelope."""
+        n = _n(d)
+        t = _t(d)
+        env = np.minimum(1, t / 0.12) * (1 - t / d) ** 0.7 * (1 + 0.25 * np.sin(2 * np.pi * 9 * t))
+        return 0.35 * _norm(_bandpass(self.noise(d), 250, 1800)) * env
+
+    def snap(self) -> np.ndarray:
+        """A strap snapping: a sharp crack, then the torn ends whipping away."""
+        d = 0.45
+        n = _n(d)
+        t = _t(d)
+        crack = _norm(_bandpass(self.noise(d), 1500, 11000)) * np.exp(-t / 0.012)
+        whip = 0.4 * _norm(_bandpass(self.noise(d), 400, 3000)) * np.exp(-t / 0.12) * np.minimum(1, t / 0.02)
+        return 1.0 * crack + whip
+
+    def creak(self, d: float = 0.8) -> np.ndarray:
+        """Steel under load / a lever biting: low ratchet clicks over a groan."""
+        n = _n(d)
+        t = _t(d)
+        clicks = np.zeros(n)
+        for k in range(int(d / 0.07)):
+            i = int(k * 0.07 * SR)
+            m = min(n - i, _n(0.02))
+            clicks[i:i + m] += np.exp(-np.arange(m) / (0.004 * SR))
+        groan = np.sin(2 * np.pi * np.cumsum(70 + 25 * np.sin(2 * np.pi * 1.3 * t)) / SR) * (1 - t / d)
+        return 0.35 * _norm(_bandpass(clicks + 0.02 * self.noise(d), 600, 4000)) + 0.25 * groan
+
+    def tap(self) -> np.ndarray:
+        """Soft contact (hands meeting, a fist bump)."""
+        d = 0.18
+        t = _t(d)
+        return 0.6 * _norm(_bandpass(self.noise(d), 200, 1800)) * np.exp(-t / 0.02)
+
     def clank(self) -> np.ndarray:
         """Hands slamming onto a steel rail: short metallic ring."""
         d = 0.7
@@ -194,6 +228,30 @@ class Synth:
         first = {}
         for e in events:
             first.setdefault(e.type, []).append(e.t)
+        if not first.get("switch_activated") and (first.get("push_lost") or first.get("pinned")):
+            # a rescue: tension from the moment control is lost, release when the trapped character is free,
+            # full resolution once they stand again
+            t_act = (first.get("push_lost") or first.get("pinned"))[0]
+            t_free = (first.get("freed") or first.get("load_off") or [duration])[-1] if first.get("freed") else duration
+            t_up = (first.get("stood_up") or [duration])[0]
+            seg = lambda freqs, a, b: 0.0
+            n = _n(duration)
+            t = np.arange(n) / SR
+
+            def pad2(freqs, a, b):
+                out = np.zeros(n)
+                m = (t >= a) & (t < b + 1.0)
+                if not m.any():
+                    return out
+                tt = t[m] - a
+                env = np.minimum(1, tt / 0.6) * np.clip((b + 1.0 - t[m]) / 1.0, 0, 1)
+                out[m] = sum(np.sin(2 * np.pi * f * tt) + 0.3 * np.sin(2 * np.pi * f * 2.003 * tt) for f in freqs) / len(freqs) * env
+                return out
+            out = 0.5 * pad2((73.4, 110.0, 146.8, 174.6), 0.0, t_act)
+            out += 0.65 * pad2((73.4, 103.8, 146.8, 155.6), t_act, t_free)
+            out += 0.5 * pad2((73.4, 110.0, 146.8, 185.0), t_free, t_up)
+            out += 0.7 * pad2((73.4, 110.0, 146.8, 185.0, 220.0, 293.7), t_up, duration)
+            return out * 0.05
         acts = first.get("switch_activated") or [duration]
         t_act = acts[0]
         t_rec = next((x for x in (first.get("recovered") or []) if x > t_act), duration)
@@ -239,6 +297,12 @@ DEFAULT_BINDINGS = {
     "switch_activated": "startle", "notice": "notice", "point": "chime",
     "slide_start": "slide", "grab": "clank", "release": None, "door_unlocking": "unlock", "door_open": "door", "exit_reached": "resolve",
     "graze": None, "slide_end": None, "grab_missed": None, "door_unlocked": None,
+    # physical interaction
+    "push_start": "strain", "push_lost": "slide", "rope_taut": "clank", "rope_snap": "snap", "body_fall": "impact",
+    "lift_start": "strain", "lift_fail": "clang", "pick_up": "clank", "lever_place": "clank", "lever_engage": "creak",
+    "lever_release": "clang", "crawl_start": "slide", "hand_grab": "tap", "fist_bump": "tap", "shoulder_pat": "tap",
+    "stood_up": "resolve", "pinned": None, "load_off": None, "freed": None, "get_up_start": None, "hand_offered": None,
+    "push_end": None, "push_fail": None, "lift_ok": None, "wave": None,
 }
 
 
@@ -248,6 +312,10 @@ class Cue:
     event_type: str
     sound: str
     gain: float
+
+
+SOUND_NAMES = ("footstep", "click", "pulse", "whoosh", "impact", "clang", "jump", "notice", "startle", "chime", "slide",
+               "clank", "unlock", "door", "resolve", "land", "strain", "snap", "creak", "tap")
 
 
 class SoundDirector:
@@ -273,7 +341,7 @@ class SoundDirector:
                 gain = 1.0
                 if e.type == "footstep":
                     gain = 0.35 + 0.5 * clamp01(e.data.get("speed", 150) / 450)
-                elif e.type in ("impact", "prop_impact"):
+                elif e.type in ("impact", "prop_impact", "body_fall"):
                     gain = 0.4 + 0.6 * clamp01(e.data.get("normal_speed", 600) / 1200)
                 cues.append(Cue(e.t, e.type, snd, gain))
         return cues
@@ -287,7 +355,8 @@ class SoundDirector:
         bank: Dict[str, Callable[..., np.ndarray]] = {"footstep": sy.footstep, "click": sy.click, "pulse": sy.pulse, "whoosh": sy.whoosh,
                                                        "impact": sy.impact, "clang": sy.clang, "jump": sy.jump, "notice": sy.notice,
                                                        "startle": sy.startle, "chime": sy.chime, "slide": sy.slide, "clank": sy.clank,
-                                                       "unlock": sy.unlock, "door": sy.door, "resolve": sy.resolve}
+                                                       "unlock": sy.unlock, "door": sy.door, "resolve": sy.resolve,
+                                                       "strain": sy.strain, "snap": sy.snap, "creak": sy.creak, "tap": sy.tap}
         bank["land"] = bank["impact"]
         unknown = sorted({c.sound for c in cues} - set(bank))
         if unknown:

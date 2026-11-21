@@ -9,6 +9,7 @@ All numbers below come from actual runs. Raw evidence is in `docs/evidence/`: `p
 | 1C Character acting + cinematic direction | **Accepted** by the owner as a technically validated foundation. Startle and recovery fixed in 1D |
 | 1D Full 30 s Gravity Switch | **Accepted by the owner as a technically validated milestone.** Revision 1 (owner's Part A review: swing staging, rail visibility, acting, impact weight, ending, QA count) rendered as v2: 58/58 QA checks, 97/97 tests, full decode. Artistic quality: improved, awaiting owner review; not claimed as professional. |
 | Professional quality upgrade (Tasks 1–6) | **Implemented and rendered; awaiting human review.** Motion library with contacts, 5 s original-vs-improved motion test, swing restaged without roll plus composition rules, renderer adapter, themes and audio polish, human review rubric, and the generalization scene (PIP / Foundry Flip). Report: `docs/QUALITY_UPGRADE.md`. No quality level is claimed. |
+| The Rescue (two-character physical interaction) | **Rendered (1080p, 20 s); QA 58 PASS / 2 SKIP / 1 WARN.** New general interaction layer: bounded-force push, lift and lever; straps; pinning; crawl; helped get-up; gestures; `wait_for`. The film is **hand-authored**: the real OpenRouter AI Director runs are preserved, and none produced a plan that plays the whole story (`docs/RESCUE_REPORT.md` §5). No quality level claimed. |
 
 ---
 
@@ -438,8 +439,8 @@ New in v2:
 
 ## Test results
 
-`pytest -v`: **118 passed**, 0 failed, in about 145 s (Python 3.13, Linux). That is 39 for 1A/1B, 27 for 1C (`tests/test_cinematic_1c.py`), 31 for 1D (`tests/test_escape_1d.py`) and 21 for the quality upgrade and sound samples (`tests/test_quality_upgrade.py`). Full list in `docs/evidence/pytest_results.txt`.
+`pytest -v`: **128 passed**, 0 failed, in about 160 s (Python 3.13, Linux). That is 39 for 1A/1B, 27 for 1C, 31 for 1D, 21 for the quality upgrade and sound samples, and 10 for The Rescue (`tests/test_rescue.py`). Full list in `docs/evidence/pytest_results.txt`.
 
 ## Next step
 
-Human review of the upgraded films with `docs/REVIEW_RUBRIC.md`: the 1D v3 film, the Foundry Flip generalization and the motion test. Then fix the open defects D4–D8 in `docs/QUALITY_UPGRADE.md`, in the order the review ranks them.
+Human review of The Rescue and the upgraded films with `docs/REVIEW_RUBRIC.md`: the 1D v3 film, the Foundry Flip generalization and the motion test. Then fix the open defects D4–D8 in `docs/QUALITY_UPGRADE.md`, in the order the review ranks them.

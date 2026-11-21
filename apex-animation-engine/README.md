@@ -36,7 +36,9 @@ The engine is **independent of Creator Studio**. It has its own backend (FastAPI
 | Per-environment art direction (`theme`), motion trails, impact bursts, stereo-panned sound with room reverb | `render/`, `audio/sound_director.py` | `docs/RENDERER_EVALUATION.md` |
 | Human review packet: objective metrics kept apart from a 7-criterion human rubric; AI Director suggestions labelled advisory, never scored | `qa/review.py` (`apex review`) | `docs/REVIEW_RUBRIC.md` |
 | Motion-test tool: original vs improved side by side with a pose timeline, contact bars and diagnostic curves | `scripts/motion_test.py` | `docs/QUALITY_UPGRADE.md` |
-| Automated QA, 24–45 checks per scene | `qa/inspector.py` | `docs/evidence/*_qa.json` |
+| Physical interaction between two characters and props: bounded-force `push` with stick-slip friction, `lift` clamped to a character's strength, `use_lever` (pick up, carry, place over a fulcrum, press), straps that go taut and snap, falling loads that pin a lying character, `crawl_out`, `get_up` helped by another character's `offer_hand`, `gesture` (fist bump, shoulder pat), `wait_for` events | `motion/interaction.py`, `motion/interaction_anim.py`, `physics/world.py` | `tests/test_rescue.py`, `examples/the_rescue.json` |
+| AI Director with simulation feedback: a prompt generated from the schema, a dry run that reports unfinished story steps with physics numbers, and every raw response preserved (`apex plan --log-dir`) | `ai/director.py` | `docs/ai_runs/` |
+| Automated QA, 24–61 checks per scene | `qa/inspector.py` | `docs/evidence/*_qa.json` |
 | Schema-validated scene plans; AI director with validation and repair loop; offline template planner | `scene/schema.py`, `ai/` | `tests/test_ai_api.py` |
 | REST API with background render jobs, progress and error capture | `api/` | `tests/test_ai_api.py` |
 
@@ -65,6 +67,8 @@ apex render examples\gravity_switch_1b.json -o out\gravity_switch_1b.mp4 --sampl
 apex render examples\gravity_switch_1c.json -o out\gravity_switch_1c.mp4 --samples 3 --qa-json out\gravity_switch_1c_qa.json --review-dir out\review_1c
 apex render examples\gravity_switch_1d.json -o out\gravity_switch_1d.mp4 --samples 3 --qa-json out\gravity_switch_1d_qa.json --review-dir out\review_1d
 apex render examples\foundry_flip.json      -o out\foundry_flip.mp4      --samples 3 --qa-json out\foundry_flip_qa.json --review-dir out\review_ff
+apex render examples\the_rescue.json        -o out\the_rescue.mp4        --samples 3 --qa-json out\the_rescue_qa.json --review-dir out\review_rescue
+python scripts\interaction_diagnostics.py examples\the_rescue.json out\rescue_diag
 # human review packet (objective metrics + rubric; scores are filled in by people)
 apex review examples\gravity_switch_1d.json out\review_1d --video out\gravity_switch_1d.mp4 --qa-json out\gravity_switch_1d_qa.json
 # fast half-resolution preview:
@@ -127,8 +131,8 @@ src/apex/
   qa/        animation quality inspector, decode check, contact sheets, diagnostics charts, human review packet
   ai/        provider abstraction + story director
   api/       FastAPI app + storage
-examples/    project JSON files (milestone scenes); build_gravity_switch_1d.py / build_foundry_flip.py regenerate the 1D and generalization scenes
-scripts/     motion_test.py (original-vs-improved motion comparison)
-tests/       pytest suite (118 tests)
+examples/    project JSON files (milestone scenes); build_gravity_switch_1d.py / build_foundry_flip.py / build_rescue.py regenerate them
+scripts/     motion_test.py (original-vs-improved motion comparison), interaction_diagnostics.py
+tests/       pytest suite (128 tests)
 docs/        architecture, schema, reference analysis, milestone status, roadmap, evidence
 ```

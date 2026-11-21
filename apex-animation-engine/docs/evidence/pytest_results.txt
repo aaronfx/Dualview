@@ -1,4 +1,4 @@
-pytest -v (Python 3.13, Linux), quality upgrade + recorded sound samples
+pytest -v (Python 3.13, Linux): quality upgrade, sound samples and The Rescue
 
 tests/test_ai_api.py::test_director_validates_and_repairs PASSED
 tests/test_ai_api.py::test_director_gives_up_after_bounded_repairs PASSED
@@ -101,6 +101,16 @@ tests/test_render_audio_video.py::test_renderer_output_shape_and_repeatable_pixe
 tests/test_render_audio_video.py::test_sound_cues_are_bound_to_event_times PASSED
 tests/test_render_audio_video.py::test_end_to_end_small_render_produces_playable_mp4 PASSED
 tests/test_render_audio_video.py::test_non_frame_aligned_duration_keeps_every_frame PASSED
+tests/test_rescue.py::test_interaction_actions_validate_their_fields PASSED
+tests/test_rescue.py::test_unknown_prop_reference_is_rejected PASSED
+tests/test_rescue.py::test_stick_slip_friction_and_contact_friction_update PASSED
+tests/test_rescue.py::test_rope_snaps_and_props_rest_on_lying_bodies PASSED
+tests/test_rescue.py::test_causal_chain_in_order PASSED
+tests/test_rescue.py::test_hand_lift_fails_on_strength_and_succeeds_when_stronger PASSED
+tests/test_rescue.py::test_lever_lifts_the_load_off_and_hands_stay_on_the_handle PASSED
+tests/test_rescue.py::test_lying_only_actions_are_rejected_while_standing PASSED
+tests/test_rescue.py::test_director_dry_run_accepts_rescue_and_rejects_stuck_or_unknown_sound PASSED
+tests/test_rescue.py::test_rescue_passes_qa PASSED
 tests/test_rig.py::test_hierarchy_must_be_ordered_and_unique PASSED
 tests/test_rig.py::test_stickman_joint_hierarchy PASSED
 tests/test_rig.py::test_fk_preserves_bone_lengths_for_arbitrary_angles PASSED
@@ -119,4 +129,4 @@ tests/test_runtime.py::test_motion_scene_jump_is_ballistic_and_lands PASSED
 tests/test_schema.py::test_examples_validate PASSED
 tests/test_schema.py::test_rejects_unknown_switch_and_gapped_shots_and_bad_actions PASSED
 
-================= 118 passed, 5 warnings in 142.89s (0:02:22) ==================
+================= 128 passed, 5 warnings in 159.17s (0:02:39) ==================

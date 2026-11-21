@@ -1,0 +1,1 @@
+planning failed: PlanningError: planner output failed validation after 8 attempts: ori: action 'struggle' needs the character to be lying down at t=6.30s, but it is standing (nothing has knocked it down by then)
