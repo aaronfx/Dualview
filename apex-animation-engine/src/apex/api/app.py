@@ -127,8 +127,12 @@ def job_video(jid: str):
 
 @app.post("/plan")
 def plan(req: PlanRequest) -> dict:
+    from ..ai.budget import BudgetError
     from ..ai.director import PlanningError, StoryDirector
-    d = StoryDirector.from_env(offline=req.offline)
+    try:
+        d = StoryDirector.from_env(offline=req.offline, reason="API /plan request")
+    except BudgetError as e:
+        raise HTTPException(403, f"paid AI planning refused by the spending policy: {e}")
     try:
         proj = d.plan(req.story)
     except PlanningError as e:

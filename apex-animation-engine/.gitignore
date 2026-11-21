@@ -7,3 +7,4 @@ apex_data/
 *.db
 .env
 *.wav
+!.env.example

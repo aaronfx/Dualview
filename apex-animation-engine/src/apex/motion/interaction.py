@@ -33,6 +33,7 @@ PRESS_T = 0.9
 RELEASE_T = 0.5
 GESTURE_T = 1.5
 GESTURE_CONTACT = 0.55
+HELP_WAIT = 4.0  # a helped get_up stops waiting for the hand after this long (the helper is stuck)
 INTERACTIONS = ("push", "lift", "use_lever", "struggle", "crawl_out", "get_up", "offer_hand", "gesture", "wait_for")
 
 
@@ -214,8 +215,8 @@ class InteractionMixin:
         if a.type == "wait_for":
             if self._event_seen(a.until, t) or (a.duration and tau >= a.duration):
                 self._next_action(t)
-        elif a.type == "struggle":
-            if (a.until and self._event_seen(a.until, t)) or tau >= (a.duration or 1.5):
+        elif a.type == "struggle":  # with `until` it waits for the event (duration, if given, is then a cap)
+            if (a.until and self._event_seen(a.until, t)) or (a.duration and tau >= a.duration) or (not a.until and tau >= 1.5):
                 self._next_action(t)
         elif a.type == "push":
             self._push_tick(t, dt, a, tau)
@@ -328,11 +329,45 @@ class InteractionMixin:
                 self.pinned_by = None
                 self.unpinned_t = t
 
+    def _heavy_props(self):
+        return [pid for pid, sp in self.props.items() if sp.collide_characters and sp.mass >= 20.0]
+
+    def _nearest_heavy(self) -> Optional[str]:
+        best, bd = None, 1e9
+        for pid in self._heavy_props():
+            lo, hi = self._prop_extent_s(pid)
+            d = 0.0 if lo <= self.s <= hi else min(abs(lo - self.s), abs(hi - self.s))
+            if d < bd and d < self.stand_h:
+                best, bd = pid, d
+        return best
+
+    def _load_incoming(self, t: float) -> bool:
+        """True while a heavy prop near the body is still coming down (falling or toppling), not while being lifted."""
+        I = self.inter
+        lo_b, hi_b = sorted((self.s - self.facing * (self.p_leg + 10.0), self.s + self.facing * self.stand_h * 0.55))
+        moving = False
+        for pid in self._heavy_props():
+            st = self.world.state(pid)
+            lo, hi = self._prop_extent_s(pid)
+            near = hi >= lo_b - self.stand_h and lo <= hi_b + self.stand_h
+            down = -(st.vel[0] * self.frame.normal[0] + st.vel[1] * self.frame.normal[1])  # speed toward the floor
+            if near and (down > 20.0 or abs(st.angvel) > 0.8):
+                moving = True
+        if moving:
+            I["still_t"] = None
+            return True
+        I["still_t"] = I.get("still_t") or t
+        return t - I["still_t"] < 0.25  # settled for a moment
+
     # -- crawl out (waits while the load is still on)
     def _crawl_tick(self, t: float, dt: float, a: ActionSpec) -> None:
         I = self.inter
         if I["phase"] == "wait":
-            if self.pinned_by is None:
+            # a load still falling or settling near the body is waited out (crawling from under a post that has
+            # not landed yet would be a race); then crawl once nothing rests on the body
+            if self.pinned_by is None and not self._load_incoming(t):
+                if I.get("prop") is None:
+                    I["prop"] = self._nearest_heavy()
                 I.update(phase="crawl", c0=t, s0=self.s)
                 self._open("crawl", t, s0=self.s, prop=I.get("prop"))
                 self.emit(self._ev(t, "crawl_start", {}))
@@ -370,10 +405,17 @@ class InteractionMixin:
             else:
                 tau = 0.75  # kneeling, reaching up, waiting for the hand
                 I["wait"] = I.get("wait", 0.0) + dt
+                if I["wait"] > HELP_WAIT or not self._help_coming(helper):
+                    # the helper is not coming (no offer_hand left for us, or it is stuck): get up unaided
+                    self.emit(self._ev(t, "help_missed", {"helper": helper, "waited": round(I["wait"], 2)}))
+                    I.update(helper=None, solo_t0=t - 0.75)
+                    helper = None
         if helper and I["phase"] == "pulled":
             k = clamp(0.75 + (t - I["tp"]) * (GETUP_T - 0.75) / 0.85, 0.0, GETUP_T)
         elif helper:
             k = min(tau, 0.75)
+        elif I.get("solo_t0") is not None:
+            k = min(t - I["solo_t0"], GETUP_T)
         else:
             k = min(tau, GETUP_T)
         u = k / GETUP_T
@@ -399,6 +441,11 @@ class InteractionMixin:
             self.inter["phase"] = "done"
             self.emit(self._ev(t, "stood_up", {"helper": helper}))
             self._next_action(t)
+
+    def _help_coming(self, helper: str) -> bool:
+        hc = self.others[helper]
+        acts = ([hc.cur] if hc.cur is not None else []) + list(hc.queue)
+        return any(x.type == "offer_hand" and x.target == f"char:{self.cid}" for x in acts)
 
     # -- lift by hand: regulated toward a target rise, clamped to strength (physics decides)
     def _lift_tick(self, t: float, dt: float, a: ActionSpec, tau: float) -> None:

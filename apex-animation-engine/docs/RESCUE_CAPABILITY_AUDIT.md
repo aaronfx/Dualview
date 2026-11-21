@@ -15,7 +15,7 @@
 
 | | |
 |---|---|
-| Model / provider | `anthropic/claude-sonnet-5.5` via OpenRouter, 3 calls (59 s, 30 s, 23 s), cost below $0.01 |
+| Model / provider | `anthropic/claude-sonnet-5.5` via OpenRouter, 3 calls (59 s, 30 s, 23 s); cost not recorded at the time (estimated ~$0.07, see `docs/AI_SPEND.md`) |
 | Attempt 1 | Rejected by schema validation. It used prop kinds `container` and `support_beam`, which don't exist, and an extra shot field |
 | Attempt 2 | Rejected: a `turn` action without `face` |
 | Attempt 3 | **Accepted** (validates, and the dry-run simulation passes) |

@@ -78,10 +78,12 @@ apex render examples\gravity_switch_1b.json -o out\preview.mp4 --scale 0.5
 apex plan --offline "Nova sprints into the lab, presses the red switch and gravity swings to the left wall." -o out\nova.json
 apex render out\nova.json -o out\nova.mp4 --scale 0.5
 
-# 6. Optional: AI planning through a provider (keys stay in the backend environment)
+# 6. Optional: paid AI planning (keys stay in the backend environment; see docs/AI_SPEND.md)
 copy .env.example .env      # then edit .env, or set the variables in the shell:
-$env:APEX_AI_PROVIDER="openrouter"; $env:OPENROUTER_API_KEY="<your key>"; $env:APEX_AI_MODEL="anthropic/claude-sonnet-5.5"
-apex plan "your story here" -o out\story.json
+$env:APEX_AI_PROVIDER="openrouter"; $env:OPENROUTER_API_KEY="<your key>"
+$env:APEX_AI_PAID_ENABLED="1"   # paid calls are off by default; the default model is low-cost (Haiku 5.5)
+apex ai-budget                  # the limits and the cost ledger
+apex plan "your story here" -o out\story.json --reason "why this experiment is worth paying for"
 
 # 7. Backend API
 apex serve --port 8077      # then open http://127.0.0.1:8077/docs

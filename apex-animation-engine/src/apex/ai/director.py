@@ -15,6 +15,7 @@ from typing import List, Optional
 from pydantic import ValidationError
 
 from ..scene.schema import SCHEMA_VERSION, ProjectSpec
+from .budget import BudgetError
 from .providers import Provider, provider_from_env
 
 EXAMPLE = Path(__file__).resolve().parents[3] / "examples" / "foundry_flip.json"
@@ -76,18 +77,20 @@ class PlanningError(RuntimeError):
 
 
 class StoryDirector:
-    def __init__(self, provider: Optional[Provider] = None, max_repairs: int = 7):
+    def __init__(self, provider: Optional[Provider] = None, max_repairs: int = 2):
         self.provider = provider
-        self.max_repairs = max_repairs
+        self.max_repairs = max_repairs  # paid providers are further capped by the budget policy (APEX_AI_MAX_CALLS)
         self.log: List[dict] = []  # every raw response and the error fed back to it (preserved by `apex plan --log-dir`)
+        self.cost_record: Optional[dict] = None  # the experiment's ledger record (model, reason, estimate, actual cost)
 
     @property
     def name(self) -> str:
         return self.provider.name if self.provider else "offline-template"
 
     @classmethod
-    def from_env(cls, offline: bool = False) -> "StoryDirector":
-        return cls(None if offline else provider_from_env())
+    def from_env(cls, offline: bool = False, reason: str = "") -> "StoryDirector":
+        """Raises budget.BudgetError when the spending policy refuses the configured paid model (nothing is sent)."""
+        return cls(None if offline else provider_from_env(reason=reason))
 
     # ------------------------------------------------------------ public
     def plan(self, story: str) -> ProjectSpec:
@@ -96,17 +99,29 @@ class StoryDirector:
         example = EXAMPLE.read_text(encoding="utf-8") if EXAMPLE.exists() else ""
         user = f"STORY:\n{story}\n\nEXAMPLE OF A VALID PROJECT (structure reference, do not copy its story):\n{example}"
         errors: List[str] = []
-        for attempt in range(self.max_repairs + 1):
-            prompt = user if not errors else user + "\n\nYOUR PREVIOUS OUTPUT WAS INVALID:\n" + "\n".join(errors[-1:]) + "\nReturn a corrected JSON object."
-            raw = self.provider.complete(system_prompt(), prompt, max_tokens=16000) or ""
-            self.log.append({"attempt": attempt + 1, "raw_response": raw, "fed_back_error": errors[-1] if errors else None})
-            try:
-                proj = self._parse(raw)
-                self._dry_run(proj)
-                return proj
-            except (ValidationError, ValueError, KeyError, TypeError, json.JSONDecodeError) as e:
-                errors.append(str(e)[:2000])
-        raise PlanningError(f"planner output failed validation after {self.max_repairs + 1} attempts: {errors[-1][:500]}")
+        status, note = "failed", ""
+        try:
+            for attempt in range(self.max_repairs + 1):
+                prompt = user if not errors else user + "\n\nYOUR PREVIOUS OUTPUT WAS INVALID:\n" + "\n".join(errors[-1:]) + "\nReturn a corrected JSON object."
+                try:
+                    raw = self.provider.complete(system_prompt(), prompt, max_tokens=16000) or ""
+                except BudgetError as e:  # a spending limit stops planning; it is never retried with another model
+                    note = f"stopped by the spending policy: {e}"
+                    raise PlanningError(note) from e
+                self.log.append({"attempt": attempt + 1, "raw_response": raw, "fed_back_error": errors[-1] if errors else None})
+                try:
+                    proj = self._parse(raw)
+                    self._dry_run(proj)
+                    status = "accepted"
+                    return proj
+                except (ValidationError, ValueError, KeyError, TypeError, json.JSONDecodeError) as e:
+                    errors.append(str(e)[:2000])
+            note = errors[-1][:500]
+            raise PlanningError(f"planner output failed validation after {self.max_repairs + 1} attempts: {errors[-1][:500]}")
+        finally:
+            exp = getattr(self.provider, "experiment", None)
+            if exp is not None:
+                self.cost_record = exp.finish(status, note)
 
     @staticmethod
     def _parse(raw: str) -> ProjectSpec:

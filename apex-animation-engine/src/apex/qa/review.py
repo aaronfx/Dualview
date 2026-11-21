@@ -81,14 +81,17 @@ AI_SYSTEM = ("You are an animation director reviewing a rendered stick-figure an
 def ai_suggestions(project, scene_id: str, qa: Optional[dict], events: List[dict]) -> Optional[str]:
     """Ask the configured AI Director (OpenRouter etc.) for correction suggestions. Returns None when no provider."""
     from ..ai.providers import provider_from_env
-    prov = provider_from_env()
+    prov = provider_from_env(reason=f"review correction suggestions for {project.id}/{scene_id}")
     if prov is None:
         return None
     sc = project.scene(scene_id)
     shots = "\n".join(f"{s.id} {s.start:.2f}-{s.end:.2f} {s.kind}: {s.description}" for s in sc.shots)
     ev = "\n".join(f"{e['t']:.2f} {e['type']}" for e in events[:120])
     warn = "\n".join(f"{c['name']}: {c['status']}" for c in (qa or {}).get("checks", []) if c["status"] != "PASS")
-    return prov.complete(AI_SYSTEM, f"SHOTS:\n{shots}\n\nEVENTS:\n{ev}\n\nNON-PASSING CHECKS:\n{warn or 'none'}", max_tokens=1500)
+    try:
+        return prov.complete(AI_SYSTEM, f"SHOTS:\n{shots}\n\nEVENTS:\n{ev}\n\nNON-PASSING CHECKS:\n{warn or 'none'}", max_tokens=1500)
+    finally:
+        prov.experiment.finish("done")
 
 
 def build_review_packet(project, scene_id: str, out_dir: str, video: Optional[str] = None, qa_json: Optional[str] = None,

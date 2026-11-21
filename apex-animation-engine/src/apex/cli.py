@@ -36,6 +36,9 @@ def main(argv=None) -> int:
     p.add_argument("-o", "--out", required=True)
     p.add_argument("--offline", action="store_true", help="use the deterministic template planner (no AI provider)")
     p.add_argument("--log-dir", help="preserve every raw model response, the repair errors and the accepted plan here")
+    p.add_argument("--reason", default="", help="why this paid experiment is worth running (required for paid calls; recorded in the ledger)")
+    p.add_argument("--max-repairs", type=int, default=2, help="repair attempts after the first (also capped by APEX_AI_MAX_CALLS)")
+    sub.add_parser("ai-budget", help="show the AI spending policy and the cost ledger (no network)")
     s = sub.add_parser("serve", help="run the FastAPI backend")
     s.add_argument("--host", default="127.0.0.1")
     s.add_argument("--port", type=int, default=8077)
@@ -78,7 +81,20 @@ def main(argv=None) -> int:
         import json as _json
         import os as _os
         import time as _time
-        director = StoryDirector.from_env(offline=a.offline)
+        from .ai.budget import BudgetError
+        try:
+            director = StoryDirector.from_env(offline=a.offline, reason=a.reason)
+        except BudgetError as e:
+            print(f"refused by the AI spending policy (nothing was sent): {e}")
+            return 3
+        director.max_repairs = a.max_repairs
+        exp = getattr(director.provider, "experiment", None)
+        if exp is not None:
+            from .ai.director import system_prompt as _sp
+            bound = exp.upper_bound(len(_sp()) + 30000)
+            print(f"paid experiment {exp.id}: model {exp.model}; reason: {exp.reason}; at most {exp.policy.max_calls} call(s); "
+                  f"worst-case estimate ${bound:.4f} (hard caps: ${exp.policy.experiment_budget_usd:.2f} per experiment, "
+                  f"${exp.policy.total_budget_usd:.2f} total, ${exp.prior_total:.4f} already spent)", flush=True)
         t0 = _time.time()
         result = {"story": a.story, "planner": director.name, "model": getattr(director.provider, "model", None),
                   "started_utc": _time.strftime("%Y-%m-%dT%H:%M:%SZ", _time.gmtime())}
@@ -88,7 +104,11 @@ def main(argv=None) -> int:
         except Exception as e:  # preserve the failure as well
             result.update(status="failed", error=f"{type(e).__name__}: {e}"[:4000])
             proj = None
-        result.update(attempts=len(director.log), seconds=round(_time.time() - t0, 1))
+        result.update(attempts=len(director.log), seconds=round(_time.time() - t0, 1), cost=director.cost_record)
+        if director.cost_record:
+            c = director.cost_record
+            print(f"cost: model {c['model']}, {len(c['calls'])} call(s), estimated up to ${c['estimated_usd_upper']:.4f}, "
+                  f"actual ${c['actual_usd']:.4f}")
         if a.log_dir:
             _os.makedirs(a.log_dir, exist_ok=True)
             from .ai.director import system_prompt
@@ -107,6 +127,20 @@ def main(argv=None) -> int:
             with open(_os.path.join(a.log_dir, "accepted_plan.json"), "w", encoding="utf-8") as fh:
                 fh.write(proj.model_dump_json(indent=1))
         print(f"planned {proj.id}: {len(proj.scenes)} scene(s) -> {a.out} (planner: {director.name}, {result['attempts']} call(s))")
+        return 0
+    if a.cmd == "ai-budget":
+        from .ai.budget import LOW_COST_MODELS, BudgetPolicy, ledger_total
+        pol = BudgetPolicy.from_env()
+        print(f"paid calls enabled: {pol.paid_enabled}\nlow-cost models: {', '.join(LOW_COST_MODELS)}\n"
+              f"explicitly approved models: {', '.join(pol.approved_models) or 'none'}\nper experiment: {pol.max_calls} call(s), "
+              f"{pol.max_output_tokens} output tokens per call, ${pol.experiment_budget_usd:.2f}\ntotal cap: ${pol.total_budget_usd:.2f}; "
+              f"ledger {pol.ledger_path}: ${ledger_total(pol.ledger_path):.4f} spent")
+        import os as _os
+        if _os.path.exists(pol.ledger_path):
+            for line in open(pol.ledger_path, encoding="utf-8"):
+                r = json.loads(line)
+                print(f"  {r['experiment']} {r['model']} {r['status']} calls={len(r['calls'])} est<=${r['estimated_usd_upper']:.4f} "
+                      f"actual=${r['actual_usd']:.4f} reason: {r['reason']}")
         return 0
     if a.cmd == "serve":
         import uvicorn
