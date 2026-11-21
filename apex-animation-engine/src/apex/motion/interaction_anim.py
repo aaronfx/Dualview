@@ -16,7 +16,7 @@ from .controller import Segment
 from .interaction import CRAWL_SPEED, GESTURE_CONTACT, LIE_H, PRESS_T
 
 STANCE = {  # (front foot, rear foot) as multiples of the leg-length unit, relative to the pelvis, along facing
-    "push": (8.0, -36.0), "lift": (16.0, -20.0), "lever": (10.0, -26.0), "offer": (12.0, -16.0), "gesture": (9.0, -9.0),
+    "push": (18.0, -42.0), "lift": (16.0, -20.0), "lever": (10.0, -26.0), "offer": (12.0, -16.0), "gesture": (9.0, -9.0),
 }
 LYING = ("fall", "prone", "crawl", "getup")
 
@@ -78,18 +78,37 @@ class InteractionAnimMixin:
 
     # ------------------------------------------------------------ push
     def _eval_push(self, seg: Segment, t: float) -> Pose:
-        tau = t - seg.t0
-        ts = seg.data["t_strain"] - seg.t0
-        strain = smoothstep(ts, ts + 0.8, tau) * seg.data.get("effort", 1.0)
-        trem = math.sin(2 * PI * 7.5 * tau) * strain
-        pose, F, s = self._stand_pose(seg, t, crouch=8.0 + 10.0 * strain + 0.8 * trem, lean=0.32 + 0.38 * strain + 0.01 * trem,
-                                      chest=-0.05, head=-0.25 - 0.1 * strain)
-        pose.eye = 1.0 - 0.45 * strain
+        """Act the push as three readable phases: brace, drive, fight the load.
+
+        Prop movement and hand placement are still decided by simulation/IK.
+        This only changes the character's performance, not the physical force.
+        """
+        tau = max(0.0, t - seg.t0)
+        ts = max(0.0, seg.data["t_strain"] - seg.t0)
+        effort = seg.data.get("effort", 1.0)
+        brace = smoothstep(0.02, 0.35, tau)
+        drive = smoothstep(ts, ts + 0.70, tau)
+        wobble = drive * math.sin(2 * PI * 5.5 * tau)
+        # The first counter-lean shows him setting his feet before he bears down.
+        settle = smoothstep(0.02, 0.21, tau) * (1.0 - smoothstep(0.23, 0.49, tau))
+        crouch = 7.0 + 8.0 * brace + 14.0 * drive + 1.6 * wobble
+        lean = 0.17 - 0.18 * settle + 0.42 * brace + 0.37 * drive + 0.012 * wobble
+        chest = -0.05 - 0.12 * brace - 0.17 * drive
+        head = -0.12 - 0.22 * brace - 0.24 * drive + 0.028 * wobble
+        pose, F, s = self._stand_pose(seg, t, crouch=crouch, lean=lean, chest=chest, head=head)
+        pose.eye = max(0.58, 1.05 - 0.42 * drive)
+        pose.twist = 0.05 + 0.27 * drive + 0.025 * wobble
+        pose.hip_twist = -0.16 * drive
         self._stand_legs(pose, F, seg, t)
-        g = self._prop_world(seg.data["prop"], t, seg.data["grip_local"])
+        # Both palms remain attached to the actual simulated grip as he strains.
+        grip = self._prop_world(seg.data["prop"], t, seg.data["grip_local"])
         tan = F.tangent
-        self._hands_to(pose, [("n", (g[0] - tan[0] * 2 * seg.facing, g[1] + 7)), ("f", (g[0], g[1] - 9))], shape="open")
-        pose.twist = 0.12 * strain
+        self._hands_to(
+            pose,
+            [("n", (grip[0] - tan[0] * 2 * seg.facing, grip[1] + 7)),
+             ("f", (grip[0], grip[1] - 9))],
+            shape="open",
+        )
         return pose
 
     # ------------------------------------------------------------ falling, lying, crawling, getting up
@@ -120,23 +139,37 @@ class InteractionAnimMixin:
             pose.hands[side] = "open"
 
     def _eval_fall(self, seg: Segment, t: float) -> Pose:
+        """Stumble, flail to catch balance, then protect the face before impact.
+
+        The root movement and body rotation still come from the recorded
+        physics-triggered fall. Animate limbs around that trajectory.
+        """
         pose, F = self._lying_base(seg, t)
-        u = clamp((t - seg.t0) / 0.62, 0.0, 1.0)
+        from .interaction import FALL_T
+        u = clamp((t - seg.t0) / FALL_T, 0.0, 1.0)
         L = pose.local
-        set_lean(L, 0.15 * u, chest=-0.1, head=-0.5 * u)
-        L["thigh_n"], L["shin_n"] = -PI / 2 + 0.25 - 0.2 * u, -0.5 + 0.4 * u
-        L["thigh_f"], L["shin_f"] = -PI / 2 - 0.15, -0.15
-        pose.eye = 1.0 + 0.4 * smoothstep(0.0, 0.3, u)
-        if u < 0.55:
-            set_arm(L, "n", 1.2 + 0.8 * u, 0.5)
-            set_arm(L, "f", 0.6 + 1.2 * u, 0.6)
-        else:  # hands reach for the floor to break the fall
-            w = smoothstep(0.55, 0.9, u)
-            set_arm(L, "n", 1.65, 0.4)
-            set_arm(L, "f", 1.3, 0.5)
-            if w > 0.5:
-                self._floor_hands(pose, F, (30.0, 22.0))
-        self._ground_clamp(pose, F)  # toes never dig into the floor while falling
+        surprise = smoothstep(0.0, 0.16, u) * (1.0 - smoothstep(0.40, 0.75, u))
+        brace = smoothstep(0.47, 0.86, u)
+        set_lean(L, 0.12 + 0.25 * surprise - 0.16 * brace,
+                 chest=-0.04 - 0.27 * surprise + 0.04 * brace,
+                 head=-0.15 - 0.56 * surprise + 0.18 * brace)
+        # During the stumble, the legs split instead of falling like a board.
+        stride = math.sin(PI * u)
+        L["thigh_n"] = -PI / 2 + 0.18 - 0.53 * stride - 0.16 * brace
+        L["shin_n"] = -0.20 - 0.65 * stride + 0.50 * brace
+        L["thigh_f"] = -PI / 2 - 0.15 + 0.38 * stride
+        L["shin_f"] = -0.14 - 0.26 * stride + 0.10 * brace
+        pose.eye = 1.0 + 0.90 * surprise + 0.15 * brace
+        pose.twist = 0.24 * surprise * math.sin(2 * PI * 1.2 * u)
+        # One arm swings out first, the other follows (overlapping action).
+        set_arm(L, "n", 0.4 + 1.28 * smoothstep(0.08, 0.68, u), 0.45 + 0.30 * surprise)
+        set_arm(L, "f", 1.9 - 0.48 * smoothstep(0.24, 0.74, u), 0.45 + 0.24 * surprise)
+        if u > 0.71:
+            # IK plants the hands on the actual floor for the last part.
+            # Delay contact until the character is nearly prone, avoiding a
+            # visually impossible reach while still upright.
+            self._floor_hands(pose, F, (30.0, 22.0))
+        self._ground_clamp(pose, F)
         return pose
 
     def _prone_limbs(self, pose: Pose, F, tau: float, struggle: float, pinned: bool, chest_up: float = 1.0) -> None:
