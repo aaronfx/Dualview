@@ -39,6 +39,7 @@ STYLE = {  # kind -> n, speed range, life range, size range, gravity, colour
     "portal": (24, (60, 160), (0.4, 0.7), (1.8, 3.6), 0.0, (120, 210, 255)),
     "dust": (12, (60, 180), (0.35, 0.6), (2.5, 5.0), 260.0, (170, 180, 190)),
     "spark": (14, (300, 640), (0.15, 0.32), (1.2, 2.4), 900.0, (255, 190, 90)),
+    "debris": (30, (120, 420), (0.35, 0.75), (1.4, 3.2), 1100.0, (255, 235, 200)),
 }
 
 
@@ -90,6 +91,10 @@ class Particles:
                 kind = "dust"
             elif e.type == "hit":
                 kind = "spark"
+            elif e.type == "break":
+                kind = "debris"
+            elif e.type == "morph":
+                kind = "collect"  # a shimmer where the new shape appears
             if kind is None or not isinstance(pt, (tuple, list)):
                 continue
             idx += 1

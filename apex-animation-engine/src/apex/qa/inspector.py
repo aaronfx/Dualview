@@ -130,7 +130,8 @@ class Inspector:
         for fn in (self.check_hierarchy, self.check_bone_lengths, self.check_positions, self.check_teleport, self.check_foot_sliding,
                    self.check_gravity, self.check_geometry, self.check_camera, self.check_camera_motion, self.check_continuity,
                    self.check_secondary, self.check_exit_conditions, self.check_interactions, self.check_composition,
-                   self.check_combat, self.check_acrobatics, self._props_through_bodies, self.check_arcade, self.check_particles):
+                   self.check_combat, self.check_acrobatics, self._props_through_bodies, self.check_arcade, self.check_particles,
+                   self.check_breakables, self.check_morphs):
             rep.checks.extend(fn())
         rep.checks.extend(self.check_time_fx())
         rep.checks.extend(self.check_beats(video))
@@ -671,7 +672,8 @@ class Inspector:
         an = next(iter(self.r.animators.values()))
         if sp.kind == "glyph":
             r = (sp.weight or glyphs.default_weight(sp.size)) / 2
-            return [(an._prop_world(pid, t, a), an._prop_world(pid, t, b)) for a, b in glyphs.segments(sp.glyph, sp.size)], r
+            g = self.r.glyph_at(pid, t, sp.glyph)[0]
+            return [(an._prop_world(pid, t, a), an._prop_world(pid, t, b)) for a, b in glyphs.segments(g, sp.size)], r
         return [(an._prop_world(pid, t, (-sp.size[0] / 2, 0)), an._prop_world(pid, t, (sp.size[0] / 2, 0)))], sp.size[1] / 2
 
     def _prop_point_gap(self, pid: str, p, t: float) -> float:
@@ -900,7 +902,7 @@ class Inspector:
                 if i >= len(ts):
                     continue
                 for pid, sp in props.items():
-                    if pid in handled or not sp.collide_characters:
+                    if pid in handled or not sp.collide_characters or not self.r.alive(pid, rec.t):
                         continue
                     if abs(rec.z - sp.z) >= sp.depth / 2 + 14.0:
                         continue
@@ -910,7 +912,7 @@ class Inspector:
                         wgt = sp.weight or glyphs.default_weight(sp.size)
                         pen = max(BODY_R + wgt / 2 - _seg_dist(A, B, (x + p[0] * pc - p[1] * ps, y + p[0] * ps + p[1] * pc),
                                                                (x + q[0] * pc - q[1] * ps, y + q[0] * ps + q[1] * pc))[0]
-                                  for p, q in glyphs.segments(sp.glyph, sp.size))
+                                  for p, q in glyphs.segments(self.r.glyph_at(pid, rec.t, sp.glyph)[0], sp.size))
                     else:
                         hx, hy = sp.size[0] / 2, sp.size[1] / 2
                         pen = -1e9
@@ -1034,6 +1036,76 @@ class Inspector:
         else:
             out.append(Check("music_on_beat", "SKIP", details="no soundtrack rendered"))
         return out
+
+    def check_breakables(self) -> List[Check]:
+        """Breakables (Milestone 5), against the simulation:
+        - breaks_at_threshold: every break was caused by a contact impulse at least the prop's threshold;
+        - breaks_conserve_momentum: the pieces leave with the prop's momentum (their scatter adds none);
+        - breaks_continuous: at the break each piece is exactly where it was inside the prop (no pop), from the tracks."""
+        import numpy as np
+        brk = [e for e in self.r.events if e.type == "break"]
+        if not any(p.breakable for p in self.rt.env.props):
+            return []
+        under = [e.character for e in brk if e.data["impulse"] < e.data["threshold"] - 1e-9]
+        worst_p, worst_x = 0.0, 0.0
+        specs = {p.id: p for p in self.rt.env.props}
+        for e in brk:
+            P = e.data["momentum"]
+            S = [sum(m * v[i] for v, m in e.data["piece_motion"].values()) for i in (0, 1)]
+            M = e.data["mass"]
+            worst_p = max(worst_p, math.dist(P, S) / (math.hypot(*P) + M))
+            k = int(np.searchsorted(self.r.prop_times, e.t - 1e-9))
+            par = self.r.prop_tracks[e.character][k]  # the break's own sample: the prop where it broke, the pieces leaving it
+            for f in e.data["pieces"]:
+                fr = self.r.prop_tracks[f][k]
+                loc = specs[f].local
+                ca, sa = math.cos(par[2]), math.sin(par[2])
+                want = (par[0] + loc[0] * ca - loc[1] * sa, par[1] + loc[0] * sa + loc[1] * ca)
+                worst_x = max(worst_x, math.dist(want, fr[:2]), abs(math.remainder(fr[2] - par[2], 2 * math.pi)) * 50.0)
+        return [Check("breaks_at_threshold", "PASS" if not under else "FAIL", float(len(under)), 0.0,
+                      f"{len(brk)} break(s), each from a contact impulse at or above the prop's threshold"),
+                Check("breaks_conserve_momentum", "PASS" if worst_p <= 1e-6 else "FAIL", worst_p, 1e-6,
+                      "relative difference between the prop's momentum and its pieces' total"),
+                Check("breaks_continuous", "PASS" if worst_x <= 0.5 else "FAIL", worst_x, 0.5,
+                      "how far a piece is from its place in the prop at the moment of the break (units)")]
+
+    def check_morphs(self) -> List[Check]:
+        """Morphs (Milestone 5): the shape change conserves motion (centre-of-mass velocity and angular momentum), the
+        centre of mass only moves by the recorded nudge, no character is inside the new shape when it appears, and the
+        drawn blend ends exactly on the new shape (no pop at the swap)."""
+        from ..scene import glyphs
+        logs = {pid: ms for pid, ms in self.r.morphs.items() if ms}
+        if not logs:
+            return []
+        specs = {p.id: p for p in self.rt.env.props}
+        worst_m, worst_c, worst_pop, n = 0.0, 0.0, 0.0, 0
+        for pid, ms in logs.items():
+            sp = specs[pid]
+            for m in ms:
+                if m["t_swap"] is None:
+                    continue
+                n += 1
+                worst_m = max(worst_m, math.dist(m["v0"], m["v1"]) / (math.hypot(*m["v0"]) + 1.0),
+                              abs(m["I0"] * m["w0"] - m["I1"] * m["w1"]) / (abs(m["I0"] * m["w0"]) + m["I0"]))
+                worst_c = max(worst_c, abs(math.dist(m["c0"], m["c1"]) - math.hypot(*m.get("nudge", (0.0, 0.0)))))
+                # the drawing just before the swap vs just after
+                t0, t1 = m["t_swap"] - 1e-4, m["t_swap"] + 1.0 / 240.0
+                a, b = self.rt.evaluate(t0), self.rt.evaluate(t1)
+                pa, pb = next(p for p in a.props if p.id == pid), next(p for p in b.props if p.id == pid)
+                sa = glyphs.blend(pa.morph[0], pa.morph[1], pa.morph[2], sp.size, shift=pa.morph[3]) if pa.morph else glyphs.strokes(pa.glyph, sp.size)
+                sb = glyphs.strokes(pb.glyph, sp.size)
+                W = lambda pr, p: (pr.pos[0] + p[0] * math.cos(pr.angle) - p[1] * math.sin(pr.angle),
+                                   pr.pos[1] + p[0] * math.sin(pr.angle) + p[1] * math.cos(pr.angle))
+                ea = [W(pa, st[0]) for st in sa] + [W(pa, st[-1]) for st in sa]
+                eb = [W(pb, st[0]) for st in sb] + [W(pb, st[-1]) for st in sb]
+                # every end of the new shape is drawn where the blend left one (small motion over 1/240 s allowed)
+                worst_pop = max(worst_pop, max(min(math.dist(p, q) for q in ea) for p in eb))
+        return [Check("morphs_conserve_motion", "PASS" if worst_m <= 1e-6 else "FAIL", worst_m, 1e-6,
+                      f"{n} shape change(s): relative change of centre-of-mass velocity or angular momentum"),
+                Check("morphs_hold_centre", "PASS" if worst_c <= 1e-6 else "FAIL", worst_c, 1e-6,
+                      "centre-of-mass shift beyond the recorded nudge (units)"),
+                Check("morphs_no_pop", "PASS" if worst_pop <= 6.0 else "FAIL", worst_pop, 6.0,
+                      "distance between the drawn blend's end and the new shape at the swap (units)")]
 
     def check_particles(self) -> List[Check]:
         """Event particles (Milestone 4): deterministic (two independent builds give identical particles at every

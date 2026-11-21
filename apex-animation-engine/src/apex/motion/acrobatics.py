@@ -116,7 +116,7 @@ class AcroMixin:
         fy = self._feet_y()
         out = []
         for pid, sp in self.props.items():
-            if pid in skip or not sp.collide_characters:
+            if pid in skip or not sp.collide_characters or pid in self.world.inactive:
                 continue
             st = self.world.state(pid)
             r = max(sp.size) / 2
@@ -231,7 +231,7 @@ class AcroMixin:
         handled = {p for (o, p) in self.world.proxy_ignore if o == self.cid} | self.world.carried | self.world.in_flight
         best = None
         for pid, sp in self.props.items():
-            if pid in handled or not sp.collide_characters:
+            if pid in handled or not sp.collide_characters or pid in self.world.inactive:
                 continue
             pz, ph = self.world.depth.get(pid, (0.0, 30.0))
             if abs(pz - self.z) >= ph + 14.0:
@@ -286,7 +286,8 @@ class AcroMixin:
         ca, sa = math.cos(ang), math.sin(ang)
         W = lambda p: (c[0] + p[0] * ca - p[1] * sa, c[1] + p[0] * sa + p[1] * ca)
         if sp.kind == "glyph":
-            return [(W(a), W(b)) for a, b in glyphs.segments(sp.glyph, sp.size)], (sp.weight or glyphs.default_weight(sp.size)) / 2
+            g = getattr(self.world, "glyph_now", {}).get(pid, sp.glyph)  # its shape now (a morph may have changed it)
+            return [(W(a), W(b)) for a, b in glyphs.segments(g, sp.size)], (sp.weight or glyphs.default_weight(sp.size)) / 2
         hx = sp.size[0] / 2
         return [(W((-hx, 0.0)), W((hx, 0.0)))], sp.size[1] / 2
 
@@ -484,7 +485,7 @@ class AcroMixin:
         sp = self.props[rid]
         if sp.kind == "glyph":
             from ..scene import glyphs
-            ex = glyphs.extent(sp.glyph, sp.size, sp.weight or glyphs.default_weight(sp.size))
+            ex = glyphs.extent(getattr(self.world, "glyph_now", {}).get(rid, sp.glyph), sp.size, sp.weight or glyphs.default_weight(sp.size))
             pts = [self._prop_point(rid, (x, y)) for x in (ex[0], ex[2]) for y in (ex[1], ex[3])]
         else:
             hx, hy = sp.size[0] / 2, sp.size[1] / 2
@@ -898,7 +899,8 @@ class AcroMixin:
         sp = self.props[pid]
         from ..scene import glyphs
         wgt = sp.weight or glyphs.default_weight(sp.size)
-        segs = [(self._prop_point(pid, p), self._prop_point(pid, q)) for p, q in glyphs.segments(sp.glyph, sp.size)] if sp.kind == "glyph" \
+        segs = [(self._prop_point(pid, p), self._prop_point(pid, q))
+                for p, q in glyphs.segments(getattr(self.world, "glyph_now", {}).get(pid, sp.glyph), sp.size)] if sp.kind == "glyph" \
             else [(self._prop_point(pid, (-sp.size[0] / 2, 0)), self._prop_point(pid, (sp.size[0] / 2, 0)))]
         r = wgt / 2 if sp.kind == "glyph" else sp.size[1] / 2
         for cid, oc in self.others.items():

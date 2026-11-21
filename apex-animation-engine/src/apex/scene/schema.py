@@ -95,6 +95,36 @@ class SwitchSpec(Strict):
     effect: GravityEffect
 
 
+class BreakSpec(Strict):
+    """A breakable prop (Milestone 5). It breaks when a single contact impulse on it reaches `impulse` (mass x velocity
+    units, e.g. a 4 kg symbol landing at 500 u/s gives about 2000-3500). A glyph breaks into its strokes (long
+    strokes into runs of a few segments); a box into a `grid` x `grid` of blocks. The pieces carry on with the
+    prop's own motion (velocity and spin at each piece's centre of mass), plus a `scatter` (u/s) that pushes them
+    apart without changing the total momentum."""
+    impulse: float = Field(gt=0)
+    scatter: float = Field(60.0, ge=0, le=600)
+    grid: int = Field(2, ge=2, le=4)
+
+
+class MorphSpec(Strict):
+    """A glyph prop turning into another glyph (Milestone 5). It starts at time `at` or on an event `on` (goal syntax,
+    e.g. "collect@iko"), draws as a blend of the two shapes over `duration`, and then becomes the new shape physically
+    (same mass; its centre of mass, velocity and angular momentum are kept). The change waits while the new shape
+    would overlap a character or a structure."""
+    to: str
+    at: Optional[float] = Field(None, ge=0)
+    on: Optional[str] = None
+    duration: float = Field(0.5, gt=0, le=5)
+
+    @model_validator(mode="after")
+    def _one(self) -> "MorphSpec":
+        from .glyphs import canonical
+        self.to = canonical(self.to)
+        if (self.at is None) == (self.on is None):
+            raise ValueError("a morph needs exactly one of 'at' (a time) or 'on' (an event)")
+        return self
+
+
 class PropSpec(Strict):
     """A dynamic rigid body. `container` (heavy box with handles), `post` (tall steel support), `bar` (pry bar /
     lever), `toolbox` (small block, a typical fulcrum), `glyph` (a symbol built from its strokes, see scene/glyphs.py:
@@ -117,6 +147,10 @@ class PropSpec(Strict):
     com: Vec2 = (0.0, 0.0)  # centre of mass in the prop's local frame (e.g. a post with a heavy steel cap is top-heavy)
     z: float = 0.0
     depth: float = Field(60.0, gt=0)  # visual extent along the room depth
+    breakable: Optional[BreakSpec] = None  # Milestone 5: breaks into pieces under a hard enough blow
+    fragment_of: Optional[str] = None  # a piece of a breakable prop (made by the engine; exists once it breaks)
+    local: Vec2 = (0.0, 0.0)  # a box piece's centre in its parent's frame
+    morphs: List[MorphSpec] = Field(default_factory=list)  # Milestone 5: shape changes (glyph props)
 
     @model_validator(mode="after")
     def _glyph(self) -> "PropSpec":
@@ -125,6 +159,8 @@ class PropSpec(Strict):
             if not self.glyph:
                 raise ValueError(f"prop {self.id}: kind 'glyph' needs 'glyph' (the symbol)")
             self.glyph = canonical(self.glyph)
+        if self.morphs and (self.kind != "glyph" or self.breakable is not None):
+            raise ValueError(f"prop {self.id}: only an unbreakable glyph prop can morph")
         return self
 
 
@@ -256,6 +292,35 @@ class EnvironmentSpec(Strict):
     orbs: List[OrbSpec] = Field(default_factory=list)
     portals: List[PortalSpec] = Field(default_factory=list)
     level: Optional[LevelSpec] = None  # a grid level, expanded into obstacles, orbs, portals and markers
+
+    @model_validator(mode="after")
+    def _fragments(self) -> "EnvironmentSpec":
+        """Each breakable prop gets its pieces as props of their own (inactive until it breaks)."""
+        import math
+        have = {p.fragment_of for p in self.props if p.fragment_of}
+        add = []
+        for p in self.props:
+            if p.breakable is None or p.id in have or p.fragment_of:
+                continue
+            base = p.model_dump(exclude={"breakable", "fragment_of", "local", "id", "static_friction"})
+            if p.kind == "glyph":
+                from .glyphs import pieces
+                pcs = pieces(p.glyph)
+                sx, sy = p.size  # lengths at the prop's real size (a non-square glyph stretches its strokes unevenly)
+                lens = [sum(math.hypot((b[0] - a[0]) * sx, (b[1] - a[1]) * sy) for a, b in zip(pc, pc[1:])) or 1e-3 for pc in pcs]
+                for k, L in enumerate(lens):
+                    add.append(PropSpec(**dict(base, id=f"{p.id}~{k}", glyph=f"{p.glyph}#{k}", mass=p.mass * L / sum(lens),
+                                               fragment_of=p.id)))
+            else:
+                g = p.breakable.grid
+                w, h = p.size[0] / g, p.size[1] / g
+                for i in range(g):
+                    for j in range(g):
+                        loc = (-p.size[0] / 2 + (i + 0.5) * w, -p.size[1] / 2 + (j + 0.5) * h)
+                        add.append(PropSpec(**dict(base, id=f"{p.id}~{i * g + j}", size=(w, h), mass=p.mass / (g * g), com=(0.0, 0.0),
+                                                   fragment_of=p.id, local=loc)))
+        self.props.extend(add)
+        return self
 
     @model_validator(mode="after")
     def _level(self) -> "EnvironmentSpec":

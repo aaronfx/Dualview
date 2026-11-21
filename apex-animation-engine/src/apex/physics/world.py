@@ -64,7 +64,10 @@ class PhysicsWorld:
         self._extra: Dict[str, List[pymunk.Shape]] = {}  # further shapes of a compound body (a glyph's strokes)
         self.events: List[ContactEvent] = []
         self._pending: List[ContactEvent] = []
-        self.space.on_collision(None, None, begin=self._on_begin)
+        self.space.on_collision(None, None, begin=self._on_begin, post_solve=self._post_solve)
+        self.step_impulse: Dict[str, Tuple[float, Vec, float]] = {}  # tag -> (contact impulse this step, main point, largest)
+        self.inactive: set = set()  # bodies out of play: pieces before their prop breaks, a prop after it has broken
+        self._saved_filter: Dict[str, tuple] = {}
         # bounded-force character bodies (see add_proxy): contacts with props filtered by depth and by what the
         # character is doing with that prop (carrying it, pushing it, has just thrown it)
         self._proxies: Dict[str, tuple] = {}
@@ -237,6 +240,14 @@ class PhysicsWorld:
         if limits is not None:
             lim = pymunk.RotaryLimitJoint(self.space.static_body, b, limits[0], limits[1])
             self.space.add(lim)
+
+    def add_slab(self, tag: str, pts: List[Vec], friction: float = 0.9) -> None:
+        """Solid mass behind a room surface (not a surface of its own): a body pushed into a thin surface segment
+        (a piece born overlapping the floor, a fast fragment) is pushed back out instead of tunnelling through."""
+        s = pymunk.Poly(self.space.static_body, pts)
+        s.friction, s.collision_type, s.elasticity = friction, CT_STATIC, 0.0
+        self.space.add(s)
+        self._tags[s] = tag
 
     def add_static_box(self, tag: str, center: Vec, size: Vec, friction: float = 0.9) -> None:
         """Axis-aligned static box (a beam spanning the room depth), recorded as its four edge segments."""
@@ -430,8 +441,116 @@ class PhysicsWorld:
         approach = -(rel.x * normal_away[0] + rel.y * normal_away[1])
         self._pending.append(ContactEvent(self.t, ta, tb, (p.x, p.y), normal_away, approach))
 
+    def _post_solve(self, arb: pymunk.Arbiter, space: pymunk.Space, data) -> None:
+        j = arb.total_impulse.length
+        if j <= 0.0:
+            return
+        pts = arb.contact_point_set.points
+        p = (pts[0].point_a.x, pts[0].point_a.y) if pts else (0.0, 0.0)
+        for sh in arb.shapes:
+            tag = self._tags.get(sh)
+            if tag is not None and sh.body.body_type == pymunk.Body.DYNAMIC:
+                # a body made of several shapes (a glyph's strokes) takes one blow through all of them: sum them
+                j0, p0, jm = self.step_impulse.get(tag, (0.0, p, 0.0))
+                self.step_impulse[tag] = (j0 + j, p if j > jm else p0, max(jm, j))
+
+    # ------------------------------------------------------------ out of play (breakables)
+    def deactivate(self, tag: str) -> None:
+        """Take a body out of play: it neither collides nor moves (a piece before its prop breaks; a broken prop)."""
+        if tag in self.inactive:
+            return
+        shapes = self.shapes_of(tag)
+        self._saved_filter[tag] = [(sh.filter, sh.sensor) for sh in shapes]
+        for sh in shapes:
+            sh.filter = pymunk.ShapeFilter(categories=0, mask=0)
+            sh.sensor = True
+        st = self.state(tag)
+        self.set_kinematic(tag, st.pos, st.angle)
+        self.inactive.add(tag)
+
+    def activate(self, tag: str, pos: Vec, angle: float, vel: Vec, angvel: float) -> None:
+        """Bring a body into play as a dynamic body with this pose and motion."""
+        for sh, (flt, sen) in zip(self.shapes_of(tag), self._saved_filter.pop(tag, [])):
+            sh.filter, sh.sensor = flt, sen
+        self.inactive.discard(tag)
+        self.set_kinematic(tag, pos, angle)
+        m, mo = self._mass_moment[tag]
+        self.set_dynamic(tag, vel, angvel, m, mo)
+
+    def blockers(self, tag: str, segs: List[Tuple[Vec, Vec]], radius: float, offset: Vec = (0.0, 0.0)) -> List[str]:
+        """What the body would overlap with these segments (its own frame) in place of its shapes, moved by `offset`:
+        tags of characters, structures and other props (its own shapes and out-of-play bodies are ignored)."""
+        body = self._bodies[tag]
+        p0 = body.position
+        body.position = (p0.x + offset[0], p0.y + offset[1])
+        out = []
+        try:
+            for a, b in segs:
+                probe = pymunk.Segment(body, a, b, radius)
+                probe.filter = pymunk.ShapeFilter(categories=CAT_PROP, mask=ALL)
+                probe.cache_bb()
+                for hit in self.space.shape_query(probe):
+                    other = hit.shape
+                    t = self._tags.get(other, "")
+                    if other is None or other.body is body or other.sensor or t.endswith("~body") or t in self.inactive:
+                        continue
+                    out.append(t)
+        finally:
+            body.position = p0
+        return out
+
+    def free_for(self, tag: str, segs: List[Tuple[Vec, Vec]], radius: float) -> bool:
+        """Would this body, with these segments (its own frame) in place of its shapes, overlap a character, a static
+        structure or another prop? (Its own shapes and out-of-play bodies are ignored.)"""
+        body = self._bodies[tag]
+        for a, b in segs:
+            probe = pymunk.Segment(body, a, b, radius)
+            probe.filter = pymunk.ShapeFilter(categories=CAT_PROP, mask=ALL)
+            probe.cache_bb()
+            for hit in self.space.shape_query(probe):
+                other = hit.shape
+                if other is None or other.body is body or other.sensor or self._tags.get(other, "").endswith("~body"):
+                    continue
+                if self._tags.get(other) in self.inactive:
+                    continue
+                return False
+        return True
+
+    def reshape(self, tag: str, segs: List[Tuple[Vec, Vec]], radius: float, masses: List[float], com: Vec,
+                nudge: Vec = (0.0, 0.0)) -> Tuple[float, float]:
+        """Replace a compound body's segments (a morph). Mass is kept; the centre of mass stays where it is, its
+        velocity is kept and the spin changes so that the angular momentum is conserved. Returns (I before, I after)."""
+        body = self._bodies[tag]
+        old = self.shapes_of(tag)
+        tmpl = old[0]
+        c_world = body.local_to_world(body.center_of_gravity)
+        I0, w0 = body.moment, body.angular_velocity
+        v = body.velocity
+        for sh in old:
+            self._tags.pop(sh, None)
+        self.space.remove(*old)
+        shapes = []
+        for a, b in segs:
+            sh = pymunk.Segment(body, a, b, radius)
+            sh.friction, sh.elasticity, sh.collision_type, sh.filter = tmpl.friction, tmpl.elasticity, tmpl.collision_type, tmpl.filter
+            shapes.append(sh)
+            self._tags[sh] = tag
+        moment = sum(pymunk.moment_for_segment(m, (a[0] - com[0], a[1] - com[1]), (b[0] - com[0], b[1] - com[1]), radius)
+                     for (a, b), m in zip(segs, masses))
+        self._shapes[tag], self._extra[tag] = shapes[0], shapes[1:]
+        self._mass_moment[tag] = (sum(masses), moment)
+        body.center_of_gravity = com
+        body.moment = moment
+        ca, sa = math.cos(body.angle), math.sin(body.angle)
+        body.position = (c_world.x + nudge[0] - (com[0] * ca - com[1] * sa), c_world.y + nudge[1] - (com[0] * sa + com[1] * ca))
+        body.velocity, body.angular_velocity = v, w0 * I0 / moment
+        self.space.add(*shapes)
+        self.space.reindex_shapes_for_body(body)
+        return I0, moment
+
     def step(self, dt: float) -> List[ContactEvent]:
         self._pending = []
+        self.step_impulse = {}
         self.space.step(dt)
         self.t += dt
         ev = [e for e in self._pending]

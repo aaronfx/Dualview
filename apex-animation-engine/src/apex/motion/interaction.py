@@ -321,7 +321,7 @@ class InteractionMixin:
 
     # -- pinned detection (after each physics step while prone)
     def _check_pinned(self, t: float) -> None:
-        heavy = [pid for pid, sp in self.props.items() if sp.collide_characters and sp.mass >= 20.0]
+        heavy = [pid for pid, sp in self.props.items() if sp.collide_characters and sp.mass >= 20.0 and pid not in self.world.inactive]
         on = None
         for pid in heavy:
             touch, imp = self.world.touching(self.cid, pid, vertical_only=True)
@@ -346,7 +346,7 @@ class InteractionMixin:
                 self.unpinned_t = t
 
     def _heavy_props(self):
-        return [pid for pid, sp in self.props.items() if sp.collide_characters and sp.mass >= 20.0]
+        return [pid for pid, sp in self.props.items() if sp.collide_characters and sp.mass >= 20.0 and pid not in self.world.inactive]
 
     def _nearest_heavy(self) -> Optional[str]:
         best, bd = None, 1e9

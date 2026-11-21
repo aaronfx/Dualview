@@ -44,6 +44,8 @@ class PropState:
     z: float = 0.0
     depth: float = 60.0
     front: bool = False  # drawn in front of the characters (nearer the camera than the character plane)
+    glyph: Optional[str] = None  # the glyph it is now (it may have morphed)
+    morph: Optional[tuple] = None  # (from, to, u) while it is visibly changing shape
 
 
 @dataclass
@@ -93,6 +95,29 @@ class SimulationResult:
     rope_peak: Dict[str, float] = field(default_factory=dict)  # rope id -> highest tension seen (force units)
     prop_cuts: Dict[str, List[int]] = field(default_factory=dict)  # prop id -> first track samples after a portal
     orbs_taken: Dict[str, float] = field(default_factory=dict)
+    morphs: Dict[str, List[dict]] = field(default_factory=dict)  # prop id -> its shape changes (Milestone 5)
+    broken: Dict[str, float] = field(default_factory=dict)  # breakable prop id -> when it broke (Milestone 5)
+    fragment_parent: Dict[str, str] = field(default_factory=dict)  # piece id -> the prop it came from
+
+    def glyph_at(self, pid: str, t: float, base: Optional[str]):
+        """(the glyph a prop physically is at t, (from, to, u) while it is visibly morphing or None)."""
+        g, blend = base, None
+        for m in self.morphs.get(pid, []):
+            if t < m["t0"]:
+                break
+            if m["t_swap"] is None or t < m["t_swap"]:
+                end = m["t_swap"] if m["t_swap"] is not None else m["t0"] + m["duration"]
+                blend = (m["from"], m["to"], min(1.0, (t - m["t0"]) / max(1e-6, end - m["t0"])), m.get("nudge", (0.0, 0.0)))
+                break
+            g = m["to"]
+        return g, blend
+
+    def alive(self, pid: str, t: float) -> bool:
+        """A prop is in the scene: a breakable prop until it breaks; its pieces from then on."""
+        par = self.fragment_parent.get(pid)
+        if par is not None:
+            return par in self.broken and t >= self.broken[par]
+        return not (pid in self.broken and t >= self.broken[pid])
 
 
 def interp_track(times: np.ndarray, col: np.ndarray, t: float, cuts=()) -> float:
@@ -178,6 +203,11 @@ class SceneRuntime:
         world.add_static_segment("wall_right", (hw, -50), (hw, room.height + 50), 2.0)
         world.add_static_segment("wall_left", (-hw, -50), (-hw, room.height + 50), 2.0)
         world.add_static_segment("ceiling", (-hw - 50, room.height), (hw + 50, room.height), 2.0)
+        T, H = 120.0, room.height
+        world.add_slab("floor", [(-hw - T, -T), (hw + T, -T), (hw + T, 0.0), (-hw - T, 0.0)])
+        world.add_slab("ceiling", [(-hw - T, H), (hw + T, H), (hw + T, H + T), (-hw - T, H + T)])
+        world.add_slab("wall_right", [(hw, -T), (hw + T, -T), (hw + T, H + T), (hw, H + T)])
+        world.add_slab("wall_left", [(-hw - T, -T), (-hw, -T), (-hw, H + T), (-hw - T, H + T)])
         for ob in self.env.obstacles:
             if ob.kind in ("beam", "platform"):
                 world.add_static_box(ob.id, ob.center, ob.size)
@@ -196,6 +226,101 @@ class SceneRuntime:
                           collide_characters=pr.collide_characters, com=pr.com, solid=pr.solid)
         for pr in self.env.props:  # depth extents for the character-body contact filter
             world.depth[pr.id] = (float(pr.z), pr.depth / 2)
+        frag_of = {p.id: p.fragment_of for p in self.env.props if p.fragment_of}
+        breakables = {p.id: p for p in self.env.props if p.breakable is not None}
+        for fid in frag_of:  # pieces are out of play until their prop breaks
+            world.deactivate(fid)
+        broken: Dict[str, float] = {}
+        specs = {p.id: p for p in self.env.props}
+        from .goals import matches as _matches
+        morph_q = {p.id: list(p.morphs) for p in self.env.props if p.morphs}
+        world.glyph_now = {p.id: p.glyph for p in self.env.props if p.kind == "glyph"}
+        morph_log: Dict[str, List[dict]] = {}
+        morphing: Dict[str, dict] = {}
+
+        def morph_tick(tn: float, i_sample: int) -> None:
+            for pid, q in morph_q.items():
+                if pid in morphing or not q:
+                    continue
+                m = q[0]
+                after = morph_log[pid][-1]["t0"] if morph_log.get(pid) else -1.0
+                if (m.at is not None and tn >= m.at) or (m.on is not None and any(e.t > after and _matches(m.on, e) for e in events)):
+                    q.pop(0)
+                    rec = {"t0": tn, "duration": m.duration, "from": world.glyph_now[pid], "to": m.to, "t_swap": None}
+                    morph_log.setdefault(pid, []).append(rec)
+                    morphing[pid] = rec
+                    events.append(Event(tn, "morph_start", pid, {"prop": pid, "from": rec["from"], "to": m.to,
+                                                                 "point": world.state(pid).pos}))
+            for pid, rec in list(morphing.items()):
+                if tn < rec["t0"] + rec["duration"]:
+                    continue
+                sp = specs[pid]
+                wgt = sp.weight or glyphs.default_weight(sp.size)
+                segs = glyphs.segments(rec["to"], sp.size)
+                com, masses = glyphs.mass_props(rec["to"], sp.size, wgt, sp.mass)
+                b = world._bodies[pid]
+                # where the new shape goes: the centre of mass stays put (the origin moves by the change in centre)
+                ca_, sa_ = math.cos(b.angle), math.sin(b.angle)
+                cg0, cg1 = b.center_of_gravity, com
+                base = ((cg0.x - cg1[0]) * ca_ - (cg0.y - cg1[1]) * sa_, (cg0.x - cg1[0]) * sa_ + (cg0.y - cg1[1]) * ca_)
+                hit = world.blockers(pid, segs, wgt / 2, base)
+                nudge = (0.0, 0.0)
+                if hit and not any(h in ctrls for h in hit):
+                    # only structures (the floor under a growing stroke) in the way: the shape pushes itself clear by
+                    # the smallest step that frees it (up first, then sideways), as the solver would push it out
+                    for d in range(2, 2 * int(max(sp.size)) + 2, 2):
+                        cand = next(((dx * d, dy * d) for dx, dy in ((0, 1), (1, 0), (-1, 0))
+                                     if not world.blockers(pid, segs, wgt / 2, (base[0] + dx * d, base[1] + dy * d))), None)
+                        if cand is not None:
+                            nudge, hit = cand, []
+                            break
+                if hit:  # a character (or nowhere free) in the way: wait
+                    if not rec.get("blocked"):
+                        rec["blocked"] = tn
+                        events.append(Event(tn, "morph_blocked", pid, {"prop": pid, "by": sorted(set(hit))}))
+                    continue
+                c0, v0, w0 = b.local_to_world(b.center_of_gravity), (b.velocity.x, b.velocity.y), b.angular_velocity
+                I0, I1 = world.reshape(pid, segs, wgt / 2, masses, com, nudge)
+                rec["nudge"] = nudge
+                prop_cuts.setdefault(pid, []).append(i_sample)  # the body's origin jumps (centre kept, or nudged): a cut
+                c1 = b.local_to_world(b.center_of_gravity)
+                world.glyph_now[pid] = rec["to"]
+                rec.update(t_swap=tn, I0=I0, I1=I1, w0=w0, w1=b.angular_velocity, v0=v0, v1=(b.velocity.x, b.velocity.y),
+                           c0=(c0.x, c0.y), c1=(c1.x, c1.y))
+                del morphing[pid]
+                events.append(Event(tn, "morph", pid, {"prop": pid, "from": rec["from"], "to": rec["to"], "point": (c1.x, c1.y)}))
+
+        def park(fid: str) -> None:  # an unbroken prop's piece rides along inside it
+            st = world.state(frag_of[fid])
+            loc = specs[fid].local
+            ca, sa = math.cos(st.angle), math.sin(st.angle)
+            world.set_kinematic(fid, (st.pos[0] + loc[0] * ca - loc[1] * sa, st.pos[1] + loc[0] * sa + loc[1] * ca), st.angle)
+
+        def shatter(pid: str, tb: float, j: float, pt) -> None:
+            body = world._bodies[pid]
+            v, w, m0 = body.velocity, body.angular_velocity, body.mass
+            cp = body.local_to_world(body.center_of_gravity)
+            frs = [f for f, par in frag_of.items() if par == pid]
+            for f in frs:
+                park(f)
+            cogs = {f: world._bodies[f].local_to_world(world._bodies[f].center_of_gravity) for f in frs}
+            mean = sum(math.dist(cogs[f], cp) for f in frs) / max(1, len(frs))
+            k = breakables[pid].breakable.scatter / mean if mean > 1e-6 else 0.0
+            pv = {}
+            for f in frs:
+                st = world.state(f)
+                rx, ry = cogs[f].x - cp.x, cogs[f].y - cp.y
+                # rigid motion at the piece's centre of mass, plus a radial scatter proportional to its offset (the
+                # mass-weighted offsets sum to zero, so the scatter adds no momentum)
+                vel = (v.x - w * ry + k * rx, v.y + w * rx + k * ry)
+                world.activate(f, st.pos, st.angle, vel, w)
+                pv[f] = (vel, world._bodies[f].mass)
+            world.deactivate(pid)
+            broken[pid] = tb
+            events.append(Event(tb, "break", pid, {"prop": pid, "impulse": j, "threshold": breakables[pid].breakable.impulse,
+                                                   "point": tuple(pt) if pt else tuple(body.position), "pieces": frs,
+                                                   "momentum": (m0 * v.x, m0 * v.y), "spin": w, "mass": m0,
+                                                   "piece_motion": pv}))
         for rp in self.env.ropes:
             a_id = rp.a.split(":", 1)[1]
             if rp.b.startswith("world:"):
@@ -267,9 +392,19 @@ class SceneRuntime:
                 elif speed < 4.0:
                     sliding[pid] = False
                 world.set_friction(pid, sp.friction if sliding.get(pid) else sp.static_friction)
+            for fid, par in frag_of.items():
+                if par not in broken:
+                    park(fid)
             for c in ctrls.values():
                 c.update(t, dt)
             contacts = world.step(dt)
+            if morph_q:
+                morph_tick(t + dt, i)
+            for pid, sp in breakables.items():  # a blow hard enough breaks it
+                if pid not in broken:
+                    j, pt, _ = world.step_impulse.get(pid, (0.0, None, 0.0))
+                    if j >= sp.breakable.impulse:
+                        shatter(pid, t + dt, j, pt)
             for c in ctrls.values():
                 c.after_step(t + dt, contacts)
             for ex in self.env.exits:  # automatic door: opens for a grounded character once unlocked
@@ -334,7 +469,7 @@ class SceneRuntime:
         if physics_only:
             events.sort(key=lambda e: (e.t, e.type))
             self.result = SimulationResult(end, frames, gravity, {}, ctrls, events, times, prop_tracks, world.static_segments(),
-                                           {}, None, doors, snapped, rope_peak, prop_cuts, dict(shared["taken"]))
+                                           {}, None, doors, snapped, rope_peak, prop_cuts, dict(shared["taken"]), morph_log, broken, frag_of)
             return self.result
         animators = {}
         for cid, c in ctrls.items():
@@ -369,7 +504,7 @@ class SceneRuntime:
                      for e in events if e.type == "switch_activated"]
         dust = DustField(self.env.dust, room, gravity, impulses, end + 0.1, seed=self.project.seed) if self.env.dust else None
         self.result = SimulationResult(end, frames, gravity, animators, ctrls, events, times, prop_tracks, world.static_segments(),
-                                       scarves, dust, doors, snapped, rope_peak, prop_cuts, dict(shared["taken"]))
+                                       scarves, dust, doors, snapped, rope_peak, prop_cuts, dict(shared["taken"]), morph_log, broken, frag_of)
         return self.result
 
     # ------------------------------------------------------------ evaluation
@@ -378,12 +513,21 @@ class SceneRuntime:
         poses = {cid: a.pose_at(t) for cid, a in r.animators.items()}
         props = []
         for pr in self.env.props:
+            if not r.alive(pr.id, t):
+                continue
             tr = r.prop_tracks[pr.id]
             cu = r.prop_cuts.get(pr.id, ())
             x = interp_track(r.prop_times, tr[:, 0], t, cu)
             y = interp_track(r.prop_times, tr[:, 1], t, cu)
             a = interp_track(r.prop_times, np.unwrap(tr[:, 2]), t, cu)
-            props.append(PropState(pr.id, pr.kind, pr.size, (x, y), a, pr.z, pr.depth, pr.z < -5.0))
+            g, bl = r.glyph_at(pr.id, t, pr.glyph) if pr.kind == "glyph" else (None, None)
+            if bl is not None:  # the physical swap keeps the centre of mass still: end the blend where the new shape will sit
+                w_ = pr.weight or glyphs.default_weight(pr.size)
+                ca_, cb_ = glyphs.mass_props(bl[0], pr.size, w_, pr.mass)[0], glyphs.mass_props(bl[1], pr.size, w_, pr.mass)[0]
+                nx, ny = bl[3]
+                cs, sn = math.cos(a), math.sin(a)  # the nudge (world) in the prop's own frame
+                bl = bl[:3] + ((ca_[0] - cb_[0] + nx * cs + ny * sn, ca_[1] - cb_[1] - nx * sn + ny * cs),)
+            props.append(PropState(pr.id, pr.kind, pr.size, (x, y), a, pr.z, pr.depth, pr.z < -5.0, g, bl))
         ropes = []
         for rp in self.env.ropes:
             ends = []

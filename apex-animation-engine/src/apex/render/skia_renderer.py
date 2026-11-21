@@ -492,7 +492,11 @@ class SkiaRenderer:
         from ..scene import glyphs
         sp = next(p for p in self.env.props if p.id == pr.id)
         ca, sa = math.cos(pr.angle), math.sin(pr.angle)
-        strokes = [[(pr.pos[0] + x * ca - y * sa, pr.pos[1] + x * sa + y * ca) for x, y in st] for st in glyphs.strokes(sp.glyph, sp.size)]
+        if getattr(pr, "morph", None):  # changing shape: a blend of the two glyphs
+            local = glyphs.blend(pr.morph[0], pr.morph[1], pr.morph[2], sp.size, shift=pr.morph[3] if len(pr.morph) > 3 else (0.0, 0.0))
+        else:
+            local = glyphs.strokes(getattr(pr, "glyph", None) or sp.glyph, sp.size)
+        strokes = [[(pr.pos[0] + x * ca - y * sa, pr.pos[1] + x * sa + y * ca) for x, y in st] for st in local]
         rgb = hex_rgb(sp.color) if sp.color else self.accent
         self._draw_glyph(c, strokes, sp.weight or glyphs.default_weight(sp.size), rgb, pr.z - pr.depth / 2, pr.z + pr.depth / 2, layers=4)
 
@@ -1188,7 +1192,7 @@ class SkiaRenderer:
         if sp is None or sp.kind != "glyph":
             return
         ca, sa = math.cos(a), math.sin(a)
-        strokes = [[(x + u * ca - v * sa, y + u * sa + v * ca) for u, v in st] for st in glyphs.strokes(sp.glyph, sp.size)]
+        strokes = [[(x + u * ca - v * sa, y + u * sa + v * ca) for u, v in st] for st in glyphs.strokes(getattr(pr, "glyph", None) or sp.glyph, sp.size)]
         path, k = self._glyph_strokes_path(strokes, pr.z)
         rgb = hex_rgb(sp.color) if sp.color else self.accent
         w = max(1.5, (sp.weight or glyphs.default_weight(sp.size)) * k)

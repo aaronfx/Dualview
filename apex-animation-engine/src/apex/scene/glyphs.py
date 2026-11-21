@@ -51,7 +51,36 @@ NAMES = {"+": "plus", "-": "minus", "x": "times", "÷": "divide", "=": "equals",
          "?": "question", "π": "pi", "√": "root"}
 
 
+MAX_PIECE_SEGS = 4  # a long stroke (an arc of a "0") breaks into pieces of at most this many segments
+
+
+def pieces(glyph: str) -> List[List[Pt]]:
+    """How a glyph breaks: one piece per stroke, long strokes cut into runs of at most MAX_PIECE_SEGS segments
+    (unit-box coordinates, the same frame as the whole glyph)."""
+    out = []
+    for st in GLYPHS[canonical(glyph)]:
+        n = len(st) - 1
+        k = max(1, math.ceil(n / MAX_PIECE_SEGS))
+        step = math.ceil(n / k)
+        for i in range(0, n, step):
+            out.append(st[i: i + step + 1])
+    return out
+
+
+def _unit_strokes(g: str) -> List[List[Pt]]:
+    if "#" in g:  # a fragment: "<glyph>#<k>" is piece k of that glyph
+        base, _, k = g.partition("#")
+        return [pieces(base)[int(k)]]
+    return GLYPHS[g]
+
+
 def canonical(g: str) -> str:
+    if "#" in g:
+        base, _, k = g.partition("#")
+        base = canonical(base)
+        if not k.isdigit() or int(k) >= len(pieces(base)):
+            raise ValueError(f"glyph fragment {g!r}: {base!r} has {len(pieces(base))} pieces")
+        return f"{base}#{int(k)}"
     g = ALIASES.get(g, g)
     if g not in GLYPHS:
         raise ValueError(f"unknown glyph {g!r}; available: {' '.join(sorted(GLYPHS))}")
@@ -61,13 +90,44 @@ def canonical(g: str) -> str:
 def strokes(glyph: str, size: Sequence[float]) -> List[List[Pt]]:
     """The glyph's strokes in the body's local frame, scaled to `size` (width, height)."""
     sx, sy = size
-    return [[(u * sx, v * sy) for u, v in st] for st in GLYPHS[canonical(glyph)]]
+    return [[(u * sx, v * sy) for u, v in st] for st in _unit_strokes(canonical(glyph))]
 
 
 def segments(glyph: str, size: Sequence[float]) -> List[Tuple[Pt, Pt]]:
     out = []
     for st in strokes(glyph, size):
         out += list(zip(st, st[1:]))
+    return out
+
+
+def _resample(st: List[Pt], n: int) -> List[Pt]:
+    L = [0.0]
+    for a, b in zip(st, st[1:]):
+        L.append(L[-1] + math.dist(a, b))
+    if L[-1] < 1e-9:
+        return [st[0]] * n
+    out, j = [], 0
+    for i in range(n):
+        d = L[-1] * i / (n - 1)
+        while j < len(st) - 2 and L[j + 1] < d:
+            j += 1
+        u = 0.0 if L[j + 1] - L[j] < 1e-9 else (d - L[j]) / (L[j + 1] - L[j])
+        out.append((st[j][0] + (st[j + 1][0] - st[j][0]) * u, st[j][1] + (st[j + 1][1] - st[j][1]) * u))
+    return out
+
+
+def blend(a: str, b: str, u: float, size: Sequence[float], n: int = 18, shift: Pt = (0.0, 0.0)) -> List[List[Pt]]:
+    """Strokes part way through a morph from glyph a to glyph b (u = 0..1): strokes are paired in order (a glyph with
+    fewer strokes grows the extra ones out of its last stroke's end) and each pair is blended point by point."""
+    sa = strokes(a, size)
+    sb = [[(x + shift[0], y + shift[1]) for x, y in st] for st in strokes(b, size)]  # b where it will be after the swap
+    k = max(len(sa), len(sb))
+    pad = lambda ss: ss + [[ss[-1][-1], ss[-1][-1]]] * (k - len(ss))
+    e = u * u * (3 - 2 * u)
+    out = []
+    for p, q in zip(pad(sa), pad(sb)):
+        P, Q = _resample(p, n), _resample(q, n)
+        out.append([(x0 + (x1 - x0) * e, y0 + (y1 - y0) * e) for (x0, y0), (x1, y1) in zip(P, Q)])
     return out
 
 
