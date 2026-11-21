@@ -23,6 +23,7 @@ TOL = {
     "structure_depth": 6.0, "top_overhang": 10.0, "flip_land": 0.45, "throw_momentum": 0.25,
     "bone_ratio_min": 0.86, "bone_ratio_max": 1.13,  # allows authored squash/stretch and IK stretch (<=8%) only
     "foot_slide": 1.5,  # world units a planted ankle may drift
+    "diagram_err": 0.08,  # relative: a number on screen agrees with its independent re-derivation
     "portal_err": 1.0,  # units (or u/s): a portal transfer agrees with its mapping
     "orb_err": 0.03,  # relative: an orb's velocity change agrees with its spec
     "joint_speed": 3200.0,  # units/s; above this a joint "teleports" (fastest authored motion ~1500)
@@ -55,7 +56,7 @@ class Check:
 # Two acceptance gates. Technical: physics consistency, valid geometry, no unintended clipping, stable replay, correct
 # event outcomes, a valid file. Cinematic: readable silhouettes and framing, camera direction, pacing. A film should
 # pass both; cinematic checks warn rather than fail, because a person decides what reads well.
-CINEMATIC = ("subject_in_frame", "silhouettes_readable", "screen_separation", "composition_", "screen_direction_across_cuts",
+CINEMATIC = ("diagrams_in_frame", "subject_in_frame", "silhouettes_readable", "screen_separation", "composition_", "screen_direction_across_cuts",
              "min_shot_length", "no_roll_during_fast_action", "camera_roll_rate", "camera_roll_follows_gravity_direction")
 
 
@@ -131,7 +132,7 @@ class Inspector:
                    self.check_gravity, self.check_geometry, self.check_camera, self.check_camera_motion, self.check_continuity,
                    self.check_secondary, self.check_exit_conditions, self.check_interactions, self.check_composition,
                    self.check_combat, self.check_acrobatics, self._props_through_bodies, self.check_arcade, self.check_particles,
-                   self.check_breakables, self.check_morphs):
+                   self.check_breakables, self.check_morphs, self.check_diagrams):
             rep.checks.extend(fn())
         rep.checks.extend(self.check_time_fx())
         rep.checks.extend(self.check_beats(video))
@@ -1106,6 +1107,55 @@ class Inspector:
                       "centre-of-mass shift beyond the recorded nudge (units)"),
                 Check("morphs_no_pop", "PASS" if worst_pop <= 6.0 else "FAIL", worst_pop, 6.0,
                       "distance between the drawn blend's end and the new shape at the swap (units)")]
+
+    def check_diagrams(self) -> List[Check]:
+        """Diagram layer (Milestone 5): every number shown is re-derived independently and must agree.
+        - diagrams_truthful: velocity arrows and speed labels vs the velocity of the *rendered* body (central difference
+          of the drawn pelvis or prop centre); distances vs the rendered positions; impulse arrows vs the engine's own
+          orb records. Samples straddling an impulse (orb, portal, landing, break) are skipped: there the velocity jumps.
+        - diagrams_in_frame (cinematic): the annotated point is on screen while the diagram shows."""
+        if not self.rt.scene.diagrams:
+            return []
+        from ..render.diagrams import Diagrams
+        dg = Diagrams(self.rt)
+        kicks = {}
+        for e in self.r.events:
+            if e.type.startswith(("orb_", "portal_")) or e.type in ("impact", "break", "takeoff", "morph", "hit", "throw"):
+                kicks.setdefault(e.character, []).append(e.t)
+        worst, n, where, vis, tot = 0.0, 0, "none", 0, 0
+        h = 1.0 / 48.0
+        for t in self.times[::2]:
+            for p in dg.at(t):
+                d = next(x for x in self.rt.scene.diagrams if x.id == p.src)
+                rid = d.target.partition(":")[2]
+                if p.kind in ("arrow", "text") and p.data.get("event") is None and p.value is not None and d.kind in ("velocity", "label"):
+                    if any(abs(t - k) < 2 * h + 0.02 for k in kicks.get(rid, ())):
+                        continue
+                    a, b = dg.point(d.target, t - h), dg.point(d.target, t + h)
+                    v_ind = math.dist(a, b) / (2 * h)
+                    # 15 u/s of authored acting (a settle, a weight shift) moves the drawn root over a still body
+                    err = max(0.0, abs(p.value - v_ind) - 15.0) / (abs(v_ind) + 40.0)
+                elif p.kind == "dim":
+                    err = abs(p.value - math.dist(dg.point(d.target, t), dg.point(d.to, t))) / (p.value + 1.0)
+                elif p.data.get("event", "").startswith("orb_"):
+                    o = next(e for e in self.r.events if e.type == p.data["event"] and e.character == rid and abs(e.t - p.data["t"]) < 1e-9)
+                    rec_after = next(r for r in self.r.controllers[rid].records if r.t >= o.t + 1.0 / 240.0 - 1e-9)
+                    g = self.r.gravity.at(o.t)
+                    dv = (rec_after.vel[0] - g[0] / 240.0 - o.data["v_before"][0], rec_after.vel[1] - g[1] / 240.0 - o.data["v_before"][1])
+                    err = abs(p.value - math.hypot(*dv)) / (math.hypot(*dv) + 1.0)
+                else:
+                    continue
+                n += 1
+                if err > worst:
+                    worst, where = err, f"{p.src} at t={t:.2f}s"
+                tot += 1
+                c = self.cam.at(t)
+                x, y = p.pts[-1]
+                vis += abs(x - c.cx) <= c.view_h * self.size[0] / self.size[1] / 2 and abs(y - c.cy) <= c.view_h / 2
+        return [Check("diagrams_truthful", "PASS" if worst <= TOL["diagram_err"] else "FAIL", worst, TOL["diagram_err"],
+                      f"{n} shown values re-derived independently; worst relative disagreement ({where})"),
+                Check("diagrams_in_frame", "PASS" if tot == 0 or vis / tot >= 0.9 else "WARN", vis / max(1, tot), 0.9,
+                      "share of shown annotations whose anchor is on screen")]
 
     def check_particles(self) -> List[Check]:
         """Event particles (Milestone 4): deterministic (two independent builds give identical particles at every

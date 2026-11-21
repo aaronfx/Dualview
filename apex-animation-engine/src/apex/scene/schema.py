@@ -545,6 +545,39 @@ class TimeFxSpec(Strict):
     punch_in: bool = True  # camera punch-in on heavy blows and a slow push-in during slow motion
 
 
+class DiagramSpec(Strict):
+    """An annotation drawn over the picture from simulation data (Milestone 5), never a hand-written number:
+    `velocity`: an arrow showing a body's velocity (length = speed x `scale`), with its speed;
+    `trajectory`: the path a body takes over the diagram's time, drawn as it is travelled;
+    `label`: text that follows a body; `{speed}`, `{height}`, `{mass}`, `{name}` are filled from the simulation;
+    `measure`: a dimension line between `target` and `to` with the distance;
+    `impulse`: at each orb hit or break of `target`, an arrow of the velocity change (orb) or the blow (break).
+    It shows from `t0` to `t1` (story time), or from the event `on` for `duration` seconds."""
+    id: str
+    kind: Literal["velocity", "trajectory", "label", "measure", "impulse"]
+    target: str
+    to: Optional[str] = None
+    t0: Optional[float] = Field(None, ge=0)
+    t1: Optional[float] = Field(None, ge=0)
+    on: Optional[str] = None
+    duration: float = Field(1.5, gt=0, le=30)
+    text: Optional[str] = None
+    scale: float = Field(0.15, gt=0, le=2)
+    unit: str = "u"
+    color: Optional[str] = None
+
+    @model_validator(mode="after")
+    def _when(self) -> "DiagramSpec":
+        if (self.t0 is None) == (self.on is None):
+            raise ValueError(f"diagram {self.id}: give either t0 (and t1) or on")
+        if self.kind == "measure" and not self.to:
+            raise ValueError(f"diagram {self.id}: a measure needs 'to'")
+        for ref in (self.target, self.to):
+            if ref is not None and ref.partition(":")[0] not in ("char", "prop", "point"):
+                raise ValueError(f"diagram {self.id}: targets are 'char:<id>', 'prop:<id>' or 'point:x,y'")
+        return self
+
+
 class MusicSpec(Strict):
     """A beat grid in film time (what the audience hears), Milestone 4. Beat k is at `offset + k * 60 / bpm` s.
     `snap_cuts`: each shot boundary within `snap_window` beats of a beat moves onto it. `wait_beat` actions end on
@@ -570,6 +603,7 @@ class SceneSpec(Strict):
     goals: List[str] = Field(default_factory=list)
     time_fx: Optional[TimeFxSpec] = None  # hit-stop, slow motion, smears and screen effects (Milestone 3)
     music: Optional[MusicSpec] = None  # beat grid: cut snapping, beat waits, beat-locked soundtrack (Milestone 4)
+    diagrams: List[DiagramSpec] = Field(default_factory=list)  # annotations from simulation data (Milestone 5)
 
     @model_validator(mode="after")
     def _shots(self) -> "SceneSpec":

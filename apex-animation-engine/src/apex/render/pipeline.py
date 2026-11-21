@@ -368,6 +368,8 @@ def render_scene(project: ProjectSpec, scene_id: str, out_path: str, samples: in
     fx = warp_effects(_effects_from_events(res.events, switches, rt.env) + strike_swooshes(res), warp)
     from .particles import Particles
     parts = Particles(res.events, rt.env, project.seed)
+    from .diagrams import Diagrams
+    dgm = Diagrams(rt) if rt.scene.diagrams else None
     os.makedirs(os.path.dirname(os.path.abspath(out_path)) or ".", exist_ok=True)
     wav = os.path.splitext(out_path)[0] + ".wav"
     sd = SoundDirector(project.seed, {c.on_event: c.sound for sh in scene.shots for c in sh.sound_cues})
@@ -393,7 +395,7 @@ def render_scene(project: ProjectSpec, scene_id: str, out_path: str, samples: in
             if samples <= 1:
                 frame = renderer.render(rt.evaluate(t), film_camera(cam.at(t), warp, tf, tfx), red_flash(res.events, t), fx, fade,
                                         motion_trails(res, t), fx_t=tf if not warp.is_identity() else None, smears=smears,
-                                        prop_ghosts=ghosts, screen=scr, particles=parts.at(t))
+                                        prop_ghosts=ghosts, screen=scr, particles=parts.at(t), diagrams=dgm.at(t) if dgm else None)
             else:
                 acc = None
                 sh = cam.shot_at(t)
@@ -405,7 +407,8 @@ def render_scene(project: ProjectSpec, scene_id: str, out_path: str, samples: in
                     f = renderer.render(rt.evaluate(ts), film_camera(cam.at(ts), warp, tfk, tfx), red_flash(res.events, ts), fx, fade,
                                         motion_trails(res, ts) if k == samples // 2 else None, fx_t=tfk if not warp.is_identity() else None,
                                         smears=smears if k == samples // 2 else None, prop_ghosts=ghosts if k == samples // 2 else None,
-                                        screen=screen_effects(warp, tfk, tfx), particles=parts.at(ts)).astype(np.float32)
+                                        screen=screen_effects(warp, tfk, tfx), particles=parts.at(ts),
+                                        diagrams=dgm.at(ts) if dgm else None).astype(np.float32)
                     acc = f if acc is None else acc + f
                 frame = (acc / samples).astype(np.uint8)
             if hold is not None and tfx is not None and tfx.screen_fx and hold[0].kind != "block_hit":

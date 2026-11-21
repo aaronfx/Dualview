@@ -396,8 +396,19 @@ class Animator(InteractionAnimMixin, CombatAnimMixin, AcroAnimMixin):
             bl = BLEND_IN.get(seg.kind, 0.15)
             u = (t - seg.t0) / bl
             if u < 1:
-                prev = self._eval(self.segments[i - 1], t)
-                pose = blend_poses(prev, pose, smoothstep(0, 1, u))
+                pseg = self.segments[i - 1]
+                prev = self._eval(pseg, t)
+                root, ang = pose.root, pose.body_angle
+                w = smoothstep(0, 1, u)
+                pose = blend_poses(prev, pose, w)
+                if seg.kind == "airborne" and pseg.kind == "airborne":
+                    # one flight carrying on (an orb's mid-air jump): the limbs blend, the body stays where the physics has it
+                    pose.root, pose.body_angle = root, ang
+                elif "airborne" in (pseg.kind, seg.kind) and pseg.kind not in FREE + LYING and seg.kind not in FREE + LYING:
+                    # into or out of a flight the physics keeps moving the body while the previous pose stops at its end:
+                    # blend away the offset the two had at the boundary instead of a frozen position (no lag, no catch-up)
+                    p_end, n_end = self._eval(pseg, seg.t0).root, self._eval(seg, seg.t0).root
+                    pose.root = (root[0] + (1 - w) * (p_end[0] - n_end[0]), root[1] + (1 - w) * (p_end[1] - n_end[1]))
                 if seg.kind == "swing":  # the grip is a hard constraint: re-solve the arms after blending
                     for side in "nf":
                         self.rig.arm_ik(pose, side, seg.data["anchor"])

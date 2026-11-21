@@ -93,7 +93,7 @@ class SkiaRenderer:
     def render(self, fs: FrameState, cam: CameraState, red_flash: float = 0.0, fx: Optional[List[dict]] = None, fade: float = 0.0,
                trails: Optional[Dict[str, List[Tuple[Pose, float]]]] = None, fx_t: Optional[float] = None,
                smears: Optional[Dict[str, Pose]] = None, prop_ghosts: Optional[Dict[str, List[Tuple[float, float, float, float]]]] = None,
-               screen: Optional[Dict[str, float]] = None, particles=None) -> np.ndarray:
+               screen: Optional[Dict[str, float]] = None, particles=None, diagrams=None) -> np.ndarray:
         """`fx_t`: the clock effects run on (film time: they keep animating through a hit-stop). `smears`: each character's
         pose a moment earlier (fast limbs leave a smear). `prop_ghosts`: earlier poses of fast props. `screen`: full-screen
         effects (flash, speed lines, vignette pulse)."""
@@ -160,6 +160,8 @@ class SkiaRenderer:
         if particles:
             self._particles(c, particles)
         self._obstacles(c, back=False)
+        if diagrams:
+            self._diagrams(c, diagrams)
         self._dust(c, fs, front=True)
         self._cutaway(c, red_flash, fs)
         c.restore()
@@ -255,6 +257,62 @@ class SkiaRenderer:
             a0 = self.P(p.center[0] + nx * 10.0, p.center[1] + ny * 10.0)
             a1 = self.P(p.center[0] + nx * 26.0, p.center[1] + ny * 26.0)
             c.drawLine(a0[0], a0[1], a1[0], a1[1], skia.Paint(AntiAlias=True, Color=col(rgb, 0.6), StrokeWidth=max(1.0, 2.0 * k)))
+
+    def _diagrams(self, c: skia.Canvas, prims) -> None:
+        """The diagram layer: arrows, paths, labels and dimension lines in world space (crisp, on top of the action)."""
+        sc = self.H / 720.0
+        font = getattr(self, "_dfont", None)
+        if font is None:
+            font = self._dfont = skia.Font(skia.Typeface("DejaVu Sans"), 15 * sc)
+
+        def label(x, y, txt, rgb, a):
+            w = font.measureText(txt)
+            pad = 4 * sc
+            c.drawRoundRect(skia.Rect(x - w / 2 - pad, y - 13 * sc, x + w / 2 + pad, y + 5 * sc), 4 * sc, 4 * sc,
+                            skia.Paint(AntiAlias=True, Color=col((8, 10, 16), 0.72 * a)))
+            c.drawString(txt, x - w / 2, y, font, skia.Paint(AntiAlias=True, Color=col(rgb, a)))
+
+        for p in prims:
+            a, rgb = p.alpha, p.rgb
+            if a <= 0.01:
+                continue
+            stroke = skia.Paint(AntiAlias=True, Color=col(rgb, 0.95 * a), Style=skia.Paint.kStroke_Style, StrokeWidth=2.6 * sc,
+                                StrokeCap=skia.Paint.kRound_Cap)
+            if p.kind == "arrow":
+                (x0, y0, _), (x1, y1, _) = self.P(*p.pts[0]), self.P(*p.pts[1])
+                L = math.hypot(x1 - x0, y1 - y0)
+                c.drawLine(x0, y0, x1, y1, stroke)
+                if L > 4:
+                    ux, uy = (x1 - x0) / L, (y1 - y0) / L
+                    h = min(14 * sc, 0.4 * L)
+                    path = skia.Path()
+                    path.moveTo(x1, y1)
+                    path.lineTo(x1 - ux * h - uy * h * 0.5, y1 - uy * h + ux * h * 0.5)
+                    path.lineTo(x1 - ux * h + uy * h * 0.5, y1 - uy * h - ux * h * 0.5)
+                    path.close()
+                    c.drawPath(path, skia.Paint(AntiAlias=True, Color=col(rgb, 0.95 * a)))
+                if p.text:
+                    label(x1 + (x1 - x0) / max(L, 1) * 18 * sc, y1 + (y1 - y0) / max(L, 1) * 18 * sc - 4 * sc, p.text, rgb, a)
+            elif p.kind == "path":
+                if len(p.pts) > 1:
+                    path = skia.Path()
+                    for i, q in enumerate(p.pts):
+                        x, y, _ = self.P(*q)
+                        (path.lineTo if i else path.moveTo)(x, y)
+                    dash = skia.Paint(AntiAlias=True, Color=col(rgb, 0.8 * a), Style=skia.Paint.kStroke_Style, StrokeWidth=2.2 * sc,
+                                      PathEffect=skia.DashPathEffect.Make([7 * sc, 6 * sc], 0))
+                    c.drawPath(path, dash)
+            elif p.kind == "text":
+                x, y, _ = self.P(*p.pts[0])
+                label(x, y, p.text, rgb, a)
+            elif p.kind == "dim":
+                (x0, y0, _), (x1, y1, _) = self.P(*p.pts[0]), self.P(*p.pts[1])
+                L = math.hypot(x1 - x0, y1 - y0) or 1.0
+                nx, ny = -(y1 - y0) / L * 7 * sc, (x1 - x0) / L * 7 * sc
+                c.drawLine(x0, y0, x1, y1, stroke)
+                for (x, y) in ((x0, y0), (x1, y1)):
+                    c.drawLine(x - nx, y - ny, x + nx, y + ny, stroke)
+                label((x0 + x1) / 2 + nx * 2.2, (y0 + y1) / 2 + ny * 2.2, p.text, rgb, a)
 
     def _particles(self, c: skia.Canvas, parts) -> None:
         for (x, y, r, a, rgb) in parts:
