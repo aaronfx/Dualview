@@ -176,6 +176,9 @@ class CharacterController(InteractionMixin):
             self._check_pinned(t)
         st = self.world.state(self.cid)
         if self.mode == "falling" and self.inter.get("active_fall"):
+            ragdoll = getattr(self, "_ragdoll", None)
+            if ragdoll is not None:
+                ragdoll.record(t)
             # Active falling uses actual simulated body position and orientation.
             self.s, self.h = self.frame.to_frame(st.pos)
             self.body_tilt = clamp(self.facing * wrap_angle(self.frame.body_angle - st.angle), 0.0, math.pi / 2)
