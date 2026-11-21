@@ -96,6 +96,7 @@ class PhysicsWorld:
         shape.friction, shape.elasticity, shape.collision_type = 0.9, 0.0, CT_CHARACTER
         shape.filter = pymunk.ShapeFilter(categories=CAT_CHAR, mask=ALL ^ CAT_PROP)  # standing bodies pass props by
         self._shapes[tag] = shape
+        self._mass_moment[tag] = (mass, moment)
         self.space.add(body, shape)
         self._tags[shape] = tag
         self._bodies[tag] = body
@@ -261,6 +262,15 @@ class PhysicsWorld:
 
     def set_angular_velocity(self, tag: str, w: float) -> None:
         self._bodies[tag].angular_velocity = w
+
+    def apply_torque(self, tag: str, torque: float) -> None:
+        """Apply a bounded active-muscle torque to a dynamic body for the next step."""
+        body = self._bodies[tag]
+        if body.body_type != pymunk.Body.DYNAMIC:
+            raise ValueError(f"{tag}: torque requires a dynamic body")
+        if not math.isfinite(torque):
+            raise ValueError(f"{tag}: torque must be finite")
+        body.torque += torque
 
     # ------------------------------------------------------------ queries
     def raycast(self, a: Vec, b: Vec, radius: float = 0.0, statics_only: bool = True) -> Optional[RayHit]:

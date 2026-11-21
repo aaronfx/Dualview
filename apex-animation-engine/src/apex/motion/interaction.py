@@ -273,35 +273,90 @@ class InteractionMixin:
             self.emit(self._ev(t, "push_fail", {"prop": pid}))
             self._next_action(t)
 
-    # -- falling forward to prone (kinematic, so falling bodies and props collide with it)
+    # -- fall to prone: opt-in active-body physics (legacy motion kept for comparison)
     def _fall_prone(self, t: float, d: float, v0: float) -> None:
-        self.inter = {"t0": t, "phase": "fall", "s0": self.s, "dir": d, "v0": v0}
-        self.cur = ActionSpec(type="idle", character=self.cid, note="falling")  # the push action is over
+        import os
+        active = os.getenv("APEX_EXPERIMENTAL_ACTIVE_FALL", "0").strip().lower() in ("1", "yes", "true")
+        self.inter = {"t0": t, "phase": "fall", "s0": self.s, "dir": d, "v0": v0,
+                      "active_fall": active, "floor_touch": False, "impact_speed": 0.0}
+        self.cur = ActionSpec(type="idle", character=self.cid, note="falling")
         self.cur_t0 = t
         self.mode = "falling"
-        self.world.set_solid_to_props(self.cid, True)  # a falling / lying body is something props can land on
-        self._open("fall", t, dir=d, s0=self.s)
+        self.world.set_solid_to_props(self.cid, True)
+        if active:
+            tangent = self.frame.tangent
+            # Use the existing capsule's preserved mass and moment; unlike the
+            # previous kinematic path, the body is now simulated by Chipmunk.
+            self.world.make_dynamic(
+                self.cid,
+                vel=(d * v0 * 0.44 * tangent[0], d * v0 * 0.44 * tangent[1]),
+                angvel=-self.facing * 1.5,
+            )
+        self._open("fall", t, dir=d, s0=self.s, active_fall=active)
+
+    def _complete_fall(self, t: float, normal_speed: float) -> None:
+        # Hand control back to the existing prone/lever/contact machinery.
+        # Never invent a new pinning event; the prop-body collision still
+        # determines whether this character is trapped.
+        if self.inter.get("active_fall"):
+            st = self.world.state(self.cid)
+            self.s, _ = self.frame.to_frame(st.pos)
+        self.mode = "grounded"
+        self.posture = "prone"
+        self.body_tilt = math.pi / 2
+        self.h = LIE_H
+        self.v = 0.0
+        self.emit(self._ev(t, "body_fall", {"point": self.frame.to_world(self.s, 0.0),
+                                            "normal_speed": max(0.0, normal_speed),
+                                            "simulated": bool(self.inter.get("active_fall")),
+                                            "fallback_settle": bool(self.inter.get("fallback_settle")),
+                                            "floor_contact": bool(self.inter.get("floor_touch"))}))
+        self._open("prone", t)
+        self.cur = None
+        self._place(t)
 
     def _falling(self, t: float, dt: float) -> None:
         I = self.inter
         u = clamp((t - I["t0"]) / FALL_T, 0.0, 1.0)
         d = I["dir"]
-        e = u * u  # gravity: slow start, fast finish
+        if I.get("active_fall"):
+            st = self.world.state(self.cid)
+            s, h = self.frame.to_frame(st.pos)
+            self.s, self.h = s, h
+            elapsed = max(0.0, t - I["t0"])
+            # Active ragdoll phase I: simulated torso capsule and floor contact,
+            # with a soft pose-following motor. Limbs still use the authored rig.
+            # A full jointed ragdoll is a separate engineering milestone.
+            phase = clamp(u / 0.78, 0.0, 1.0)
+            target_progress = phase * phase * (3.0 - 2.0 * phase)
+            goal_angle = self.frame.body_angle - self.facing * (math.pi / 2) * target_progress
+            error = math.atan2(math.sin(goal_angle - st.angle), math.cos(goal_angle - st.angle))
+            torque = self.moment * clamp(185.0 * error - 21.0 * st.angvel, -260.0, 260.0)
+            self.world.apply_torque(self.cid, torque)
+            # Muscular momentum after a failed push drives the root toward its
+            # intended prone position; the actual floor and props still collide.
+            target_s = I["s0"] + d * (I["v0"] * 0.12 * u + 0.95 * self.stand_h * target_progress)
+            tangent = self.frame.tangent
+            speed_s = st.vel[0] * tangent[0] + st.vel[1] * tangent[1]
+            drive = clamp(230.0 * (target_s - s) - 30.0 * speed_s, -6500.0, 6500.0) * 70.0
+            self.world.apply_force(self.cid, (tangent[0] * drive, tangent[1] * drive), st.pos)
+            final_angle = self.frame.body_angle - self.facing * math.pi / 2
+            remain = abs(math.atan2(math.sin(final_angle - st.angle), math.cos(final_angle - st.angle)))
+            contacted = bool(I.get("floor_touch")) and h <= LIE_H + 16.0
+            if (elapsed >= 0.43 and contacted and remain < 0.17) or elapsed >= 1.02:
+                I["fallback_settle"] = not contacted or remain >= 0.17
+                self._complete_fall(t, I.get("impact_speed") or abs(st.vel[1]))
+            return
+
+        # Proven legacy fall remains available as a deterministic comparison.
+        e = u * u
         self.body_tilt = (math.pi / 2) * e
         lean_len = self.stand_h
         self.s = I["s0"] + d * (I["v0"] * 0.12 * u + 0.55 * lean_len * math.sin(self.body_tilt))
         self.h = max(LIE_H, self.stand_h * math.cos(self.body_tilt) + LIE_H * e)
         self._place(t)
         if u >= 1.0:
-            self.mode = "grounded"
-            self.posture = "prone"
-            self.body_tilt = math.pi / 2
-            self.h = LIE_H
-            self.v = 0.0
-            self.emit(self._ev(t, "body_fall", {"point": self.frame.to_world(self.s, 0.0), "normal_speed": 520.0}))
-            self._open("prone", t)
-            self.cur = None
-            self._place(t)
+            self._complete_fall(t, 520.0)
 
     # -- pinned detection (after each physics step while prone)
     def _check_pinned(self, t: float) -> None:
