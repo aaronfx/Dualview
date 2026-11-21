@@ -35,7 +35,7 @@ PRICES_PATH = Path(__file__).with_name("model_prices.json")
 # Low-cost models usable without explicit approval (output price at most ~$0.50 per million tokens).
 LOW_COST_MODELS = ("anthropic/claude-haiku-5.5", "deepseek/deepseek-v4.1-flash", "qwen/qwen3.8-flash", "openai/gpt-5-nano")
 DEFAULT_MODEL = "anthropic/claude-haiku-5.5"
-CHARS_PER_TOKEN = 3.2  # conservative (over-estimates tokens for JSON-heavy prompts)
+CHARS_PER_TOKEN = 2.4  # conservative for JSON-heavy prompts (measured: 6039 real tokens for ~14.5k chars)
 
 
 class BudgetError(RuntimeError):
@@ -55,6 +55,7 @@ class BudgetPolicy:
     approved_models: tuple = ()
     max_calls: int = 3
     max_output_tokens: int = 6000
+    reasoning_tokens: int = 0  # hidden reasoning budget requested from the provider (0 = reasoning off)
     experiment_budget_usd: float = 0.10
     total_budget_usd: float = 1.00
     ledger_path: str = "apex_data/ai_ledger.jsonl"
@@ -65,6 +66,7 @@ class BudgetPolicy:
                    approved_models=tuple(m.strip() for m in os.environ.get("APEX_AI_APPROVED_MODELS", "").split(",") if m.strip()),
                    max_calls=int(_env_float("APEX_AI_MAX_CALLS", 3)),
                    max_output_tokens=int(_env_float("APEX_AI_MAX_OUTPUT_TOKENS", 6000)),
+                   reasoning_tokens=int(_env_float("APEX_AI_REASONING_TOKENS", 0)),
                    experiment_budget_usd=_env_float("APEX_AI_EXPERIMENT_BUDGET_USD", 0.10),
                    total_budget_usd=_env_float("APEX_AI_TOTAL_BUDGET_USD", 1.00),
                    ledger_path=os.environ.get("APEX_AI_LEDGER", "apex_data/ai_ledger.jsonl"))
@@ -165,7 +167,9 @@ class Experiment:
         else:  # no usage at all: charge the conservative estimate, never zero
             tin, tout = tokens_of(system) + tokens_of(user), tokens_of(reply)
             actual, source = self.cost(tin, tout), "estimated from text length (no usage report)"
+        details = usage.get("completion_tokens_details") or {}
         self.calls.append(dict(self._pending, n=len(self.calls) + 1, model=model_used, input_tokens=tin, output_tokens=tout,
+                               reasoning_tokens=details.get("reasoning_tokens"), visible_chars=len(reply or ""),
                                actual_usd=round(actual, 6), actual_source=source))
 
     def record(self, status: str, note: str = "") -> Dict[str, Any]:
@@ -200,6 +204,8 @@ class BudgetedProvider:
         if self.inner.model != self.experiment.model:  # no escalation, ever
             raise BudgetError(f"model changed from {self.experiment.model!r} to {self.inner.model!r} mid-experiment")
         cap = self.experiment.before_call(system, user, max_tokens)
+        if hasattr(self.inner, "reasoning_tokens"):  # hidden reasoning is billed as output: keep it off unless asked for
+            self.inner.reasoning_tokens = self.experiment.policy.reasoning_tokens
         reply = self.inner.complete(system, user, max_tokens=cap)
         self.experiment.after_call(getattr(self.inner, "last_usage", None), system, user, reply or "", self.inner.model)
         return reply

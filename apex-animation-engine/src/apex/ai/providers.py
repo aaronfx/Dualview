@@ -38,6 +38,7 @@ class OpenAICompatibleProvider:
         self.base_url, self.api_key, self.model, self.name, self.timeout = base_url.rstrip("/"), api_key, model, name, timeout
         self.client = client
         self.last_usage: Optional[Dict[str, Any]] = None
+        self.reasoning_tokens: Optional[int] = None  # set by BudgetedProvider; 0 = ask the provider not to reason
 
     def complete(self, system: str, user: str, max_tokens: int = 8000) -> str:
         body = {"model": self.model, "max_tokens": max_tokens, "temperature": 0.2,
@@ -45,6 +46,9 @@ class OpenAICompatibleProvider:
                 "response_format": {"type": "json_object"}}
         if self.name == "openrouter":
             body["usage"] = {"include": True}  # OpenRouter reports the actual charged cost per request
+            if self.reasoning_tokens is not None:  # hidden reasoning is billed as output tokens
+                body["reasoning"] = ({"enabled": False} if self.reasoning_tokens <= 0
+                                     else {"max_tokens": int(self.reasoning_tokens), "exclude": True})
         headers = {"Authorization": f"Bearer {self.api_key}", "X-Title": "APEX Animation Engine"}
         post = self.client.post if self.client is not None else httpx.post
         r = post(f"{self.base_url}/chat/completions", json=body, timeout=self.timeout, headers=headers)

@@ -124,3 +124,24 @@ def test_director_stops_on_budget_and_ledgers_the_experiment(tmp_path):
         d.plan("a story")
     assert len(d.log) == 2 and d.cost_record["status"] == "failed" and len(d.cost_record["calls"]) == 2
     assert ledger_total(pol.ledger_path) > 0
+
+
+def test_reasoning_is_off_by_default_and_reasoning_tokens_are_recorded(tmp_path):
+    sent = []
+
+    def handler(request):
+        sent.append(json.loads(request.content))
+        return httpx.Response(200, json={"choices": [{"message": {"content": "{}"}}],
+                                         "usage": {"prompt_tokens": 10, "completion_tokens": 600, "cost": 0.0003,
+                                                   "completion_tokens_details": {"reasoning_tokens": 590}}})
+    inner = OpenAICompatibleProvider("https://mock.invalid/api/v1", "dummy", CHEAP, "openrouter", client=httpx.Client(transport=httpx.MockTransport(handler)))
+    exp = Experiment(model=CHEAP, reason="reasoning", policy=_policy(tmp_path))
+    BudgetedProvider(inner, exp).complete("s", "u", max_tokens=2000)
+    assert sent[0]["reasoning"] == {"enabled": False}
+    assert exp.finish("done")["calls"][0]["reasoning_tokens"] == 590
+
+
+def test_unknown_proportion_keys_are_a_schema_error_not_a_crash():
+    from apex.scene.schema import CharacterSpec
+    with pytest.raises(ValueError, match="unknown proportions"):
+        CharacterSpec(id="a", name="A", proportions={"height": 175})

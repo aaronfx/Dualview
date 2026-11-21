@@ -39,6 +39,20 @@ class CharacterSpec(Strict):
     style: CharacterStyle = Field(default_factory=CharacterStyle)
     strength: float = Field(45000.0, gt=0)  # max sustained hand force (push / lift / lever), in physics force units
 
+    @field_validator("proportions")
+    @classmethod
+    def _props(cls, v: Dict[str, float]) -> Dict[str, float]:
+        import dataclasses
+        from ..rig.stickman import Proportions
+        known = {f.name for f in dataclasses.fields(Proportions)}
+        bad = sorted(set(v) - known)
+        if bad:
+            raise ValueError(f"unknown proportions {bad}; allowed: {sorted(known)} (segment lengths, a character is ~175 tall)")
+        for k, x in v.items():
+            if not 1.0 <= float(x) <= 120.0:
+                raise ValueError(f"proportions.{k}={x} is outside 1-120 (a segment length)")
+        return v
+
 
 # ---------------------------------------------------------------- environment
 class RoomSpec(Strict):

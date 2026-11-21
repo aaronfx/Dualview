@@ -43,4 +43,17 @@ From now on, every paid experiment is listed here from its ledger record, with i
 
 | Date | Experiment | Model | Reason | Estimated (upper bound) | Actual | Outcome |
 |---|---|---|---|---|---|---|
-| — | — | — | Paid testing is paused until the owner re-enables it | — | — | — |
+| 2026-11-21 | `20261121T075057Z-198e22` (`docs/ai_runs/rescue_solver_v6_haiku/`) | anthropic/claude-haiku-5.5 | Owner-approved test of the new workflow on *The Rescue*: story goals, setup solver, patch repairs | $0.0123 before the run (upper bound), $0.0100 summed per call | **$0.0069** (provider usage report) | **Failed** after 3 calls. See the findings below |
+
+**Findings from `rescue_solver_v6_haiku`** (all three fixed afterwards, offline):
+
+1. **Hidden reasoning used up the output budget.** Attempt 1 was billed 6,000 output tokens but returned 136 visible characters, a stub with only one character. This also explains why past visible-text estimates (~$1.00) undercounted the account total ($3.36).
+   - **Fix:** APEX now asks OpenRouter to turn reasoning off (`APEX_AI_REASONING_TOKENS`, default 0).
+   - The ledger records `reasoning_tokens` and the number of visible characters.
+   - The director flags any call billed for much more output than it returned.
+2. **Proportion keys were not validated.** Attempt 3's `proportions: {"height": 175}` passed the schema and crashed the runtime.
+   - **Fix:** proportions are now checked against the rig's segment names and ranges, so the model gets a clear schema error it can repair.
+3. **Input tokens were underestimated.** Estimated 4,518, actual 6,039. The worst-case cap still held because the output cap dominates.
+   - **Fix:** the estimator now uses 2.4 characters per token.
+
+The patch repairs worked as designed. Attempts 2 and 3 were patches of 3.4k and 0.5k characters, much shorter than full rewrites. The setup solver was never reached, because no attempt passed schema validation.

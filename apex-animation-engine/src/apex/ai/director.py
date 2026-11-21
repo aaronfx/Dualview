@@ -171,6 +171,10 @@ class StoryDirector:
                     note = f"stopped by the spending policy: {e}"
                     raise PlanningError(note) from e
                 entry = {"attempt": attempt + 1, "raw_response": raw, "fed_back_error": errors[-1] if errors else None}
+                usage = getattr(getattr(self.provider, "inner", None), "last_usage", None) or {}
+                if usage.get("completion_tokens") and len(raw) < 0.5 * usage["completion_tokens"]:
+                    entry["warning"] = (f"billed {usage['completion_tokens']} output tokens for {len(raw)} visible characters "
+                                        "(hidden reasoning or truncation)")
                 self.log.append(entry)
                 try:
                     data = self._parse_json(raw, prev)
