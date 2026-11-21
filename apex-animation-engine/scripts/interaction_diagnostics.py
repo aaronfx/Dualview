@@ -53,7 +53,8 @@ def collect(path: str):
             elif seg.kind == "lift" and 0.5 < t - seg.t0 < seg.data.get("dur", 2.4) - 0.45:  # while gripping
                 g = an._prop_world(seg.data["prop"], float(t), seg.data["grip_local"])
                 err = min(math.dist(j["wrist_n"], g), math.dist(j["wrist_f"], g), math.dist(j["hand_n"], g))
-            elif seg.kind == "strike" and abs(float(t) - (seg.t0 + seg.data["t_c"])) <= 0.05:  # around contact
+            elif seg.kind == "strike" and abs(float(t) - (seg.t0 + seg.data["t_c"])) <= 0.05 and any(  # around a real contact
+                    e.type in ("hit", "blocked") and e.character == cid and seg.t0 <= e.t <= seg.t1 for e in r.events):
                 limb = seg.data["limb"]
                 joint = ("hand_" if limb.startswith("hand") else "ankle_") + limb[-1]
                 tp = an._target_point(seg.data["other"], float(t), seg.data["height"], seg.facing)
