@@ -1,8 +1,10 @@
-"""Experimental articulated character fall; no changes to the default APEX simulation.
+"""Experimental jointed fall limb simulation with a decoupled physics space.
 
-Each segment is an independent dynamic Chipmunk body connected by a pivot,
-rotation limits and a damped spring.  Samples are stored for deterministic
-render-time pose reconstruction; the renderer never resimulates physics.
+The story's authoritative torso and all props stay in PhysicsWorld.  A
+kinematic proxy mirrors the torso in this auxiliary Pymunk space; dynamic
+head/arm/leg segments respond to gravity, joint limits and floor contact.
+This prevents limb impacts from changing pinned/load/lever story events.
+This is an opt-in prototype, not a bidirectionally coupled final ragdoll.
 """
 from __future__ import annotations
 
@@ -12,29 +14,40 @@ from typing import Dict, List
 import pymunk
 
 from ..rig.stickman import Pose, StickmanRig, base_pose
-from .world import ALL, CAT_CHAR, CT_CHARACTER, PhysicsWorld
+from .world import PhysicsWorld
 
 
 class ArticulatedFall:
-    """Temporary falling-body rig attached to an existing dynamic character torso.
-
-    Not used unless APEX_EXPERIMENTAL_JOINTED_FALL=1.  The original
-    character and its state machine remain authoritative.
-    """
+    """Temporary articulated overlay for an already dynamic character torso."""
 
     def __init__(self, world: PhysicsWorld, tag: str, rig: StickmanRig, facing: float):
         self.world, self.tag, self.rig, self.facing = world, tag, rig, facing
-        self.space = world.space
+        self.space = pymunk.Space()
+        self.space.iterations = 25
+        self.space.gravity = world.space.gravity
         self.parts: Dict[str, pymunk.Body] = {}
         self.shapes: List[pymunk.Shape] = []
         self.constraints: List[pymunk.Constraint] = []
         self.samples: list[dict] = []
-        self.original_filter = world._shapes[tag].filter
+        self.last_t: float | None = None
+
+        # Copy only real static surfaces; changes to the interactive prop
+        # contacts must not leak from the overlay into the authoritative scene.
+        for _, a, b, radius in world.static_segments():
+            shape = pymunk.Segment(self.space.static_body, a, b, radius)
+            shape.friction = 0.95
+            self.space.add(shape)
+
         state = world.state(tag)
+        self.proxy = pymunk.Body(body_type=pymunk.Body.KINEMATIC)
+        self.proxy.position = state.pos
+        self.proxy.angle = state.angle
+        self.proxy.velocity = state.vel
+        self.proxy.angular_velocity = state.angvel
+        self.space.add(self.proxy)
         pose = Pose(root=state.pos, body_angle=state.angle, facing=facing, local=base_pose())
         joints = rig.world_joints(pose)
 
-        # Named anatomical endpoint pairs and approximate masses (total < 70).
         specs = [
             ("head", "torso", "neck_top", "head_top", 5.0, 7.0, 0.7),
             ("upper_arm_n", "torso", "shoulder_n", "elbow_n", 2.5, 3.7, 1.8),
@@ -46,22 +59,8 @@ class ArticulatedFall:
             ("thigh_f", "torso", "hip_f", "knee_f", 6.0, 4.6, 1.5),
             ("shin_f", "thigh_f", "knee_f", "ankle_f", 4.0, 3.8, 1.8),
         ]
-
-        old_mass, old_moment = world._mass_moment[tag]
-        limb_mass = sum(item[5 - 1] for item in specs)
-        if limb_mass >= old_mass:
-            raise ValueError("ragdoll limb mass must be less than body mass")
-        torso = world._bodies[tag]
-        if torso.body_type != pymunk.Body.DYNAMIC:
-            raise ValueError("ragdoll requires a simulated dynamic torso")
-        torso.mass = old_mass - limb_mass
-        torso.moment = old_moment * (torso.mass / old_mass)
-
-        # Group suppresses intra-character collision while allowing floor and
-        # heavy-prop contact. Distinct group per character avoids cross-talk.
         group = 20000 + sum((i + 1) * ord(ch) for i, ch in enumerate(tag))
-        world.set_group([tag], group)
-        parents: Dict[str, pymunk.Body] = {"torso": torso}
+        parents: Dict[str, pymunk.Body] = {"torso": self.proxy}
         for name, parent_name, start, end, mass, radius, freedom in specs:
             a, b = joints[start], joints[end]
             dx, dy = b[0] - a[0], b[1] - a[1]
@@ -78,14 +77,12 @@ class ArticulatedFall:
             shape = pymunk.Segment(part, (-length / 2.0, 0), (length / 2.0, 0), radius)
             shape.friction = 0.9
             shape.elasticity = 0.0
-            shape.collision_type = CT_CHARACTER
-            shape.filter = pymunk.ShapeFilter(group=group, categories=CAT_CHAR, mask=ALL)
+            shape.filter = pymunk.ShapeFilter(group=group)
             self.space.add(part, shape)
             self.parts[name] = part
             self.shapes.append(shape)
-            world._tags[shape] = f"{tag}:ragdoll:{name}"
+
             parent = parents[parent_name]
-            # World-coordinate anchor at a shared anatomical joint.
             pivot = pymunk.PivotJoint(parent, part, a)
             pivot.collide_bodies = False
             delta = math.atan2(math.sin(part.angle - parent.angle), math.cos(part.angle - parent.angle))
@@ -96,17 +93,25 @@ class ArticulatedFall:
             parents[name] = part
 
     def record(self, t: float) -> None:
-        """Save angular motion once per fixed physics step for pure pose evaluation."""
+        """Step the limb-only simulation to fixed t and store playback angles."""
+        torso = self.world.state(self.tag)
+        self.proxy.position = torso.pos
+        self.proxy.angle = torso.angle
+        self.proxy.velocity = torso.vel
+        self.proxy.angular_velocity = torso.angvel
+        self.space.gravity = self.world.space.gravity
+        if self.last_t is not None:
+            dt = t - self.last_t
+            if dt < -1e-9:
+                raise ValueError("ragdoll samples must be recorded in ascending time")
+            if dt > 0:
+                self.space.step(dt)
+        self.last_t = t
         self.samples.append({"t": float(t), "angles": {name: float(body.angle) for name, body in self.parts.items()}})
 
     def cleanup(self) -> None:
-        """Remove temporary limbs when returning to established prone interactions."""
+        """The auxiliary solver can be discarded without touching real props."""
         self.space.remove(*self.constraints)
-        for shape in self.shapes:
-            self.world._tags.pop(shape, None)
         self.space.remove(*self.shapes)
         self.space.remove(*self.parts.values())
-        self.world._shapes[self.tag].filter = self.original_filter
-        mass, moment = self.world._mass_moment[self.tag]
-        torso = self.world._bodies[self.tag]
-        torso.mass, torso.moment = mass, moment
+        self.space.remove(self.proxy)
