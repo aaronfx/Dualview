@@ -91,8 +91,15 @@ class SkiaRenderer:
 
     # ------------------------------------------------------------ main
     def render(self, fs: FrameState, cam: CameraState, red_flash: float = 0.0, fx: Optional[List[dict]] = None, fade: float = 0.0,
-               trails: Optional[Dict[str, List[Tuple[Pose, float]]]] = None) -> np.ndarray:
+               trails: Optional[Dict[str, List[Tuple[Pose, float]]]] = None, fx_t: Optional[float] = None,
+               smears: Optional[Dict[str, Pose]] = None, prop_ghosts: Optional[Dict[str, List[Tuple[float, float, float, float]]]] = None,
+               screen: Optional[Dict[str, float]] = None) -> np.ndarray:
+        """`fx_t`: the clock effects run on (film time: they keep animating through a hit-stop). `smears`: each character's
+        pose a moment earlier (fast limbs leave a smear). `prop_ghosts`: earlier poses of fast props. `screen`: full-screen
+        effects (flash, speed lines, vignette pulse)."""
         self._setup(cam)
+        if getattr(fs, "depth", None):
+            self.depth = dict(fs.depth)  # depth lanes can change over time (e.g. rolling past in front of someone)
         c = self.surface.getCanvas()
         c.clear(col(self.bg))
         c.save()
@@ -123,7 +130,12 @@ class SkiaRenderer:
                 self._reflection(c, cid, pose)
                 self._contact_shadow(c, cid, pose)
         for e in fx or []:
-            self._effect(c, e, fs.t)
+            self._effect(c, e, fs.t if fx_t is None else fx_t)
+        for pid, ghosts in (prop_ghosts or {}).items():
+            pr = next((p for p in fs.props if p.id == pid), None)
+            if pr is not None:
+                for (gx, gy, ga, alpha) in ghosts:
+                    self._prop_ghost(c, pr, gx, gy, ga, alpha)
         # lying bodies in front; otherwise far depth lanes first (painter's order)
         order = sorted(fs.poses.items(), key=lambda kv: (kv[1].state in ("fall", "prone", "crawl", "getup"), -self.depth.get(kv[0], 0.0)))
         for cid, pose in order:
@@ -135,6 +147,8 @@ class SkiaRenderer:
                 c.clipPath(clip, doAntiAlias=True)
             if trails and cid in trails and vis[cid] > 0.99:
                 self._trail(c, cid, pose, trails[cid])
+            if smears and cid in smears and vis[cid] > 0.99:
+                self._smear(c, cid, pose, smears[cid])
             self._character(c, cid, pose, alpha=vis[cid], scarf=fs.scarves.get(cid))
             c.restore()
         for pr in sorted(front, key=lambda p: -p.z):
@@ -144,6 +158,8 @@ class SkiaRenderer:
         self._cutaway(c, red_flash, fs)
         c.restore()
         self._post(c, red_flash)
+        if screen:
+            self._screen_fx(c, screen)
         if fade > 0.0:  # shot fade to black (end of film)
             c.drawRect(skia.Rect(0, 0, self.W, self.H), skia.Paint(Color=col((0, 0, 0), clamp(fade, 0.0, 1.0))))
         img = self.surface.makeImageSnapshot()
@@ -1029,6 +1045,73 @@ class SkiaRenderer:
                 return
             p = self.P(e["x"], e["y"], 0)
             self._glow(c, (p[0], p[1]), (12 + 30 * u) * p[2], (200, 220, 230), 0.25 * (1 - u))
+
+    # ------------------------------------------------------------ Milestone 3: smears and screen effects
+    SMEAR_MIN = 9.0  # world units a limb end must travel in the smear interval before it smears
+
+    def _smear(self, c: skia.Canvas, cid: str, pose: Pose, prev: Pose) -> None:
+        """A tapered smear behind each fast limb segment: the quad between where the bone was a moment ago and where it
+        is now, bright at the leading edge and fading out behind (the classic action-animation smear frame)."""
+        rig = self.rigs[cid]
+        j, jp = rig.world_joints(pose), rig.world_joints(prev)
+        rgb = hex_rgb(self.styles[cid].glow_color)
+        dz = self.depth.get(cid, 0.0)
+        for chain in (("shoulder_n", "elbow_n", "hand_n"), ("shoulder_f", "elbow_f", "hand_f"), ("hip_n", "knee_n", "ankle_n", "toe_n"),
+                      ("hip_f", "knee_f", "ankle_f", "toe_f")):
+            for a, b in zip(chain, chain[1:]):
+                if a not in j or b not in j:
+                    continue
+                move = max(math.dist(j[b], jp[b]), math.dist(j[a], jp[a]))
+                if move < self.SMEAR_MIN:
+                    continue
+                k = min(1.0, (move - self.SMEAR_MIN) / 40.0)
+                pts = [self.P(*j[a], dz), self.P(*j[b], dz), self.P(*jp[b], dz), self.P(*jp[a], dz)]
+                path = skia.Path()
+                path.moveTo(pts[0][0], pts[0][1])
+                for p in pts[1:]:
+                    path.lineTo(p[0], p[1])
+                path.close()
+                mid_now = ((pts[0][0] + pts[1][0]) / 2, (pts[0][1] + pts[1][1]) / 2)
+                mid_old = ((pts[2][0] + pts[3][0]) / 2, (pts[2][1] + pts[3][1]) / 2)
+                sh = skia.GradientShader.MakeLinear([skia.Point(*mid_now), skia.Point(*mid_old)],
+                                                    [col(rgb, 0.55 * k), col(rgb, 0.0)])
+                c.drawPath(path, skia.Paint(AntiAlias=True, Shader=sh))
+
+    def _prop_ghost(self, c: skia.Canvas, pr, x: float, y: float, a: float, alpha: float) -> None:
+        from ..scene import glyphs
+        sp = next((p for p in self.env.props if p.id == pr.id), None)
+        if sp is None or sp.kind != "glyph":
+            return
+        ca, sa = math.cos(a), math.sin(a)
+        strokes = [[(x + u * ca - v * sa, y + u * sa + v * ca) for u, v in st] for st in glyphs.strokes(sp.glyph, sp.size)]
+        path, k = self._glyph_strokes_path(strokes, pr.z)
+        rgb = hex_rgb(sp.color) if sp.color else self.accent
+        w = max(1.5, (sp.weight or glyphs.default_weight(sp.size)) * k)
+        c.drawPath(path, skia.Paint(AntiAlias=True, Color=col(rgb, alpha), Style=skia.Paint.kStroke_Style, StrokeWidth=w,
+                                    StrokeCap=skia.Paint.kRound_Cap, StrokeJoin=skia.Paint.kRound_Join,
+                                    MaskFilter=skia.MaskFilter.MakeBlur(skia.kNormal_BlurStyle, max(1.0, 0.3 * w))))
+
+    def _screen_fx(self, c: skia.Canvas, s: Dict[str, float]) -> None:
+        W, H = self.W, self.H
+        lines = s.get("lines", 0.0)
+        if lines > 0.01:  # slow motion: thin radial speed lines toward the frame edge
+            import random
+            rnd = random.Random(int(s.get("seed", 0)))
+            cx, cy = W / 2, H / 2
+            for _ in range(46):
+                ang = rnd.uniform(0, 2 * math.pi)
+                r0 = rnd.uniform(0.42, 0.6) * H
+                r1 = r0 + rnd.uniform(0.25, 0.6) * H
+                c.drawLine(cx + math.cos(ang) * r0, cy + math.sin(ang) * r0, cx + math.cos(ang) * r1, cy + math.sin(ang) * r1,
+                           skia.Paint(AntiAlias=True, Color=col((235, 240, 255), 0.16 * lines * rnd.uniform(0.4, 1.0)),
+                                      StrokeWidth=max(1.0, H / 720 * rnd.uniform(0.8, 2.2))))
+        vig = s.get("vignette", 0.0)
+        if vig > 0.01:  # a blow: the edges darken for an instant (focus on the impact)
+            sh = skia.GradientShader.MakeRadial(skia.Point(W / 2, H / 2), H * 0.95, [col((0, 0, 0), 0.0), col((0, 0, 0), 0.55 * vig)], [0.45, 1.0])
+            c.drawRect(skia.Rect(0, 0, W, H), skia.Paint(Shader=sh))
+        fl = s.get("flash", 0.0)
+        if fl > 0.01:  # impact flash (bounded for photosensitivity: QA counts them)
+            c.drawRect(skia.Rect(0, 0, W, H), skia.Paint(Color=col((255, 250, 240), min(0.45, fl)), BlendMode=skia.BlendMode.kScreen))
 
     def _post(self, c: skia.Canvas, red: float) -> None:
         if self.bloom:

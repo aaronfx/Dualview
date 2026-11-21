@@ -57,7 +57,7 @@ def project(shots=None, **over):
             "id": "rescue", "title": "The Rescue", "environment": "workshop", "duration": D,
             "goals": ["push_lost@milo", "rope_snap@strap", "pinned@milo[by=post]", "notice@juno", "lift_fail@juno", "lever_engage@juno",
                       "freed@milo", "hand_grab@milo", "stood_up@milo", "fist_bump@juno"],
-            "placements": [{"character": "milo", "x": p["milo_x"], "facing": 1}, {"character": "juno", "x": p["juno_x"], "facing": 1}],
+            "placements": [{"character": "milo", "x": p["milo_x"], "facing": 1, "z": -14}, {"character": "juno", "x": p["juno_x"], "facing": 1, "z": 16}],
             "actions": [
                 {"character": "milo", "type": "walk_to", "target_x": -230.0, "speed": 150},
                 {"character": "milo", "type": "look_at", "target": "prop:container", "duration": 0.35},

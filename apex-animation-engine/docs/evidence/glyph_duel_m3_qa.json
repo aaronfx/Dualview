@@ -1,0 +1,428 @@
+{
+ "scene": "duel",
+ "passed": true,
+ "counts": {
+  "total": 59,
+  "by_status": {
+   "PASS": 58,
+   "SKIP": 1
+  },
+  "exit_conditions": 0,
+  "engine_and_video_checks": 59
+ },
+ "checks": [
+  {
+   "name": "joint_hierarchy[kai]",
+   "status": "PASS",
+   "metric": null,
+   "threshold": null,
+   "details": "16 bones, roots=['spine', 'thigh_n', 'thigh_f']"
+  },
+  {
+   "name": "joint_hierarchy[rho]",
+   "status": "PASS",
+   "metric": null,
+   "threshold": null,
+   "details": "16 bones, roots=['spine', 'thigh_n', 'thigh_f']"
+  },
+  {
+   "name": "bone_lengths[kai]",
+   "status": "PASS",
+   "metric": 1.08,
+   "threshold": 1.13,
+   "details": "ratio range [0.922, 1.080] over 932 frames, violations=0"
+  },
+  {
+   "name": "character_continuity[kai]",
+   "status": "PASS",
+   "metric": null,
+   "threshold": null,
+   "details": "single rig instance, proportions=(44.0, 42.0, 30.0, 24.0)"
+  },
+  {
+   "name": "bone_lengths[rho]",
+   "status": "PASS",
+   "metric": 1.0800000000000007,
+   "threshold": 1.13,
+   "details": "ratio range [1.000, 1.080] over 932 frames, violations=0"
+  },
+  {
+   "name": "character_continuity[rho]",
+   "status": "PASS",
+   "metric": null,
+   "threshold": null,
+   "details": "single rig instance, proportions=(46.0, 43.0, 31.0, 23.0)"
+  },
+  {
+   "name": "invalid_positions[kai]",
+   "status": "PASS",
+   "metric": 0.0,
+   "threshold": 0.0,
+   "details": "NaN/inf joint coordinates"
+  },
+  {
+   "name": "surface_penetration[kai]",
+   "status": "PASS",
+   "metric": 1.5039461151881,
+   "threshold": 4.0,
+   "details": "deepest joint penetration into floor/walls/ceiling (units) at toe_n t=11.333; violations=0"
+  },
+  {
+   "name": "invalid_positions[rho]",
+   "status": "PASS",
+   "metric": 0.0,
+   "threshold": 0.0,
+   "details": "NaN/inf joint coordinates"
+  },
+  {
+   "name": "surface_penetration[rho]",
+   "status": "PASS",
+   "metric": 3.191383079063044,
+   "threshold": 4.0,
+   "details": "deepest joint penetration into floor/walls/ceiling (units) at toe_f t=5.500; violations=0"
+  },
+  {
+   "name": "no_teleport_joints[kai]",
+   "status": "PASS",
+   "metric": 2692.133105206589,
+   "threshold": 3200.0,
+   "details": "max joint speed (units/s) at t=5.125s"
+  },
+  {
+   "name": "no_teleport_root[kai]",
+   "status": "PASS",
+   "metric": 1301.7111289960374,
+   "threshold": 2200.0,
+   "details": ""
+  },
+  {
+   "name": "no_teleport_joints[rho]",
+   "status": "PASS",
+   "metric": 2627.1485330972732,
+   "threshold": 3200.0,
+   "details": "max joint speed (units/s) at t=32.083s"
+  },
+  {
+   "name": "no_teleport_root[rho]",
+   "status": "PASS",
+   "metric": 890.6621608807013,
+   "threshold": 2200.0,
+   "details": ""
+  },
+  {
+   "name": "foot_sliding[kai]",
+   "status": "PASS",
+   "metric": 1.2000000000000455,
+   "threshold": 1.5,
+   "details": "max planted-ankle drift over 4427 samples (settled/f t=16.117)"
+  },
+  {
+   "name": "foot_sliding[rho]",
+   "status": "PASS",
+   "metric": 1.3500000000000156,
+   "threshold": 1.5,
+   "details": "max planted-ankle drift over 4358 samples (strike/n t=5.171)"
+  },
+  {
+   "name": "gravity_transitions_caused_by_switch",
+   "status": "PASS",
+   "metric": null,
+   "threshold": null,
+   "details": "0 transition(s); labels at end: G0"
+  },
+  {
+   "name": "gravity_direction[kai]",
+   "status": "PASS",
+   "metric": 5.982039172323312e-11,
+   "threshold": 3.0,
+   "details": "airborne root acceleration vs gravity vector over 377 samples; worst magnitude error 0.000%"
+  },
+  {
+   "name": "gravity_direction[rho]",
+   "status": "SKIP",
+   "metric": null,
+   "threshold": null,
+   "details": "no airborne phase"
+  },
+  {
+   "name": "collision_events_valid",
+   "status": "PASS",
+   "metric": 3.0,
+   "threshold": null,
+   "details": "3 character impact(s): floor@5.742s v=582, floor@17.542s v=976, floor@21.821s v=420"
+  },
+  {
+   "name": "scene_geometry_stable",
+   "status": "PASS",
+   "metric": 17.0,
+   "threshold": null,
+   "details": "static colliders identical across runs; never moved by gravity changes"
+  },
+  {
+   "name": "camera_config_valid",
+   "status": "PASS",
+   "metric": 0.0,
+   "threshold": 0.0,
+   "details": "non-finite or non-positive camera states"
+  },
+  {
+   "name": "subject_in_frame",
+   "status": "PASS",
+   "metric": 0.9915492957746479,
+   "threshold": 0.95,
+   "details": "fraction of frames whose framed subject is fully visible (body; focus region for close-ups; the switch for inserts)"
+  },
+  {
+   "name": "min_shot_length",
+   "status": "PASS",
+   "metric": 1.8919999999999995,
+   "threshold": 0.5,
+   "details": "9 shots; too short: []"
+  },
+  {
+   "name": "camera_roll_rate",
+   "status": "PASS",
+   "metric": 0.0,
+   "threshold": 150.0,
+   "details": "max roll speed inside a shot (deg/s) at -; cuts are excluded"
+  },
+  {
+   "name": "gravity_indicator_matches_physics",
+   "status": "PASS",
+   "metric": 0.0,
+   "threshold": 0.5,
+   "details": ""
+  },
+  {
+   "name": "screen_direction_across_cuts",
+   "status": "PASS",
+   "metric": 0.0,
+   "threshold": 0.0,
+   "details": "cuts that flip the character's screen direction: none"
+  },
+  {
+   "name": "static_layout",
+   "status": "PASS",
+   "metric": null,
+   "threshold": null,
+   "details": "room 2600.0x900.0, switches [], exits [], obstacles [('glyph', (650.0, 120.0)), ('glyph', (-760.0, 620.0)), ('glyph', (120.0, 690.0)), ('glyph', (1050.0, 640.0))] are spec constants (never animated)"
+  },
+  {
+   "name": "scarf_integrity[kai]",
+   "status": "PASS",
+   "metric": 1.250000000000003,
+   "threshold": 1.35,
+   "details": "max segment stretch; anchor error 0.000"
+  },
+  {
+   "name": "scarf_inside_room[kai]",
+   "status": "PASS",
+   "metric": null,
+   "threshold": null,
+   "details": ""
+  },
+  {
+   "name": "dust_inside_room",
+   "status": "PASS",
+   "metric": null,
+   "threshold": null,
+   "details": "90 particles x 2338 steps"
+  },
+  {
+   "name": "gravity_angle_report",
+   "status": "PASS",
+   "metric": null,
+   "threshold": null,
+   "details": "G0: world -90 deg, vs previous +0, vs original +0"
+  },
+  {
+   "name": "camera_roll_follows_gravity_direction",
+   "status": "PASS",
+   "metric": 0.0,
+   "threshold": 0.0,
+   "details": "aligned or eased-roll shots turning against the gravity sweep: none"
+  },
+  {
+   "name": "landings_on_supporting_surfaces",
+   "status": "PASS",
+   "metric": 0.0,
+   "threshold": 0.0,
+   "details": "impacts (landings) where gravity could not hold the body: none"
+  },
+  {
+   "name": "composition_subject_size",
+   "status": "PASS",
+   "metric": 0.2873433753814224,
+   "threshold": null,
+   "details": "median subject size per shot (body extent / frame height); smallest in s5_throw; too small: none"
+  },
+  {
+   "name": "composition_required_objects",
+   "status": "PASS",
+   "metric": 0.0,
+   "threshold": 0.0,
+   "details": "objects a shot must show (camera.include) left the frame: none"
+  },
+  {
+   "name": "no_roll_during_fast_action",
+   "status": "PASS",
+   "metric": 0.0,
+   "threshold": 0.0,
+   "details": "0 rolling frames; rolling while the subject moved faster than 260 u/s: none"
+  },
+  {
+   "name": "strike_contact",
+   "status": "PASS",
+   "metric": 19.37398309470557,
+   "threshold": 24.0,
+   "details": "fist/foot distance from the struck body point at contact (5 contacts; worst: kai flying_kick at t=21.54s)"
+  },
+  {
+   "name": "fighters_do_not_overlap",
+   "status": "PASS",
+   "metric": 70.18752174372,
+   "threshold": 28.0,
+   "details": "minimum pelvis distance between standing characters in the same depth lane (kai/rho at t=5.00s; 41 frames with the bodies in separate lanes)"
+  },
+  {
+   "name": "body_clearance",
+   "status": "PASS",
+   "metric": 1.0,
+   "threshold": 3.0,
+   "details": "deepest intersection of two characters' bodies in 3D (torso, head, legs; no exemptions; kai hip_n-knee_n / rho knee_n-ankle_n at t=4.88s (depth gap 27))"
+  },
+  {
+   "name": "silhouettes_readable",
+   "status": "PASS",
+   "metric": 19.109600282017077,
+   "threshold": 10.0,
+   "details": "on-screen gap between two upright fighters' torsos and heads in the same depth plane (closest kai/rho at t=5.00s; 0 frames under the limit; 28 frames passing in separate depth lanes)"
+  },
+  {
+   "name": "knockdowns_settle",
+   "status": "PASS",
+   "metric": 2.0,
+   "threshold": null,
+   "details": "2 physics fall(s), 2 settled before the end"
+  },
+  {
+   "name": "body_outside_structures",
+   "status": "PASS",
+   "metric": 0.0,
+   "threshold": 6.0,
+   "details": "deepest a body point goes inside a structure (never)"
+  },
+  {
+   "name": "feet_on_tops",
+   "status": "PASS",
+   "metric": 0.0,
+   "threshold": 10.0,
+   "details": "how far a planted foot is past the end of the top it stands on (none)"
+  },
+  {
+   "name": "held_props_outside_structures",
+   "status": "PASS",
+   "metric": 0.0,
+   "threshold": 3.0,
+   "details": "deepest a carried prop goes into a structure (2 carries; never)"
+  },
+  {
+   "name": "throw_momentum",
+   "status": "PASS",
+   "metric": 0.1435260597331277,
+   "threshold": 0.25,
+   "details": "prop velocity change along the contact normal vs impulse / mass, from the tracked motion (2 impacts; worst times at t=16.67s (measured 1450, impulse/mass 1268 u/s))"
+  },
+  {
+   "name": "flips_land_upright",
+   "status": "PASS",
+   "metric": 0.034717643149690745,
+   "threshold": 0.45,
+   "details": "body angle from upright at the landing of each flip (rad; 2 flips; worst kai at t=5.74s)"
+  },
+  {
+   "name": "time_warp_valid",
+   "status": "PASS",
+   "metric": 44.18852019459564,
+   "threshold": null,
+   "details": "story 38.83s -> film 44.19s; monotonic True; covers the story True; 5 hit-stops, 3 slow-motion sections"
+  },
+  {
+   "name": "hit_stop_frames",
+   "status": "PASS",
+   "metric": 0.0,
+   "threshold": 0.0,
+   "details": "every blow holds its impact frame (5 holds, 16 frames; short: none)"
+  },
+  {
+   "name": "flash_safety",
+   "status": "PASS",
+   "metric": 1.0,
+   "threshold": 3.0,
+   "details": "bright full-screen flashes in any one second (photosensitivity guideline: at most 3)"
+  },
+  {
+   "name": "slowmo_bounds",
+   "status": "PASS",
+   "metric": 0.3,
+   "threshold": 0.1,
+   "details": "3 slow-motion sections; slowest rate 0.30x"
+  },
+  {
+   "name": "audio_event_sync",
+   "status": "PASS",
+   "metric": 0.0,
+   "threshold": 0.0,
+   "details": "78 cues, each placed at its engine event time (0 unbound cues allowed)"
+  },
+  {
+   "name": "deterministic_replay",
+   "status": "PASS",
+   "metric": null,
+   "threshold": null,
+   "details": "hash a4c4c28daf78 vs a4c4c28daf78"
+  },
+  {
+   "name": "video_dimensions",
+   "status": "PASS",
+   "metric": null,
+   "threshold": null,
+   "details": "1280x720 (expected 1280x720), codec h264"
+  },
+  {
+   "name": "video_fps",
+   "status": "PASS",
+   "metric": 24.0,
+   "threshold": 24.0,
+   "details": ""
+  },
+  {
+   "name": "frame_count",
+   "status": "PASS",
+   "metric": 1061.0,
+   "threshold": 1061.0,
+   "details": "no missing / duplicated frames"
+  },
+  {
+   "name": "frame_duration",
+   "status": "PASS",
+   "metric": 44.208333,
+   "threshold": 44.208333333333336,
+   "details": ""
+  },
+  {
+   "name": "av_duration_match",
+   "status": "PASS",
+   "metric": 0.0003330000000048017,
+   "threshold": 0.07166666666666666,
+   "details": "audio 44.208s vs video 44.208s"
+  },
+  {
+   "name": "full_decode",
+   "status": "PASS",
+   "metric": 1061.0,
+   "threshold": 1061.0,
+   "details": "every frame decoded; decoder errors: none; audio errors: none"
+  }
+ ]
+}

@@ -91,7 +91,7 @@
      "weight": 14.0,
      "color": "#59e3ff",
      "position": [
-      520.0,
+      430.0,
       8.0
      ],
      "size": [
@@ -172,18 +172,18 @@
    "id": "duel",
    "title": "Glyph Duel",
    "environment": "symbols",
-   "duration": 39.333333333333336,
+   "duration": 38.833333333333336,
    "placements": [
     {
      "character": "kai",
      "x": -470.0,
-     "z": -10.0
+     "z": -14.0
     },
     {
      "character": "rho",
      "x": 60.0,
      "facing": -1,
-     "z": 12.0
+     "z": 13.0
     }
    ],
    "actions": [
@@ -224,13 +224,15 @@
     {
      "type": "roll",
      "character": "kai",
-     "distance": 250.0
+     "distance": 300.0,
+     "lane": -50.0
     },
     {
      "type": "run_to",
      "character": "kai",
      "target_x": 440.0,
-     "speed": 320.0
+     "speed": 320.0,
+     "lane": -14.0
     },
     {
      "type": "climb",
@@ -447,7 +449,7 @@
     {
      "id": "s1_square",
      "start": 0.0,
-     "end": 4.233,
+     "end": 4.425,
      "description": "they square up; the jab is blocked",
      "camera": {
       "target": "kai",
@@ -461,8 +463,8 @@
     },
     {
      "id": "s2_flip",
-     "start": 4.233,
-     "end": 6.858,
+     "start": 4.425,
+     "end": 6.962,
      "kind": "wide",
      "description": "RHO's roundhouse; KAI back-flips over it and lands in guard",
      "camera": {
@@ -480,8 +482,8 @@
     },
     {
      "id": "s3_roll",
-     "start": 6.858,
-     "end": 10.613,
+     "start": 6.962,
+     "end": 10.704,
      "description": "the cross; KAI rolls under it and past",
      "camera": {
       "target": "kai",
@@ -498,8 +500,8 @@
     },
     {
      "id": "s4_climb",
-     "start": 10.613,
-     "end": 14.312,
+     "start": 10.704,
+     "end": 14.404,
      "kind": "wide",
      "description": "up the pi",
      "camera": {
@@ -516,8 +518,8 @@
     },
     {
      "id": "s5_throw",
-     "start": 14.312,
-     "end": 16.204,
+     "start": 14.404,
+     "end": 16.296,
      "kind": "wide",
      "description": "the times sign, thrown down at RHO",
      "camera": {
@@ -534,8 +536,8 @@
     },
     {
      "id": "s6_dive",
-     "start": 16.204,
-     "end": 24.371,
+     "start": 16.296,
+     "end": 24.154,
      "kind": "wide",
      "description": "front flip off the bar, into a flying kick; duck the counter",
      "camera": {
@@ -553,8 +555,8 @@
     },
     {
      "id": "s7_staff",
-     "start": 24.371,
-     "end": 28.512,
+     "start": 24.154,
+     "end": 28.004,
      "description": "the minus sign as a staff",
      "camera": {
       "target": "kai",
@@ -571,8 +573,8 @@
     },
     {
      "id": "s8_down",
-     "start": 28.512,
-     "end": 32.654,
+     "start": 28.004,
+     "end": 32.146,
      "description": "thrown: RHO goes down",
      "camera": {
       "target": "kai",
@@ -589,8 +591,8 @@
     },
     {
      "id": "s9_respect",
-     "start": 32.654,
-     "end": 39.333333333333336,
+     "start": 32.146,
+     "end": 38.833333333333336,
      "description": "he gets up; a fist bump",
      "camera": {
       "target": "kai",
@@ -629,7 +631,27 @@
     "knockdown@rho",
     "stood_up@rho",
     "fist_bump@kai"
-   ]
+   ],
+   "time_fx": {
+    "slowmo": [
+     {
+      "at": "flip@kai[dir=back]",
+      "before": 0.1,
+      "after": 0.55
+     },
+     {
+      "at": "flip@kai[dir=front]",
+      "before": 0.05,
+      "after": 0.6
+     },
+     {
+      "at": "hit@kai[prop=staff]",
+      "before": 0.25,
+      "after": 0.5,
+      "rate": 0.3
+     }
+    ]
+   }
   }
  ]
 }

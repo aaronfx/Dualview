@@ -3,7 +3,8 @@
 One continuous fight that chains every Milestone 2 capability with combat. Every outcome is decided by the simulation:
 1. KAI and RHO square up. KAI's jab is blocked. RHO's roundhouse is answered with a **back flip** (airborne: the kick
    whiffs), and KAI lands straight into his guard.
-2. RHO presses with a cross; KAI **rolls under it** and past him.
+2. RHO presses with a cross; KAI **rolls under it**, into the near depth lane, and passes in front of him (the bodies
+   never intersect: QA `body_clearance` measures it in 3D, with no exemptions).
 3. KAI **climbs** the giant pi, crosses its bar and **picks up** a times sign resting on it, then **throws** it down at RHO:
    falling from the bar it gathers speed, and the impulse knocks RHO down.
 4. He **front-flips** off the bar and lands in his guard; as RHO gets up, a **flying kick** (blocked); he ducks the
@@ -34,9 +35,9 @@ def project(duration: float = 50.0) -> dict:
         k(type="jump_to", target_x=-470, height=110, flip="back"),
         k(type="guard", until="next:strike_start@rho"),
         # 2. roll under the cross, past him
-        k(type="roll", distance=250),
+        k(type="roll", distance=300, lane=-50),  # into the near lane: passes in front of RHO, not through him
         # 3. climb the pi, take the times sign from its bar, throw it down at RHO
-        k(type="run_to", target_x=440, speed=320),
+        k(type="run_to", target_x=440, speed=320, lane=-14),
         k(type="climb", target="obstacle:pi"),
         k(type="pick_up", target="prop:times"),
         k(type="throw", target="char:rho", power=0.6),
@@ -128,7 +129,7 @@ def project(duration: float = 50.0) -> dict:
             "props": [
                 {"id": "times", "kind": "glyph", "glyph": "x", "position": [740, 252], "size": [46, 46], "weight": 13, "mass": 5,
                  "color": "#7dffb2", "friction": 0.9},
-                {"id": "staff", "kind": "glyph", "glyph": "-", "position": [520, 8], "size": [118, 16], "weight": 14, "mass": 5,
+                {"id": "staff", "kind": "glyph", "glyph": "-", "position": [430, 8], "size": [118, 16], "weight": 14, "mass": 5,
                  "color": "#59e3ff", "friction": 0.8},
             ]}],
         "scenes": [{"id": "duel", "title": "Glyph Duel", "environment": "symbols", "duration": duration,
@@ -136,7 +137,12 @@ def project(duration: float = 50.0) -> dict:
                               "climbed@kai", "pick_up@kai[prop=times]", "throw@kai", "prop_hit@times", "knockdown@rho", "flip@kai", "stood_up@rho", "blocked@kai[move=flying_kick]",
                               "evaded@kai", "pick_up@kai[prop=staff]", "evaded@rho", "hit@kai[move=swing_weapon]", "throw@kai",
                               "knockdown@rho", "stood_up@rho", "fist_bump@kai"],
-                    "placements": [{"character": K, "x": -470, "facing": 1, "z": -10}, {"character": R, "x": 60, "facing": -1, "z": 12}],
+                    # Milestone 3: hit-stop on every blow; slow motion on the two flips and the final throw
+                    "time_fx": {"hit_stop": True, "hit_stop_frames": 3, "hit_stop_max": 6,
+                                "slowmo": [{"at": "flip@kai[dir=back]", "before": 0.1, "after": 0.55, "rate": 0.35},
+                                           {"at": "flip@kai[dir=front]", "before": 0.05, "after": 0.6, "rate": 0.35},
+                                           {"at": "hit@kai[prop=staff]", "before": 0.25, "after": 0.5, "rate": 0.3}]},
+                    "placements": [{"character": K, "x": -470, "facing": 1, "z": -14}, {"character": R, "x": 60, "facing": -1, "z": 13}],
                     "actions": acts, "shots": shots}]}
 
 

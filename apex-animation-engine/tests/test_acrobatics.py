@@ -241,3 +241,60 @@ def test_dodging_back_off_a_platform_edge_steps_off():
     assert first(r, "impact", "rho").data["surface"] == "p"
     off = first(r, "step_off", "rho")
     assert off is not None and off.data["surface"] == "p"
+
+
+# ---------------------------------------------------------------- Milestone 2 closure (owner's final review)
+def test_bodies_in_the_same_lane_never_pass_through_each_other():
+    """A roll toward an opponent in the same depth lane stops at his body; rolling into a nearer lane passes in front."""
+    two = dict(chars=("kai", "rho"), placements=[{"character": "kai", "x": -300, "facing": 1, "z": -12},
+                                                 {"character": "rho", "x": 0, "facing": -1, "z": 12}])
+    r = sim(proj([{"character": "kai", "type": "roll", "distance": 500}], dur=3, **two))
+    assert first(r, "body_block") is not None
+    assert max(x.s for x in r.controllers["kai"].records) <= 0 - 30 + 1e-6
+    r = sim(proj([{"character": "kai", "type": "roll", "distance": 500, "lane": -50}], dur=3, **two))
+    assert first(r, "body_block") is None and r.controllers["kai"].s > 150  # passed in front (depth gap >= 28)
+
+
+def test_body_clearance_qa_proves_the_pass():
+    from apex.qa.inspector import Inspector
+    from apex.render.pipeline import build_camera
+    p = proj([{"character": "kai", "type": "roll", "distance": 500, "lane": -50}], dur=3, chars=("kai", "rho"),
+             placements=[{"character": "kai", "x": -300, "facing": 1, "z": -12}, {"character": "rho", "x": 0, "facing": -1, "z": 12}])
+    rt = SceneRuntime(p, "s")
+    rt.simulate()
+    q = Inspector(rt, build_camera(rt, 16 / 9), 24)
+    q.times = [i / 24 for i in range(72)]
+    q.joints = {c: [] for c in rt.result.animators}
+    for t in q.times:
+        fs = rt.evaluate(t)
+        for c, pose in fs.poses.items():
+            q.joints[c].append(rt.rigs[c].world_joints(pose))
+    chk = q._body_clearance()
+    assert chk.status == "PASS" and chk.metric <= 3.0
+
+
+def test_a_carried_prop_is_stopped_by_a_structure():
+    wall = {"id": "slab", "kind": "platform", "center": [200, 120], "size": [100, 240]}  # face at x 150
+    props = [{"id": "staff", "kind": "glyph", "glyph": "-", "position": [-300, 10], "size": [118, 16], "mass": 5, "weight": 14}]
+    r = sim(proj([{"character": "kai", "type": "pick_up", "target": "prop:staff"},
+                  {"character": "kai", "type": "walk_to", "target_x": 100}], [wall], props, dur=7), strict=False)
+    c = r.controllers["kai"]
+    xs = r.prop_tracks["staff"][:, 0]
+    assert first(r, "bump") is not None and c.s < 150 - 60  # stopped with the staff's reach, not just the body's
+    assert all(c._prop_in_structure("staff", tuple(r.prop_tracks["staff"][i, :2]), r.prop_tracks["staff"][i, 2], allow=3.0) is None
+               for i in range(0, len(xs), 6))
+
+
+def test_a_swing_into_a_structure_is_stopped_and_misses():
+    """A beam just above his head: raising the staff for the swing runs into it, so the blow never arrives."""
+    beam = {"id": "low_beam", "kind": "beam", "center": [-170, 215], "size": [70, 20]}
+    props = [{"id": "staff", "kind": "glyph", "glyph": "-", "position": [-300, 10], "size": [118, 16], "mass": 5, "weight": 14}]
+    two = dict(chars=("kai", "rho"), placements=[{"character": "kai", "x": -400, "facing": 1}, {"character": "rho", "x": 0, "facing": -1}])
+    r = sim(proj([{"character": "kai", "type": "pick_up", "target": "prop:staff"},
+                  {"character": "kai", "type": "strike", "target": "char:rho", "move": "swing_weapon"}], [beam], props, dur=6, **two))
+    blocked = first(r, "prop_blocked")
+    assert blocked is not None and blocked.data["structure"] == "low_beam"
+    assert first(r, "hit") is None and first(r, "whiff") is not None
+    c = r.controllers["kai"]
+    assert all(c._prop_in_structure("staff", tuple(r.prop_tracks["staff"][i, :2]), r.prop_tracks["staff"][i, 2], allow=3.0) is None
+               for i in range(len(r.prop_times)))

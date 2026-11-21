@@ -25,6 +25,7 @@ from .library import get_clip, landing_clip
 
 MASS = 70.0
 CAPSULE_R = 9.0
+LANE_RATE = 70.0  # depth-lane change speed (units/s)
 SUPPORT_COS = math.cos(math.radians(55))  # gravity must point within 55deg of "into the surface" to stay supported
 PRESS_CONTACT_T = 0.80  # contact time inside the press action
 PRESS_DURATION = 1.75
@@ -77,6 +78,7 @@ class StepRecord:
     facing: float
     brace: float = 0.0
     ttc: float = -1.0
+    z: float = 0.0  # depth lane (negative = nearer the camera)
 
 
 class CharacterController(InteractionMixin, CombatMixin, AcroMixin):
@@ -130,6 +132,7 @@ class CharacterController(InteractionMixin, CombatMixin, AcroMixin):
         self.dodging: Optional[Dict[str, Any]] = None
         self.knocked = False
         self.ragdoll = None
+        self.z, self.z_target = 0.0, None
         self._acro_init()
         world.add_capsule(cid, self.frame.to_world(self.s, self.h), self.cap_a, self.cap_b, CAPSULE_R, MASS, kinematic=True)
         self._open("idle", 0.0)
@@ -154,11 +157,18 @@ class CharacterController(InteractionMixin, CombatMixin, AcroMixin):
 
     # ------------------------------------------------------------ main update (before physics step)
     def update(self, t: float, dt: float) -> None:
+        self._now = t
         g = self.gravity.at(t)
         s_prev = self.s if self.mode in ("grounded", "landing") else None
         self._update(t, dt, g)
+        if self.z_target is not None:  # changing depth lane (e.g. rolling past in front of someone)
+            step = LANE_RATE * dt
+            self.z += max(-step, min(step, self.z_target - self.z))
+            if abs(self.z - self.z_target) < 1e-6:
+                self.z_target = None
         if s_prev is not None and self.mode in ("grounded", "landing"):
             self._enforce_solid(t, s_prev)  # no motion of any kind carries the body through a structure
+            self._enforce_bodies(t, s_prev)  # ... or through another standing body in the same depth lane
         if self.mode == "grounded":
             self._edge_check(t)  # any motion past the end of a top steps off it (walks, lunges, dodges, knockbacks)
 
@@ -208,7 +218,7 @@ class CharacterController(InteractionMixin, CombatMixin, AcroMixin):
         else:
             s, h = self.s, self.h
         self.records.append(StepRecord(t, st.pos, st.angle, st.vel, st.angvel, self.mode if self.mode != "grounded" else self.seg.kind,
-                                       self.frame.tag, s, h, self.facing, self.brace, self.ttc))
+                                       self.frame.tag, s, h, self.facing, self.brace, self.ttc, self.z))
 
     # ------------------------------------------------------------ grounded behaviour
     def _place(self, t: float) -> None:
@@ -230,6 +240,8 @@ class CharacterController(InteractionMixin, CombatMixin, AcroMixin):
         self.cur_t0 = t
         self.cur_dir = None
         a = self.cur
+        if a is not None and a.lane is not None:
+            self.z_target = float(a.lane)
         if a is None:
             if self.lying:
                 if self.seg.kind != self.posture:

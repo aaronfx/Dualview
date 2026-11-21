@@ -57,7 +57,8 @@ LIMITS: Dict[str, Tuple[float, float]] = {
 
 class Ragdoll:
     def __init__(self, world: PhysicsWorld, rig: StickmanRig, pose: Pose, tag: str, mass: float = 70.0,
-                 vel: Vec = (0.0, 0.0), tone: float = 4.5, limb_radius: float = 4.5, relax: Optional[Dict[str, float]] = None):
+                 vel: Vec = (0.0, 0.0), tone: float = 4.5, limb_radius: float = 4.5, relax: Optional[Dict[str, float]] = None,
+                 hit_characters: bool = False):
         """`relax`: joint angles (character-frame, relative to the parent part) the muscle tone pulls toward, e.g. a
         loose sprawl with bent knees and elbows; by default the pose the fall started from."""
         self.world, self.rig, self.tag = world, rig, tag
@@ -73,7 +74,8 @@ class Ragdoll:
         self.half: Dict[str, float] = {}
         self.constraints: List[pymunk.Constraint] = []
         self.springs: List[Tuple[pymunk.DampedRotarySpring, float, float]] = []
-        flt = pymunk.ShapeFilter(group=self.group, categories=CAT_RAG, mask=ALL ^ CAT_CHAR)
+        # a falling body is stopped by a standing one in its own depth lane (hit_characters); otherwise it passes in depth
+        flt = pymunk.ShapeFilter(group=self.group, categories=CAT_RAG, mask=ALL if hit_characters else ALL ^ CAT_CHAR)
         for part, (_, _, _, frac) in PARTS.items():
             a, b = self.ends[part]
             L = max(4.0, math.dist(a, b))

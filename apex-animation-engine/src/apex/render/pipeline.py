@@ -143,9 +143,104 @@ def _resolve_target(env, target: str, rt=None, t: float = 0.0):
         return None
 
 
+def prop_ghosts(res, t: float) -> dict:
+    """Earlier positions of fast-moving props (a thrown glyph leaves fading ghosts)."""
+    out = {}
+    if not res.animators:
+        return out
+    an = next(iter(res.animators.values()))
+    for pid in res.prop_tracks:
+        x, y, a = an.prop_at(pid, t)
+        xs = []
+        for k, alpha in ((1, 0.32), (2, 0.18), (3, 0.08)):
+            px, py, pa = an.prop_at(pid, max(0.0, t - k * SMEAR_DT))
+            if math.hypot(x - px, y - py) > 10.0 * k:
+                xs.append((px, py, pa, alpha))
+        if xs:
+            out[pid] = xs
+    return out
+
+
 def motion_trails(res, t: float) -> dict:
     """Earlier poses for motion trails (the renderer draws only the limbs that moved fast)."""
     return {cid: [(an.pose_at(t - 1.0 / 60.0), 0.3), (an.pose_at(t - 1.0 / 30.0), 0.15)] for cid, an in res.animators.items()}
+
+
+# ------------------------------------------------------------ Milestone 3: film-time effects
+SMEAR_DT = 1.0 / 48.0  # story seconds a smear reaches back
+
+
+def warp_effects(fx: List[dict], warp) -> List[dict]:
+    """Effects run on the film clock (they keep animating through a hit-stop and stretch with slow motion)."""
+    if warp.is_identity():
+        return fx
+    out = []
+    for e in fx:
+        e = dict(e)
+        e["t"] = warp.film_at(e["t"])
+        if "t_end" in e:
+            e["t_end"] = warp.film_at(e["t_end"])
+        if "pts" in e:
+            e["pts"] = [(warp.film_at(tp), p) for tp, p in e["pts"]]
+        out.append(e)
+    return out
+
+
+def warp_events(events, warp):
+    """Copies of the engine events placed on the film clock (for the sound track)."""
+    from ..motion.controller import Event
+    if warp.is_identity():
+        return list(events)
+    out = [Event(warp.film_at(e.t), e.type, e.character, e.data) for e in events]
+    for sl in warp.slows:  # a low whoosh as time slows down
+        out.append(Event(warp.film_at(sl.t0), "slowmo", "", {"label": sl.label}))
+    return sorted(out, key=lambda e: (e.t, e.type))
+
+
+def film_camera(c, warp, tf: float, tfx) -> object:
+    """Camera moves that live in film time: shake through a hit-stop, a punch-in on heavy blows, a slow push-in during
+    slow motion."""
+    from dataclasses import replace
+    if warp.is_identity() or tfx is None:
+        return c
+    sx, sy, zoom = 0.0, 0.0, 1.0
+    for h in warp.holds:
+        f0 = warp.film_at(h.t)
+        age = tf - f0
+        if age < 0 or age > h.film + 0.35:
+            continue
+        amp = (5.0 + 7.0 * min(1.6, h.power)) * (1.0 if age < h.film else max(0.0, 1.0 - (age - h.film) / 0.35))
+        sx += amp * math.sin(age * 2 * math.pi * 23.0)
+        sy += amp * 0.7 * math.cos(age * 2 * math.pi * 19.0)
+        if tfx.punch_in and h.power >= 0.9 and h.kind != "block_hit":
+            env = min(1.0, age / 0.03) * math.exp(-max(0.0, age - h.film) / 0.25)
+            zoom = min(zoom, 1.0 - 0.1 * min(1.0, h.power / 1.4) * env)
+    if tfx.punch_in:
+        zoom *= 1.0 - 0.12 * warp.slow_weight(tf)
+    return replace(c, shx=c.shx + sx, shy=c.shy + sy, view_h=c.view_h * zoom)
+
+
+def screen_effects(warp, tf: float, tfx) -> dict:
+    if warp.is_identity() or tfx is None or not tfx.screen_fx:
+        return {}
+    s = {"lines": warp.slow_weight(tf), "seed": int(tf * 24) // 2}
+    for h in warp.holds:
+        age = tf - warp.film_at(h.t)
+        if 0 <= age < h.film + 0.3:
+            s["vignette"] = max(s.get("vignette", 0.0), min(1.0, 0.5 + 0.35 * h.power) * (1.0 if age < h.film else 1 - (age - h.film) / 0.3))
+            if h.power >= 1.0 and h.kind != "block_hit" and age < 2.0 / 24.0:  # heavy blows only, two frames at most
+                s["flash"] = max(s.get("flash", 0.0), 0.4 if age < 1.0 / 24.0 else 0.18)
+    return s
+
+
+def chroma_split(frame: np.ndarray, px: int) -> np.ndarray:
+    """Red right, blue left by px pixels (the impact frame of a hit-stop)."""
+    if px <= 0:
+        return frame
+    out = frame.copy()
+    out[:, px:, 0] = frame[:, :-px, 0]
+    out[:, :-px, 2] = frame[:, px:, 2]
+    return out
 
 
 def shot_fade(cam: CameraDirector, t: float) -> float:
@@ -252,30 +347,48 @@ def render_scene(project: ProjectSpec, scene_id: str, out_path: str, samples: in
     for e in res.events:  # attach world x to footsteps for dust placement
         if e.type == "footstep":
             e.data.setdefault("x", rt.evaluate(e.t).poses[e.character].root[0] if e.character in res.animators else 0.0)
-    fx = _effects_from_events(res.events, switches, rt.env) + strike_swooshes(res)
+    from .timewarp import build_warp
+    warp = build_warp(scene, res.events, res.duration, project.fps)
+    tfx = scene.time_fx
+    fx = warp_effects(_effects_from_events(res.events, switches, rt.env) + strike_swooshes(res), warp)
     os.makedirs(os.path.dirname(os.path.abspath(out_path)) or ".", exist_ok=True)
     wav = os.path.splitext(out_path)[0] + ".wav"
     sd = SoundDirector(project.seed, {c.on_event: c.sound for sh in scene.shots for c in sh.sound_cues})
-    n = int(round(res.duration * project.fps))
-    cues = sd.render(res.events, n / project.fps, wav)  # audio length == frame-quantised video length (no dropped frames)
+    n = int(round(warp.film_duration * project.fps))
+    film_events = warp_events(res.events, warp)
+    cues = sd.render(film_events, n / project.fps, wav)  # audio length == frame-quantised video length (no dropped frames)
     say("audio", 1.0, f"{len(cues)} cues")
     writer = VideoWriter(out_path, W, H, project.fps, audio=wav)
     try:
         for i in range(n):
-            t = i / project.fps
+            tf = i / project.fps
+            t = warp.sim_at(tf)  # the story instant this film frame shows
             fade = shot_fade(cam, t)
+            smears = ghosts = None
+            if tfx is not None and tfx.smears:
+                smears = {cid: an.pose_at(max(0.0, t - SMEAR_DT)) for cid, an in res.animators.items()}
+                ghosts = prop_ghosts(res, t)
+            hold = warp.holding(tf)
             if samples <= 1:
-                frame = renderer.render(rt.evaluate(t), cam.at(t), red_flash(res.events, t), fx, fade, motion_trails(res, t))
+                frame = renderer.render(rt.evaluate(t), film_camera(cam.at(t), warp, tf, tfx), red_flash(res.events, t), fx, fade,
+                                        motion_trails(res, t), fx_t=tf if not warp.is_identity() else None, smears=smears,
+                                        prop_ghosts=ghosts, screen=screen_effects(warp, tf, tfx))
             else:
                 acc = None
                 sh = cam.shot_at(t)
                 for k in range(samples):
                     ts = t + (k / (samples - 1) - 0.5) * 0.4 / project.fps
                     ts = min(max(ts, sh.start), sh.end - 1e-4)
-                    f = renderer.render(rt.evaluate(ts), cam.at(ts), red_flash(res.events, ts), fx, fade,
-                                        motion_trails(res, ts) if k == samples // 2 else None).astype(np.float32)
+                    tfk = tf + (k / (samples - 1) - 0.5) * 0.4 / project.fps
+                    ts = min(max(warp.sim_at(tfk), sh.start), sh.end - 1e-4)
+                    f = renderer.render(rt.evaluate(ts), film_camera(cam.at(ts), warp, tfk, tfx), red_flash(res.events, ts), fx, fade,
+                                        motion_trails(res, ts) if k == samples // 2 else None, fx_t=tfk if not warp.is_identity() else None,
+                                        smears=smears if k == samples // 2 else None, prop_ghosts=ghosts if k == samples // 2 else None,
+                                        screen=screen_effects(warp, tfk, tfx)).astype(np.float32)
                     acc = f if acc is None else acc + f
                 frame = (acc / samples).astype(np.uint8)
+            if hold is not None and tfx is not None and tfx.screen_fx and hold[0].kind != "block_hit":
+                frame = chroma_split(frame, int(round((2 + 3 * min(1.5, hold[0].power)) * (1 - hold[1]) * H / 720)))
             writer.write(frame)
             if i % 24 == 0 or i == n - 1:
                 say("render", (i + 1) / n, f"frame {i + 1}/{n}")
@@ -284,7 +397,7 @@ def render_scene(project: ProjectSpec, scene_id: str, out_path: str, samples: in
     report = None
     if qa:
         say("qa", 0.0, "running inspector")
-        report = Inspector(rt, cam, project.fps, size=(W, H)).run(video=out_path, cues=cues)
+        report = Inspector(rt, cam, project.fps, size=(W, H), warp=warp).run(video=out_path, cues=cues)
         if qa_path:
             with open(qa_path, "w") as fh:
                 json.dump(report.to_dict(), fh, indent=1, default=str)
@@ -298,13 +411,14 @@ def render_scene(project: ProjectSpec, scene_id: str, out_path: str, samples: in
             json.dump(diag, fh)
         shots = [(sh.id, sh.start, sh.end) for sh in scene.shots]
         diagnostics_chart(diag, base + "_diagnostics.png", shots, f"{project.title} - {scene_id} - character / physics / camera diagnostics")
-        times = [round(x * 0.5, 2) for x in range(int(res.duration / 0.5) + 1) if x * 0.5 < n / project.fps]
+        times = [round(x * 0.5, 2) for x in range(int(n / project.fps / 0.5) + 1) if x * 0.5 < n / project.fps]  # film times
         labels = []
-        for t in times:
-            seg = res.animators[next(iter(res.animators))].segments
-            an = next(iter(res.animators.values()))
-            labels.append(f"{cam.shot_at(t).id} | {an.segments[an.segment_at(t)].kind} | {res.gravity.state_label(t)}")
-        contact_sheet(out_path, base + "_contact_sheet.png", times, labels, title=f"{project.title} - {scene_id} (t | shot | state | gravity)")
+        an = next(iter(res.animators.values()))
+        for tf in times:
+            t = warp.sim_at(tf)
+            story = "" if warp.is_identity() else f" | story {t:.2f}s"
+            labels.append(f"{cam.shot_at(t).id} | {an.segments[an.segment_at(t)].kind}{story}")
+        contact_sheet(out_path, base + "_contact_sheet.png", times, labels, title=f"{project.title} - {scene_id} (film t | shot | state | story t)")
         with open(base + "_decode.json", "w") as fh:
             json.dump(decode_check(out_path), fh, indent=1)
         say("review", 1.0, f"review artefacts in {review_dir}")

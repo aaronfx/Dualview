@@ -149,9 +149,12 @@ class CombatMixin:
                     self.emit(self._ev(t, "impact", {"surface": self.frame.tag, "normal_speed": 420.0,
                                                      "point": self.frame.to_world(self.s, 0.0), "tangent_speed": 0.0}))
             self.s = I["s0"] + I["dir"] * m["lunge"] * u
+            if I.get("recoil"):
+                self.s -= I["dir"] * I["recoil"] * _smooth((tau - m["t_c"]) / 0.3)
             if m.get("weapon") and self.carrying is not None:  # the prop follows the swing (simulation-side pose)
                 ext = clamp(1.0 - abs(tau - m["t_c"]) / 0.22, 0.0, 1.0)
-                self.world.set_kinematic(self.carrying, *self._hold_pose(self.carrying, self._weapon_angle(tau, m), ext))
+                if not I.get("obstructed") and not self._pose_prop(self.carrying, *self._hold_pose(self.carrying, self._weapon_angle(tau, m), ext), t):
+                    I["obstructed"] = True  # the swing is stopped by a structure: it cannot reach the target
             if not I["resolved"] and tau >= m["t_c"]:
                 I["resolved"] = True
                 self._resolve_strike(t, a, m)
@@ -171,7 +174,7 @@ class CombatMixin:
             else:
                 down = _smooth(tau / 0.12) - _smooth((tau - dur + 0.2) / 0.2)
                 self.h = self.stand_h - 0.46 * self.stand_h * down
-                self.s = I["s0"] - self.facing * 0.12 * self.stand_h * down  # sit back, away from the blow
+                self.s = I["s0"] - self.facing * 0.2 * self.stand_h * down  # sit back, away from the blow
             if tau >= dur:
                 self.h = self.stand_h
                 self.dodging = None
@@ -205,7 +208,7 @@ class CombatMixin:
         point = self.frame.to_world(oc.s - direction * 8.0, oc._body_height(part) if not oc.lying else LIE_H)
         data = {"move": I["move"], "target": I["other"], "part": part, "point": point, "dir": direction}
         dodge = getattr(oc, "dodging", None)
-        if oc.lying or oc.mode != "grounded":
+        if oc.lying or oc.mode != "grounded" or I.get("obstructed"):
             outcome = "whiff"
         elif dx > self._strike_reach(I["move"]) - abs(self.s - I["s0"]) or dx < 0:  # reach from where the lunge has brought him
             outcome = "whiff"
@@ -224,6 +227,7 @@ class CombatMixin:
             oc.emit(oc._ev(t, "evaded", {"by": self.cid, "move": I["move"]}))
             return
         if outcome == "blocked":
+            I["recoil"] = 16.0 + 26.0 * min(1.5, eff)  # the attacker rebounds off the guard
             self.emit(self._ev(t, "blocked", data))
             oc._receive(t, self.cid, I["move"], "block", eff, direction, part, point)
             return
@@ -280,7 +284,9 @@ class CombatMixin:
         tan = self.frame.tangent
         vel = (tan[0] * self.v, tan[1] * self.v)
         from .ragdoll import RELAXED
-        rag = Ragdoll(self.world, self.rig, pose, f"{self.cid}~rag", vel=vel, relax=RELAXED)
+        from .acrobatics import BODY_PASS_Z
+        in_lane = any(c is not self and abs(c.z - self.z) < BODY_PASS_Z and not c.lying for c in self.others.values())
+        rag = Ragdoll(self.world, self.rig, pose, f"{self.cid}~rag", vel=vel, relax=RELAXED, hit_characters=in_lane)
         # the whole body is launched (knockback), the struck part a little faster so the body tips over it
         px, py = push
         speed = 140.0 + 100.0 * min(1.8, eff)

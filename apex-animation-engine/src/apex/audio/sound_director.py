@@ -310,6 +310,7 @@ DEFAULT_BINDINGS = {
     "flip": "whoosh", "roll_start": "slide", "roll_end": None, "vault": "tap", "vault_start": None, "ledge_grab": "clank",
     "climb_start": None, "climbed": "footstep", "step_off": None, "wall_run": None, "wall_contact": "footstep", "wall_kick": "whoosh",
     "throw_start": None, "throw": "whoosh", "prop_hit": "clang", "bump": "tap",
+    "slowmo": "whoosh", "body_block": None, "prop_blocked": "clang",
 }
 
 
@@ -358,6 +359,8 @@ class SoundDirector:
                     gain = 0.3
                 elif e.type == "block_hit":
                     gain = 0.8
+                elif e.type == "slowmo":
+                    gain = 0.3
                 elif e.type in ("flip", "wall_kick", "throw"):
                     gain = 0.5
                 elif e.type == "prop_hit":

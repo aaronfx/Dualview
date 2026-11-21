@@ -34,6 +34,8 @@ WALL_T = (0.24, 0.42, 0.52)  # first foot on the wall, second foot, push-off
 BODY_MASS_HIT, BODY_MASS_GUARD = 35.0, 70.0  # kg of body that takes a thrown prop: the struck part, or the braced body
 RESTITUTION = 0.35  # a hard glyph on a body
 IMPULSE_REF = 4200.0  # impulse (kg u/s) that counts as power 1.0 (about a heavy punch)
+BODY_GAP = 30.0  # closest two standing bodies' centres come in the same lane (two torso half-widths + clothing)
+BODY_PASS_Z = 28.0  # depth separation at which two bodies pass one in front of the other (two half-depths)
 TUCK_INERTIA = 0.4  # a tight tuck has about 0.4 of the open body's moment of inertia about the centre of mass
 
 
@@ -81,6 +83,7 @@ class AcroMixin:
     def _acro_init(self) -> None:
         self.blocks = structures.blocks(self.env)
         self.thrown: Optional[Dict[str, Any]] = None
+        self._now = 0.0
         self.carry_log: List[List[Any]] = []  # [prop, t_from, t_to] (for the animation: both hands hold it)
 
     def _upright(self) -> bool:
@@ -127,12 +130,14 @@ class AcroMixin:
         if abs(self.s - s_prev) < 1e-9 or not self._upright():
             return
         top = 30.0 if self.lying else max(0.4 * self.stand_h, self.h + 0.72 * self.stand_h)
-        hit = self._path_blocker(s_prev, self.s, top=top)
+        d0 = 1.0 if self.s > s_prev else -1.0
+        front = max(10.0, self._carried_front(d0) + 2.0) if self.carrying else 10.0
+        hit = self._path_blocker(s_prev + d0 * (front - 10.0), self.s + d0 * (front - 10.0), top=top)
         if hit is None:
             return
         face, b = hit
         d = 1.0 if self.s > s_prev else -1.0
-        stop = face - d * 10.0  # the body's half thickness
+        stop = face - d * front  # the body's half thickness, or the carried prop's reach ahead of it
         if (self.s - stop) * d <= 0:
             return
         self.s, self.v = stop, 0.0
@@ -145,6 +150,92 @@ class AcroMixin:
             self.land["s0"], self.land["vt"] = stop, 0.0
         tan = self.frame.tangent
         self.world.set_kinematic(self.cid, self.frame.to_world(self.s, self.h), self.world.state(self.cid).angle)
+
+    def _enforce_bodies(self, t: float, s_prev: float) -> None:
+        """Two standing bodies in the same depth lane cannot pass through each other: whatever moved this body
+        (a walk, a lunge, a roll, a knockback), it stops at the other's body. Lanes at least BODY_PASS_Z apart pass by
+        in depth (one in front of the other)."""
+        if abs(self.s - s_prev) < 1e-9 or not self._upright():
+            return
+        d = 1.0 if self.s > s_prev else -1.0
+        for cid, oc in self.others.items():
+            if cid == self.cid or oc.frame is not self.frame or oc.lying or oc.mode not in ("grounded", "landing"):
+                continue
+            if abs(oc.z - self.z) >= BODY_PASS_Z:
+                continue
+            gap0, gap1 = (oc.s - s_prev) * d, (oc.s - self.s) * d
+            if gap0 >= BODY_GAP - 1e-6 and gap1 < BODY_GAP:  # would move into the other body
+                self.s, self.v = oc.s - d * BODY_GAP, 0.0
+                if t - getattr(self, "_bodybump_t", -1.0) > 0.4:
+                    from .controller import Event
+                    self.emit(Event(t, "body_block", self.cid, {"other": cid}))
+                self._bodybump_t = t
+                if self.mode == "landing":
+                    self.land["s0"], self.land["vt"] = self.s, 0.0
+                self.world.set_kinematic(self.cid, self.frame.to_world(self.s, self.h), self.world.state(self.cid).angle)
+
+    # ------------------------------------------------------------ carried props never enter structures
+    def _prop_segs_at(self, pid: str, c: Vec, ang: float):
+        """World segments (and radius) of a prop at centre c and angle ang."""
+        from ..scene import glyphs
+        sp = self.props[pid]
+        ca, sa = math.cos(ang), math.sin(ang)
+        W = lambda p: (c[0] + p[0] * ca - p[1] * sa, c[1] + p[0] * sa + p[1] * ca)
+        if sp.kind == "glyph":
+            return [(W(a), W(b)) for a, b in glyphs.segments(sp.glyph, sp.size)], (sp.weight or glyphs.default_weight(sp.size)) / 2
+        hx = sp.size[0] / 2
+        return [(W((-hx, 0.0)), W((hx, 0.0)))], sp.size[1] / 2
+
+    def _solids(self):
+        """The exact solid geometry of the structures: glyph strokes as capsules, platforms and beams as boxes."""
+        if getattr(self, "_solid_cache", None) is None:
+            out = []
+            for ob in self.env.obstacles:
+                if ob.kind == "glyph":
+                    out += [("seg", a, b, r, ob.id) for a, b, r, _ in structures.shape_tags(ob)]
+                elif ob.kind in ("platform", "beam"):
+                    cx, cy = ob.center
+                    out.append(("box", (cx - ob.size[0] / 2, cy - ob.size[1] / 2), (cx + ob.size[0] / 2, cy + ob.size[1] / 2), 0.0, ob.id))
+            self._solid_cache = out
+        return self._solid_cache
+
+    def _prop_in_structure(self, pid: str, c: Vec, ang: float, allow: float = 1.5) -> Optional[str]:
+        """The structure a prop at this pose would sink into by more than `allow` (resting contact is fine)."""
+        segs, r = self._prop_segs_at(pid, c, ang)
+        for (a, b) in segs:
+            for kind, p, q, rs, owner in self._solids():
+                if kind == "seg":
+                    if _seg_dist(a, b, p, q)[0] < r + rs - allow:
+                        return owner
+                else:
+                    for k in range(9):
+                        u = k / 8
+                        x, y = a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u
+                        if p[0] - r + allow < x < q[0] + r - allow and p[1] - r + allow < y < q[1] + r - allow:
+                            return owner
+        return None
+
+    def _pose_prop(self, pid: str, c: Vec, ang: float, t: float) -> bool:
+        """Move a held prop to a new pose unless that pose is inside a structure (then it stays, and the hands with it)."""
+        hit = self._prop_in_structure(pid, c, ang)
+        if hit is not None:
+            if t - getattr(self, "_propbump_t", -1.0) > 0.4:
+                from .controller import Event
+                self.emit(Event(t, "prop_blocked", self.cid, {"prop": pid, "structure": hit, "point": c}))
+            self._propbump_t = t
+            return False
+        self.world.set_kinematic(pid, c, ang)
+        return True
+
+    def _carried_front(self, d: float) -> float:
+        """How far the carried prop reaches ahead of the body in direction d (beyond the body's own half thickness)."""
+        pid = self.carrying
+        if pid is None:
+            return 0.0
+        st = self.world.state(pid)
+        segs, r = self._prop_segs_at(pid, st.pos, st.angle)
+        x0 = self.frame.to_world(self.s, self.h)[0]
+        return max(0.0, max(max((a[0] - x0) * d, (b[0] - x0) * d) for a, b in segs) + r)
 
     def _edge_check(self, t: float) -> bool:
         F = self.frame
@@ -493,7 +584,7 @@ class AcroMixin:
             k = _smooth((u - 0.45) / 0.55)
             (cx, cy), ca = self._hold_pose(pid)
             (rx, ry), ra = I["rest"]
-            self.world.set_kinematic(pid, (rx + (cx - rx) * k, ry + (cy - ry) * k), ra + wrap_angle(ca - ra) * k)
+            self._pose_prop(pid, (rx + (cx - rx) * k, ry + (cy - ry) * k), ra + wrap_angle(ca - ra) * k, t)
         if u >= 1.0:
             self.h = self.stand_h
             self.carrying = pid
@@ -561,7 +652,7 @@ class AcroMixin:
         pid = I["pid"]
         if not I["released"]:
             c, ang = self._throw_pose(tau)
-            self.world.set_kinematic(pid, c, ang)
+            self._pose_prop(pid, c, ang, t)
             if tau >= THROW_RELEASE:
                 I["released"] = True
                 self.carrying = None

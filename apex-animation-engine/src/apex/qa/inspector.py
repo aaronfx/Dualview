@@ -17,6 +17,7 @@ from ..scene.targets import in_portal, switch_world
 
 # Each tolerance below is named so failures can be traced back to an explicit, documented threshold.
 TOL = {
+    "body_clearance": 3.0, "held_prop_depth": 3.0, "silhouette_gap": 10.0,
     "structure_depth": 6.0, "top_overhang": 10.0, "flip_land": 0.45, "throw_momentum": 0.25,
     "bone_ratio_min": 0.86, "bone_ratio_max": 1.13,  # allows authored squash/stretch and IK stretch (<=8%) only
     "foot_slide": 1.5,  # world units a planted ankle may drift
@@ -85,10 +86,11 @@ SEGMENTS = [("hip_n", "knee_n"), ("knee_n", "ankle_n"), ("hip_f", "knee_f"), ("k
 
 
 class Inspector:
-    def __init__(self, runtime: SceneRuntime, camera: CameraDirector, fps: int, size: Optional[tuple] = None):
+    def __init__(self, runtime: SceneRuntime, camera: CameraDirector, fps: int, size: Optional[tuple] = None, warp=None):
         self.rt, self.cam, self.fps = runtime, camera, fps
         self.size = size or (runtime.project.width, runtime.project.height)
         self.r = runtime.result or runtime.simulate()
+        self.warp = warp  # film clock vs story clock (Milestone 3); None = the film plays the story 1:1
 
     def run(self, video: Optional[str] = None, cues=None, check_determinism: bool = True) -> QAReport:
         rep = QAReport(self.rt.scene.id)
@@ -104,6 +106,7 @@ class Inspector:
                    self.check_secondary, self.check_exit_conditions, self.check_interactions, self.check_composition,
                    self.check_combat, self.check_acrobatics):
             rep.checks.extend(fn())
+        rep.checks.extend(self.check_time_fx())
         rep.checks.extend(self.check_sync(cues))
         if check_determinism:
             rep.checks.append(self.check_determinism())
@@ -591,13 +594,14 @@ class Inspector:
                          f"fist/foot distance from the struck body point at contact ({len(hits)} contacts; worst: {where})"))
         cids = list(self.joints)
         worst_gap, where = 1e9, ""
+        from ..motion.acrobatics import BODY_PASS_Z
         rolls = 0
         for a in range(len(cids)):
             for b in range(a + 1, len(cids)):
                 for i, t in enumerate(self.times):
-                    if any(self.r.animators[c].segments[self.r.animators[c].segment_at(t)].kind == "roll" for c in (cids[a], cids[b])):
+                    if abs(self.r.animators[cids[a]].depth_at(t) - self.r.animators[cids[b]].depth_at(t)) >= BODY_PASS_Z:
                         rolls += 1
-                        continue  # a roll passes under / past the other fighter by design
+                        continue  # in different depth lanes: one passes in front of the other (body_clearance proves it)
                     ja, jb = self.joints[cids[a]][i], self.joints[cids[b]][i]
                     if ja["head_center"][1] < 0.6 * self.rt.rigs[cids[a]].p.stand_height or jb["head_center"][1] < 0.6 * self.rt.rigs[cids[b]].p.stand_height:
                         continue  # someone is down / crouched low: overlapping in depth is fine
@@ -606,7 +610,10 @@ class Inspector:
                         worst_gap, where = gap, f"{cids[a]}/{cids[b]} at t={t:.2f}s"
         if worst_gap < 1e9:
             out.append(Check("fighters_do_not_overlap", "PASS" if worst_gap >= TOL["fighter_gap"] else "FAIL", worst_gap, TOL["fighter_gap"],
-                             f"minimum pelvis distance between standing characters ({where}; {rolls} frames inside a roll not counted)"))
+                             f"minimum pelvis distance between standing characters in the same depth lane ({where}; {rolls} frames with the bodies "
+                             f"in separate lanes)"))
+        out.append(self._body_clearance())
+        out.append(self._silhouettes())
         kd = [e for e in ev if e.type == "knockdown"]
         settled = [e for e in ev if e.type == "settled"]
         ok = all(any(s.character == k.character and s.t > k.t for s in settled) for k in kd)
@@ -674,6 +681,27 @@ class Inspector:
         if any(f.bounded for f in self.r.frames.values()):
             out.append(Check("feet_on_tops", "PASS" if worst <= TOL["top_overhang"] else "FAIL", worst, TOL["top_overhang"],
                              f"how far a planted foot is past the end of the top it stands on ({where or 'none'})"))
+        spans = [(c, pid, t0, t1) for c in self.r.controllers.values() for pid, t0, t1 in getattr(c, "carry_log", [])]
+        if spans:
+            from ..motion.acrobatics import _seg_dist
+            worst, where = 0.0, ""
+            for c, pid, t0, t1 in spans:
+                for t in self.times:
+                    if not (t0 <= t < min(t1, self.r.duration)):
+                        continue
+                    x, y, a = self.r.animators[c.cid].prop_at(pid, t)
+                    segs, r = c._prop_segs_at(pid, (x, y), a)
+                    for (p, q) in segs:
+                        for kind, s0, s1, rs, owner in c._solids():
+                            if kind == "seg":
+                                pen = r + rs - _seg_dist(p, q, s0, s1)[0]
+                            else:
+                                pen = max(min(px - s0[0] + r, s1[0] - px + r, py - s0[1] + r, s1[1] - py + r)
+                                          for px, py in ((p[0] + (q[0] - p[0]) * k / 8, p[1] + (q[1] - p[1]) * k / 8) for k in range(9)))
+                            if pen > worst:
+                                worst, where = pen, f"{pid} in '{owner}' at t={t:.2f}s"
+            out.append(Check("held_props_outside_structures", "PASS" if worst <= TOL["held_prop_depth"] else "FAIL", worst,
+                             TOL["held_prop_depth"], f"deepest a carried prop goes into a structure ({len(spans)} carries; {where or 'never'})"))
         throws = [e for e in ev if e.type in ("hit", "blocked") and e.data.get("move") == "throw" and "impulse" in e.data]
         if throws:
             import numpy as np
@@ -715,13 +743,122 @@ class Inspector:
                              f"body angle from upright at the landing of each flip (rad; {len(flips)} flips; worst {where})"))
         return out
 
+    def _silhouettes(self) -> Check:
+        """Readability (2D, on screen): while two fighters are upright, their torsos and heads keep a visible gap,
+        whatever their depth lanes. Arms and legs may cross (strikes, blocks); bodies should not merge into one shape."""
+        from ..motion.acrobatics import BODY_PASS_Z, _seg_dist
+        CORE = (("pelvis", "neck_base", 9.0), ("head_center", "head_center", 11.0))
+        cids = list(self.joints)
+        worst, where, low, apart = 1e9, "", 0, 0
+        for a in range(len(cids)):
+            for b in range(a + 1, len(cids)):
+                ha, hb = self.rt.rigs[cids[a]].p.stand_height, self.rt.rigs[cids[b]].p.stand_height
+                for i, t in enumerate(self.times):
+                    ja, jb = self.joints[cids[a]][i], self.joints[cids[b]][i]
+                    if ja["head_center"][1] < 0.6 * ha or jb["head_center"][1] < 0.6 * hb:
+                        continue  # down, rolling or crouched low
+                    if abs(self.r.animators[cids[a]].depth_at(t) - self.r.animators[cids[b]].depth_at(t)) >= BODY_PASS_Z:
+                        apart += 1  # one passes in front of the other (body_clearance proves they never intersect)
+                        continue
+                    g = min(_seg_dist(ja[p0], ja[p1], jb[q0], jb[q1])[0] - ra - rb for p0, p1, ra in CORE for q0, q1, rb in CORE)
+                    if g < TOL["silhouette_gap"]:
+                        low += 1
+                    if g < worst:
+                        worst, where = g, f"{cids[a]}/{cids[b]} at t={t:.2f}s"
+        if worst >= 1e9:
+            return Check("silhouettes_readable", "SKIP", details="fewer than two upright characters")
+        return Check("silhouettes_readable", "PASS" if worst >= TOL["silhouette_gap"] else "WARN", worst, TOL["silhouette_gap"],
+                     f"on-screen gap between two upright fighters' torsos and heads in the same depth plane (closest {where}; "
+                     f"{low} frames under the limit; {apart} frames passing in separate depth lanes)")
+
+    def _core_at(self, cid: str, t: float, core):
+        """The body parts that must keep clear: during a kick, the kicking leg is the weapon (like the arms), not the body."""
+        an = self.r.animators[cid]
+        seg = an.segments[an.segment_at(t)]
+        limb = seg.data.get("limb", "") if seg.kind == "strike" else ""
+        if limb.startswith("foot"):
+            side = limb[-1]
+            return [c for c in core if not c[0].endswith("_" + side)]
+        return core
+
+    def _body_clearance(self) -> Check:
+        """Geometry-aware, no exemptions: the bodies (torso, head, thighs, shins as capsules with a depth extent) of two
+        characters never intersect. Two bodies intersect only if they overlap in the picture plane AND their depth lanes
+        are closer than two half-depths. Arms are not counted (they block, strike and bump fists by design)."""
+        from ..motion.acrobatics import BODY_PASS_Z, _seg_dist
+        CORE = (("pelvis", "neck_base", 9.0), ("head_center", "head_center", 11.0), ("hip_n", "knee_n", 5.0), ("knee_n", "ankle_n", 4.5),
+                ("hip_f", "knee_f", 5.0), ("knee_f", "ankle_f", 4.5))
+        cids = list(self.joints)
+        worst, where, n = 0.0, "", 0
+        for a in range(len(cids)):
+            for b in range(a + 1, len(cids)):
+                for i, t in enumerate(self.times):
+                    dz = abs(self.r.animators[cids[a]].depth_at(t) - self.r.animators[cids[b]].depth_at(t))
+                    zpen = BODY_PASS_Z - dz
+                    if zpen <= 0.0:
+                        continue
+                    ja, jb = self.joints[cids[a]][i], self.joints[cids[b]][i]
+                    ca, cb = self._core_at(cids[a], t, CORE), self._core_at(cids[b], t, CORE)
+                    # legs are as thick as they are drawn (half the character's limb width)
+                    ca = [(p, q, (self.rt.project.character(cids[a]).style.limb_width / 2 if p.startswith(("hip", "knee")) else r)) for p, q, r in ca]
+                    cb = [(p, q, (self.rt.project.character(cids[b]).style.limb_width / 2 if p.startswith(("hip", "knee")) else r)) for p, q, r in cb]
+                    for p0, p1, ra in ca:
+                        for q0, q1, rb in cb:
+                            d = _seg_dist(ja[p0], ja[p1], jb[q0], jb[q1])[0]
+                            pen = min(ra + rb - d, zpen)
+                            if pen > 0.0:
+                                n += 1
+                            if pen > worst:
+                                worst, where = pen, f"{cids[a]} {p0}-{p1} / {cids[b]} {q0}-{q1} at t={t:.2f}s (depth gap {dz:.0f})"
+        return Check("body_clearance", "PASS" if worst <= TOL["body_clearance"] else "FAIL", worst, TOL["body_clearance"],
+                     f"deepest intersection of two characters' bodies in 3D (torso, head, legs; no exemptions; {where or 'never'})")
+
     def check_sync(self, cues) -> List[Check]:
         if cues is None:
             return [Check("audio_event_sync", "SKIP", details="no audio rendered")]
-        times = {(round(e.t, 6), e.type) for e in self.r.events}
+        w = self.warp
+        evs = self.r.events if w is None or w.is_identity() else [(w.film_at(e.t), e.type) for e in self.r.events]
+        times = {(round(e.t, 6), e.type) for e in self.r.events} if w is None or w.is_identity() else {(round(t, 6), k) for t, k in evs}
+        if w is not None and not w.is_identity():
+            times |= {(round(w.film_at(sl.t0), 6), "slowmo") for sl in w.slows}
         stray = [c for c in cues if (round(c.t, 6), c.event_type) not in times]
         return [Check("audio_event_sync", "PASS" if not stray else "FAIL", float(len(stray)), 0.0,
                       f"{len(cues)} cues, each placed at its engine event time (0 unbound cues allowed)")]
+
+    def check_time_fx(self) -> List[Check]:
+        """Hit-stop and slow motion: the warp is monotonic and covers the whole story; every blow holds for its frames;
+        impact flashes stay within photosensitivity limits."""
+        w = self.warp
+        if w is None or w.is_identity():
+            return []
+        import numpy as np
+        out = []
+        mono = bool(np.all(np.diff(w.S) >= -1e-9) and np.all(np.diff(w.F) > 0))
+        cover = abs(w.S[-1] - self.r.duration) < 1e-6
+        out.append(Check("time_warp_valid", "PASS" if mono and cover else "FAIL", float(w.film_duration), None,
+                         f"story {self.r.duration:.2f}s -> film {w.film_duration:.2f}s; monotonic {mono}; covers the story {cover}; "
+                         f"{len(w.holds)} hit-stops, {len(w.slows)} slow-motion sections"))
+        bad = []
+        for h in w.holds:
+            f0 = w.film_at(h.t)
+            frames = [k for k in range(int(f0 * self.fps) - 1, int((f0 + h.film) * self.fps) + 2)
+                      if abs(w.sim_at(k / self.fps) - h.t) < 1e-6]
+            if len(frames) < max(1, int(round(h.film * self.fps)) - 1):
+                bad.append(f"{h.kind}@{h.t:.2f}s")
+        out.append(Check("hit_stop_frames", "PASS" if not bad else "FAIL", float(len(bad)), 0.0,
+                         f"every blow holds its impact frame ({len(w.holds)} holds, "
+                         f"{sum(round(h.film * self.fps) for h in w.holds)} frames; short: {', '.join(bad) or 'none'})"))
+        from ..render.pipeline import screen_effects
+        tfx = self.rt.scene.time_fx
+        n = int(round(w.film_duration * self.fps))
+        flashes = [k / self.fps for k in range(n) if screen_effects(w, k / self.fps, tfx).get("flash", 0.0) > 0.3]
+        worst = max((sum(1 for f in flashes if t0 <= f < t0 + 1.0) for t0 in flashes), default=0)
+        out.append(Check("flash_safety", "PASS" if worst <= 3 else "FAIL", float(worst), 3.0,
+                         "bright full-screen flashes in any one second (photosensitivity guideline: at most 3)"))
+        rates = [sl.rate for sl in w.slows]
+        out.append(Check("slowmo_bounds", "PASS" if all(0.1 <= r <= 1.0 for r in rates) else "FAIL", min(rates, default=1.0), 0.1,
+                         f"{len(rates)} slow-motion sections; slowest rate {min(rates, default=1.0):.2f}x"))
+        return out
 
     def check_determinism(self) -> Check:
         sample = [self.r.duration * k / 12 for k in range(12)]
@@ -739,7 +876,7 @@ class Inspector:
         v = next((s for s in info["streams"] if s["codec_type"] == "video"), None)
         a = next((s for s in info["streams"] if s["codec_type"] == "audio"), None)
         P = self.rt.project
-        exp_frames = int(round(self.r.duration * self.fps))
+        exp_frames = int(round((self.warp.film_duration if self.warp is not None else self.r.duration) * self.fps))
         out = []
         if v is None:
             return [Check("video_stream", "FAIL", details="no video stream")]

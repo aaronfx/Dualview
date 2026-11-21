@@ -277,6 +277,7 @@ class ActionSpec(Strict):
     dodge: Literal["back", "duck"] = "back"  # dodge: step back out of reach, or duck under a high strike
     onto: Optional[str] = None  # jump_to: land on this structure's top ("obstacle:<id>"); default: the floor (from a top)
     flip: Optional[Literal["front", "back"]] = None  # jump_to / wall_kick: a somersault in the air
+    lane: Optional[float] = Field(None, ge=-80, le=80)  # move to this depth lane during the action (negative = nearer the camera)
     note: str = ""
 
     @model_validator(mode="after")
@@ -393,6 +394,28 @@ class ShotSpec(Strict):
         return self
 
 
+class SlowMoSpec(Strict):
+    """Slow motion around a beat: story time runs at `rate` of film time from `before` s before the event to `after` s
+    after it, eased in and out over `ramp` s."""
+    at: str  # an event, goal syntax: "flip@kai", "knockdown@rho", "event:hit@kai[move=throw]"
+    before: float = Field(0.15, ge=0, le=3)
+    after: float = Field(0.45, ge=0, le=5)
+    rate: float = Field(0.35, ge=0.1, le=1)
+    ramp: float = Field(0.12, ge=0, le=1)
+
+
+class TimeFxSpec(Strict):
+    """Film-time effects (Milestone 3). The simulation is untouched; the film samples it through a time warp."""
+    hit_stop: bool = True  # at each blow, the impact frame holds for a few film frames
+    hit_stop_frames: int = Field(3, ge=1, le=8)  # frames for a blow of power 1 (scaled by power; blocks get half)
+    hit_stop_max: int = Field(6, ge=1, le=12)
+    hit_stop_events: List[str] = Field(default_factory=lambda: ["hit", "block_hit", "prop_hit"])
+    slowmo: List[SlowMoSpec] = Field(default_factory=list)
+    screen_fx: bool = True  # impact flash, chromatic split in the hold, speed lines in slow motion, vignette pulse
+    smears: bool = True  # motion smears on fast limbs and props
+    punch_in: bool = True  # camera punch-in on heavy blows and a slow push-in during slow motion
+
+
 class SceneSpec(Strict):
     id: str
     title: str = ""
@@ -404,6 +427,7 @@ class SceneSpec(Strict):
     # the story beats that must happen, in order, e.g. ["push_lost@milo", "pinned@milo[by=post]", "freed@milo"];
     # the dry run checks them and the setup solver tunes the physical setup until they happen
     goals: List[str] = Field(default_factory=list)
+    time_fx: Optional[TimeFxSpec] = None  # hit-stop, slow motion, smears and screen effects (Milestone 3)
 
     @model_validator(mode="after")
     def _shots(self) -> "SceneSpec":

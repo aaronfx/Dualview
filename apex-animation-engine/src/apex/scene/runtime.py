@@ -67,6 +67,7 @@ class FrameState:
     dust_prev: Optional[np.ndarray] = None
     doors: Dict[str, Tuple[str, float]] = field(default_factory=dict)  # exit id -> (state, progress 0..1)
     ropes: List[RopeState] = field(default_factory=list)
+    depth: Dict[str, float] = field(default_factory=dict)  # character id -> depth lane at this instant
 
 
 @dataclass
@@ -183,6 +184,7 @@ class SceneRuntime:
                                                       pl.x, pl.facing, acts, emit, doors)
             ctrls[pl.character].strength = self.project.character(pl.character).strength
             ctrls[pl.character].strict = self.strict
+            ctrls[pl.character].z = float(pl.z)
         for c in ctrls.values():  # characters can see each other, the props and everything that has happened so far
             c.others, c.all_events = ctrls, events
         dt = 1.0 / SIM_HZ
@@ -317,7 +319,8 @@ class SceneRuntime:
         dust = r.dust.at(t) if r.dust else None
         dprev = r.dust.at(t - 0.06) if r.dust else None
         doors = {ex_id: door_state(d, t) for ex_id, d in r.doors.items()}
-        return FrameState(t, poses, props, r.gravity.at(t), r.gravity.state_label(t), glow, recent, scarves, dust, dprev, doors, ropes)
+        return FrameState(t, poses, props, r.gravity.at(t), r.gravity.state_label(t), glow, recent, scarves, dust, dprev, doors, ropes,
+                          {cid: a.depth_at(t) for cid, a in r.animators.items()})
 
     def state_hash(self, times: List[float]) -> str:
         """Hash of character joints over the given times (determinism / regression checks)."""

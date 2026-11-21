@@ -57,16 +57,16 @@ class AcroAnimMixin:
         L["foot_n"] = L["foot_f"] = PI / 2
 
     def _hands_on_shins(self, pose: Pose, w: float) -> None:
-        if w <= 0.25:
+        """Hands travel (in position space, never whipping round through joint angles) from where the arms are to
+        the shins as the tuck closes."""
+        if w <= 0.2:
             return
+        k = smoothstep(0.2, 0.85, w)
         j = self.rig.world_joints(pose)
         for side in "nf":
-            keep = {k: pose.local[k] for k in (f"upper_arm_{side}", f"forearm_{side}")}
-            kn, an = j[f"knee_{side}"], j[f"ankle_{side}"]
-            self.rig.arm_ik(pose, side, ((kn[0] + an[0]) / 2, (kn[1] + an[1]) / 2))
-            k = smoothstep(0.25, 0.7, w)
-            for key, v in keep.items():
-                pose.local[key] = lerp_angle(v, pose.local[key], k)
+            kn, an, wr = j[f"knee_{side}"], j[f"ankle_{side}"], j[f"wrist_{side}"]
+            tgt = ((kn[0] + an[0]) / 2, (kn[1] + an[1]) / 2)
+            self.rig.arm_ik(pose, side, (wr[0] + (tgt[0] - wr[0]) * k, wr[1] + (tgt[1] - wr[1]) * k))
             pose.hands[side] = "fist"
 
     def _glyph_grips(self, pid: str, t: float) -> Tuple[Vec, Vec]:

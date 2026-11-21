@@ -106,6 +106,25 @@ Each standable top is a support surface with ends. Walking past an end steps off
 | `strike` `move: flying_kick` | as for other strikes | A jumping lunge, with contact near the top of the arc | `takeoff`, `impact` |
 | `strike` `move: swing_weapon` | as for other strikes, while carrying | Swings the carried prop. The reach is the arm plus the prop | as for other strikes |
 
+## Depth lanes and film-time effects (Milestone 3)
+
+**Depth lanes.** `CharacterPlacement.z` sets a character's starting lane (negative is nearer the camera). Any action may carry `lane`, and the body then moves in depth toward it at 70 units/s. Two standing bodies whose lanes are less than 28 apart cannot pass through each other (`body_block`). Lanes 28 or more apart pass one in front of the other. A falling ragdoll collides with standing bodies in its lane.
+
+**`SceneSpec.time_fx`** (optional). The simulation is untouched; the film samples it through a time warp.
+
+| Field | Default | Meaning |
+|---|---|---|
+| `hit_stop` | true | At each blow the impact frame holds |
+| `hit_stop_frames` | 3 | Frames for a blow of power 1 (× (0.6 + 0.6 × power); blocks half) |
+| `hit_stop_max` | 6 | Cap on the frames of one hold |
+| `hit_stop_events` | `hit`, `block_hit`, `prop_hit` | Events that cause a hold |
+| `slowmo` | [] | A list of `{at, before, after, rate, ramp}`: around the event `at` (goal syntax, e.g. `flip@kai[dir=back]`), story time runs at `rate` |
+| `screen_fx` | true | Impact flash (heavy blows, at most 2 frames), chromatic split on the held frame, vignette pulse, speed lines in slow motion |
+| `smears` | true | Smears on fast limbs; ghosts on fast props |
+| `punch_in` | true | Camera punch-in on heavy blows; push-in during slow motion |
+
+Sounds and effects are placed on the film clock. QA checks the warp (`time_warp_valid`, `hit_stop_frames`, `flash_safety`, `slowmo_bounds`).
+
 ## Gravity angles (GravityEffect)
 
 Each switch changes gravity in exactly one of two ways:

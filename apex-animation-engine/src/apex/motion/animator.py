@@ -127,6 +127,7 @@ class Animator(InteractionAnimMixin, CombatAnimMixin, AcroAnimMixin):
         self.shift_times = [e.t for e in events if e.type == "gravity_shift"]
         self.portals: List[Tuple[float, float, float, float]] = []  # open-doorway regions (set by the runtime)
         self.FAC = np.array([r.facing for r in records])
+        self.Z = np.array([r.z for r in records])
         self.prop_at = None  # set by the runtime: prop id, t -> (x, y, angle)
         self.others: Dict[str, "Animator"] = {}
         self.prop_specs: Dict[str, object] = {}
@@ -359,6 +360,9 @@ class Animator(InteractionAnimMixin, CombatAnimMixin, AcroAnimMixin):
         return g, smoothstep(0.0, 0.22, tau)
 
     # ------------------------------------------------------------ evaluation
+    def depth_at(self, t: float) -> float:
+        return float(np.interp(t, self.T, self.Z)) if len(self.T) else 0.0
+
     def segment_at(self, t: float) -> int:
         for i, s in enumerate(self.segments):
             if s.t0 <= t < s.t1:
@@ -783,8 +787,8 @@ class Animator(InteractionAnimMixin, CombatAnimMixin, AcroAnimMixin):
                 wf = flip_tuck(tau, seg.data.get("T", 0.8))  # the same tuck the physics spins with
                 set_lean(L, lerp(0.1, 0.85, wf), chest=0.25 * wf, head=lerp(-0.2, 0.6, wf))
                 self._tuck(L, max(wf, 0.25 * tuck))
-                set_arm(L, "n", lerp(2.4, 1.2, wf) - 1.0 * b, 0.4)
-                set_arm(L, "f", lerp(2.2, 1.1, wf) - 0.9 * b, 0.5)
+                set_arm(L, "n", lerp(1.6, 1.2, wf) - 1.0 * b, 0.4)  # a flip drives the arms up-forward, not overhead
+                set_arm(L, "f", lerp(1.5, 1.1, wf) - 0.9 * b, 0.5)
                 self._hands_on_shins(pose, wf)
             btn, pt = seg.data.get("button"), seg.data.get("press_t")
             if btn is not None:

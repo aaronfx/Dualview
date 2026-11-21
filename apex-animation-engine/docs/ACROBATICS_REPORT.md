@@ -128,6 +128,10 @@ Nine shots, each cut placed at a simulated event. One wide shot is static, frami
 
 *Symbol Run* was re-simulated on the updated engine: `examples/symbol_run.json` is regenerated, and its acrobatics, combat and contact checks all pass (flip lands within 0.02 rad).
 
+**Correction (owner's final review).** The *Rescue* container reversal is real. It was documented on PR #7 (branch `gpt-apex-prop-character-collisions`): a kinematic character drove a heavy container about 294 units backward. My acceptance note wrongly said no such defect was recorded; I had searched only this branch. The Milestone 2 structure fixes do **not** cover character-versus-dynamic-prop contact, so the issue stays tracked (`docs/CINEMATIC_REPORT.md`, Part 1).
+
+The roll-through-body and held-prop issues from that review are fixed in Milestone 3's Part 1 (`docs/CINEMATIC_REPORT.md`).
+
 ## Known defects (honest list)
 
 | # | Defect | Severity |
