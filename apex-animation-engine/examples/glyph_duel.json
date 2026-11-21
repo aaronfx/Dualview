@@ -172,7 +172,7 @@
    "id": "duel",
    "title": "Glyph Duel",
    "environment": "symbols",
-   "duration": 38.833333333333336,
+   "duration": 39.208333333333336,
    "placements": [
     {
      "character": "kai",
@@ -579,7 +579,7 @@
     {
      "id": "s08_dive",
      "start": 16.321,
-     "end": 20.692,
+     "end": 20.533,
      "kind": "wide",
      "description": "the front flip off the bar, tracked down",
      "camera": {
@@ -597,8 +597,8 @@
     },
     {
      "id": "s09_kick",
-     "start": 20.692,
-     "end": 24.029,
+     "start": 20.533,
+     "end": 23.896,
      "description": "two-shot: flying kick blocked, the hook ducked",
      "camera": {
       "target": "kai",
@@ -615,8 +615,8 @@
     },
     {
      "id": "s10_staff",
-     "start": 24.029,
-     "end": 27.929,
+     "start": 23.896,
+     "end": 27.742,
      "description": "the minus sign as a staff",
      "camera": {
       "target": "kai",
@@ -633,8 +633,8 @@
     },
     {
      "id": "s11_down",
-     "start": 27.929,
-     "end": 32.183,
+     "start": 27.742,
+     "end": 32.225,
      "description": "thrown: RHO goes down (the camera closes in on the blow)",
      "camera": {
       "target": "kai",
@@ -651,8 +651,8 @@
     },
     {
      "id": "s12_respect",
-     "start": 32.183,
-     "end": 38.833333333333336,
+     "start": 32.225,
+     "end": 39.208333333333336,
      "kind": "close",
      "description": "he gets up; a fist bump, framed close",
      "camera": {

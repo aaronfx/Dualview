@@ -274,8 +274,8 @@ class InteractionAnimMixin:
                 self._arm_floor_safe(pose, side, F.to_world(hs, 2.0), F)
                 pose.hands[side] = "open"
         j = self.rig.world_joints(pose)
-        if min(F.to_frame(j["knee_n"])[1], F.to_frame(j["knee_f"])[1]) < 1.0:
-            # knees (and toes) never under the floor: lift the pelvis and re-solve the legs toward the same ankles
+        if pose.state in ("ragdoll", "prone", "supine") and min(F.to_frame(j["knee_n"])[1], F.to_frame(j["knee_f"])[1]) < 1.0:
+            # a body at rest: knees (and toes) never under the floor (getting-up poses solve their own legs)
             self._knees_above_floor(pose, F, max_raise=40.0)
 
     def _knees_above_floor(self, pose: Pose, F, max_raise: float = 1e9) -> None:

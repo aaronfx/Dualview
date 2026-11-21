@@ -25,7 +25,11 @@ from .library import get_clip, landing_clip
 
 MASS = 70.0
 CAPSULE_R = 9.0
-LANE_RATE = 70.0  # depth-lane change speed (units/s)
+BODY_R = 11.0  # radius of the physical body props collide with
+BODY_CONTACT_MASS = 8.0  # effective mass a body brings into a contact (a compliant body, not a 70 kg rigid block); the
+# force it can apply is bounded separately, by the character's strength
+KNEE_UP = 0.42  # its lower end, as a fraction of standing height (things lower than this are stepped over)
+LANE_RATE = 110.0  # depth-lane change speed (units/s): a quick side-step
 SUPPORT_COS = math.cos(math.radians(55))  # gravity must point within 55deg of "into the surface" to stay supported
 PRESS_CONTACT_T = 0.80  # contact time inside the press action
 PRESS_DURATION = 1.75
@@ -135,6 +139,8 @@ class CharacterController(InteractionMixin, CombatMixin, AcroMixin):
         self.z, self.z_target = 0.0, None
         self._acro_init()
         world.add_capsule(cid, self.frame.to_world(self.s, self.h), self.cap_a, self.cap_b, CAPSULE_R, MASS, kinematic=True)
+        # the bounded-force physical body (props collide with it from knee height up; low things are stepped over)
+        world.add_proxy(cid, (0.0, -self.stand_h + KNEE_UP * self.stand_h), self.cap_b, BODY_R, BODY_CONTACT_MASS, self.strength)
         self._open("idle", 0.0)
 
     # ------------------------------------------------------------ segments
@@ -161,16 +167,20 @@ class CharacterController(InteractionMixin, CombatMixin, AcroMixin):
         g = self.gravity.at(t)
         s_prev = self.s if self.mode in ("grounded", "landing") else None
         self._update(t, dt, g)
+        self._step_from = s_prev
         if self.z_target is not None:  # changing depth lane (e.g. rolling past in front of someone)
             step = LANE_RATE * dt
             self.z += max(-step, min(step, self.z_target - self.z))
             if abs(self.z - self.z_target) < 1e-6:
                 self.z_target = None
+        if s_prev is not None and self.mode == "grounded":
+            self._hold_for_lane(s_prev)  # side-stepping around a prop: do not reach it before the step is done
         if s_prev is not None and self.mode in ("grounded", "landing"):
             self._enforce_solid(t, s_prev)  # no motion of any kind carries the body through a structure
             self._enforce_bodies(t, s_prev)  # ... or through another standing body in the same depth lane
         if self.mode == "grounded":
             self._edge_check(t)  # any motion past the end of a top steps off it (walks, lunges, dodges, knockbacks)
+        self._proxy_sync(t)
 
     def _update(self, t: float, dt: float, g) -> None:
         if self.mode == "grounded":
@@ -191,6 +201,7 @@ class CharacterController(InteractionMixin, CombatMixin, AcroMixin):
         # "ragdoll": the bodies are stepped by the physics world; see after_step
 
     def after_step(self, t: float, contacts: List[ContactEvent]) -> None:
+        self._proxy_react(t)
         if self.mode == "airborne":
             g = self.gravity.direction(t)
             for c in contacts:
@@ -271,6 +282,7 @@ class CharacterController(InteractionMixin, CombatMixin, AcroMixin):
             a = self.cur = a.model_copy(update={"target_x": ts - d0 * stop})
         if a.type in ("walk_to", "run_to") and not self.lying:
             a = self.cur = self._check_walk(t, a)
+            self._plan_around_props(t, a)
         if a.type in INTERACTIONS:
             if not (self.inter_action is a and a.type == "use_lever"):
                 self.inter_action = a

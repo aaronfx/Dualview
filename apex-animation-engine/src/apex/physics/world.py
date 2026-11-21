@@ -13,7 +13,8 @@ import pymunk
 
 from ..core.mathx import Vec
 
-CT_STATIC, CT_CHARACTER, CT_PROP = 1, 2, 3
+CT_STATIC, CT_CHARACTER, CT_PROP, CT_PROXY = 1, 2, 3, 4
+CAT_PROXY = 0b10000  # a standing character's bounded-force body (collides with props only)
 CAT_CHAR = 0b10  # collision category of character bodies
 CAT_PROP = 0b100  # collision category of props
 ALL = pymunk.ShapeFilter.ALL_MASKS()
@@ -64,6 +65,18 @@ class PhysicsWorld:
         self.events: List[ContactEvent] = []
         self._pending: List[ContactEvent] = []
         self.space.on_collision(None, None, begin=self._on_begin)
+        # bounded-force character bodies (see add_proxy): contacts with props filtered by depth and by what the
+        # character is doing with that prop (carrying it, pushing it, has just thrown it)
+        self._proxies: Dict[str, tuple] = {}
+        self.proxy_ignore: set = set()  # (character tag, prop tag) pairs whose contact is handled elsewhere
+        self.depth: Dict[str, Tuple[float, float]] = {}  # tag -> (depth lane z, half depth)
+        self.proxy_grace: set = set()
+        self.in_flight: set = set()  # thrown props: their hits are resolved by impulse exchange (controller), not here  # (character, prop) pairs already overlapping when the body became solid
+        self.space.on_collision(CT_PROXY, CT_PROP, pre_solve=self._proxy_pre, separate=self._proxy_sep)
+        # a carried prop is moved kinematically (no mass of its own in the solver): it must not shove other props with
+        # unbounded force, so it passes them while carried (structures still stop it: see the controller)
+        self.carried: set = set()
+        self.space.on_collision(CT_PROP, CT_PROP, pre_solve=self._prop_pre)
 
     # ------------------------------------------------------------ construction
     def add_static_segment(self, tag: str, a: Vec, b: Vec, radius: float = 1.0, friction: float = 0.9) -> None:
@@ -81,7 +94,7 @@ class PhysicsWorld:
         body.position, body.angle = pos, angle
         shape = pymunk.Poly.create_box(body, size, radius=1.0)
         shape.friction, shape.elasticity, shape.collision_type = friction, elasticity, CT_PROP
-        shape.filter = pymunk.ShapeFilter(categories=CAT_PROP, mask=ALL if collide_characters else ALL ^ CAT_CHAR)
+        shape.filter = pymunk.ShapeFilter(categories=CAT_PROP, mask=ALL if collide_characters else ALL ^ (CAT_CHAR | CAT_PROXY))
         shape.sensor = not solid  # set dressing: no contact response until it becomes a real body
         self._mass_moment[tag] = (mass, body.moment if solid else pymunk.moment_for_box(mass, size))
         self._shapes[tag] = shape
@@ -103,7 +116,7 @@ class PhysicsWorld:
         for a, b in segs:
             sh = pymunk.Segment(body, a, b, radius)
             sh.friction, sh.elasticity, sh.collision_type = friction, elasticity, CT_PROP
-            sh.filter = pymunk.ShapeFilter(categories=CAT_PROP, mask=ALL if collide_characters else ALL ^ CAT_CHAR)
+            sh.filter = pymunk.ShapeFilter(categories=CAT_PROP, mask=ALL if collide_characters else ALL ^ (CAT_CHAR | CAT_PROXY))
             sh.sensor = not solid
             shapes.append(sh)
             self._tags[sh] = tag
@@ -115,6 +128,86 @@ class PhysicsWorld:
 
     def shapes_of(self, tag: str) -> List[pymunk.Shape]:
         return [self._shapes[tag]] + self._extra.get(tag, [])
+
+    def add_proxy(self, owner: str, a: Vec, b: Vec, radius: float, mass: float, max_force: float) -> None:
+        """A standing character's physical body for contact with props: a dynamic capsule (the character's mass, no
+        rotation, no gravity of its own) tied to the kinematic character by a joint whose force is bounded by the
+        character's strength. A prop can push it (and the character is then displaced or blocked, see the controller),
+        and it pushes a prop with at most that force: no ghosting, and no infinite-mass push either."""
+        ob = self._bodies[owner]
+        body = pymunk.Body(mass, float("inf"))
+        body.position = ob.position
+        body.velocity_func = lambda bd, g, damping, dt: pymunk.Body.update_velocity(bd, (0.0, 0.0), damping, dt)
+        shape = pymunk.Segment(body, a, b, radius)
+        shape.friction, shape.elasticity, shape.collision_type = 0.7, 0.0, CT_PROXY
+        shape.filter = pymunk.ShapeFilter(categories=CAT_PROXY, mask=0)  # enabled while the character stands
+        joint = pymunk.PivotJoint(ob, body, (0.0, 0.0), (0.0, 0.0))
+        joint.max_force, joint.max_bias, joint.collide_bodies = max_force, 2500.0, False
+        self.space.add(body, shape, joint)
+        self._tags[shape] = owner + "~body"
+        self._proxies[owner] = (body, shape, joint)
+
+    def proxy_set(self, owner: str, active: bool, max_force: float) -> None:
+        body, shape, joint = self._proxies[owner]
+        joint.max_force = max_force if active else 0.0  # an inactive body (airborne, lying) exerts nothing on the character
+        want = CAT_PROP if active else 0
+        if shape.filter.mask != want:
+            if active:  # (re)activate at the character, at rest
+                ob = self._bodies[owner]
+                body.position, body.velocity = ob.position, ob.velocity
+                self.space.reindex_shapes_for_body(body)
+            shape.filter = pymunk.ShapeFilter(categories=CAT_PROXY, mask=want)
+            if active:  # never resolve an interpenetration that already exists by force: that pair passes in depth
+                for info in self.space.shape_query(shape):
+                    if info.shape.collision_type == CT_PROP:
+                        self.proxy_grace.add((owner, self._tags.get(info.shape)))
+
+    def proxy_offset(self, owner: str) -> Tuple[Vec, Vec]:
+        """(offset of the body from the character, its velocity)."""
+        body = self._proxies[owner][0]
+        ob = self._bodies[owner]
+        return (body.position.x - ob.position.x, body.position.y - ob.position.y), (body.velocity.x, body.velocity.y)
+
+    def proxy_contact(self, owner: str) -> Optional[str]:
+        """The prop the character's body is touching (None if none)."""
+        body = self._proxies[owner][0]
+        hit = [None]
+
+        def visit(arb: pymunk.Arbiter) -> None:
+            for sh in arb.shapes:
+                if sh.body is not body and sh.collision_type == CT_PROP:
+                    hit[0] = self._tags.get(sh)
+        body.each_arbiter(visit)
+        return hit[0]
+
+    def proxy_force(self, owner: str, dt: float) -> float:
+        return self._proxies[owner][2].impulse / dt
+
+    def _proxy_pre(self, arb: pymunk.Arbiter, space: pymunk.Space, data) -> None:
+        sa, sb = arb.shapes
+        ta, tb = self._tags.get(sa, "?"), self._tags.get(sb, "?")
+        if sa.collision_type != CT_PROXY:
+            ta, tb = tb, ta
+        owner = ta[:-5]  # strip "~body"
+        if (owner, tb) in self.proxy_ignore or (owner, tb) in self.proxy_grace or tb in self.in_flight:
+            arb.process_collision = False
+            return
+        za, ha = self.depth.get(owner, (0.0, 14.0))
+        zb, hb = self.depth.get(tb, (0.0, 30.0))
+        if abs(za - zb) >= ha + hb:  # in different depth lanes: they pass one in front of the other
+            arb.process_collision = False
+
+    def _prop_pre(self, arb: pymunk.Arbiter, space: pymunk.Space, data) -> None:
+        sa, sb = arb.shapes
+        if self._tags.get(sa) in self.carried or self._tags.get(sb) in self.carried:
+            arb.process_collision = False
+
+    def _proxy_sep(self, arb: pymunk.Arbiter, space: pymunk.Space, data) -> None:
+        sa, sb = arb.shapes
+        ta, tb = self._tags.get(sa, "?"), self._tags.get(sb, "?")
+        if sa.collision_type != CT_PROXY:
+            ta, tb = tb, ta
+        self.proxy_grace.discard((ta[:-5], tb))  # once apart, they collide normally
 
     def add_capsule(self, tag: str, pos: Vec, a: Vec, b: Vec, radius: float, mass: float, kinematic: bool = True) -> None:
         moment = pymunk.moment_for_segment(mass, a, b, radius)

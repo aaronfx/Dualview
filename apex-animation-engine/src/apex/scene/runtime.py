@@ -31,6 +31,9 @@ DOOR_CLOSE_S = 0.5  # ...over this long
 SIM_HZ = 240
 
 
+BREAK_LOOSE = 30.0  # u/s: a prop with stick-slip friction switches to sliding friction only past this speed (hysteresis)
+
+
 @dataclass
 class PropState:
     id: str
@@ -146,6 +149,8 @@ class SceneRuntime:
             world.add_box(pr.id, pr.position, pr.size, pr.mass, angle=pr.angle, friction=pr.friction,
                           elasticity=0.15 if pr.mass < 20 else 0.02,  # heavy steel does not bounce
                           collide_characters=pr.collide_characters, com=pr.com, solid=pr.solid)
+        for pr in self.env.props:  # depth extents for the character-body contact filter
+            world.depth[pr.id] = (float(pr.z), pr.depth / 2)
         for rp in self.env.ropes:
             a_id = rp.a.split(":", 1)[1]
             if rp.b.startswith("world:"):
@@ -196,12 +201,18 @@ class SceneRuntime:
         t = 0.0
         prop_speed_prev: Dict[str, float] = {}
         stick = {p.id: p for p in self.env.props if p.static_friction is not None}
+        sliding: Dict[str, bool] = {}
         for i in range(n):
             t = i * dt
             world.set_gravity(gravity.at(t))
-            for pid, sp in stick.items():  # stick-slip friction: static while (nearly) at rest, kinetic once sliding
+            for pid, sp in stick.items():  # stick-slip friction: static while at rest, kinetic once it has broken loose
                 st = world.state(pid)
-                world.set_friction(pid, sp.static_friction if math.hypot(*st.vel) < 4.0 else sp.friction)
+                speed = math.hypot(*st.vel)
+                if speed > BREAK_LOOSE:  # genuinely forced past static friction (not just knocked by a bump)
+                    sliding[pid] = True
+                elif speed < 4.0:
+                    sliding[pid] = False
+                world.set_friction(pid, sp.friction if sliding.get(pid) else sp.static_friction)
             for c in ctrls.values():
                 c.update(t, dt)
             contacts = world.step(dt)

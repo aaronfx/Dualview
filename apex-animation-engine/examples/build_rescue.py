@@ -16,7 +16,7 @@ Every outcome comes from the simulation; the shot cuts are placed from the simul
 """
 import json, math, sys, os
 P = dict(cont_x=-40.0, post_x=-340.0, post_h=270.0, slack=80.0, tool_x=2.0, bar_x=300.0, bar_l=175.0, milo_x=-300.0, juno_x=-380.0,
-         bench_x=130.0, duration=20.0, push_effort=1.25, cont_m=110.0, kin_f=0.028, stat_f=0.39, post_w=18.0, com_y=70.0, break_f=900000.0)
+         bench_x=440.0, duration=26.0, push_effort=1.25, cont_m=110.0, kin_f=0.028, stat_f=0.39, post_w=18.0, com_y=70.0, break_f=900000.0)
 def project(shots=None, **over):
     p = dict(P, **over)
     cont_w, cont_h = 120.0, 100.0
@@ -45,6 +45,7 @@ def project(shots=None, **over):
             "props": [
                 {"id": "container", "kind": "container", "position": [p["cont_x"], cont_h / 2 + 1], "size": [cont_w, cont_h], "mass": p["cont_m"], "friction": p["kin_f"], "static_friction": p["stat_f"]},
                 {"id": "post", "kind": "post", "position": [p["post_x"], post_h / 2 + 1], "size": [post_w, post_h], "mass": 80, "friction": 0.9,
+                 "z": -40, "depth": 20,  # a column, standing in front of both characters' depth lanes
                  "com": [0.0, p["com_y"]]},
                 {"id": "toolbox", "kind": "toolbox", "position": [p["tool_x"], 23], "size": [46, 44], "mass": 40, "friction": 0.9,
                  "collide_characters": False, "solid": False, "z": 38, "depth": 34},

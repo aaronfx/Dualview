@@ -34,6 +34,8 @@ WALL_T = (0.24, 0.42, 0.52)  # first foot on the wall, second foot, push-off
 BODY_MASS_HIT, BODY_MASS_GUARD = 35.0, 70.0  # kg of body that takes a thrown prop: the struck part, or the braced body
 RESTITUTION = 0.35  # a hard glyph on a body
 IMPULSE_REF = 4200.0  # impulse (kg u/s) that counts as power 1.0 (about a heavy punch)
+ROOM_LANE = 60.0  # the depth lanes a character can use (|z|)
+KNEE_FRAC = 0.42  # the body's lower end (as in controller.KNEE_UP): lower things are stepped over
 BODY_GAP = 30.0  # closest two standing bodies' centres come in the same lane (two torso half-widths + clothing)
 BODY_PASS_Z = 28.0  # depth separation at which two bodies pass one in front of the other (two half-depths)
 TUCK_INERTIA = 0.4  # a tight tuck has about 0.4 of the open body's moment of inertia about the centre of mass
@@ -108,6 +110,66 @@ class AcroMixin:
                 if best is None or (face - s0) * d < (best[0] - s0) * d:
                     best = (face, b)
         return best
+
+    def _props_in_path(self, lo_s: float, hi_s: float, skip=()) -> List[Tuple[str, float, float]]:
+        """Props (id, depth z, half depth) standing across the body's height band between lo_s and hi_s."""
+        fy = self._feet_y()
+        out = []
+        for pid, sp in self.props.items():
+            if pid in skip or not sp.collide_characters:
+                continue
+            st = self.world.state(pid)
+            r = max(sp.size) / 2
+            if st.pos[0] + r < lo_s - 11.0 or st.pos[0] - r > hi_s + 11.0:
+                continue
+            if st.pos[1] + r < fy + KNEE_FRAC * self.stand_h or st.pos[1] - r > fy + 1.9 * self.stand_h:
+                continue
+            pz, ph = self.world.depth.get(pid, (0.0, 30.0))
+            out.append((pid, pz, ph))
+        return out
+
+    def _free_lane(self, blockers: List[Tuple[str, float, float]]) -> Optional[float]:
+        """The nearest depth lane (to the current one) clear of all the blockers, within the room."""
+        bands = [(pz - ph - 14.0 - 3.0, pz + ph + 14.0 + 3.0) for _, pz, ph in blockers]
+        cands = [self.z] + [e for b in bands for e in b]
+        ok = [z for z in cands if -ROOM_LANE <= z <= ROOM_LANE and all(not (lo < z < hi) for lo, hi in bands)]
+        return min(ok, key=lambda z: abs(z - self.z)) if ok else None
+
+    def _hold_for_lane(self, s_prev: float) -> None:
+        sd = getattr(self, "_sidestep", None)
+        if sd is None or self.z_target is None or abs(self.z - self.z_target) < 1.0:
+            return
+        pz, ph = self.world.depth.get(sd["prop"], (0.0, 30.0))
+        if abs(self.z - pz) >= ph + 14.0:
+            return  # already clear in depth
+        # step aside first, then walk on (no forward motion until clear of it in depth)
+        if abs(self.s - s_prev) > 1e-9:
+            self.s, self.v = s_prev, 0.0
+            self.world.set_kinematic(self.cid, self.frame.to_world(self.s, self.h), self.world.state(self.cid).angle)
+
+    def _plan_around_props(self, t: float, a: ActionSpec) -> None:
+        """Before a walk: props standing in the way at this depth (ones the character is not about to handle) are
+        passed in another depth lane, chosen now and clear of all of them, so the character never bumps into them."""
+        if a.lane is not None or getattr(self, "_sidestep", None) is not None or not self._upright():
+            return
+        lo_s, hi_s = sorted((self.s, a.target_x))
+        handled = {self.carrying} | ({self.thrown["prop"]} if self.thrown else set())
+        for q in self.queue:  # props the character is going to handle next are approached, not avoided
+            for ref in (q.target, q.tool, q.fulcrum):
+                if ref and ref.startswith("prop:"):
+                    handled.add(ref.split(":", 1)[1])
+        x0 = self.frame.to_world(self.s, self.h)[0]
+        blockers = [b for b in self._props_in_path(lo_s, hi_s, handled)
+                    if abs(self.world.state(b[0]).pos[0] - x0) > max(self.props[b[0]].size) / 2 + 11.0]
+        if not any(abs(pz - self.z) < ph + 14.0 for _, pz, ph in blockers):
+            return
+        z = self._free_lane(blockers)
+        if z is not None and abs(z - self.z) > 1e-6:
+            from .controller import Event
+            far = max(blockers, key=lambda b: abs(self.world.state(b[0]).pos[0] - x0))
+            self._sidestep = {"prop": far[0], "home": self.z, "planned": True}
+            self.z_target = z
+            self.emit(Event(t, "sidestep", self.cid, {"prop": far[0], "lane": round(z, 1), "planned": True}))
 
     def _check_walk(self, t: float, a: ActionSpec) -> ActionSpec:
         hit = self._path_blocker(self.s, a.target_x)
@@ -236,6 +298,103 @@ class AcroMixin:
         segs, r = self._prop_segs_at(pid, st.pos, st.angle)
         x0 = self.frame.to_world(self.s, self.h)[0]
         return max(0.0, max(max((a[0] - x0) * d, (b[0] - x0) * d) for a, b in segs) + r)
+
+    # ------------------------------------------------------------ bounded-force body vs dynamic props
+    def _proxy_active(self) -> bool:
+        return self.mode in ("grounded", "landing") and self.posture == "stand" and self.ragdoll is None
+
+    def _proxy_sync(self, t: float) -> None:
+        """Before the physics step: the body is solid while standing, pushes with at most the character's strength,
+        and ignores the props this character is handling (carried, pushed, levered, just thrown)."""
+        sd = getattr(self, "_sidestep", None)
+        if sd is not None:  # stepped around a prop in depth: back to the own lane once past it and clear of it
+            st = self.world.state(sd["prop"])
+            sp = self.props[sd["prop"]]
+            x = self.frame.to_world(self.s, self.h)[0]
+            moving = self.cur is not None and self.cur.type in ("walk_to", "run_to") and self.cur.target_x is not None
+            ahead = moving and (st.pos[0] - x) * (self.cur.target_x - self.s) > 0  # still has it to pass
+            if abs(x - st.pos[0]) > max(sp.size) / 2 + 11.0 + 6.0 and not ahead:
+                self.z_target = sd["home"]
+                self._sidestep = None
+        active = self._proxy_active()
+        self.world.proxy_set(self.cid, active, self.strength)
+        fl = getattr(self, "_flight_reg", None)
+        cur = self.thrown["prop"] if self.thrown else None
+        if fl is not None and fl != cur:
+            self.world.in_flight.discard(fl)
+        if cur:
+            self.world.in_flight.add(cur)
+        self._flight_reg = cur
+        mine = getattr(self, "_carried_reg", None)
+        if mine is not None and mine != self.carrying:
+            self.world.carried.discard(mine)
+        if self.carrying:
+            self.world.carried.add(self.carrying)
+        self._carried_reg = self.carrying
+        self.world.depth[self.cid] = (self.z, 14.0)
+        ign = self.world.proxy_ignore
+        for pair in [p for p in ign if p[0] == self.cid]:
+            ign.discard(pair)
+        handled = set()
+        if self.carrying:
+            handled.add(self.carrying)
+        if self.thrown:
+            handled.add(self.thrown["prop"])
+        for ref in (getattr(self.inter_action, "target", None), getattr(self.inter_action, "tool", None),
+                    getattr(self.inter_action, "fulcrum", None)) if self.cur is not None and self.cur.type in (
+                        "push", "lift", "use_lever", "pick_up", "throw") else ():
+            if ref and ref.startswith("prop:"):
+                handled.add(ref.split(":", 1)[1])
+        if self.inter.get("bar"):
+            handled.update(k for k in (self.inter.get("bar"), self.inter.get("ful")) if k)
+        for pid in handled:
+            ign.add((self.cid, pid))
+
+    def _proxy_react(self, t: float) -> None:
+        """After the physics step: if a prop held the body back while the character moved into it, the character is
+        stopped there (blocked); if a prop pushed the body, the character is displaced with it, and a hard shove
+        staggers him."""
+        if not self._proxy_active():
+            return
+        prop = self.world.proxy_contact(self.cid)
+        if prop is None:
+            return
+        (ox, oy), (vx, vy) = self.world.proxy_offset(self.cid)
+        tan = self.frame.tangent
+        off = ox * tan[0] + oy * tan[1]
+        if abs(off) < 2.0:
+            return
+        from .controller import Event
+        moved = self.s - (self._step_from if self._step_from is not None else self.s)
+        last = getattr(self, "_proxy_ev_t", -1.0)
+        if moved * off < 0:  # walking (or lunging) into it, and it did not give way: the character stops
+            self.s += off
+            self.v = 0.0
+            if t - last > 0.5:
+                self.emit(Event(t, "prop_block", self.cid, {"prop": prop, "point": self.frame.to_world(self.s, self.h)}))
+                self._proxy_ev_t = t
+            if self.cur is not None and self.cur.type in ("walk_to", "run_to") and getattr(self, "_sidestep", None) is None:
+                # a walk blocked by something it cannot move: step around it in depth, if the room allows
+                tgt = self.cur.target_x
+                lo_s, hi_s = sorted((self.s, tgt))
+                blockers = [b for b in self._props_in_path(lo_s, hi_s) if b[0] == prop or True]
+                z = self._free_lane(blockers or [(prop, *self.world.depth.get(prop, (0.0, 30.0)))])
+                if z is not None and abs(z - self.z) > 1e-6:
+                    self._sidestep = {"prop": prop, "home": self.z}
+                    self.z_target = z
+                    self.emit(Event(t, "sidestep", self.cid, {"prop": prop, "lane": round(z, 1)}))
+        else:  # the prop pushed the body: the character is displaced with it
+            self.s += off
+            speed = abs(vx * tan[0] + vy * tan[1])
+            if t - last > 0.5:
+                self.emit(Event(t, "shoved", self.cid, {"prop": prop, "speed": round(speed, 1),
+                                                        "point": self.frame.to_world(self.s, self.h)}))
+                self._proxy_ev_t = t
+                if speed > 160.0 and (self.cur is None or self.cur.type != "hurt"):
+                    self._hurt(t, "stagger", 1.0 if off > 0 else -1.0, min(90.0, 20.0 + 0.12 * speed), part="body")
+        if self.mode == "landing":
+            self.land["s0"] = self.s
+        self.world.set_kinematic(self.cid, self.frame.to_world(self.s, self.h), self.world.state(self.cid).angle)
 
     def _edge_check(self, t: float) -> bool:
         F = self.frame

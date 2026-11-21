@@ -112,6 +112,8 @@
      ],
      "mass": 80,
      "friction": 0.9,
+     "z": -40,
+     "depth": 20,
      "com": [
       0.0,
       70.0
@@ -180,7 +182,19 @@
    "id": "rescue",
    "title": "The Rescue",
    "environment": "workshop",
-   "duration": 20.0,
+   "duration": 26.0,
+   "goals": [
+    "push_lost@milo",
+    "rope_snap@strap",
+    "pinned@milo[by=post]",
+    "notice@juno",
+    "lift_fail@juno",
+    "lever_engage@juno",
+    "freed@milo",
+    "hand_grab@milo",
+    "stood_up@milo",
+    "fist_bump@juno"
+   ],
    "placements": [
     {
      "character": "milo",
@@ -249,7 +263,7 @@
     {
      "character": "juno",
      "type": "walk_to",
-     "target_x": 130.0,
+     "target_x": 440.0,
      "speed": 165
     },
     {
@@ -352,7 +366,7 @@
       "event:push_lost"
      ],
      "start": 1.45,
-     "end": 3.59
+     "end": 4.19
     },
     {
      "id": "s03_accident",
@@ -375,8 +389,8 @@
       "event:body_fall",
       "event:pinned"
      ],
-     "start": 3.59,
-     "end": 5.22
+     "start": 4.19,
+     "end": 5.77
     },
     {
      "id": "s04_notice_run",
@@ -399,8 +413,8 @@
      "exit_conditions": [
       "event:notice"
      ],
-     "start": 5.22,
-     "end": 6.62
+     "start": 5.77,
+     "end": 8.25
     },
     {
      "id": "s05_lift",
@@ -421,8 +435,8 @@
       "event:lift_start",
       "event:lift_fail"
      ],
-     "start": 6.62,
-     "end": 8.77
+     "start": 8.25,
+     "end": 10.4
     },
     {
      "id": "s06_idea",
@@ -442,8 +456,8 @@
      "exit_conditions": [
       "event:pick_up"
      ],
-     "start": 8.77,
-     "end": 12.52
+     "start": 10.4,
+     "end": 14.14
     },
     {
      "id": "s07_lever",
@@ -467,8 +481,8 @@
       "event:crawl_start",
       "event:freed"
      ],
-     "start": 12.52,
-     "end": 16.08
+     "start": 14.14,
+     "end": 17.75
     },
     {
      "id": "s08_help_up",
@@ -492,8 +506,8 @@
       "event:hand_grab",
       "event:stood_up"
      ],
-     "start": 16.08,
-     "end": 18.88
+     "start": 17.75,
+     "end": 20.55
     },
     {
      "id": "s09_friends",
@@ -517,21 +531,9 @@
       "event:fist_bump"
      ],
      "fade_out": 0.8,
-     "start": 18.88,
-     "end": 20.0
+     "start": 20.55,
+     "end": 26.0
     }
-   ],
-   "goals": [
-    "push_lost@milo",
-    "rope_snap@strap",
-    "pinned@milo[by=post]",
-    "notice@juno",
-    "lift_fail@juno",
-    "lever_engage@juno",
-    "freed@milo",
-    "hand_grab@milo",
-    "stood_up@milo",
-    "fist_bump@juno"
    ]
   }
  ]
