@@ -181,11 +181,14 @@ class InteractionAnimMixin:
             enter = smoothstep(0.05, 0.19, elapsed)
             leave = 1.0 - smoothstep(max(0.19, duration - 0.17),
                                      max(0.25, duration - 0.02), elapsed)
-            pose = blend_poses(pose, candidate, 0.78 * enter * leave)
-            # Visible ankle/knee safety correction after the blended pose.
-            self._ground_clamp(pose, F)
-            self._knees_above_floor(pose, F, max_raise=16.0)
-            self._ground_clamp(pose, F)
+            weight = 0.78 * enter * leave
+            if weight > 0.01:
+                pose = blend_poses(pose, candidate, weight)
+                # Do not disturb authored anticipation/landing frames; these
+                # clearances apply only while secondary physics is visible.
+                self._ground_clamp(pose, F)
+                self._knees_above_floor(pose, F, max_raise=16.0)
+                self._ground_clamp(pose, F)
         return pose
 
     def _apply_ragdoll_pose(self, pose: Pose, samples: list, t: float) -> None:
