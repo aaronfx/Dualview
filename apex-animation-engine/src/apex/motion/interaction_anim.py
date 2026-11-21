@@ -172,6 +172,9 @@ class InteractionAnimMixin:
         self._ground_clamp(pose, F)
         if seg.data.get("jointed_fall"):
             self._apply_ragdoll_pose(pose, seg.data.get("ragdoll_samples", []), t)
+            # IK is a visual safety correction for residual toe penetration;
+            # limb dynamics remain computed by the auxiliary physics space.
+            self._ground_clamp(pose, F)
         return pose
 
     def _apply_ragdoll_pose(self, pose: Pose, samples: list, t: float) -> None:
