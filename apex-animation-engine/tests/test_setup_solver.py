@@ -35,7 +35,7 @@ def test_goal_syntax_and_validation():
     assert parse_goal("event:rope_snap") == ("rope_snap", None, {})
     with pytest.raises(ValueError):
         parse_goal("pinned milo")
-    d = _push_scene(goals=["fell@nobody"])
+    d = _push_scene(goals=["body_fall@nobody"])
     with pytest.raises(ValueError, match="unknown"):
         ProjectSpec.model_validate(d)
 
@@ -158,3 +158,10 @@ def test_recorded_ai_plan_that_failed_now_plays_through_apex_physics():
     proj = d.plan("The Rescue")
     assert d.engine_report[0]["success"]
     assert d.accepted_ai_plan is not None  # the model's own plan is kept, separately from the engine's changes
+
+
+def test_goals_must_name_engine_events_and_patch_replace_can_add():
+    from apex.ai.director import apply_patch
+    with pytest.raises(ValueError, match="not an engine event"):
+        ProjectSpec.model_validate(_push_scene(goals=["run_to@a"]))  # an action name, not an event
+    assert apply_patch({"a": {}}, [{"op": "replace", "path": "/a/until", "value": 1}]) == {"a": {"until": 1}}

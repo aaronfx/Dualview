@@ -11,6 +11,20 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 _GOAL = re.compile(r"^(?:event:)?([a-z_]+)(?:@([A-Za-z0-9_\-]+))?(?:\[([^\]]*)\])?$")
 PRONE_ACTIONS = ("struggle", "crawl_out", "get_up")
+# every event type the engine emits (a goal or an event-timed cut naming anything else could never happen)
+KNOWN_EVENTS = frozenset("""action_impossible body_fall brace crawl_start door_close door_open door_unlocked door_unlocking
+exit_reached footstep freed get_up_start grab grab_missed gravity_settled gravity_shift graze hand_grab hand_offered help_missed
+impact lever_engage lever_place lever_release lift_fail lift_ok lift_start load_off look_back lost_support notice pick_up pinned
+point press_contact prop_impact push_end push_fail push_lost push_start recovered release rope_snap rope_taut slide_end
+slide_start stood_up switch_activated takeoff turn fist_bump shoulder_pat wave""".split())
+
+
+def check_event(etype: str, where: str) -> None:
+    if etype not in KNOWN_EVENTS:
+        import difflib
+        near = difflib.get_close_matches(etype, sorted(KNOWN_EVENTS), n=3, cutoff=0.5)
+        raise ValueError(f"{where}: '{etype}' is not an engine event (an action name is not an event)"
+                         + (f"; did you mean {' or '.join(near)}?" if near else f"; events: {' '.join(sorted(KNOWN_EVENTS))}"))
 
 
 def parse_goal(g: str) -> Tuple[str, Optional[str], Dict[str, str]]:

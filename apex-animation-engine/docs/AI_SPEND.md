@@ -45,6 +45,25 @@ From now on, every paid experiment is listed here from its ledger record, with i
 |---|---|---|---|---|---|---|
 | 2026-11-21 | `20261121T075057Z-198e22` (`docs/ai_runs/rescue_solver_v6_haiku/`) | anthropic/claude-haiku-5.5 | Owner-approved test of the new workflow on *The Rescue*: story goals, setup solver, patch repairs | $0.0123 before the run (upper bound), $0.0100 summed per call | **$0.0069** (provider usage report) | **Failed** after 3 calls. See the findings below |
 
+| 2026-11-21 | `20261121T075646Z-e9f466` (`docs/ai_runs/rescue_solver_v7_haiku/`) | anthropic/claude-haiku-5.5 | Owner-approved re-test after the v6 fixes | $0.0134 before the run (upper bound), $0.0107 summed per call | **$0.0040** (provider usage report) | **Failed** after 3 calls. See the findings below |
+
+**Running total of new experiments:** $0.0109. **Ledger total:** $0.0109 of the $1.00 cap.
+
+**Findings from `rescue_solver_v7_haiku`:**
+
+- **The v6 fixes held.** Hidden reasoning was 0 tokens. Attempt 1 was a complete 9,168-character plan, with 4,264 output tokens.
+- **The patch rules were too strict.** Attempt 2's repair was rejected because it used "replace" to set a field that didn't exist yet. Strict RFC 6902 forbids that, but planners use it routinely. Attempt 3 then patched the stale plan.
+  - **Fix:** "replace" of a missing key now acts as "add".
+  - **Checked offline** by replaying the same paid responses: attempt 2 now passes the schema and reaches the setup solver.
+- **The solver rejected the plan's structure, correctly:**
+  - The lever targets the **container**, not the fallen support.
+  - The push lasts only 2 s against a 900-mass container.
+  - The helper "notices" at 0.5 s, before anything has happened.
+  - The goals include `run_to@bo`, which is an action, not an event.
+  - In 88 simulations, no physical setting could make the push get away. These are story-structure errors for the planner to fix, and the engine did not hide them.
+- **Goals named non-existent events.**
+  - **Fix:** goals and `cut_on` must now name a real engine event, with "did you mean" hints.
+
 **Findings from `rescue_solver_v6_haiku`** (all three fixed afterwards, offline):
 
 1. **Hidden reasoning used up the output budget.** Attempt 1 was billed 6,000 output tokens but returned 136 visible characters, a stub with only one character. This also explains why past visible-text estimates (~$1.00) undercounted the account total ($3.36).

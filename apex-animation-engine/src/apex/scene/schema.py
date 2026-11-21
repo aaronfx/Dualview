@@ -425,13 +425,18 @@ class ProjectSpec(Strict):
             whos = placed | props | {r.id for r in envs[sc.environment].ropes}
             for g in sc.goals:
                 from .goals import parse_goal
+                from .goals import check_event
                 try:
-                    _, who, _ = parse_goal(g)
+                    etype, who, _ = parse_goal(g)
+                    check_event(etype, f"goal {g!r}")
                 except ValueError as e:
                     raise ValueError(f"scene {sc.id}: {e}")
                 if who and who not in whos:
                     raise ValueError(f"scene {sc.id}: goal {g!r} names unknown {who!r} (a character, prop or rope id)")
             for sh in sc.shots:
+                if sh.cut_on:
+                    from .goals import check_event, parse_goal as _pg
+                    check_event(_pg(sh.cut_on)[0], f"shot {sh.id} cut_on")
                 if sh.camera.target and sh.camera.target not in placed:
                     raise ValueError(f"shot {sh.id}: camera target {sh.camera.target} not in scene")
         return self

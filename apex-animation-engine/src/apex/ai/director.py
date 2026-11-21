@@ -122,9 +122,7 @@ def apply_patch(doc: dict, ops: list) -> dict:
         else:
             if kind == "remove":
                 del parent[last]
-            elif kind == "replace" and last not in parent:
-                raise ValueError(f"patch op {i}: replace of missing key {path}")
-            else:
+            else:  # "replace" of a missing key is treated as "add" (planners use replace to set optional fields)
                 parent[last] = op["value"]
     return out
 
