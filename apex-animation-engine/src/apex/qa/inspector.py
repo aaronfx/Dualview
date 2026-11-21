@@ -851,7 +851,7 @@ class Inspector:
         from ..render.pipeline import screen_effects
         tfx = self.rt.scene.time_fx
         n = int(round(w.film_duration * self.fps))
-        flashes = [k / self.fps for k in range(n) if screen_effects(w, k / self.fps, tfx).get("flash", 0.0) > 0.3]
+        flashes = [k / self.fps for k in range(n) if screen_effects(w, k / self.fps, tfx).get("flash", 0.0) > 0.2]
         worst = max((sum(1 for f in flashes if t0 <= f < t0 + 1.0) for t0 in flashes), default=0)
         out.append(Check("flash_safety", "PASS" if worst <= 3 else "FAIL", float(worst), 3.0,
                          "bright full-screen flashes in any one second (photosensitivity guideline: at most 3)"))

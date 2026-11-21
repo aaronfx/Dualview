@@ -28,9 +28,9 @@
   {
    "name": "bone_lengths[kai]",
    "status": "PASS",
-   "metric": 1.08,
+   "metric": 1.0800000000000005,
    "threshold": 1.13,
-   "details": "ratio range [0.922, 1.080] over 932 frames, violations=0"
+   "details": "ratio range [0.923, 1.080] over 932 frames, violations=0"
   },
   {
    "name": "character_continuity[kai]",
@@ -63,7 +63,7 @@
   {
    "name": "surface_penetration[kai]",
    "status": "PASS",
-   "metric": 1.5039461151881,
+   "metric": 1.866851599835428,
    "threshold": 4.0,
    "details": "deepest joint penetration into floor/walls/ceiling (units) at toe_n t=11.333; violations=0"
   },
@@ -77,35 +77,35 @@
   {
    "name": "surface_penetration[rho]",
    "status": "PASS",
-   "metric": 3.191383079063044,
+   "metric": 3.1913830790630584,
    "threshold": 4.0,
-   "details": "deepest joint penetration into floor/walls/ceiling (units) at toe_f t=5.500; violations=0"
+   "details": "deepest joint penetration into floor/walls/ceiling (units) at toe_f t=5.542; violations=0"
   },
   {
    "name": "no_teleport_joints[kai]",
    "status": "PASS",
-   "metric": 2692.133105206589,
+   "metric": 2639.3590261030968,
    "threshold": 3200.0,
    "details": "max joint speed (units/s) at t=5.125s"
   },
   {
    "name": "no_teleport_root[kai]",
    "status": "PASS",
-   "metric": 1301.7111289960374,
+   "metric": 1287.9624126652643,
    "threshold": 2200.0,
    "details": ""
   },
   {
    "name": "no_teleport_joints[rho]",
    "status": "PASS",
-   "metric": 2627.1485330972732,
+   "metric": 2635.0139406870785,
    "threshold": 3200.0,
-   "details": "max joint speed (units/s) at t=32.083s"
+   "details": "max joint speed (units/s) at t=19.792s"
   },
   {
    "name": "no_teleport_root[rho]",
    "status": "PASS",
-   "metric": 890.6621608807013,
+   "metric": 910.9334319000642,
    "threshold": 2200.0,
    "details": ""
   },
@@ -114,14 +114,14 @@
    "status": "PASS",
    "metric": 1.2000000000000455,
    "threshold": 1.5,
-   "details": "max planted-ankle drift over 4427 samples (settled/f t=16.117)"
+   "details": "max planted-ankle drift over 4414 samples (settled/f t=16.092)"
   },
   {
    "name": "foot_sliding[rho]",
    "status": "PASS",
-   "metric": 1.3500000000000156,
+   "metric": 1.3500000000000014,
    "threshold": 1.5,
-   "details": "max planted-ankle drift over 4358 samples (strike/n t=5.171)"
+   "details": "max planted-ankle drift over 4369 samples (strike/n t=5.175)"
   },
   {
    "name": "gravity_transitions_caused_by_switch",
@@ -133,7 +133,7 @@
   {
    "name": "gravity_direction[kai]",
    "status": "PASS",
-   "metric": 5.982039172323312e-11,
+   "metric": 2.991019586161656e-11,
    "threshold": 3.0,
    "details": "airborne root acceleration vs gravity vector over 377 samples; worst magnitude error 0.000%"
   },
@@ -149,7 +149,7 @@
    "status": "PASS",
    "metric": 3.0,
    "threshold": null,
-   "details": "3 character impact(s): floor@5.742s v=582, floor@17.542s v=976, floor@21.821s v=420"
+   "details": "3 character impact(s): floor@5.746s v=582, floor@17.517s v=976, floor@21.792s v=420"
   },
   {
    "name": "scene_geometry_stable",
@@ -168,16 +168,16 @@
   {
    "name": "subject_in_frame",
    "status": "PASS",
-   "metric": 0.9915492957746479,
+   "metric": 0.9765446224256293,
    "threshold": 0.95,
    "details": "fraction of frames whose framed subject is fully visible (body; focus region for close-ups; the switch for inserts)"
   },
   {
    "name": "min_shot_length",
    "status": "PASS",
-   "metric": 1.8919999999999995,
+   "metric": 0.7840000000000007,
    "threshold": 0.5,
-   "details": "9 shots; too short: []"
+   "details": "12 shots; too short: []"
   },
   {
    "name": "camera_roll_rate",
@@ -210,7 +210,7 @@
   {
    "name": "scarf_integrity[kai]",
    "status": "PASS",
-   "metric": 1.250000000000003,
+   "metric": 1.2500000000000042,
    "threshold": 1.35,
    "details": "max segment stretch; anchor error 0.000"
   },
@@ -252,9 +252,9 @@
   {
    "name": "composition_subject_size",
    "status": "PASS",
-   "metric": 0.2873433753814224,
+   "metric": 0.2727222332540549,
    "threshold": null,
-   "details": "median subject size per shot (body extent / frame height); smallest in s5_throw; too small: none"
+   "details": "median subject size per shot (body extent / frame height); smallest in s01_arena; too small: none"
   },
   {
    "name": "composition_required_objects",
@@ -273,16 +273,16 @@
   {
    "name": "strike_contact",
    "status": "PASS",
-   "metric": 19.37398309470557,
+   "metric": 19.373983094705597,
    "threshold": 24.0,
-   "details": "fist/foot distance from the struck body point at contact (5 contacts; worst: kai flying_kick at t=21.54s)"
+   "details": "fist/foot distance from the struck body point at contact (5 contacts; worst: kai flying_kick at t=21.51s)"
   },
   {
    "name": "fighters_do_not_overlap",
    "status": "PASS",
-   "metric": 70.18752174372,
+   "metric": 70.3423867494795,
    "threshold": 28.0,
-   "details": "minimum pelvis distance between standing characters in the same depth lane (kai/rho at t=5.00s; 41 frames with the bodies in separate lanes)"
+   "details": "minimum pelvis distance between standing characters in the same depth lane (kai/rho at t=5.00s; 42 frames with the bodies in separate lanes)"
   },
   {
    "name": "body_clearance",
@@ -294,9 +294,9 @@
   {
    "name": "silhouettes_readable",
    "status": "PASS",
-   "metric": 19.109600282017077,
+   "metric": 17.869540910903957,
    "threshold": 10.0,
-   "details": "on-screen gap between two upright fighters' torsos and heads in the same depth plane (closest kai/rho at t=5.00s; 0 frames under the limit; 28 frames passing in separate depth lanes)"
+   "details": "on-screen gap between two upright fighters' torsos and heads in the same depth plane (closest kai/rho at t=5.00s; 0 frames under the limit; 29 frames passing in separate depth lanes)"
   },
   {
    "name": "knockdowns_settle",
@@ -329,21 +329,21 @@
   {
    "name": "throw_momentum",
    "status": "PASS",
-   "metric": 0.1435260597331277,
+   "metric": 0.14352605973348107,
    "threshold": 0.25,
-   "details": "prop velocity change along the contact normal vs impulse / mass, from the tracked motion (2 impacts; worst times at t=16.67s (measured 1450, impulse/mass 1268 u/s))"
+   "details": "prop velocity change along the contact normal vs impulse / mass, from the tracked motion (2 impacts; worst times at t=16.65s (measured 1450, impulse/mass 1268 u/s))"
   },
   {
    "name": "flips_land_upright",
    "status": "PASS",
-   "metric": 0.034717643149690745,
+   "metric": 0.03471764314968986,
    "threshold": 0.45,
-   "details": "body angle from upright at the landing of each flip (rad; 2 flips; worst kai at t=5.74s)"
+   "details": "body angle from upright at the landing of each flip (rad; 2 flips; worst kai at t=5.75s)"
   },
   {
    "name": "time_warp_valid",
    "status": "PASS",
-   "metric": 44.18852019459564,
+   "metric": 44.188520194595625,
    "threshold": null,
    "details": "story 38.83s -> film 44.19s; monotonic True; covers the story True; 5 hit-stops, 3 slow-motion sections"
   },
@@ -373,14 +373,14 @@
    "status": "PASS",
    "metric": 0.0,
    "threshold": 0.0,
-   "details": "78 cues, each placed at its engine event time (0 unbound cues allowed)"
+   "details": "76 cues, each placed at its engine event time (0 unbound cues allowed)"
   },
   {
    "name": "deterministic_replay",
    "status": "PASS",
    "metric": null,
    "threshold": null,
-   "details": "hash a4c4c28daf78 vs a4c4c28daf78"
+   "details": "hash 74121cccb945 vs 74121cccb945"
   },
   {
    "name": "video_dimensions",

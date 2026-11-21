@@ -39,6 +39,23 @@ Combined with the Milestone 2 closure, as requested in the owner's final review 
 - `docs/media/glyph_duel_m3_contact_sheet.jpg`
 - `docs/evidence/glyph_duel_m3_qa.json`
 
+## Revision 1: the owner's Milestone 3 review
+
+| Review note | Change | Result |
+|---|---|---|
+| **Crowded jab (about 4 s) and duck (about 26 s)** | A strike can set the distance it engages from (`distance`). The jab now starts at the edge of reach (116, against 107) and is still stopped by the guard; the hook starts from 112. The duck sits back 0.3 of body height (was 0.2) | At contact, jab: pelvis gap 83 → **92**, torso gap 40 → **49**, head gap 32 → **40**. Duck: pelvis 106 → **119**, torso 47 → **59**, head 35 → **46** (world units). **Still close contact on screen:** a guarded jab and a hook passing over a ducked head are contact moves, and the tighter two-shots magnify them |
+| **Depth changes must be visually obvious** | **Floor shadows at each character's own depth lane**, so a character in a nearer lane casts its shadow nearer. **Distance tinting:** the farther lane is drawn darker, the nearer one brighter. This adds to the existing perspective scale and draw order | During the roll in front, the nearer KAI is larger, brighter and lower on screen, with his shadow in front of RHO's |
+| **The flash at about 32.8 s washes out the scene** | Peak brightness 0.4 → **0.26** (second frame 0.12). The flash is now **radial, centred on the blow**, fading toward the edges so the characters keep their detail. The QA count uses a lower "bright" threshold (0.2) | `flash_safety`: at most 1 bright flash in any second |
+| **Camera direction: track flips, change scale deliberately, close-ups only when they help** | **Airborne tracking:** a follow camera tightens up to 2.6× while its subject is in the air. **Knockdown close-up:** on knockdown-class blows (the engine's own `knockdown` verdict), the camera closes in 30% during the hit-stop and re-centres on the blow. **Restaged shots:** 12 instead of 9, each scale chosen for a reason: wide to establish and for travel; medium two-shots for exchanges; close shots only for the pick-up of the symbol and the reconciliation | `subject_in_frame` 0.977. Tests: `test_knockdown_hold_closes_in_on_the_blow` and `test_strike_distance_engages_from_further_out` |
+| *Rescue* container collision | Stays open (PR #7) | — |
+
+**Revised film QA: 58 PASS / 1 SKIP / 0 WARN / 0 FAIL. 190 tests pass.**
+
+Evidence:
+- `docs/media/glyph_duel_m3r_key_moments.jpg`
+- `docs/media/glyph_duel_m3_contact_sheet.jpg`
+- `docs/evidence/glyph_duel_m3_qa.json`
+
 ## Engine corrections found while building it
 
 - **Kicking leg in the clearance check:** the check counted the kicking leg as body. It is now treated like the arms (the weapon) during its own strike segment only.
@@ -48,7 +65,7 @@ Combined with the Milestone 2 closure, as requested in the owner's final review 
 
 ## Known limits
 
-- **Crowding is improved, not solved.** The jab block (film 4.0 s) and the duck (film 26.1 s) still read tight on screen. The torsos keep their gap (measured), but the extended arm and the crouched body overlap the opponent's silhouette. The readability check excludes a crouched body, so it does not cover the duck.
+- **Crowding is improved, not solved.** After revision 1 the jab and the duck have 11–25% more space, but they still read as close contact (an arm over the opponent's guard or head). The readability check excludes a crouched body, so it does not cover the duck.
 
 - **Smears are drawn, not simulated:** they show where a limb was 1/48 s earlier, not true motion-blur integration. The draft preset renders 1 sample per frame.
 - **The chromatic split is uniform:** a channel offset across the whole frame, not a lens model.

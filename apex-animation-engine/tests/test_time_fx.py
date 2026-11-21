@@ -63,6 +63,19 @@ def test_effects_and_sounds_move_to_the_film_clock():
     assert abs(ev[0].t - (3.0 + 4 / 24)) < 1e-6 and any(e.type == "slowmo" for e in ev)
     tfx = TimeFxSpec()
     s = screen_effects(w, w.film_at(2.0) + 0.01, tfx)
-    assert s["flash"] > 0.3 and s["vignette"] > 0  # a heavy blow flashes on its first frame
+    assert 0.2 < s["flash"] <= 0.3 and s["vignette"] > 0  # a heavy blow flashes on its first frame (bounded brightness)
     assert screen_effects(w, w.film_at(2.0) + 0.2, tfx).get("flash", 0.0) == 0.0  # and only briefly
     assert screen_effects(w, w.film_at(6.5), tfx)["lines"] > 0.9  # speed lines in slow motion
+
+
+def test_knockdown_hold_closes_in_on_the_blow():
+    from apex.camera.director import CameraState
+    from apex.render.pipeline import film_camera
+    tfx = TimeFxSpec()
+    w = TimeWarp(10.0, holds=[Hold(2.0, 5 / 24, 1.5, "hit", (300.0, 120.0), heavy=True), Hold(6.0, 4 / 24, 1.2, "hit", (0.0, 100.0))])
+    base = CameraState(0.0, 150.0, 500.0, 0.0, "s")
+    c = film_camera(base, w, w.film_at(2.0) + 0.1, tfx)
+    assert c.view_h < 0.78 * 500.0 and c.cx > 100.0  # a knockdown: pushed in, re-centred toward the blow
+    c2 = film_camera(base, w, w.film_at(6.0) + 0.1, tfx)
+    assert 0.85 * 500.0 < c2.view_h < 500.0 and abs(c2.cx) < 1e-6  # an ordinary heavy blow: a small punch-in only
+    assert film_camera(base, w, 4.5, tfx).view_h == 500.0  # nothing between blows

@@ -112,3 +112,13 @@ def test_combat_scene_passes_qa():
     names = {c.name: c for c in rep.checks}
     assert names["strike_contact"].status == "PASS" and names["fighters_do_not_overlap"].status == "PASS"
     assert rep.passed, rep.summary()
+
+
+def test_strike_distance_engages_from_further_out():
+    near = _run([{"character": "kai", "type": "strike", "target": "char:rho", "move": "jab"},
+                 {"character": "rho", "type": "guard", "duration": 3}], duration=3.0)
+    far = _run([{"character": "kai", "type": "strike", "target": "char:rho", "move": "jab", "distance": 116},
+                {"character": "rho", "type": "guard", "duration": 3}], duration=3.0)
+    gap = lambda rt: min(abs(a.s - b.s) for a, b in zip(rt.result.controllers["kai"].records, rt.result.controllers["rho"].records))
+    assert gap(far) > gap(near) + 6.0
+    assert _ev(far, "blocked") and not _ev(far, "whiff")  # still within reach: the guard stops it

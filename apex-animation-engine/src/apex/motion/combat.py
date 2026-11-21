@@ -102,7 +102,7 @@ class CombatMixin:
             oc = self.others[other]
             d = oc.s - self.s
             direction = 1.0 if d >= 0 else -1.0
-            want = 0.9 * self._strike_reach(a.move)
+            want = a.distance if a.distance else 0.9 * self._strike_reach(a.move)  # `distance`: engage from further out
             if abs(d) > want + 14.0 or abs(d) < want - 48.0:
                 if self._go(t, a, oc.s - direction * want):
                     return
@@ -174,7 +174,7 @@ class CombatMixin:
             else:
                 down = _smooth(tau / 0.12) - _smooth((tau - dur + 0.2) / 0.2)
                 self.h = self.stand_h - 0.46 * self.stand_h * down
-                self.s = I["s0"] - self.facing * 0.2 * self.stand_h * down  # sit back, away from the blow
+                self.s = I["s0"] - self.facing * 0.3 * self.stand_h * down  # sit back, away from the blow
             if tau >= dur:
                 self.h = self.stand_h
                 self.dodging = None

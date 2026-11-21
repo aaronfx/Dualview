@@ -269,7 +269,8 @@ class ActionSpec(Strict):
     fulcrum: Optional[str] = None  # use_lever: "prop:<fulcrum id>"
     until: Optional[str] = None  # use_lever / struggle / wait_for: "event:<type>" or "event:<type>@<character>"
     gesture: Optional[Literal["fist_bump", "shoulder_pat", "wave"]] = None
-    distance: Optional[float] = None  # crawl_out: how far to crawl; gesture: the gap between the two characters
+    distance: Optional[float] = None  # crawl_out: how far to crawl; gesture: the gap between the two characters; roll: how far;
+    # strike: the distance (pelvis to pelvis) to engage from (default 0.9 x the move's reach)
     emotion: Optional[str] = None  # acting colour for clips (see motion/library.py EMOTIONS)
     move: Optional[StrikeMove] = None  # strike: which technique
     power: float = Field(1.0, gt=0, le=2.0)  # strike: how hard (with the move's own weight it picks the reaction)

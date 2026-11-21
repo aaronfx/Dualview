@@ -213,8 +213,14 @@ def film_camera(c, warp, tf: float, tfx) -> object:
         sx += amp * math.sin(age * 2 * math.pi * 23.0)
         sy += amp * 0.7 * math.cos(age * 2 * math.pi * 19.0)
         if tfx.punch_in and h.power >= 0.9 and h.kind != "block_hit":
-            env = min(1.0, age / 0.03) * math.exp(-max(0.0, age - h.film) / 0.25)
-            zoom = min(zoom, 1.0 - 0.1 * min(1.0, h.power / 1.4) * env)
+            env = min(1.0, age / 0.03) * math.exp(-max(0.0, age - h.film) / (0.45 if h.heavy else 0.25))
+            if h.heavy and h.point is not None:  # a knockdown: the camera closes in on the blow for the held frame
+                zoom = min(zoom, 1.0 - 0.3 * env)
+                fx_ = (h.point[0] - c.cx) * 0.45 * env
+                fy_ = (h.point[1] - c.cy) * 0.45 * env
+                c = replace(c, cx=c.cx + fx_, cy=c.cy + fy_)
+            else:
+                zoom = min(zoom, 1.0 - 0.1 * min(1.0, h.power / 1.4) * env)
     if tfx.punch_in:
         zoom *= 1.0 - 0.12 * warp.slow_weight(tf)
     return replace(c, shx=c.shx + sx, shy=c.shy + sy, view_h=c.view_h * zoom)
@@ -229,7 +235,8 @@ def screen_effects(warp, tf: float, tfx) -> dict:
         if 0 <= age < h.film + 0.3:
             s["vignette"] = max(s.get("vignette", 0.0), min(1.0, 0.5 + 0.35 * h.power) * (1.0 if age < h.film else 1 - (age - h.film) / 0.3))
             if h.power >= 1.0 and h.kind != "block_hit" and age < 2.0 / 24.0:  # heavy blows only, two frames at most
-                s["flash"] = max(s.get("flash", 0.0), 0.4 if age < 1.0 / 24.0 else 0.18)
+                s["flash"] = max(s.get("flash", 0.0), 0.26 if age < 1.0 / 24.0 else 0.12)
+                s["at"] = h.t
     return s
 
 
@@ -369,10 +376,14 @@ def render_scene(project: ProjectSpec, scene_id: str, out_path: str, samples: in
                 smears = {cid: an.pose_at(max(0.0, t - SMEAR_DT)) for cid, an in res.animators.items()}
                 ghosts = prop_ghosts(res, t)
             hold = warp.holding(tf)
+            scr = screen_effects(warp, tf, tfx)
+            if "at" in scr:
+                scr["world"] = next((e.data["point"] for e in res.events if abs(e.t - scr["at"]) < 0.07 and e.type in ("hit", "prop_hit")
+                                     and "point" in e.data), None)
             if samples <= 1:
                 frame = renderer.render(rt.evaluate(t), film_camera(cam.at(t), warp, tf, tfx), red_flash(res.events, t), fx, fade,
                                         motion_trails(res, t), fx_t=tf if not warp.is_identity() else None, smears=smears,
-                                        prop_ghosts=ghosts, screen=screen_effects(warp, tf, tfx))
+                                        prop_ghosts=ghosts, screen=scr)
             else:
                 acc = None
                 sh = cam.shot_at(t)

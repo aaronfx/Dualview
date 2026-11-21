@@ -128,6 +128,10 @@ class CameraDirector:
         for i, t in enumerate(ts):
             tgt = np.array(self._target(cam, sh, float(t)))
             if cam.mode in ("follow", "track_x"):
+                w = cam.stiffness
+                if cam.mode == "follow" and cam.target:  # an airborne subject (a flip, a fall): the operator tracks it tighter
+                    vy = abs(self.velocity(cam.target, float(t))[1])
+                    w = cam.stiffness * (1.0 + 1.6 * clamp((vy - 150.0) / 450.0, 0.0, 1.0))
                 a = w * w * (tgt - x) - 2 * w * v  # critically damped follow
                 v = v + a * dt
                 x = x + v * dt

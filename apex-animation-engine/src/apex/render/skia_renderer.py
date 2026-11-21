@@ -600,6 +600,12 @@ class SkiaRenderer:
         near, far, vis = hex_rgb(st.body_color), hex_rgb(st.far_color), hex_rgb(st.visor_color)
         if tint is not None:
             near = far = vis = tint
+        else:  # aerial perspective: a farther lane is a little darker, a nearer one a little brighter (depth reads at a glance)
+            dzc = clamp(self.depth.get(cid, 0.0) / 60.0, -1.0, 1.0)
+            if dzc > 0:
+                near, far = mix(near, self.bg, 0.28 * dzc), mix(far, self.bg, 0.28 * dzc)
+            elif dzc < 0:
+                near, far = mix(near, (255, 255, 255), 0.14 * -dzc), mix(far, (255, 255, 255), 0.1 * -dzc)
         lw = st.limb_width * k
 
         def stroke(pts, rgb, w):
@@ -897,10 +903,11 @@ class SkiaRenderer:
 
     def _contact_shadow(self, c: skia.Canvas, cid: str, pose: Pose) -> None:
         px, py = pose.root
+        dz = self.depth.get(cid, 0.0)  # the shadow lies at the character's own depth lane (a depth cue)
         for d, at, horiz in ((py, (px, 0.0), True), (self.rh - py, (px, self.rh), True), (self.hw - px, (self.hw - 0.5, py), False),
                              (px + self.hw, (-self.hw + 0.5, py), False)):
             if 0 <= d < 260:
-                p = self.P(at[0], at[1], 4)
+                p = self.P(at[0], at[1], 4 + dz)
                 if horiz:
                     self._shadow(c, p, 70 * p[2], 0.55 * (1 - d / 260), squash=0.22)
                 else:
@@ -1110,8 +1117,15 @@ class SkiaRenderer:
             sh = skia.GradientShader.MakeRadial(skia.Point(W / 2, H / 2), H * 0.95, [col((0, 0, 0), 0.0), col((0, 0, 0), 0.55 * vig)], [0.45, 1.0])
             c.drawRect(skia.Rect(0, 0, W, H), skia.Paint(Shader=sh))
         fl = s.get("flash", 0.0)
-        if fl > 0.01:  # impact flash (bounded for photosensitivity: QA counts them)
-            c.drawRect(skia.Rect(0, 0, W, H), skia.Paint(Color=col((255, 250, 240), min(0.45, fl)), BlendMode=skia.BlendMode.kScreen))
+        if fl > 0.01:  # impact flash: brightest at the blow, fading toward the edges, so the characters keep their detail
+            fx_, fy_ = W / 2, H / 2
+            if s.get("world") is not None:  # centred on the blow
+                px, py, _ = self.P(*s["world"], 0.0)
+                fx_, fy_ = W / 2 + px, H / 2 + py
+            sh = skia.GradientShader.MakeRadial(skia.Point(fx_, fy_), H * 0.75,
+                                                [col((255, 250, 240), min(0.3, fl)), col((255, 250, 240), 0.35 * min(0.3, fl)),
+                                                 col((255, 250, 240), 0.0)], [0.0, 0.35, 1.0])
+            c.drawRect(skia.Rect(0, 0, W, H), skia.Paint(Shader=sh, BlendMode=skia.BlendMode.kScreen))
 
     def _post(self, c: skia.Canvas, red: float) -> None:
         if self.bloom:

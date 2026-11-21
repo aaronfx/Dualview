@@ -26,6 +26,8 @@ class Hold:
     film: float  # how long the frame holds (film seconds)
     power: float
     kind: str
+    point: Optional[Tuple[float, float]] = None  # where the blow lands (world)
+    heavy: bool = False  # a knockdown-class blow (the camera closes in on it)
 
 
 @dataclass
@@ -122,7 +124,9 @@ def build_warp(scene, events, duration: float, fps: int) -> TimeWarp:
             if holds and abs(holds[-1].t - e.t) < 0.06:  # one blow can emit several events (hit, hurt, prop_hit)
                 holds[-1].film = max(holds[-1].film, frames / fps)
                 continue
-            holds.append(Hold(e.t, frames / fps, p, e.type))
+            holds.append(Hold(e.t, frames / fps, p, e.type, tuple(e.data["point"]) if "point" in e.data else None))
+    for h in holds:  # knockdown-class blows (the engine's own verdict, not a guess from the power)
+        h.heavy = any(e.type == "knockdown" and abs(e.t - h.t) < 0.06 for e in events)
     slows: List[Slow] = []
     for sm in tf.slowmo:
         hit = next((e for e in events if matches(sm.at.split(":", 1)[1] if sm.at.startswith(("event:", "next:")) else sm.at, e)), None)
