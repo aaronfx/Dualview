@@ -59,3 +59,21 @@ def test_rescue_juno_stays_behind_container_during_push():
     event_types = {event.type for event in rt.result.events}
     assert {"push_lost", "body_fall", "pinned", "lift_fail",
             "crawl_start", "freed", "hand_grab", "stood_up", "fist_bump"} <= event_types
+
+
+def test_container_must_not_be_dragged_backward_by_juno_running():
+    """Regression: a character must not impart infinite-mass motor velocity
+    to a heavy prop that was already at rest. A small settling drift is OK.
+    """
+    import numpy as np
+    d = json.loads((ROOT / "examples" / "the_rescue.json").read_text(encoding="utf-8"))
+    rt = SceneRuntime(ProjectSpec.model_validate(d), "rescue")
+    rt.simulate()
+    t = rt.result.prop_times
+    x = rt.result.prop_tracks["container"][:, 0]
+    at = lambda stamp: float(np.interp(stamp, t, x))
+    assert at(7.0) >= at(5.5) - 15.0, (
+        f"JUNO's run reversed the stationary crate: x(5.5)={at(5.5):.1f}, "
+        f"x(7)={at(7.0):.1f}. Re-block the collision or implement"
+        " a physically simulated evasive/yielding character response."
+    )
