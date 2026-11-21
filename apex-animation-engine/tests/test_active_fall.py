@@ -54,3 +54,32 @@ def test_rescue_cause_and_effect_survives_dynamic_fall(dynamic_rescue):
         return next(e.t for e in events if e.type == name and e.character == who)
     assert at("push_lost", "milo") < at("body_fall", "milo") < at("pinned", "milo")
     assert at("pinned", "milo") < at("lift_fail", "juno") < at("freed", "milo")
+
+def test_active_fall_preserves_rescue_staging(dynamic_rescue):
+    """The active-body fall must not silently delay the manually cut rescue film."""
+    import os
+    prior = os.environ.get("APEX_EXPERIMENTAL_ACTIVE_FALL")
+    os.environ["APEX_EXPERIMENTAL_ACTIVE_FALL"] = "0"
+    try:
+        d = json.loads((ROOT / "examples" / "the_rescue.json").read_text(encoding="utf-8"))
+        baseline = SceneRuntime(ProjectSpec.model_validate(d), "rescue")
+        baseline.simulate()
+    finally:
+        if prior is None:
+            os.environ.pop("APEX_EXPERIMENTAL_ACTIVE_FALL", None)
+        else:
+            os.environ["APEX_EXPERIMENTAL_ACTIVE_FALL"] = prior
+
+    def at(rt, ev, who):
+        return next(e.t for e in rt.result.events if e.type == ev and e.character == who)
+
+    def pelvis(rt, t):
+        records = rt.result.controllers["milo"].records
+        return min(records, key=lambda r: abs(r.t-t)).s
+
+    s_base, s_active = pelvis(baseline, 4.33), pelvis(dynamic_rescue, 4.33)
+    assert abs(s_base-s_active) <= 18.0, (
+        f"prone staging drift: baseline x={s_base:.1f}, active x={s_active:.1f}"
+    )
+    lift_delay = at(dynamic_rescue, "lift_start", "juno") - at(baseline, "lift_start", "juno")
+    assert abs(lift_delay) <= 0.22, f"JUNO lift delayed {lift_delay:.2f}s by active fall staging"
