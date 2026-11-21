@@ -15,6 +15,29 @@ from ..rig.stickman import PI, Pose, base_pose, set_arm, set_lean
 from .controller import Segment
 from .interaction import CRAWL_SPEED, GESTURE_CONTACT, LIE_H, PRESS_T
 
+def fist_bump_timing(tau: float, contact_time: float = GESTURE_CONTACT) -> Tuple[float, float, float]:
+    """Reusable animation accents for a physical greeting.
+
+    Returns (reach, anticipation, recoil), each in [0, 1]. The hand reaches the
+    shared contact target at the event time; it pauses briefly, then rebounds.
+    The accents are intentionally independent of character proportions.
+    """
+    if contact_time <= 0:
+        raise ValueError("contact_time must be positive")
+    anticipation = smoothstep(0.04, 0.22, tau) * (1.0 - smoothstep(0.28, 0.44, tau))
+    strike_start = max(0.0, contact_time - 0.24)
+    if tau <= contact_time:
+        reach = smoothstep(strike_start, contact_time, tau)
+    elif tau <= contact_time + 0.06:
+        reach = 1.0
+    else:
+        reach = 1.0 - smoothstep(contact_time + 0.06, contact_time + 0.37, tau)
+    recoil = smoothstep(contact_time + 0.08, contact_time + 0.20, tau) * (
+        1.0 - smoothstep(contact_time + 0.33, contact_time + 0.68, tau)
+    )
+    return clamp(reach, 0.0, 1.0), clamp(anticipation, 0.0, 1.0), clamp(recoil, 0.0, 1.0)
+
+
 STANCE = {  # (front foot, rear foot) as multiples of the leg-length unit, relative to the pelvis, along facing
     "push": (8.0, -36.0), "lift": (16.0, -20.0), "lever": (10.0, -26.0), "offer": (12.0, -16.0), "gesture": (9.0, -9.0),
 }
@@ -361,24 +384,50 @@ class InteractionAnimMixin:
         tau = t - seg.t0
         kind = seg.data["gesture"]
         other = seg.data["other"]
-        pose, F, s = self._stand_pose(seg, t, crouch=2.0, lean=0.06)
+        out = smoothstep(0.15, GESTURE_CONTACT, tau) * (
+            1.0 - smoothstep(GESTURE_CONTACT + 0.45, GESTURE_CONTACT + 0.85, tau)
+        )
+        if kind == "fist_bump":
+            reach, prep, recoil = fist_bump_timing(tau)
+            # Different whole-body accents for preparation, contact, and release.
+            # These are proportion-independent; IK handles the shared hand target.
+            pose, F, s = self._stand_pose(
+                seg, t,
+                crouch=2.0 + 3.0 * prep + 4.0 * recoil,
+                lean=0.06 - 0.11 * prep + 0.10 * reach - 0.14 * recoil,
+                chest=0.04 * reach - 0.06 * recoil,
+                head=-0.08 * prep + 0.12 * reach - 0.08 * recoil,
+            )
+        else:
+            pose, F, s = self._stand_pose(seg, t, crouch=2.0, lean=0.06)
         self._stand_legs(pose, F, seg, t)
-        out = smoothstep(0.15, GESTURE_CONTACT, tau) * (1 - smoothstep(GESTURE_CONTACT + 0.45, GESTURE_CONTACT + 0.85, tau))
         ch = self.rig.world_joints(pose)
         sh = ch["shoulder_n"]
         if kind == "fist_bump":
+            # Both performers use the same world-space contact height even if
+            # their rigs have different proportions.
+            teammate = self.others[other]
             g = self._link_point(other, t)
-            g = (g[0], g[1] + 0.25 * self.stand_h)
-            self.rig.arm_ik(pose, "n", (lerp(sh[0], g[0], out), lerp(sh[1] - 25, g[1], out)), fingertip=False)
+            g = (g[0], g[1] + 0.125 * (self.stand_h + teammate.stand_h))
+            prep_x = sh[0] - seg.facing * 7.0 * prep
+            prep_y = sh[1] - 25.0 - 4.0 * prep
+            self.rig.arm_ik(
+                pose, "n",
+                (lerp(prep_x, g[0], reach), lerp(prep_y, g[1], reach)),
+                fingertip=False,
+            )
             pose.hands["n"] = "fist"
+            set_arm(pose.local, "f", -0.06 - 0.25 * prep + 0.15 * recoil, 0.4)
+            pose.eye = 1.0 + 0.12 * reach + 0.08 * recoil
         elif kind == "shoulder_pat":
             g = self._shoulder_of(other, t)
             pat = 3.0 * math.sin(2 * PI * 3.0 * max(0.0, tau - GESTURE_CONTACT)) * out
             self.rig.arm_ik(pose, "n", (lerp(sh[0], g[0], out), lerp(sh[1] - 25, g[1] + 4 + pat, out)), fingertip=True)
             pose.hands["n"] = "open"
+            pose.eye = 1.0 + 0.15 * out
         else:  # wave
             set_arm(pose.local, "n", 2.6 * out, 0.4 + 0.5 * math.sin(2 * PI * 2.5 * tau) * out)
             pose.hands["n"] = "open"
-        pose.eye = 1.0 + 0.15 * out
+            pose.eye = 1.0 + 0.15 * out
         self._gaze(pose, self._dyn_gaze("char:" + other, t), 0.9)
         return pose
