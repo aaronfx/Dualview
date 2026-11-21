@@ -26,8 +26,11 @@ def main(argv=None) -> int:
     r.add_argument("project")
     r.add_argument("--scene", help="scene id (default: first scene)")
     r.add_argument("-o", "--out", required=True)
-    r.add_argument("--samples", type=int, default=1, help="motion-blur sub-samples per frame")
-    r.add_argument("--scale", type=float, default=1.0, help="preview resolution scale (e.g. 0.5)")
+    r.add_argument("--preset", choices=["draft", "final"], default=None,
+                   help="draft = 1280x720, 1 sample/frame (fast, the default while building; set APEX_RENDER_PRESET=final to "
+                        "change the default); final = the project's full resolution (1920x1080) with 2 motion-blur samples")
+    r.add_argument("--samples", type=int, default=None, help="motion-blur sub-samples per frame (overrides the preset)")
+    r.add_argument("--scale", type=float, default=None, help="resolution scale of the project size (overrides the preset)")
     r.add_argument("--no-qa", action="store_true")
     r.add_argument("--qa-json", help="write the QA report here")
     r.add_argument("--review-dir", help="write contact sheet, diagnostics (JSON + chart) and decode report here")
@@ -62,9 +65,14 @@ def main(argv=None) -> int:
         return 0
     if a.cmd == "render":
         from .render.pipeline import render_scene
+        import os as _os
         proj = _load(a.project)
         sid = a.scene or proj.scenes[0].id
-        res = render_scene(proj, sid, a.out, samples=a.samples, qa=not a.no_qa, preview_scale=a.scale, progress=_progress, qa_path=a.qa_json, review_dir=a.review_dir)
+        preset = a.preset or _os.environ.get("APEX_RENDER_PRESET", "draft")
+        scale = a.scale if a.scale is not None else (min(1.0, 720.0 / proj.height) if preset == "draft" else 1.0)
+        samples = a.samples if a.samples is not None else (1 if preset == "draft" else 2)
+        print(f"preset {preset}: {int(proj.width * scale)}x{int(proj.height * scale)}, {samples} sample(s)/frame", flush=True)
+        res = render_scene(proj, sid, a.out, samples=samples, qa=not a.no_qa, preview_scale=scale, progress=_progress, qa_path=a.qa_json, review_dir=a.review_dir)
         print(f"wrote {res.video} ({res.frames} frames) in {res.seconds:.1f}s")
         if res.qa:
             print(res.qa.summary())

@@ -75,7 +75,8 @@ python scripts\interaction_diagnostics.py examples\the_rescue.json out\rescue_di
 # human review packet (objective metrics + rubric; scores are filled in by people)
 apex review examples\gravity_switch_1d.json out\review_1d --video out\gravity_switch_1d.mp4 --qa-json out\gravity_switch_1d_qa.json
 # fast half-resolution preview:
-apex render examples\gravity_switch_1b.json -o out\preview.mp4 --scale 0.5
+apex render examples\gravity_switch_1b.json -o out\preview.mp4                 # draft: 1280x720, fast (default)
+apex render examples\gravity_switch_1b.json -o out\final.mp4 --preset final   # 1920x1080 with motion blur
 
 # 5. Plan a scene from a story (offline template planner; no API key needed)
 apex plan --offline "Nova sprints into the lab, presses the red switch and gravity swings to the left wall." -o out\nova.json
