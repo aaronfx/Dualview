@@ -6,6 +6,7 @@ before it is accepted; validation errors are fed back for a bounded number of re
 """
 from __future__ import annotations
 
+import difflib
 import json
 import math
 import re
@@ -58,7 +59,15 @@ Action types (each action has `character`; durations in seconds):
 Props (environment.props): kinds {", ".join(kinds)}; fields id, kind, position [x, y-centre], size [w, h], mass, angle (rad),
 friction (sliding), static_friction (at rest: heavy things break loose), collide_characters, solid (false = fixed set dressing
 until picked up, e.g. a tool on a rack), com (centre of mass offset, e.g. a top-heavy post), z (depth; negative = nearer the camera).
-Ropes (environment.ropes): straps between props ("prop:<id>" ends, local attachment points), length (slack), break_force (snaps).
+Ropes (environment.ropes): straps between props ("prop:<id>" ends, a_local/b_local attachment points), slack (extra length beyond
+the initial distance; preferred over length), break_force (snaps).
+PHYSICAL NUMBERS ARE THE ENGINE'S JOB: give plausible masses, frictions, slack and positions, and list the story beats in
+scene.goals, in order, as "<event>@<who>" (optionally "[key=value]"), e.g. ["push_lost@a", "rope_snap", "pinned@a[by=post]",
+"lift_fail@b", "freed@a", "stood_up@a"]. APEX's setup solver simulates the scene and tunes frictions, masses, rope slack and
+break force, and the positions of the props involved until the goals happen. You do not need exact values; you do need the right
+actions, props and order. Use `until` events to synchronise characters.
+Shot timing: give each shot after the first a cut_on event ("event:<type>@<who>", optional cut_offset seconds) so the cut lands
+when the event happens in the simulation; approximate start/end values are then rewritten by the engine.
 Characters: id, name, proportions, style (colours, cadence/stride/lean/arm_swing scales), strength (max hand force, ~40000-60000).
 Targets: "switch:<id>", "exit:<id>", "bar:<id>", "prop:<id>", "char:<id>", "point:x,y". Coordinates: x along the floor, room spans
 [-width/2, width/2]; gravity [0,-1568]; standing pelvis ~95 above the floor; a character is ~175 tall.
@@ -66,7 +75,10 @@ Shots: contiguous, start at 0, end exactly at the scene duration; kinds establis
 static|follow|track_x|dolly; camera.include lists targets to keep in frame (e.g. "char:<id>", "prop:<id>").
 exit_conditions: "event:<type>" with types from: {EVENT_TYPES}.
 sound_cues: {{on_event, sound, gain}}; sound must be one of: {", ".join(SOUND_NAMES)}.
-Keep characters consistent: one CharacterSpec per character, referenced by id everywhere."""
+Keep characters consistent: one CharacterSpec per character, referenced by id everywhere.
+REPAIRS: when told your previous output was invalid, reply with ONLY {{"patch": [...]}}: RFC 6902 operations
+({{"op": "replace"|"add"|"remove", "path": "/scenes/0/actions/3/until", "value": ...}}) against your previous JSON, not a full
+rewrite."""
 
 
 SYSTEM = system_prompt.__doc__  # kept for backwards compatibility; the live prompt is system_prompt()
@@ -76,12 +88,55 @@ class PlanningError(RuntimeError):
     pass
 
 
+def _field_names() -> List[str]:
+    from ..scene import schema as S
+    names = set()
+    for obj in vars(S).values():
+        if isinstance(obj, type) and issubclass(obj, S.BaseModel) and obj is not S.BaseModel:
+            names.update(obj.model_fields)
+    return sorted(names)
+
+
+def apply_patch(doc: dict, ops: list) -> dict:
+    """Minimal RFC 6902 (add / replace / remove) on a deep copy of `doc`."""
+    import copy as _copy
+    out = _copy.deepcopy(doc)
+    if not isinstance(ops, list):
+        raise ValueError("patch must be a list of operations")
+    for i, op in enumerate(ops):
+        kind, path = op.get("op"), op.get("path", "")
+        if kind not in ("add", "replace", "remove") or not path.startswith("/"):
+            raise ValueError(f"patch op {i}: need op add|replace|remove and a path starting with '/' (got {op})")
+        parts = [p.replace("~1", "/").replace("~0", "~") for p in path[1:].split("/")]
+        parent = out
+        for p in parts[:-1]:
+            parent = parent[int(p)] if isinstance(parent, list) else parent[p]
+        last = parts[-1]
+        if isinstance(parent, list):
+            if kind == "add":
+                parent.insert(len(parent) if last == "-" else int(last), op["value"])
+            elif kind == "replace":
+                parent[int(last)] = op["value"]
+            else:
+                del parent[int(last)]
+        else:
+            if kind == "remove":
+                del parent[last]
+            elif kind == "replace" and last not in parent:
+                raise ValueError(f"patch op {i}: replace of missing key {path}")
+            else:
+                parent[last] = op["value"]
+    return out
+
+
 class StoryDirector:
     def __init__(self, provider: Optional[Provider] = None, max_repairs: int = 2):
         self.provider = provider
         self.max_repairs = max_repairs  # paid providers are further capped by the budget policy (APEX_AI_MAX_CALLS)
         self.log: List[dict] = []  # every raw response and the error fed back to it (preserved by `apex plan --log-dir`)
         self.cost_record: Optional[dict] = None  # the experiment's ledger record (model, reason, estimate, actual cost)
+        self.accepted_ai_plan: Optional[dict] = None  # the plan exactly as the model wrote it (before engine tuning)
+        self.engine_report: Optional[list] = None  # what APEX's solver changed, and why
 
     @property
     def name(self) -> str:
@@ -100,22 +155,36 @@ class StoryDirector:
         user = f"STORY:\n{story}\n\nEXAMPLE OF A VALID PROJECT (structure reference, do not copy its story):\n{example}"
         errors: List[str] = []
         status, note = "failed", ""
+        prev: Optional[dict] = None  # the last plan that parsed as JSON (repairs are patches against it)
         try:
             for attempt in range(self.max_repairs + 1):
-                prompt = user if not errors else user + "\n\nYOUR PREVIOUS OUTPUT WAS INVALID:\n" + "\n".join(errors[-1:]) + "\nReturn a corrected JSON object."
+                if not errors:
+                    prompt = user
+                else:
+                    base = json.dumps(prev, separators=(",", ":")) if prev is not None else "(none: your output was not JSON)"
+                    prompt = (f"STORY:\n{story}\n\nYOUR PREVIOUS JSON:\n{base}\n\nIT WAS INVALID:\n{errors[-1]}\n\n"
+                              + ('Reply with ONLY {"patch": [...]} (RFC 6902 operations against YOUR PREVIOUS JSON).'
+                                 if prev is not None else "Return the complete corrected JSON object."))
                 try:
                     raw = self.provider.complete(system_prompt(), prompt, max_tokens=16000) or ""
                 except BudgetError as e:  # a spending limit stops planning; it is never retried with another model
                     note = f"stopped by the spending policy: {e}"
                     raise PlanningError(note) from e
-                self.log.append({"attempt": attempt + 1, "raw_response": raw, "fed_back_error": errors[-1] if errors else None})
+                entry = {"attempt": attempt + 1, "raw_response": raw, "fed_back_error": errors[-1] if errors else None}
+                self.log.append(entry)
                 try:
-                    proj = self._parse(raw)
-                    self._dry_run(proj)
+                    data = self._parse_json(raw, prev)
+                    prev = data
+                    proj = self._validate(data)
+                    proj, report = self.prepare(proj)
+                    entry["engine_adjustments"] = report
                     status = "accepted"
+                    self.accepted_ai_plan, self.engine_report = data, report
                     return proj
-                except (ValidationError, ValueError, KeyError, TypeError, json.JSONDecodeError) as e:
-                    errors.append(str(e)[:2000])
+                except (ValidationError, ValueError, KeyError, TypeError, IndexError, json.JSONDecodeError) as e:
+                    msg = self._explain(e)
+                    entry["rejected_because"] = msg[:4000]
+                    errors.append(msg[:3000])
             note = errors[-1][:500]
             raise PlanningError(f"planner output failed validation after {self.max_repairs + 1} attempts: {errors[-1][:500]}")
         finally:
@@ -125,36 +194,73 @@ class StoryDirector:
 
     @staticmethod
     def _parse(raw: str) -> ProjectSpec:
+        return StoryDirector._validate(StoryDirector._parse_json(raw, None))
+
+    @staticmethod
+    def _parse_json(raw: str, prev: Optional[dict]) -> dict:
+        """The response as a project dict: a full JSON object, or {"patch": [...]} applied to the previous plan."""
         m = re.search(r"\{.*\}", raw or "", re.S)
         if not m:
-            raise ValueError("no JSON object in response (empty or truncated output: return the complete JSON object)")
-        return ProjectSpec.model_validate(json.loads(m.group(0)))
+            raise ValueError("no JSON object in response (empty or truncated output)")
+        data = json.loads(m.group(0))
+        if isinstance(data, dict) and set(data) == {"patch"}:
+            if prev is None:
+                raise ValueError("a patch needs a previous plan; return the complete JSON object")
+            return apply_patch(prev, data["patch"])
+        return data
+
+    @staticmethod
+    def _validate(data: dict) -> ProjectSpec:
+        return ProjectSpec.model_validate(data)
+
+    @staticmethod
+    def _explain(e: Exception) -> str:
+        """Error text for the planner, with 'did you mean' hints for unknown field names."""
+        if isinstance(e, ValidationError):
+            hints = []
+            for err in e.errors():
+                if err.get("type") == "extra_forbidden" and err.get("loc"):
+                    bad = str(err["loc"][-1])
+                    near = difflib.get_close_matches(bad, _field_names(), n=3, cutoff=0.5)
+                    hints.append(f"unknown field '{bad}' at {'/'.join(map(str, err['loc']))}"
+                                 + (f": did you mean {' or '.join(repr(n) for n in near)}?" if near else ""))
+            return str(e) + ("\nHINTS: " + "; ".join(hints) if hints else "")
+        return str(e)
+
+    @staticmethod
+    def prepare(proj: ProjectSpec) -> tuple:
+        """APEX's own physics and validation: tune the setup until the goals happen, time the cuts, then dry-run.
+
+        Returns (project, report). Raises ValueError (fed back to the planner) when the story structure cannot work."""
+        from ..scene.solver import resolve_cuts, solve
+        StoryDirector._check_sounds(proj)
+        reports = []
+        for sc in proj.scenes:
+            proj, rep = solve(proj, sc.id)
+            reports.append({"scene": sc.id, "goals": rep.goals, "success": rep.success, "simulations": rep.evaluations,
+                            "adjustments": rep.adjustments, "goal_times": rep.goal_times, "summary": rep.summary()})
+            if not rep.success:
+                raise ValueError(f"scene {sc.id}: {rep.summary()}")
+            proj = resolve_cuts(proj, sc.id)
+        StoryDirector._dry_run(proj)
+        return proj, reports
 
     @staticmethod
     def _dry_run(proj: ProjectSpec) -> None:
         """A plan is only accepted if every sound exists and every scene simulates (catches impossible directives early)."""
-        from ..audio.sound_director import SOUND_NAMES
+        from ..scene.goals import progress
         from ..scene.runtime import SceneRuntime
+        from ..scene.solver import stuck_characters
+        StoryDirector._check_sounds(proj)
         for sc in proj.scenes:
-            for sh in sc.shots:
-                for cue in sh.sound_cues:
-                    if cue.sound not in SOUND_NAMES:
-                        raise ValueError(f"shot {sh.id}: unknown sound {cue.sound!r}; use one of {', '.join(SOUND_NAMES)}")
-            r = SceneRuntime(proj, sc.id).simulate()
+            r = SceneRuntime(proj, sc.id).simulate(physics_only=True)
             # every character must get through its action list: a step that never completes means the physical setup
             # did not produce what the story needs (e.g. a wait_for event that never happened)
-            stuck = []
-            for cid, c in r.controllers.items():
-                a = c.cur
-                if a is None:
-                    continue
-                ph = getattr(c, "inter", {}).get("phase")
-                waiting = (a.type == "wait_for" or (a.type == "crawl_out" and ph == "wait")
-                           or (a.type == "get_up" and ph == "up" and c.inter.get("wait", 0.0) > 1.0)
-                           or (a.type == "use_lever" and ph == "hold" and a.until) or (a.type == "struggle" and a.until))
-                if waiting:
-                    stuck.append(f"{cid} was still waiting in '{a.type}'" + (f" (until {a.until})" if a.until else "")
-                                 + f" when the scene ended, with {len(c.queue)} action(s) never reached")
+            stuck = stuck_characters(r)
+            if sc.goals:
+                met, _, missing = progress(sc.goals, r.events, ordered=True, before=sc.duration)
+                if missing:
+                    stuck.append(f"story goal '{missing}' did not happen (in order) within {sc.duration:.1f}s")
             if stuck:
                 happened = ", ".join(f"{e.t:.1f}s {e.type}@{e.character}" for e in r.events
                                      if e.type not in ("footstep", "turn", "prop_impact"))[:1500]
@@ -162,6 +268,15 @@ class StoryDirector:
                                  f"Events that actually happened: {happened or 'none'}. Physics diagnostics: "
                                  f"{StoryDirector._diagnose(proj, sc, r)}. Adjust the physical setup "
                                  "(masses, friction, positions, ropes) or the actions so the needed events occur.")
+
+    @staticmethod
+    def _check_sounds(proj: ProjectSpec) -> None:
+        from ..audio.sound_director import SOUND_NAMES
+        for sc in proj.scenes:
+            for sh in sc.shots:
+                for cue in sh.sound_cues:
+                    if cue.sound not in SOUND_NAMES:
+                        raise ValueError(f"shot {sh.id}: unknown sound {cue.sound!r}; use one of {', '.join(SOUND_NAMES)}")
 
     @staticmethod
     def _diagnose(proj: ProjectSpec, sc, r) -> str:

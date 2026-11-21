@@ -142,11 +142,21 @@ class InteractionMixin:
     def _start_interaction(self, t: float, a: ActionSpec) -> None:
         self.inter = {"t0": t}
         I = self.inter
+        bad = None
         if self.posture == "prone" and a.type not in ("struggle", "crawl_out", "get_up", "wait_for"):
-            raise ValueError(f"{self.cid}: action '{a.type}' is not possible while lying down (use crawl_out / get_up first)")
+            bad = f"{self.cid}: action '{a.type}' is not possible while lying down (use crawl_out / get_up first)"
         if self.posture != "prone" and a.type in ("struggle", "crawl_out", "get_up"):
-            raise ValueError(f"{self.cid}: action '{a.type}' needs the character to be lying down at t={t:.2f}s, but it is "
-                             f"standing (nothing has knocked it down by then)")
+            bad = (f"{self.cid}: action '{a.type}' needs the character to be lying down at t={t:.2f}s, but it is "
+                   f"standing (nothing has knocked it down by then)")
+        if bad:
+            if getattr(self, "strict", True):
+                raise ValueError(bad)
+            # non-strict (setup solver): the character stops here and the run is scored on what happened so far
+            self.violation = bad
+            I.update(phase="blocked")
+            self._open("prone" if self.posture == "prone" else "idle", t, waiting=True)
+            self.emit(self._ev(t, "action_impossible", {"action": a.type, "reason": bad}))
+            return
         if a.type == "wait_for":
             self._open("prone" if self.posture == "prone" else "idle", t, waiting=True)
         elif a.type == "struggle":
@@ -212,6 +222,8 @@ class InteractionMixin:
     def _tick_interaction(self, t: float, dt: float, a: ActionSpec) -> None:
         I = self.inter
         tau = t - self.cur_t0
+        if I.get("phase") == "blocked":
+            return
         if a.type == "wait_for":
             if self._event_seen(a.until, t) or (a.duration and tau >= a.duration):
                 self._next_action(t)

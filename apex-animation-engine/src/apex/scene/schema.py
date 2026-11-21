@@ -104,12 +104,21 @@ class RopeSpec(Strict):
     """A strap / rope between two props (or a prop and a fixed world point "world:x,y"): slack below `length`."""
     id: str
     a: str  # "prop:<id>"
-    a_local: Vec2 = Field((0.0, 0.0), validation_alias=AliasChoices("a_local", "local_a"))  # attachment in a's local frame
+    a_local: Vec2 = Field((0.0, 0.0), validation_alias=AliasChoices(  # attachment in a's local frame (common spellings accepted)
+        "a_local", "local_a", "a_anchor", "anchor_a", "a_point", "point_a", "a_offset", "offset_a"))
     b: str  # "prop:<id>" or "world:x,y"
-    b_local: Vec2 = Field((0.0, 0.0), validation_alias=AliasChoices("b_local", "local_b"))
-    length: float = Field(gt=0)
+    b_local: Vec2 = Field((0.0, 0.0), validation_alias=AliasChoices(
+        "b_local", "local_b", "b_anchor", "anchor_b", "b_point", "point_b", "b_offset", "offset_b"))
+    length: Optional[float] = Field(None, gt=0)  # total length; or give `slack` and the engine computes it
+    slack: Optional[float] = Field(None, ge=0)  # extra length beyond the initial distance between the two ends
     break_force: Optional[float] = Field(None, gt=0)  # the strap snaps when its tension exceeds this (force units)
     color: str = "#ffc21a"
+
+    @model_validator(mode="after")
+    def _len(self) -> "RopeSpec":
+        if self.length is None and self.slack is None:
+            raise ValueError(f"rope {self.id}: give 'length' or 'slack'")
+        return self
 
 
 class ExitSpec(Strict):
@@ -157,6 +166,32 @@ class EnvironmentSpec(Strict):
     obstacles: List[ObstacleSpec] = Field(default_factory=list)
     ropes: List[RopeSpec] = Field(default_factory=list)
     dust: int = Field(160, ge=0, le=2000)  # ambient particles that visualise the gravity field
+
+    @model_validator(mode="after")
+    def _rope_lengths(self) -> "EnvironmentSpec":
+        """Resolve `slack` into a length from the initial geometry (the planner states intent, not distances)."""
+        import math
+        props = {p.id: p for p in self.props}
+        for rp in self.ropes:
+            if rp.slack is None:
+                continue
+            ends = []
+            for ref, loc in ((rp.a, rp.a_local), (rp.b, rp.b_local)):
+                k, _, v = ref.partition(":")
+                if k == "prop" and v in props:
+                    pp = props[v]
+                    ca, sa = math.cos(pp.angle), math.sin(pp.angle)
+                    ends.append((pp.position[0] + loc[0] * ca - loc[1] * sa, pp.position[1] + loc[0] * sa + loc[1] * ca))
+                elif k == "world":
+                    try:
+                        ends.append(tuple(float(c) for c in v.split(",")))
+                    except ValueError:
+                        pass
+            if len(ends) == 2:
+                rp.length = math.dist(*ends) + rp.slack
+            elif rp.length is None:
+                raise ValueError(f"rope {rp.id}: cannot compute its length from slack (unknown end)")
+        return self
 
 
 # ---------------------------------------------------------------- actions (character directives)
@@ -276,11 +311,17 @@ class ShotSpec(Strict):
     sound_cues: List[SoundCue] = Field(default_factory=list)
     exit_conditions: List[str] = Field(default_factory=list)  # e.g. "event:press_contact", "grounded_on:wall_right"
     fade_out: float = Field(0.0, ge=0.0, le=5.0)  # seconds of fade to black at the end of the shot
+    # event-timed cut: the shot starts when this event happens in the simulation (+ cut_offset seconds); the engine
+    # rewrites start/end from the simulated times, so planners do not have to guess when physics events occur
+    cut_on: Optional[str] = None  # "event:<type>" or "event:<type>@<who>"
+    cut_offset: float = Field(0.0, ge=-3.0, le=3.0)
 
     @model_validator(mode="after")
     def _order(self) -> "ShotSpec":
         if self.end <= self.start:
             raise ValueError(f"shot {self.id}: end must be after start")
+        if self.cut_on is not None and not self.cut_on.startswith("event:"):
+            raise ValueError(f"shot {self.id}: cut_on must be 'event:<type>' or 'event:<type>@<who>'")
         return self
 
 
@@ -292,6 +333,9 @@ class SceneSpec(Strict):
     placements: List[CharacterPlacement]
     actions: List[ActionSpec] = Field(default_factory=list)
     shots: List[ShotSpec]
+    # the story beats that must happen, in order, e.g. ["push_lost@milo", "pinned@milo[by=post]", "freed@milo"];
+    # the dry run checks them and the setup solver tunes the physical setup until they happen
+    goals: List[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _shots(self) -> "SceneSpec":
@@ -364,6 +408,15 @@ class ProjectSpec(Strict):
                     if ((kind == "switch" and ref not in switches) or (kind == "exit" and ref not in exits) or (kind == "bar" and ref not in bars)
                             or (kind == "prop" and ref not in props) or (kind == "char" and ref not in placed)):
                         raise ValueError(f"scene {sc.id}: unknown target {ref_s}")
+            whos = placed | props | {r.id for r in envs[sc.environment].ropes}
+            for g in sc.goals:
+                from .goals import parse_goal
+                try:
+                    _, who, _ = parse_goal(g)
+                except ValueError as e:
+                    raise ValueError(f"scene {sc.id}: {e}")
+                if who and who not in whos:
+                    raise ValueError(f"scene {sc.id}: goal {g!r} names unknown {who!r} (a character, prop or rope id)")
             for sh in sc.shots:
                 if sh.camera.target and sh.camera.target not in placed:
                     raise ValueError(f"shot {sh.id}: camera target {sh.camera.target} not in scene")

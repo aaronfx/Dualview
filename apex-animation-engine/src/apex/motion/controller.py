@@ -116,6 +116,8 @@ class CharacterController(InteractionMixin):
         self.all_events: List[Event] = []
         self.props = {p.id: p for p in env.props}
         self.inter: Dict[str, Any] = {}
+        self.strict = True  # False (setup solver): impossible actions are recorded in `violation` instead of raising
+        self.violation: Optional[str] = None
         self.inter_action: Optional[ActionSpec] = None
         self.pinned_by: Optional[str] = None
         self.free_t: Optional[float] = None

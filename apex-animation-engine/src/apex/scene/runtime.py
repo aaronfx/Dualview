@@ -83,6 +83,7 @@ class SimulationResult:
     dust: Optional[DustField] = None
     doors: Dict[str, Dict[str, Optional[float]]] = field(default_factory=dict)  # exit id -> state-machine times
     rope_snaps: Dict[str, float] = field(default_factory=dict)  # rope id -> time it broke
+    rope_peak: Dict[str, float] = field(default_factory=dict)  # rope id -> highest tension seen (force units)
 
 
 def door_state(d: Dict[str, Optional[float]], t: float) -> Tuple[str, float]:
@@ -105,8 +106,9 @@ def door_state(d: Dict[str, Optional[float]], t: float) -> Tuple[str, float]:
 
 
 class SceneRuntime:
-    def __init__(self, project: ProjectSpec, scene_id: str):
+    def __init__(self, project: ProjectSpec, scene_id: str, strict: bool = True):
         self.project = project
+        self.strict = strict  # False: an impossible action stops that character (recorded) instead of raising
         self.scene: SceneSpec = project.scene(scene_id)
         self.env: EnvironmentSpec = project.environment(self.scene.environment)
         self.rigs: Dict[str, StickmanRig] = {}
@@ -116,7 +118,9 @@ class SceneRuntime:
         self.result: Optional[SimulationResult] = None
 
     # ------------------------------------------------------------ simulation
-    def simulate(self) -> SimulationResult:
+    def simulate(self, physics_only: bool = False, horizon: Optional[float] = None) -> SimulationResult:
+        """Simulate the scene. `physics_only` skips the animation layer (poses, scarves, dust): it is much faster and
+        is what the planners and the setup solver use. `horizon` simulates for a different length than the scene."""
         room = self.env.room
         world = PhysicsWorld(self.env.gravity)
         hw = room.width / 2
@@ -139,6 +143,7 @@ class SceneRuntime:
             else:
                 world.add_rope(rp.id, a_id, rp.a_local, rp.b.split(":", 1)[1], rp.b_local, rp.length)
         rope_prev = {rp.id: 0.0 for rp in self.env.ropes}
+        rope_peak = {rp.id: 0.0 for rp in self.env.ropes}
         snapped: Dict[str, float] = {}
         last_hit: Dict[Tuple[str, str], float] = {}
         frames = room_frames(room.width, room.height)
@@ -166,10 +171,12 @@ class SceneRuntime:
             ctrls[pl.character] = CharacterController(pl.character, self.rigs[pl.character], world, frames, gravity, self.env,
                                                       pl.x, pl.facing, acts, emit, doors)
             ctrls[pl.character].strength = self.project.character(pl.character).strength
+            ctrls[pl.character].strict = self.strict
         for c in ctrls.values():  # characters can see each other, the props and everything that has happened so far
             c.others, c.all_events = ctrls, events
         dt = 1.0 / SIM_HZ
-        n = int(round(self.scene.duration * SIM_HZ)) + 1
+        sim_len = horizon if horizon is not None else self.scene.duration
+        n = int(round(sim_len * SIM_HZ)) + 1
         prop_ids = [p.id for p in self.env.props]
         prop_tracks = {pid: np.zeros((n, 3)) for pid in prop_ids}
         times = np.zeros(n)
@@ -199,7 +206,9 @@ class SceneRuntime:
             for rp in self.env.ropes:  # a strap snapping taut (or breaking) is an event (sound, camera shake, QA)
                 if rp.id in snapped:
                     continue
-                if rp.break_force is not None and world.rope_tension(rp.id, dt) > rp.break_force:
+                tension = world.rope_tension(rp.id, dt)
+                rope_peak[rp.id] = max(rope_peak[rp.id], tension)
+                if rp.break_force is not None and tension > rp.break_force:
                     pa, pb, ln = world.rope_points(rp.id)
                     world.cut_rope(rp.id)
                     snapped[rp.id] = t + dt
@@ -219,9 +228,14 @@ class SceneRuntime:
             for pid in prop_ids:
                 st = world.state(pid)
                 prop_tracks[pid][i] = (st.pos[0], st.pos[1], st.angle)
-        end = self.scene.duration
+        end = sim_len
         for c in ctrls.values():
             c.finish(end + dt)
+        if physics_only:
+            events.sort(key=lambda e: (e.t, e.type))
+            self.result = SimulationResult(end, frames, gravity, {}, ctrls, events, times, prop_tracks, world.static_segments(),
+                                           {}, None, doors, snapped, rope_peak)
+            return self.result
         animators = {}
         for cid, c in ctrls.items():
             spec = self.project.character(cid)
@@ -253,7 +267,7 @@ class SceneRuntime:
                      for e in events if e.type == "switch_activated"]
         dust = DustField(self.env.dust, room, gravity, impulses, end + 0.1, seed=self.project.seed) if self.env.dust else None
         self.result = SimulationResult(end, frames, gravity, animators, ctrls, events, times, prop_tracks, world.static_segments(),
-                                       scarves, dust, doors, snapped)
+                                       scarves, dust, doors, snapped, rope_peak)
         return self.result
 
     # ------------------------------------------------------------ evaluation

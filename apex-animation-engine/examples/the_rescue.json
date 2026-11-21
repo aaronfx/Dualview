@@ -518,6 +518,18 @@
      "start": 18.88,
      "end": 20.0
     }
+   ],
+   "goals": [
+    "push_lost@milo",
+    "rope_snap@strap",
+    "pinned@milo[by=post]",
+    "notice@juno",
+    "lift_fail@juno",
+    "lever_engage@juno",
+    "freed@milo",
+    "hand_grab@milo",
+    "stood_up@milo",
+    "fist_bump@juno"
    ]
   }
  ]

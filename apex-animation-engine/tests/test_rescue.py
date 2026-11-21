@@ -133,6 +133,7 @@ def test_director_dry_run_accepts_rescue_and_rejects_stuck_or_unknown_sound():
         StoryDirector._dry_run(ProjectSpec.model_validate(bad))
     stuck = _data()
     stuck["environments"][0]["ropes"] = []  # no strap: the post never falls, nobody is pinned
+    stuck["scenes"][0]["goals"] = [g for g in stuck["scenes"][0]["goals"] if "strap" not in g]
     with pytest.raises(ValueError, match="waiting"):
         StoryDirector._dry_run(ProjectSpec.model_validate(stuck))
     p = system_prompt()

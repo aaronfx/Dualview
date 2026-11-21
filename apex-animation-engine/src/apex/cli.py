@@ -126,6 +126,11 @@ def main(argv=None) -> int:
         if a.log_dir:
             with open(_os.path.join(a.log_dir, "accepted_plan.json"), "w", encoding="utf-8") as fh:
                 fh.write(proj.model_dump_json(indent=1))
+            if director.accepted_ai_plan is not None:  # the model's plan exactly as written, and what APEX changed
+                with open(_os.path.join(a.log_dir, "ai_plan_as_written.json"), "w", encoding="utf-8") as fh:
+                    _json.dump(director.accepted_ai_plan, fh, indent=1)
+                with open(_os.path.join(a.log_dir, "engine_adjustments.json"), "w", encoding="utf-8") as fh:
+                    _json.dump(director.engine_report, fh, indent=1)
         print(f"planned {proj.id}: {len(proj.scenes)} scene(s) -> {a.out} (planner: {director.name}, {result['attempts']} call(s))")
         return 0
     if a.cmd == "ai-budget":

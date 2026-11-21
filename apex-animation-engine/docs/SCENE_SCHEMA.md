@@ -39,8 +39,9 @@ Validation covers duplicate ids, unknown references (environment, character, swi
 
 Standing characters pass in front of props (2.5D). A character lying down is solid, so a load can come to rest on it.
 
-**RopeSpec** `{id, a, a_local, b, b_local, length, break_force, color}`: a strap between two props, or between a prop and `world:x,y`.
+**RopeSpec** `{id, a, a_local, b, b_local, length | slack, break_force, color}`: a strap between two props, or between a prop and `world:x,y`.
 
+- Give `slack` (the extra length beyond the initial distance between its ends) or `length`. With `slack`, the engine computes the length from the geometry. `a_point`, `a_anchor`, `local_a`, `a_offset` and the matching `b_` spellings are accepted for `a_local` and `b_local`.
 - It is slack below `length` and taut at it. `rope_taut` fires when it snaps taut.
 - With `break_force`, it breaks when its tension exceeds that force (`rope_snap`).
 
@@ -100,6 +101,7 @@ Gravity can only change through a switch effect. That makes every gravity transi
 | `placements[]` | `{character, x, facing: ±1}` (x on the floor) |
 | `actions[]` | Executed in order per character. `idle(duration)`, `walk_to(target_x, speed?)`, `run_to(target_x, speed?)`, `turn(face)`, `press(switch, hesitate?)`, `jump(height)`, `look_around(duration)`, `wait_grounded` (waits until no gravity transition is pending and the character is standing), `notice(target, duration?)` (a double take), `look_at(target, duration)`, `point(target, duration)`. `duck_slide(target_x, speed?)`: a feet-first slide that drops the hips to 30 units, decelerates by friction and rises straight into the next run. `jump_to(target_x, height, switch?)`: a ballistic jump to a landing point with an apex height; with `switch`, the hand slaps the button mid-air at the closest approach. `grab_swing(target "bar:<id>", release_deg, swings, face)` is armed while standing: when support is lost, the body tumbles feet-first and the hands lock onto the bar overhead (a pivot joint). The arms absorb 45 % of the catch, pumping kicks build the swing (booked as muscular work), and the release comes at the top of the swing on side `face` (+1 = counter-clockwise of hanging) once the angle exceeds `release_deg`. Its optional `duration` is a dangle: AXEL hangs, looks down and then at the exit before pumping, which leaves time for a camera turn. `reach_exit(target "exit:<id>", speed?, duration?)` walks to the doorway, waits at the threshold until the door is open, then walks through. With `duration`, AXEL stops in the doorway and looks back at the room for that long before stepping out. `target` is `switch:<id>`, `exit:<id>`, `bar:<id>` or `point:x,y`. Locomotion takes `style: normal|cautious` and an optional gaze `target` |
 | `shots[]` | Contiguous, starting at 0 and ending at `duration` |
+| `goals[]` | The story beats that must happen, **in order**, as `<event>[@<who>][[key=value]]`, for example `["push_lost@milo", "rope_snap@strap", "pinned@milo[by=post]", "freed@milo"]`. `who` is a character, prop or rope id. The dry run rejects a plan whose goals don't happen within `duration`. The setup solver (`apex.scene.solver`, see `docs/SETUP_SOLVER.md`) tunes the physical setup until they do |
 
 Required fields per action are validated: for example, `walk_to` needs `target_x` and `press` needs `switch`.
 
@@ -118,6 +120,7 @@ Required fields per action are validated: for example, `walk_to` needs `target_x
 | `physics_requirements` | e.g. "ballistic fall", "feet-first contact with wall_right" |
 | `sound_cues[]` | `{on_event, sound, gain}`. Bound to engine events, never to raw times |
 | `fade_out` | Seconds of fade to black at the end of the shot |
+| `cut_on`, `cut_offset` | An event-timed cut: the shot starts when `event:<type>[@<who>]` happens in the simulation, plus `cut_offset` seconds. `resolve_cuts` rewrites `start` and `end` from the simulated times. Shots without `cut_on` keep their planned share of the time between the anchored cuts around them |
 | `exit_conditions[]` | `event:<type>`, `state:<idle|loco|press|...>`, `grounded_on:<surface>`. **Checked by QA** |
 
 Character positions per shot are not hand-specified. They are the *output* of simulation: `SceneRuntime.evaluate(t)` returns every character's pose at any time.
