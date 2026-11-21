@@ -189,7 +189,7 @@
         },
         {
           "character": "juno",
-          "x": -380,
+          "x": 220,
           "facing": 1
         }
       ],
@@ -247,7 +247,7 @@
         {
           "character": "juno",
           "type": "walk_to",
-          "target_x": -400,
+          "target_x": 240,
           "speed": 165
         },
         {
