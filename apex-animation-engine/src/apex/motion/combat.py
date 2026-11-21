@@ -35,14 +35,14 @@ COMBAT = ("strike", "guard", "dodge", "hurt")
 LYING_POSTURES = ("prone", "supine")
 # move -> limb, target height, timing (anticipation end, contact, end), reach multiplier, base power, push direction
 MOVES: Dict[str, Dict[str, Any]] = {
-    "jab": dict(limb="hand_n", height="head", t_a=0.10, t_c=0.19, dur=0.42, reach=1.0, power=0.5, push=(1.0, 0.05), lunge=10.0),
-    "cross": dict(limb="hand_f", height="head", t_a=0.14, t_c=0.25, dur=0.55, reach=1.06, power=0.85, push=(1.0, 0.05), lunge=16.0),
-    "hook": dict(limb="hand_n", height="head", t_a=0.16, t_c=0.30, dur=0.62, reach=0.92, power=0.95, push=(1.0, 0.1), lunge=8.0),
-    "uppercut": dict(limb="hand_f", height="head", t_a=0.20, t_c=0.32, dur=0.68, reach=0.85, power=1.15, push=(0.45, 1.0), lunge=10.0),
-    "front_kick": dict(limb="foot_n", height="body", t_a=0.16, t_c=0.32, dur=0.72, reach=1.0, power=0.9, push=(1.0, 0.15), lunge=6.0),
-    "side_kick": dict(limb="foot_f", height="body", t_a=0.22, t_c=0.38, dur=0.82, reach=1.08, power=1.25, push=(1.0, 0.2), lunge=8.0),
-    "roundhouse": dict(limb="foot_f", height="head", t_a=0.26, t_c=0.44, dur=0.9, reach=1.0, power=1.3, push=(1.0, 0.3), lunge=6.0),
-    "sweep": dict(limb="foot_n", height="legs", t_a=0.20, t_c=0.36, dur=0.85, reach=1.05, power=1.1, push=(0.45, 0.35), lunge=4.0),
+    "jab": dict(limb="hand_n", height="head", t_a=0.10, t_c=0.19, dur=0.42, reach=1.0, power=0.5, push=(1.0, 0.05), lunge=24.0),
+    "cross": dict(limb="hand_f", height="head", t_a=0.14, t_c=0.25, dur=0.55, reach=1.06, power=0.85, push=(1.0, 0.05), lunge=30.0),
+    "hook": dict(limb="hand_n", height="head", t_a=0.16, t_c=0.30, dur=0.62, reach=0.92, power=0.95, push=(1.0, 0.1), lunge=20.0),
+    "uppercut": dict(limb="hand_f", height="head", t_a=0.20, t_c=0.32, dur=0.68, reach=0.85, power=1.15, push=(0.45, 1.0), lunge=22.0),
+    "front_kick": dict(limb="foot_n", height="body", t_a=0.16, t_c=0.32, dur=0.72, reach=1.0, power=0.9, push=(1.0, 0.15), lunge=14.0),
+    "side_kick": dict(limb="foot_f", height="body", t_a=0.22, t_c=0.38, dur=0.82, reach=1.08, power=1.25, push=(1.0, 0.2), lunge=16.0),
+    "roundhouse": dict(limb="foot_f", height="head", t_a=0.26, t_c=0.44, dur=0.9, reach=1.0, power=1.3, push=(1.0, 0.3), lunge=10.0),
+    "sweep": dict(limb="foot_n", height="legs", t_a=0.20, t_c=0.36, dur=0.85, reach=1.05, power=1.1, push=(0.45, 0.35), lunge=8.0),
 }
 HURT_T = {"flinch": 0.38, "stagger": 0.75, "block": 0.32}
 DUCK_T, DODGE_BACK_T = 0.55, 0.38
@@ -119,7 +119,9 @@ class CombatMixin:
         tau = t - self.cur_t0
         if a.type == "strike":
             m = MOVES[I["move"]]
-            u = _smooth((tau - m["t_a"]) / max(0.05, m["t_c"] - m["t_a"])) * (1.0 - _smooth((tau - m["t_c"] - 0.1) / 0.4))
+            # the step-in starts in the wind-up (push off the rear foot) and lands with the blow, then steps back out
+            t0 = 0.4 * m["t_a"]
+            u = _smooth((tau - t0) / max(0.05, m["t_c"] - t0)) * (1.0 - _smooth((tau - m["t_c"] - 0.06) / 0.3))
             self.s = I["s0"] + I["dir"] * m["lunge"] * u
             if not I["resolved"] and tau >= m["t_c"]:
                 I["resolved"] = True
@@ -136,9 +138,9 @@ class CombatMixin:
         elif a.type == "dodge":
             dur = DUCK_T if I["kind"] == "duck" else DODGE_BACK_T
             if I["kind"] == "back":
-                self.s = I["s0"] - self.facing * 0.55 * self.stand_h * _smooth(tau / dur)
+                self.s = I["s0"] - self.facing * 0.7 * self.stand_h * _smooth(tau / dur)
             else:
-                self.h = self.stand_h - 0.36 * self.stand_h * (_smooth(tau / 0.12) - _smooth((tau - dur + 0.2) / 0.2))
+                self.h = self.stand_h - 0.46 * self.stand_h * (_smooth(tau / 0.12) - _smooth((tau - dur + 0.2) / 0.2))
             if tau >= dur:
                 self.h = self.stand_h
                 self.dodging = None
@@ -274,6 +276,10 @@ class CombatMixin:
                     self.inter["thud"] = True
                     self.emit(self._ev(t, "body_fall", {"point": c.point, "normal_speed": c.normal_speed}))
                     break
+        v, _ = rag.max_speed()
+        if t - self.inter["t0"] > 0.35 and v < 160.0:  # down and slowing: the body relaxes into its sprawl
+            self.inter["slow_t"] = self.inter.get("slow_t") or t
+            rag.set_tone(1.0 + 7.0 * min(1.0, (t - self.inter["slow_t"]) / 0.45))
         if t - self.inter["t0"] > 0.5 and (rag.settled(t) or t - self.inter["t0"] > 3.5):
             self._ragdoll_settle(t)
 
@@ -301,12 +307,15 @@ class CombatMixin:
         """Supine -> sit up -> squat over the feet -> stand (facing the feet)."""
         I = self.inter
         tau = t - self.cur_t0
-        T = 1.6
+        T = 1.5
         u = clamp(tau / T, 0.0, 1.0)
         pl = self.p_leg
-        tilt_keys = [(0.0, -math.pi / 2), (0.32, -0.4), (0.58, 0.42), (0.8, 0.14), (1.0, 0.0)]
-        h_keys = [(0.0, LIE_H), (0.32, LIE_H + 3.0), (0.58, 0.5 * pl), (0.8, 0.78 * pl), (1.0, self.stand_h)]
-        fwd_keys = [(0.0, 0.0), (0.32, 0.08 * pl), (0.58, 0.48 * pl), (1.0, 0.52 * pl)]
+        # uneven timing: a quick sit-up with momentum, a beat while a hand plants, the weight rocks forward over the
+        # feet, the rise, then a small overshoot as the body steadies itself
+        tilt_keys = [(0.0, -math.pi / 2), (0.22, -0.38), (0.36, -0.26), (0.58, 0.48), (0.8, 0.1), (0.9, -0.04), (1.0, 0.0)]
+        h_keys = [(0.0, LIE_H), (0.22, LIE_H + 4.0), (0.36, LIE_H + 6.0), (0.58, 0.5 * pl), (0.8, 0.84 * pl),
+                  (0.9, self.stand_h + 1.5), (1.0, self.stand_h)]
+        fwd_keys = [(0.0, 0.0), (0.22, 0.07 * pl), (0.36, 0.11 * pl), (0.58, 0.48 * pl), (1.0, 0.53 * pl)]
 
         def interp(keys):
             for (u0, v0), (u1, v1) in zip(keys, keys[1:]):

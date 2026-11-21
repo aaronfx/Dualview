@@ -72,6 +72,7 @@ class Ragdoll:
         self.bodies: Dict[str, pymunk.Body] = {}
         self.half: Dict[str, float] = {}
         self.constraints: List[pymunk.Constraint] = []
+        self.springs: List[Tuple[pymunk.DampedRotarySpring, float, float]] = []
         flt = pymunk.ShapeFilter(group=self.group, categories=CAT_RAG, mask=ALL ^ CAT_CHAR)
         for part, (_, _, _, frac) in PARTS.items():
             a, b = self.ends[part]
@@ -116,11 +117,20 @@ class Ragdoll:
             self.constraints.append(pymunk.RotaryLimitJoint(pa, ch_b, lo, hi))
             I = ch_b.moment
             stiff = I * tone * tone
-            self.constraints.append(pymunk.DampedRotarySpring(pa, ch_b, rest, stiff, 2 * 0.7 * math.sqrt(stiff * I)))
+            spring = pymunk.DampedRotarySpring(pa, ch_b, rest, stiff, 2 * 0.7 * math.sqrt(stiff * I))
+            self.springs.append((spring, stiff, I))
+            self.constraints.append(spring)
         world.space.add(*self.constraints)
         self.still_since: Optional[float] = None
 
     # ------------------------------------------------------------ driving
+    def set_tone(self, factor: float) -> None:
+        """Scale the muscle tone (a body coming to rest on the floor settles into its sprawl instead of lying straight)."""
+        for spring, stiff, I in self.springs:
+            k = stiff * factor
+            spring.stiffness = k
+            spring.damping = 2 * 0.7 * math.sqrt(k * I)
+
     def apply_impulse(self, part: str, impulse: Vec, point: Optional[Vec] = None) -> None:
         b = self.bodies[part]
         b.apply_impulse_at_world_point(impulse, point or b.position)

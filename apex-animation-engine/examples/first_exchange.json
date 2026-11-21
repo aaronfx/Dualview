@@ -57,11 +57,11 @@
     "grid_spacing": 120.0
    },
    "theme": {
-    "accent": "#2a3140",
+    "accent": "#38425a",
     "alert": "#ff5a4a",
-    "back": "#07080b",
-    "floor": "#050608",
-    "side": "#06070a",
+    "back": "#0c0e14",
+    "floor": "#08090d",
+    "side": "#0a0b10",
     "ceiling": "#030304",
     "background": "#020203",
     "dust": "#9fb4d0"
@@ -74,15 +74,15 @@
    "id": "exchange",
    "title": "First Exchange",
    "environment": "void",
-   "duration": 16.666666666666668,
+   "duration": 16.5,
    "placements": [
     {
      "character": "kai",
-     "x": -520.0
+     "x": -400.0
     },
     {
      "character": "rho",
-     "x": 420.0,
+     "x": 320.0,
      "facing": -1
     }
    ],
@@ -150,16 +150,16 @@
      "until": "next:stood_up@rho"
     },
     {
-     "type": "walk_to",
+     "type": "idle",
      "character": "kai",
-     "speed": 120.0,
-     "target": "char:rho"
+     "duration": 0.6
     },
     {
      "type": "gesture",
      "character": "kai",
      "target": "char:rho",
-     "gesture": "fist_bump"
+     "gesture": "fist_bump",
+     "distance": 86.0
     },
     {
      "type": "idle",
@@ -220,15 +220,16 @@
      "character": "rho"
     },
     {
-     "type": "idle",
+     "type": "wait_for",
      "character": "rho",
-     "duration": 0.6
+     "until": "next:gesture_start@kai"
     },
     {
      "type": "gesture",
      "character": "rho",
      "target": "char:kai",
-     "gesture": "fist_bump"
+     "gesture": "fist_bump",
+     "distance": 86.0
     },
     {
      "type": "idle",
@@ -240,7 +241,7 @@
     {
      "id": "s1_void",
      "start": 0.0,
-     "end": 4.196,
+     "end": 3.246,
      "kind": "establishing",
      "description": "two fighters walk out of the dark and square up",
      "camera": {
@@ -259,8 +260,8 @@
     },
     {
      "id": "s2_feel_out",
-     "start": 4.196,
-     "end": 5.471,
+     "start": 3.246,
+     "end": 4.517,
      "description": "KAI probes: jab blocked, cross ducked",
      "camera": {
       "target": "kai",
@@ -281,12 +282,12 @@
     },
     {
      "id": "s3_counter",
-     "start": 5.471,
-     "end": 6.108,
+     "start": 4.517,
+     "end": 5.154,
      "description": "RHO counters with a hook that lands",
      "camera": {
-      "target": "rho",
-      "view_height": 320.0,
+      "target": "kai",
+      "view_height": 330.0,
       "offset": [
        0.0,
        30.0
@@ -295,7 +296,7 @@
       "stiffness": 4.0,
       "shake": 1.2,
       "include": [
-       "char:kai"
+       "char:rho"
       ]
      },
      "cut_on": "event:strike_start@rho",
@@ -303,8 +304,8 @@
     },
     {
      "id": "s4_kicks",
-     "start": 6.108,
-     "end": 7.683,
+     "start": 5.154,
+     "end": 6.871,
      "kind": "wide",
      "description": "kick dodged, roundhouse ducked",
      "camera": {
@@ -326,8 +327,8 @@
     },
     {
      "id": "s5_finish",
-     "start": 7.683,
-     "end": 12.292,
+     "start": 6.871,
+     "end": 11.613,
      "description": "uppercut, sweep: RHO goes down hard",
      "camera": {
       "target": "kai",
@@ -348,12 +349,12 @@
     },
     {
      "id": "s6_respect",
-     "start": 12.292,
-     "end": 16.666666666666668,
+     "start": 11.613,
+     "end": 16.5,
      "description": "back on his feet; a fist bump",
      "camera": {
-      "target": "rho",
-      "view_height": 320.0,
+      "target": "kai",
+      "view_height": 330.0,
       "offset": [
        0.0,
        30.0
@@ -361,7 +362,7 @@
       "lead": 0.1,
       "stiffness": 4.0,
       "include": [
-       "char:kai"
+       "char:rho"
       ]
      },
      "fade_out": 0.9,

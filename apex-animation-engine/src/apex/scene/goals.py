@@ -17,7 +17,7 @@ exit_reached footstep freed get_up_start grab grab_missed gravity_settled gravit
 impact lever_engage lever_place lever_release lift_fail lift_ok lift_start load_off look_back lost_support notice pick_up pinned
 point press_contact prop_impact push_end push_fail push_lost push_start recovered release rope_snap rope_taut slide_end
 slide_start stood_up switch_activated takeoff turn fist_bump shoulder_pat wave
-strike_start swing hit hurt blocked block_hit whiff evaded knockdown settled dodge""".split())
+strike_start swing hit hurt blocked block_hit whiff evaded knockdown settled dodge gesture_start""".split())
 
 
 def check_event(etype: str, where: str) -> None:

@@ -85,26 +85,33 @@ class CombatAnimMixin:
         move, limb, f = d["move"], d["limb"], seg.facing
         kick = limb.startswith("foot")
         side = limb[-1]
-        wind = math.sin(PI * clamp(tau / ta, 0.0, 1.0))  # anticipation
+        # wind-up (load: dip and counter-turn), a snap faster than the body, a brief contact, then a quick retraction:
+        # the arm / leg travels much faster than the torso, which is what separates a strike from a push
+        wind = math.sin(PI * clamp(tau / ta, 0.0, 1.0)) if tau < ta else 0.0
+        hold = 0.035 if not kick else 0.06
+        retract = 0.16 if not kick else 0.26
         if tau < ta:
-            ext = -0.15 * wind
+            ext = -0.25 * math.sin(0.5 * PI * clamp(tau / ta, 0.0, 1.0))
         elif tau < tc:
-            ext = _snap((tau - ta) / (tc - ta))
-        elif tau < tc + 0.07:
+            ext = _snap((tau - ta) / (tc - ta)) ** 0.8
+        elif tau < tc + hold:
             ext = 1.0
         else:
-            ext = 1.0 - smoothstep(tc + 0.07, dur, tau)
+            ext = 1.0 - smoothstep(tc + hold, tc + hold + retract, tau)
         ext_pos = max(0.0, ext)
-        crouch = 10.0 + 6.0 * wind + (12.0 * ext_pos if move == "sweep" else 0.0) - (8.0 * ext_pos if move == "roundhouse" else 0.0)
+        load = max(0.0, -ext) / 0.25  # 0..1 during the wind-up
+        commit = math.sin(PI * clamp((tau - ta) / max(0.1, tc + hold + retract - ta), 0.0, 1.0))  # body follows through
+        crouch = 10.0 + 7.0 * load + (6.0 * commit if not kick else 0.0) + (14.0 * ext_pos if move == "sweep" else 0.0) \
+            - (10.0 * ext_pos if move == "roundhouse" else 0.0)
         if move == "uppercut":
-            crouch += 10.0 * wind - 6.0 * ext_pos
-        lean = 0.12 + (0.22 * ext_pos if not kick else -0.32 * ext_pos) - 0.05 * wind
+            crouch += 12.0 * load - 8.0 * ext_pos
+        lean = 0.12 + (0.3 * commit if not kick else -0.42 * ext_pos) - 0.08 * load
         pose, F, s = self._fight_base(seg, t, crouch=crouch, lean=lean)
         self._stand_legs(pose, F, seg, t)
         self._guard_arms(pose, 1.0)
-        twist = {"jab": 0.25, "cross": -0.6, "hook": 0.45, "uppercut": -0.4}.get(move, 0.0)
-        pose.twist = -0.15 + twist * ext_pos
-        pose.hip_twist = 0.3 * twist * ext_pos
+        twist = {"jab": 0.3, "cross": -0.75, "hook": 0.6, "uppercut": -0.5}.get(move, 0.0)
+        pose.twist = -0.15 + twist * ext_pos - 0.6 * twist * load  # counter-rotate while loading, then unwind
+        pose.hip_twist = 0.45 * twist * commit + (0.45 * ext_pos if kick else 0.0)
         pose.eye = 0.7
         # where the blow lands (the target's body now), or full reach into empty space
         aim = self._target_point(d["other"], t, d["height"], f)
@@ -119,7 +126,7 @@ class CombatAnimMixin:
                 aim = (sh[0] + dx / dist * reach * 0.99, sh[1] + dy / dist * reach * 0.99)
             arc = {"hook": 14.0, "uppercut": -18.0}.get(move, 0.0) * math.sin(PI * clamp(ext_pos, 0.0, 1.0))
             if ext <= 0.0:  # winding up: pull the fist back
-                tgt = (chamber[0] - f * 10.0 * wind, chamber[1])
+                tgt = (chamber[0] - f * 16.0 * load, chamber[1] - 4.0 * load)
             else:
                 tgt = (lerp(chamber[0], aim[0], ext_pos), lerp(chamber[1], aim[1], ext_pos) + arc)
             self.rig.arm_ik(pose, side, tgt, fingertip=False)
@@ -137,8 +144,8 @@ class CombatAnimMixin:
             if dist > legu * 1.06:
                 aim = (hip[0] + dx / dist * legu * 1.05, hip[1] + dy / dist * legu * 1.05)
             rest = F.to_world(F.to_frame(j[f"ankle_{side}"])[0], self.p.ankle_height)
-            if ext <= 0.0:
-                tgt = (lerp(rest[0], knee_up[0], wind * 0.6), lerp(rest[1], knee_up[1], wind * 0.6))
+            if ext <= 0.0:  # chamber the knee
+                tgt = (lerp(rest[0], knee_up[0], load * 0.7), lerp(rest[1], knee_up[1], load * 0.7))
             elif ext_pos < 1.0 and tau < tc:  # chamber -> extend
                 u = ext_pos
                 mid = knee_up
@@ -184,11 +191,12 @@ class CombatAnimMixin:
         tau = t - seg.t0
         if d["style"] == "duck":
             down = smoothstep(0.0, 0.12, tau) * (1 - smoothstep(d["dur"] - 0.2, d["dur"], tau))
-            pose, F, s = self._fight_base(seg, t, crouch=4.0, lean=0.12 + 0.22 * down)
-            set_lean(pose.local, 0.12 + 0.22 * down, chest=0.12 * down, head=-0.35 * down)
+            pose, F, s = self._fight_base(seg, t, crouch=4.0, lean=0.12 + 0.3 * down)
+            set_lean(pose.local, 0.12 + 0.3 * down, chest=0.15 * down, head=-0.4 * down)
         else:
             back = math.sin(PI * clamp(tau / d["dur"], 0.0, 1.0))
-            pose, F, s = self._fight_base(seg, t, crouch=10.0 + 4.0 * back, lean=0.12 - 0.3 * back)
+            pose, F, s = self._fight_base(seg, t, crouch=10.0 + 8.0 * back, lean=0.12 - 0.45 * back)
+            pose.twist = -0.15 - 0.3 * back
         self._stand_legs(pose, F, seg, t)
         self._guard_arms(pose, 1.0)
         pose.eye = 0.9
@@ -241,21 +249,30 @@ class CombatAnimMixin:
         s0 = seg.data.get("s0", s)
         L = pose.local
         sit = smoothstep(-PI / 2, -0.4, tilt)  # 0 lying -> 1 sitting up
-        set_lean(L, 0.15 * sit, chest=-0.05, head=-0.2 * sit)
+        up = smoothstep(0.55 * legu, self.stand_h, h)  # rising off the squat
+        # the head leads the sit-up (chin tucked), then lifts as the body comes up
+        set_lean(L, 0.15 * sit, chest=-0.05 - 0.08 * sit * (1 - up), head=-0.45 * sit * (1 - up) + 0.1 * (1 - sit))
         for k, side in enumerate("nf"):
             ank = F.to_world(s0 + f * (0.62 - 0.15 * k) * legu, self.p.ankle_height)
             self.rig.leg_ik(pose, side, ank, 0.0, max_stretch=1.04)
         self._knees_above_floor(pose, F)
         self._ground_clamp(pose, F)
-        if tilt < -0.25:  # sitting up: hands behind on the floor, pushing
-            j = self.rig.world_joints(pose)
-            for k, side in enumerate("nf"):
-                ss, _ = F.to_frame(j[f"shoulder_{side}"])
-                self._arm_floor_safe(pose, side, F.to_world(ss - f * (14.0 + 6.0 * k), 3.0), F)
-                pose.hands[side] = "open"
-        else:  # arms forward for balance, then back to guard
-            w = smoothstep(0.1, 0.4, tilt)
-            set_arm(L, "n", 1.2 - 0.0 * w, 0.6 + 1.2 * w)
-            set_arm(L, "f", 1.0, 0.8 + 1.4 * w)
+        j = self.rig.world_joints(pose)
+        if tilt < -0.2:  # sitting up: the far hand pushes off the floor behind, the near arm swings forward
+            ss, _ = F.to_frame(j["shoulder_f"])
+            self._arm_floor_safe(pose, "f", F.to_world(ss - f * 18.0, 3.0), F)
+            pose.hands["f"] = "open"
+            if tilt < -0.9:
+                ss, _ = F.to_frame(j["shoulder_n"])
+                self._arm_floor_safe(pose, "n", F.to_world(ss - f * 10.0, 3.0), F)
+                pose.hands["n"] = "open"
+            else:
+                set_arm(L, "n", 1.1 * smoothstep(-0.9, -0.3, tilt), 0.7)
+        else:  # rocking forward over the feet: arms forward for balance, then up toward guard as he steadies
+            w = smoothstep(0.1, 0.45, tilt)
+            g = up
+            set_arm(L, "n", lerp(1.2, 1.3, g), lerp(0.5 + 0.9 * w, 1.9, g))
+            set_arm(L, "f", lerp(0.9, 0.95, g), lerp(0.7 + 1.1 * w, 2.3, g))
+            pose.hands["n"] = pose.hands["f"] = "fist" if g > 0.6 else "open"
         pose.eye = 0.8
         return pose

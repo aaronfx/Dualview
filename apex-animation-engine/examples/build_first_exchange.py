@@ -34,8 +34,8 @@ def project(duration: float = 22.0) -> dict:
         {"character": K, "type": "strike", "target": "char:rho", "move": "uppercut", "reaction": "stagger"},
         {"character": K, "type": "strike", "target": "char:rho", "move": "sweep"},                   # knockdown
         {"character": K, "type": "guard", "until": "next:stood_up@rho"},
-        {"character": K, "type": "walk_to", "target": "char:rho", "speed": 120},
-        {"character": K, "type": "gesture", "target": "char:rho", "gesture": "fist_bump"},
+        {"character": K, "type": "idle", "duration": 0.6},
+        {"character": K, "type": "gesture", "target": "char:rho", "gesture": "fist_bump", "distance": 86},              # walks over, offers
         {"character": K, "type": "idle", "duration": 3.0},
         {"character": R, "type": "walk_to", "target_x": 70, "speed": 140},
         {"character": R, "type": "guard", "until": "next:blocked@kai"},                               # blocks the jab
@@ -47,8 +47,8 @@ def project(duration: float = 22.0) -> dict:
         {"character": R, "type": "strike", "target": "char:kai", "move": "roundhouse", "power": 1.2},
         {"character": R, "type": "wait_for", "until": "next:knockdown@rho"},                          # uppercut, then swept
         {"character": R, "type": "get_up"},
-        {"character": R, "type": "idle", "duration": 0.6},
-        {"character": R, "type": "gesture", "target": "char:kai", "gesture": "fist_bump"},
+        {"character": R, "type": "wait_for", "until": "next:gesture_start@kai"},                       # meets it
+        {"character": R, "type": "gesture", "target": "char:kai", "gesture": "fist_bump", "distance": 86},
         {"character": R, "type": "idle", "duration": 3.0},
     ]
     follow = lambda tgt, vh, other, **kw: dict(mode="follow", target=tgt, view_height=vh, offset=[0, 30], lead=0.1, stiffness=4.0,
@@ -59,13 +59,13 @@ def project(duration: float = 22.0) -> dict:
         dict(id="s2_feel_out", kind="medium", start=2, end=4, cut_on="event:strike_start@kai", cut_offset=-0.45,
              description="KAI probes: jab blocked, cross ducked", camera=follow(K, 330, R, shake=1.0)),
         dict(id="s3_counter", kind="medium", start=4, end=6, cut_on="event:strike_start@rho", cut_offset=-0.15,
-             description="RHO counters with a hook that lands", camera=follow(R, 320, K, shake=1.2)),
+             description="RHO counters with a hook that lands", camera=follow(K, 330, R, shake=1.2)),
         dict(id="s4_kicks", kind="wide", start=6, end=8, cut_on="event:dodge@rho", cut_offset=-0.2,
              description="kick dodged, roundhouse ducked", camera=follow(K, 420, R, shake=1.0)),
         dict(id="s5_finish", kind="medium", start=8, end=10, cut_on="event:strike_start@kai", cut_offset=-0.2,
              description="uppercut, sweep: RHO goes down hard", camera=follow(K, 380, R, shake=1.4)),
         dict(id="s6_respect", kind="medium", start=10, end=duration, cut_on="event:stood_up@rho", cut_offset=-0.6,
-             description="back on his feet; a fist bump", camera=follow(R, 320, K), fade_out=0.9),
+             description="back on his feet; a fist bump", camera=follow(K, 330, R), fade_out=0.9),
     ]
     return {
         "schema_version": "0.1", "id": "first_exchange", "title": "First Exchange", "fps": 24, "width": 1920, "height": 1080, "seed": 11,
@@ -80,13 +80,13 @@ def project(duration: float = 22.0) -> dict:
                        "scarf_color": "#5ee0ff", "has_scarf": True, "limb_width": 7.5, "cadence_scale": 1.05}}],
         "environments": [{
             "id": "void", "room": {"width": 1500, "height": 700, "depth_back": 600, "grid_spacing": 120, "entry_door": False},
-            "theme": {"accent": "#2a3140", "alert": "#ff5a4a", "back": "#07080b", "floor": "#050608", "side": "#06070a",
+            "theme": {"accent": "#38425a", "alert": "#ff5a4a", "back": "#0c0e14", "floor": "#08090d", "side": "#0a0b10",
                       "ceiling": "#030304", "background": "#020203", "dust": "#9fb4d0"},
             "gravity": [0, -1568], "dust": 70}],
         "scenes": [{"id": "exchange", "title": "First Exchange", "environment": "void", "duration": duration,
                     "goals": ["blocked@kai", "evaded@rho", "hurt@kai", "evaded@rho", "evaded@kai", "hurt@rho", "knockdown@rho",
                               "settled@rho", "stood_up@rho", "fist_bump@kai"],
-                    "placements": [{"character": K, "x": -520, "facing": 1}, {"character": R, "x": 420, "facing": -1}],
+                    "placements": [{"character": K, "x": -400, "facing": 1}, {"character": R, "x": 320, "facing": -1}],
                     "actions": acts, "shots": shots}]}
 
 

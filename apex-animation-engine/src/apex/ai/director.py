@@ -50,7 +50,7 @@ ACTION_HELP = {
 EVENT_TYPES = ("footstep turn notice point press_contact switch_activated gravity_shift lost_support impact recovered takeoff "
                "push_start push_lost rope_taut rope_snap body_fall pinned load_off lift_start lift_fail lift_ok pick_up lever_place "
                "lever_engage lever_release crawl_start freed get_up_start hand_offered hand_grab stood_up fist_bump shoulder_pat prop_impact "
-               "strike_start swing hit hurt blocked block_hit whiff evaded knockdown settled dodge")
+               "strike_start swing hit hurt blocked block_hit whiff evaded knockdown settled dodge gesture_start")
 
 
 def system_prompt() -> str:
