@@ -32,6 +32,20 @@ jobs:
         run: python -m pip install -e '.[dev]'
       - name: Run gesture and rescue regression tests
         run: pytest -q tests/test_gesture_performance.py tests/test_rescue.py
+      - name: Switch preview to synth audio when optional recordings are absent
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          manifest = Path("src/apex/audio/sfx/manifest.json")
+          data = json.loads(manifest.read_text(encoding="utf-8"))
+          missing = [f for spec in data.get("sounds", {}).values() for layer in spec.get("layers", []) for f in layer.get("files", []) if not (manifest.parent / f).exists()]
+          if missing:
+              print(f"Missing {len(missing)} optional recorded SFX; using existing synth fallback for CI preview")
+              data["sounds"] = {}
+              data.pop("room_tone", None)
+              manifest.write_text(json.dumps(data), encoding="utf-8")
+          PY
       - name: Render 720p Rescue preview from APEX
         run: |
           mkdir -p out
