@@ -139,7 +139,7 @@ class CombatMixin:
                 t_up, t_dn = AIR_T[0] * m["t_a"], AIR_T[1]
                 ua = clamp((tau - t_up) / (t_dn - t_up), 0.0, 1.0)
                 self.h = self.stand_h + m["air"] * self.stand_h * 4.0 * ua * (1.0 - ua)
-                u = _smooth((tau - t_up) / (t_dn - t_up)) if tau < t_dn else 1.0
+                u = _smooth((tau - t_up) / (m["t_c"] - t_up))  # the forward travel ends as the foot arrives, then he drops
                 if not I.get("up") and tau >= t_up:
                     I["up"] = True
                     self.emit(self._ev(t, "takeoff", {"surface": self.frame.tag, "speed": m["lunge"] / (t_dn - t_up), "apex": m["air"] * self.stand_h}))

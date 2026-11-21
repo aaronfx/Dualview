@@ -178,6 +178,7 @@ class CharacterController(InteractionMixin, CombatMixin, AcroMixin):
         if s_prev is not None and self.mode in ("grounded", "landing"):
             self._enforce_solid(t, s_prev)  # no motion of any kind carries the body through a structure
             self._enforce_bodies(t, s_prev)  # ... or through another standing body in the same depth lane
+            self._enforce_props(t, s_prev)  # ... or into a prop it cannot push (directly placed moves)
         if self.mode == "grounded":
             self._edge_check(t)  # any motion past the end of a top steps off it (walks, lunges, dodges, knockbacks)
         self._proxy_sync(t)

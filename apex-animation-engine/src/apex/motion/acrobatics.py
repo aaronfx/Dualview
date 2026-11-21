@@ -213,6 +213,35 @@ class AcroMixin:
         tan = self.frame.tangent
         self.world.set_kinematic(self.cid, self.frame.to_world(self.s, self.h), self.world.state(self.cid).angle)
 
+    def _enforce_props(self, t: float, s_prev: float) -> None:
+        """Moves that place the body directly (strike lunges and rebounds, dodges, rolls, reactions, landing slides) stop
+        at the face of a prop in the body's depth lane, as they do at structures. Walks are left to the bounded-force body
+        (they can push what is light enough)."""
+        if self.cur is not None and self.cur.type in ("walk_to", "run_to", "vault", "climb", "wall_kick"):
+            return
+        if abs(self.s - s_prev) < 1e-9 or not self._upright() or self.lying:
+            return
+        d = 1.0 if self.s > s_prev else -1.0
+        fy = self._feet_y()
+        handled = {p for (o, p) in self.world.proxy_ignore if o == self.cid} | self.world.carried | self.world.in_flight
+        best = None
+        for pid, sp in self.props.items():
+            if pid in handled or not sp.collide_characters:
+                continue
+            pz, ph = self.world.depth.get(pid, (0.0, 30.0))
+            if abs(pz - self.z) >= ph + 14.0:
+                continue
+            x0, x1, y0, y1 = self._target_bounds(f"prop:{pid}")
+            if y1 <= fy + KNEE_FRAC * self.stand_h or y0 >= fy + 1.9 * self.stand_h:
+                continue
+            face = x0 if d > 0 else x1
+            if (face - s_prev) * d > -4.0 and (self.s - (face - d * 11.0)) * d > 0:
+                if best is None or (face - s_prev) * d < (best - s_prev) * d:
+                    best = face
+        if best is not None:
+            self.s, self.v = best - d * 11.0, 0.0
+            self.world.set_kinematic(self.cid, self.frame.to_world(self.s, self.h), self.world.state(self.cid).angle)
+
     def _enforce_bodies(self, t: float, s_prev: float) -> None:
         """Two standing bodies in the same depth lane cannot pass through each other: whatever moved this body
         (a walk, a lunge, a roll, a knockback), it stops at the other's body. Lanes at least BODY_PASS_Z apart pass by
@@ -225,9 +254,17 @@ class AcroMixin:
                 continue
             if abs(oc.z - self.z) >= BODY_PASS_Z:
                 continue
+            # a rolling body is a ball about the pelvis: as it comes up the head sweeps ~0.7 stand_h ahead of the pelvis,
+            # and the other's guard knee reaches ~0.3 stand_h towards it, so a roll keeps a body-length further off
+            rolling = self.cur is not None and self.cur.type == "roll"
+            gap = BODY_GAP + (1.0 * self.stand_h if rolling else 0.0)
             gap0, gap1 = (oc.s - s_prev) * d, (oc.s - self.s) * d
-            if gap0 >= BODY_GAP - 1e-6 and gap1 < BODY_GAP:  # would move into the other body
-                self.s, self.v = oc.s - d * BODY_GAP, 0.0
+            if 0.0 < gap0 and gap1 < gap and gap1 < gap0:  # the other is ahead and this would move into (or further into) it
+                # stop at its edge; a body already inside the gap (a roll starting close) does not advance at all
+                s_free = self.s
+                self.s, self.v = (oc.s - d * gap if gap0 >= gap - 1e-6 else s_prev), 0.0
+                if rolling:  # the roll's plan is shortened by what the body could not travel (no pop at its end)
+                    self.inter["s0"] += self.s - s_free
                 if t - getattr(self, "_bodybump_t", -1.0) > 0.4:
                     from .controller import Event
                     self.emit(Event(t, "body_block", self.cid, {"other": cid}))
@@ -317,7 +354,11 @@ class AcroMixin:
                 self.z_target = sd["home"]
                 self._sidestep = None
         active = self._proxy_active()
-        self.world.proxy_set(self.cid, active, self.strength)
+        from .controller import KNEE_UP
+        # the body's lower end: knee height above the floor; it rises as the body crouches, never reaches below a
+        # standing body's knees (a climb or a jump raises the pelvis far above the floor)
+        low = clamp(-self.h + KNEE_UP * self.stand_h, (KNEE_UP - 1.0) * self.stand_h, self.cap_b[1] - 20.0)
+        self.world.proxy_set(self.cid, active, self.strength, low=low)
         fl = getattr(self, "_flight_reg", None)
         cur = self.thrown["prop"] if self.thrown else None
         if fl is not None and fl != cur:
@@ -340,15 +381,20 @@ class AcroMixin:
             handled.add(self.carrying)
         if self.thrown:
             handled.add(self.thrown["prop"])
-        for ref in (getattr(self.inter_action, "target", None), getattr(self.inter_action, "tool", None),
-                    getattr(self.inter_action, "fulcrum", None)) if self.cur is not None and self.cur.type in (
-                        "push", "lift", "use_lever", "pick_up", "throw") else ():
+        acts = [x for x in (self.cur, self.inter_action) if x is not None and self.cur is not None and self.cur.type in (
+            "push", "lift", "use_lever", "pick_up", "throw")]
+        for ref in [getattr(x, k, None) for x in acts for k in ("target", "tool", "fulcrum")]:
             if ref and ref.startswith("prop:"):
                 handled.add(ref.split(":", 1)[1])
         if self.inter.get("bar"):
             handled.update(k for k in (self.inter.get("bar"), self.inter.get("ful")) if k)
         for pid in handled:
             ign.add((self.cid, pid))
+        grace = frozenset(p for (o, p) in self.world.proxy_grace if o == self.cid)
+        h = frozenset(handled) | grace
+        log = self.__dict__.setdefault("handled_log", [])
+        if not log or log[-1][1] != h:
+            log.append((t, h))
 
     def _proxy_react(self, t: float) -> None:
         """After the physics step: if a prop held the body back while the character moved into it, the character is

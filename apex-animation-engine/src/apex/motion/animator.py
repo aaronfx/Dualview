@@ -387,6 +387,8 @@ class Animator(InteractionAnimMixin, CombatAnimMixin, AcroAnimMixin):
                     self._ground_clamp(pose, self.frames[seg.frame])
                 elif seg.kind in ("getup", "crawl", "prone", "supine"):  # blending between lying poses: feet stay above the floor
                     self._ground_clamp(pose, self.frames[seg.frame])
+                    if self.segments[i - 1].kind == "ragdoll":  # out of a sprawl: the knees never pass through the floor
+                        self._knees_above_floor(pose, self.frames[seg.frame], max_raise=30.0)
         self._overlap(pose, t)
         if pose.state in ("ragdoll", "getup", "prone", "supine", "crawl", "fall"):
             self._limbs_above_floor(pose, self.frames[seg.frame])

@@ -286,7 +286,7 @@ class AcroAnimMixin:
         rest = F.to_world(F.to_frame(hip)[0] + f * 0.05 * legu, F.to_frame(hip)[1] - 0.75 * legu)
         u = ext
         tgt = ((1 - u) ** 2 * rest[0] + 2 * (1 - u) * u * knee[0] + u * u * aim[0], (1 - u) ** 2 * rest[1] + 2 * (1 - u) * u * knee[1] + u * u * aim[1])
-        self.rig.leg_ik(pose, "n", tgt, -0.3, max_stretch=1.08)
+        self.rig.leg_ik(pose, "n", tgt, -0.3, max_stretch=1.1)
         self._floor_legs(pose, F, 1.0 - air, spread=12.0)
         self._ground_clamp(pose, F)
         pose.twist, pose.hip_twist = -0.15, 0.4 * ext

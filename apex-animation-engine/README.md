@@ -63,8 +63,11 @@ py -3.12 -m venv .venv
 python -m pip install --upgrade pip
 pip install -e ".[dev]"
 
-# 3. Run the automated tests (about 2 minutes)
+# 3. Run the automated tests (about 9 minutes; includes the transition matrix and the film regression benchmark)
 pytest -v
+# the transition matrix and the regression benchmark on their own (docs/ENGINE_HARDENING.md)
+python -m apex.qa.transitions
+python -m apex.qa.benchmark
 
 # 4. Render the milestone demos (1080p, 3-sample motion blur, QA report)
 apex render examples\motion_test.json       -o out\motion_test.mp4       --samples 3 --qa-json out\motion_test_qa.json
@@ -141,6 +144,6 @@ src/apex/
   api/       FastAPI app + storage
 examples/    project JSON files (milestone scenes); build_gravity_switch_1d.py / build_foundry_flip.py / build_rescue.py regenerate them
 scripts/     motion_test.py (original-vs-improved motion comparison), interaction_diagnostics.py
-tests/       pytest suite (190 tests)
+tests/       pytest suite (215 tests)
 docs/        architecture, schema, reference analysis, milestone status, roadmap, evidence
 ```

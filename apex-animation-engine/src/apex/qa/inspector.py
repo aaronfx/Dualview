@@ -17,7 +17,8 @@ from ..scene.targets import in_portal, switch_world
 
 # Each tolerance below is named so failures can be traced back to an explicit, documented threshold.
 TOL = {
-    "body_clearance": 3.0, "held_prop_depth": 3.0, "silhouette_gap": 10.0,
+    "body_clearance": 3.0, "held_prop_depth": 3.0, "silhouette_gap": 10.0, "prop_body": 5.0,
+    "screen_overlap": 0.15, "screen_overlap_frames": 0.04,
     "structure_depth": 6.0, "top_overhang": 10.0, "flip_land": 0.45, "throw_momentum": 0.25,
     "bone_ratio_min": 0.86, "bone_ratio_max": 1.13,  # allows authored squash/stretch and IK stretch (<=8%) only
     "foot_slide": 1.5,  # world units a planted ankle may drift
@@ -48,6 +49,17 @@ class Check:
     details: str = ""
 
 
+# Two acceptance gates. Technical: physics consistency, valid geometry, no unintended clipping, stable replay, correct
+# event outcomes, a valid file. Cinematic: readable silhouettes and framing, camera direction, pacing. A film should
+# pass both; cinematic checks warn rather than fail, because a person decides what reads well.
+CINEMATIC = ("subject_in_frame", "silhouettes_readable", "screen_separation", "composition_", "screen_direction_across_cuts",
+             "min_shot_length", "no_roll_during_fast_action", "camera_roll_rate", "camera_roll_follows_gravity_direction")
+
+
+def gate_of(name: str) -> str:
+    return "cinematic" if name.startswith(CINEMATIC) else "technical"
+
+
 @dataclass
 class QAReport:
     scene: str
@@ -67,13 +79,24 @@ class QAReport:
                 "engine_and_video_checks": len(self.checks) - exits}
 
     def to_dict(self) -> dict:
-        return {"scene": self.scene, "passed": self.passed, "counts": self.counts(), "checks": [asdict(c) for c in self.checks]}
+        return {"scene": self.scene, "passed": self.passed, "gates": self.gates(), "counts": self.counts(),
+                "checks": [dict(asdict(c), gate=gate_of(c.name)) for c in self.checks]}
+
+    def gates(self) -> Dict[str, str]:
+        """technical: PASS unless a technical check failed. cinematic: PASS, WARN (a person should look) or FAIL."""
+        tech = [c for c in self.checks if gate_of(c.name) == "technical"]
+        cine = [c for c in self.checks if gate_of(c.name) == "cinematic"]
+        t = "FAIL" if any(c.status == "FAIL" for c in tech) else "PASS"
+        c_ = "FAIL" if any(c.status == "FAIL" for c in cine) else ("WARN" if any(c.status == "WARN" for c in cine) else "PASS")
+        return {"technical": t, "cinematic": c_}
 
     def summary(self) -> str:
         k = self.counts()
         st = ", ".join(f"{v} {s}" for s, v in sorted(k["by_status"].items()))
+        g = self.gates()
         lines = [f"QA {self.scene}: {'PASSED' if self.passed else 'FAILED'} - {k['total']} checks ({st}); "
-                 f"{k['engine_and_video_checks']} engine/video checks + {k['exit_conditions']} shot exit conditions"]
+                 f"{k['engine_and_video_checks']} engine/video checks + {k['exit_conditions']} shot exit conditions; "
+                 f"gates: technical {g['technical']}, cinematic {g['cinematic']}"]
         for c in self.checks:
             m = "" if c.metric is None else f" metric={c.metric:.4g}"
             th = "" if c.threshold is None else f" threshold={c.threshold:.4g}"
@@ -104,7 +127,7 @@ class Inspector:
         for fn in (self.check_hierarchy, self.check_bone_lengths, self.check_positions, self.check_teleport, self.check_foot_sliding,
                    self.check_gravity, self.check_geometry, self.check_camera, self.check_camera_motion, self.check_continuity,
                    self.check_secondary, self.check_exit_conditions, self.check_interactions, self.check_composition,
-                   self.check_combat, self.check_acrobatics):
+                   self.check_combat, self.check_acrobatics, self._props_through_bodies):
             rep.checks.extend(fn())
         rep.checks.extend(self.check_time_fx())
         rep.checks.extend(self.check_sync(cues))
@@ -614,6 +637,7 @@ class Inspector:
                              f"in separate lanes)"))
         out.append(self._body_clearance())
         out.append(self._silhouettes())
+        out.append(self._screen_separation())
         kd = [e for e in ev if e.type == "knockdown"]
         settled = [e for e in ev if e.type == "settled"]
         ok = all(any(s.character == k.character and s.t > k.t for s in settled) for k in kd)
@@ -770,6 +794,118 @@ class Inspector:
         return Check("silhouettes_readable", "PASS" if worst >= TOL["silhouette_gap"] else "WARN", worst, TOL["silhouette_gap"],
                      f"on-screen gap between two upright fighters' torsos and heads in the same depth plane (closest {where}; "
                      f"{low} frames under the limit; {apart} frames passing in separate depth lanes)")
+
+    def _screen_separation(self) -> Check:
+        """Cinematic, from the camera's point of view (scene-independent, no exemptions, crouched bodies included):
+        project both characters' torsos, heads and legs through the actual camera (perspective, depth lanes) and measure
+        how much the two silhouettes overlap on screen. Overlap in depth reads as one shape in front of another, but a
+        lot of it, for long, makes the action hard to read."""
+        import numpy as np
+        from ..render.skia_renderer import FOV_K
+        cids = list(self.joints)
+        if len(cids) < 2:
+            return Check("screen_separation", "SKIP", details="fewer than two characters")
+        W, H = self.size
+        gw, gh = 192, 108
+        gx, gy = np.meshgrid((np.arange(gw) + 0.5) / gw * W - W / 2, (np.arange(gh) + 0.5) / gh * H - H / 2)
+        P = np.stack([gx.ravel(), gy.ravel()], axis=1)
+        CORE = (("pelvis", "neck_base", 9.0), ("head_center", "head_center", 11.0), ("hip_n", "knee_n", 4.0), ("knee_n", "ankle_n", 4.0),
+                ("hip_f", "knee_f", 4.0), ("knee_f", "ankle_f", 4.0))
+
+        def mask(j, cam, z):
+            k = (H * FOV_K) / max(z + cam.view_h * FOV_K, 20.0)
+            S = lambda p: np.array([(p[0] - cam.cx) * k, -(p[1] - cam.cy) * k])
+            m = np.zeros(len(P), dtype=bool)
+            for a, b, r in CORE:
+                A, B = S(j[a]), S(j[b])
+                AB = B - A
+                L = float(AB @ AB)
+                u = np.clip(((P - A) @ AB) / L, 0.0, 1.0) if L > 1e-9 else np.zeros(len(P))
+                d = np.linalg.norm(P - (A + np.outer(u, AB)), axis=1)
+                m |= d <= r * k
+            return m
+        bad, worst, where, n = 0, 0.0, "", 0
+        for i, t in enumerate(self.times[::2]):
+            i *= 2
+            cam = self.cam.at(t)
+            for a in range(len(cids)):
+                for b in range(a + 1, len(cids)):
+                    ma = mask(self.joints[cids[a]][i], cam, self.r.animators[cids[a]].depth_at(t))
+                    mb = mask(self.joints[cids[b]][i], cam, self.r.animators[cids[b]].depth_at(t))
+                    small = min(ma.sum(), mb.sum())
+                    if small < 4:
+                        continue
+                    n += 1
+                    ov = float((ma & mb).sum()) / small
+                    if ov > TOL["screen_overlap"]:
+                        bad += 1
+                    if ov > worst:
+                        worst, where = ov, f"{cids[a]}/{cids[b]} at t={t:.2f}s"
+        frac = bad / max(1, n)
+        return Check("screen_separation", "PASS" if frac <= TOL["screen_overlap_frames"] else "WARN", frac, TOL["screen_overlap_frames"],
+                     f"share of frames where two characters' silhouettes overlap on screen by more than "
+                     f"{TOL['screen_overlap']:.0%} of the smaller one (camera view, depth lanes, crouched poses included; "
+                     f"worst {worst:.0%} {where or ''})")
+
+    def _props_through_bodies(self) -> List[Check]:
+        """Technical: no dynamic prop passes through a standing body that shares its depth (the bounded-force body
+        rule), except the props that character is handling at that moment (logged by the engine)."""
+        import numpy as np
+        from ..motion.acrobatics import _seg_dist
+        from ..motion.controller import BODY_R, KNEE_UP
+        from ..scene import glyphs
+        props = {p.id: p for p in self.rt.env.props}
+        if not props:
+            return []
+        worst, where = 0.0, ""
+        ts = self.r.prop_times
+        logs = [getattr(cc, "handled_log", []) for cc in self.r.controllers.values()]
+        carried = [(pid, t0, t1) for cc in self.r.controllers.values() for pid, t0, t1 in getattr(cc, "carry_log", [])]
+        for cid, c in self.r.controllers.items():
+            log = getattr(c, "handled_log", [])
+            for rec in c.records[::6]:
+                if rec.mode not in ("idle", "loco", "turn", "press", "point", "guard", "strike", "dodge", "hurt", "landing", "throw",
+                                    "pick_up", "crouch", "gesture", "offer", "push", "lift", "lever"):
+                    continue
+                handled = set(next((h for (tt, h) in reversed(log) if tt <= rec.t), frozenset()))
+                # carried and thrown props (anyone's) meet bodies through the combat rules, not as solids
+                handled |= {pid for pid, t0, t1 in carried if t0 <= rec.t <= t1}
+                for lg in logs:
+                    h2 = next((h for (tt, h) in reversed(lg) if tt <= rec.t), frozenset())
+                    handled |= {p for p in h2 if any(p == pid for pid, _, _ in carried)}
+                ca, sa = math.cos(rec.angle), math.sin(rec.angle)
+                lo, hi = min(-rec.h + KNEE_UP * c.stand_h, c.cap_b[1] - 20.0), c.cap_b[1]
+                A = (rec.pos[0] - sa * lo, rec.pos[1] + ca * lo)
+                B = (rec.pos[0] - sa * hi, rec.pos[1] + ca * hi)
+                i = int(np.searchsorted(ts, rec.t))
+                if i >= len(ts):
+                    continue
+                for pid, sp in props.items():
+                    if pid in handled or not sp.collide_characters:
+                        continue
+                    if abs(rec.z - sp.z) >= sp.depth / 2 + 14.0:
+                        continue
+                    x, y, ang = self.r.prop_tracks[pid][i]
+                    pc, ps = math.cos(ang), math.sin(ang)
+                    if sp.kind == "glyph":
+                        wgt = sp.weight or glyphs.default_weight(sp.size)
+                        pen = max(BODY_R + wgt / 2 - _seg_dist(A, B, (x + p[0] * pc - p[1] * ps, y + p[0] * ps + p[1] * pc),
+                                                               (x + q[0] * pc - q[1] * ps, y + q[0] * ps + q[1] * pc))[0]
+                                  for p, q in glyphs.segments(sp.glyph, sp.size))
+                    else:
+                        hx, hy = sp.size[0] / 2, sp.size[1] / 2
+                        pen = -1e9
+                        for k in range(9):
+                            u = k / 8
+                            px, py = A[0] + (B[0] - A[0]) * u - x, A[1] + (B[1] - A[1]) * u - y
+                            lx, ly = px * pc + py * ps, -px * ps + py * pc
+                            dx, dy = abs(lx) - hx, abs(ly) - hy
+                            sd = math.hypot(max(dx, 0.0), max(dy, 0.0)) if (dx > 0 or dy > 0) else max(dx, dy)
+                            pen = max(pen, BODY_R - sd)
+                    if pen > worst:
+                        worst, where = pen, f"{pid} into {cid} at t={rec.t:.2f}s"
+        return [Check("props_not_through_bodies", "PASS" if worst <= TOL["prop_body"] else "FAIL", worst, TOL["prop_body"],
+                      f"deepest a dynamic prop goes into a standing body in its depth lane ({where or 'never'})")]
 
     def _core_at(self, cid: str, t: float, core):
         """The body parts that must keep clear: during a kick, the kicking leg is the weapon (like the arms), not the body."""

@@ -147,8 +147,12 @@ class PhysicsWorld:
         self._tags[shape] = owner + "~body"
         self._proxies[owner] = (body, shape, joint)
 
-    def proxy_set(self, owner: str, active: bool, max_force: float) -> None:
+    def proxy_set(self, owner: str, active: bool, max_force: float, low: Optional[float] = None) -> None:
+        """`low`: the body's lower end in the character's frame (it stays at knee height above the floor when the
+        character crouches, instead of sinking with the pelvis)."""
         body, shape, joint = self._proxies[owner]
+        if low is not None and abs(shape.a.y - low) > 0.5:
+            shape.unsafe_set_endpoints((0.0, low), shape.b)
         joint.max_force = max_force if active else 0.0  # an inactive body (airborne, lying) exerts nothing on the character
         want = CAT_PROP if active else 0
         if shape.filter.mask != want:
@@ -189,7 +193,8 @@ class PhysicsWorld:
         if sa.collision_type != CT_PROXY:
             ta, tb = tb, ta
         owner = ta[:-5]  # strip "~body"
-        if (owner, tb) in self.proxy_ignore or (owner, tb) in self.proxy_grace or tb in self.in_flight:
+        if (owner, tb) in self.proxy_ignore or (owner, tb) in self.proxy_grace or tb in self.in_flight or tb in self.carried:
+            # carried (a wielded weapon) and thrown props reach bodies through the combat rules (hits, impulses)
             arb.process_collision = False
             return
         za, ha = self.depth.get(owner, (0.0, 14.0))
