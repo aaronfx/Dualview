@@ -1,0 +1,209 @@
+{
+ "schema_version": "0.1",
+ "id": "gravity_switch_1b",
+ "title": "Milestone 1B - physical interaction: switch press, sideways gravity, fall, brace, landing, recovery",
+ "fps": 24,
+ "width": 1920,
+ "height": 1080,
+ "seed": 7,
+ "characters": [
+  {
+   "id": "axel",
+   "name": "AXEL"
+  }
+ ],
+ "environments": [
+  {
+   "id": "chamber",
+   "room": {
+    "width": 1200,
+    "height": 1400
+   },
+   "gravity": [
+    0,
+    -1568
+   ],
+   "switches": [
+    {
+     "id": "gswitch",
+     "x": 0,
+     "height": 66,
+     "effect": {
+      "to": [
+       1,
+       0
+      ],
+      "delay": 0.45,
+      "duration": 0.2
+     }
+    }
+   ],
+   "props": [
+    {
+     "id": "crate_a",
+     "kind": "crate",
+     "position": [
+      230,
+      21
+     ],
+     "size": [
+      42,
+      42
+     ],
+     "mass": 10
+    },
+    {
+     "id": "crate_b",
+     "kind": "crate",
+     "position": [
+      360,
+      17
+     ],
+     "size": [
+      34,
+      34
+     ],
+     "mass": 6
+    }
+   ]
+  }
+ ],
+ "scenes": [
+  {
+   "id": "switch_and_fall",
+   "title": "press -> gravity rotates -> fall to wall -> land -> recover",
+   "environment": "chamber",
+   "duration": 10.5,
+   "placements": [
+    {
+     "character": "axel",
+     "x": -540,
+     "facing": 1
+    }
+   ],
+   "actions": [
+    {
+     "type": "walk_to",
+     "character": "axel",
+     "target_x": -58,
+     "speed": 150
+    },
+    {
+     "type": "idle",
+     "character": "axel",
+     "duration": 0.35,
+     "note": "studies the switch"
+    },
+    {
+     "type": "press",
+     "character": "axel",
+     "switch": "gswitch"
+    },
+    {
+     "type": "wait_grounded",
+     "character": "axel"
+    },
+    {
+     "type": "look_around",
+     "character": "axel",
+     "duration": 1.6
+    },
+    {
+     "type": "idle",
+     "character": "axel",
+     "duration": 2.0
+    }
+   ],
+   "shots": [
+    {
+     "id": "s1_enter",
+     "start": 0,
+     "end": 3.6,
+     "description": "AXEL walks to the switch",
+     "camera": {
+      "mode": "follow",
+      "target": "axel",
+      "view_height": 560,
+      "offset": [
+       60,
+       60
+      ],
+      "lead": 0.4
+     },
+     "action_objectives": [
+      "walk to the switch"
+     ],
+     "exit_conditions": [
+      "state:idle"
+     ]
+    },
+    {
+     "id": "s2_press",
+     "start": 3.6,
+     "end": 6.0,
+     "description": "press, switch flashes, gravity rotates",
+     "camera": {
+      "mode": "static",
+      "center": [
+       10,
+       110
+      ],
+      "view_height": 420
+     },
+     "object_interactions": [
+      "hand contacts gswitch button"
+     ],
+     "environment_state": {
+      "gravity": "G0 -> G1"
+     },
+     "sound_cues": [
+      {
+       "on_event": "press_contact",
+       "sound": "click"
+      },
+      {
+       "on_event": "gravity_shift",
+       "sound": "pulse"
+      }
+     ],
+     "exit_conditions": [
+      "event:press_contact",
+      "event:gravity_shift"
+     ]
+    },
+    {
+     "id": "s3_fall",
+     "start": 6.0,
+     "end": 10.5,
+     "description": "loses support, falls sideways, braces, lands on the right wall, recovers",
+     "camera": {
+      "mode": "follow",
+      "target": "axel",
+      "view_height": 720,
+      "offset": [
+       -150,
+       60
+      ],
+      "lead": 0.15,
+      "stiffness": 3.5
+     },
+     "physics_requirements": [
+      "gravity vector (1,0)",
+      "ballistic fall",
+      "feet-first contact with wall_right"
+     ],
+     "sound_cues": [
+      {
+       "on_event": "impact",
+       "sound": "impact"
+      }
+     ],
+     "exit_conditions": [
+      "event:impact",
+      "grounded_on:wall_right"
+     ]
+    }
+   ]
+  }
+ ]
+}

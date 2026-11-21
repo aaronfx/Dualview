@@ -1,0 +1,389 @@
+{
+ "id": "first_exchange",
+ "title": "First Exchange",
+ "seed": 11,
+ "characters": [
+  {
+   "id": "kai",
+   "name": "KAI",
+   "proportions": {
+    "spine": 30.0,
+    "chest": 28.0,
+    "head": 24.0,
+    "thigh": 44.0,
+    "shin": 42.0
+   },
+   "style": {
+    "body_color": "#ff8a3d",
+    "far_color": "#b3561c",
+    "visor_color": "#fff3d6",
+    "glow_color": "#ffb070",
+    "limb_width": 8.0,
+    "has_scarf": false,
+    "lean_scale": 1.1
+   },
+   "strength": 50000.0
+  },
+  {
+   "id": "rho",
+   "name": "RHO",
+   "proportions": {
+    "spine": 31.0,
+    "chest": 29.0,
+    "head": 23.0,
+    "thigh": 46.0,
+    "shin": 43.0
+   },
+   "style": {
+    "body_color": "#e8f0ff",
+    "far_color": "#8a97b0",
+    "visor_color": "#5ee0ff",
+    "scarf_color": "#5ee0ff",
+    "glow_color": "#bfe8ff",
+    "limb_width": 7.5,
+    "cadence_scale": 1.05
+   },
+   "strength": 47000.0
+  }
+ ],
+ "environments": [
+  {
+   "id": "void",
+   "room": {
+    "width": 1500.0,
+    "height": 700.0,
+    "depth_back": 600.0,
+    "entry_door": false,
+    "grid_spacing": 120.0
+   },
+   "theme": {
+    "accent": "#38425a",
+    "alert": "#ff5a4a",
+    "back": "#0c0e14",
+    "floor": "#08090d",
+    "side": "#0a0b10",
+    "ceiling": "#030304",
+    "background": "#020203",
+    "dust": "#9fb4d0"
+   },
+   "dust": 70
+  }
+ ],
+ "scenes": [
+  {
+   "id": "exchange",
+   "title": "First Exchange",
+   "environment": "void",
+   "duration": 16.5,
+   "placements": [
+    {
+     "character": "kai",
+     "x": -400.0,
+     "z": -14.0
+    },
+    {
+     "character": "rho",
+     "x": 320.0,
+     "facing": -1,
+     "z": 14.0
+    }
+   ],
+   "actions": [
+    {
+     "type": "walk_to",
+     "character": "kai",
+     "target_x": -150.0,
+     "speed": 140.0
+    },
+    {
+     "type": "guard",
+     "character": "kai",
+     "duration": 0.7
+    },
+    {
+     "type": "strike",
+     "character": "kai",
+     "target": "char:rho",
+     "move": "jab"
+    },
+    {
+     "type": "strike",
+     "character": "kai",
+     "target": "char:rho",
+     "move": "cross"
+    },
+    {
+     "type": "wait_for",
+     "character": "kai",
+     "until": "next:hurt@kai"
+    },
+    {
+     "type": "strike",
+     "character": "kai",
+     "target": "char:rho",
+     "move": "front_kick"
+    },
+    {
+     "type": "wait_for",
+     "character": "kai",
+     "until": "next:strike_start@rho"
+    },
+    {
+     "type": "dodge",
+     "character": "kai",
+     "dodge": "duck"
+    },
+    {
+     "type": "strike",
+     "character": "kai",
+     "target": "char:rho",
+     "move": "uppercut",
+     "reaction": "stagger"
+    },
+    {
+     "type": "strike",
+     "character": "kai",
+     "target": "char:rho",
+     "move": "sweep"
+    },
+    {
+     "type": "guard",
+     "character": "kai",
+     "until": "next:stood_up@rho"
+    },
+    {
+     "type": "idle",
+     "character": "kai",
+     "duration": 0.6
+    },
+    {
+     "type": "gesture",
+     "character": "kai",
+     "target": "char:rho",
+     "gesture": "fist_bump",
+     "distance": 86.0
+    },
+    {
+     "type": "idle",
+     "character": "kai",
+     "duration": 3.0
+    },
+    {
+     "type": "walk_to",
+     "character": "rho",
+     "target_x": 70.0,
+     "speed": 140.0
+    },
+    {
+     "type": "guard",
+     "character": "rho",
+     "until": "next:blocked@kai"
+    },
+    {
+     "type": "wait_for",
+     "character": "rho",
+     "until": "next:strike_start@kai"
+    },
+    {
+     "type": "dodge",
+     "character": "rho",
+     "dodge": "duck"
+    },
+    {
+     "type": "strike",
+     "character": "rho",
+     "target": "char:kai",
+     "move": "hook",
+     "power": 0.55
+    },
+    {
+     "type": "wait_for",
+     "character": "rho",
+     "until": "next:strike_start@kai"
+    },
+    {
+     "type": "dodge",
+     "character": "rho"
+    },
+    {
+     "type": "strike",
+     "character": "rho",
+     "target": "char:kai",
+     "move": "roundhouse",
+     "power": 1.2
+    },
+    {
+     "type": "wait_for",
+     "character": "rho",
+     "until": "next:knockdown@rho"
+    },
+    {
+     "type": "get_up",
+     "character": "rho"
+    },
+    {
+     "type": "wait_for",
+     "character": "rho",
+     "until": "next:gesture_start@kai"
+    },
+    {
+     "type": "gesture",
+     "character": "rho",
+     "target": "char:kai",
+     "gesture": "fist_bump",
+     "distance": 86.0
+    },
+    {
+     "type": "idle",
+     "character": "rho",
+     "duration": 3.0
+    }
+   ],
+   "shots": [
+    {
+     "id": "s1_void",
+     "start": 0.0,
+     "end": 3.246,
+     "kind": "establishing",
+     "description": "two fighters walk out of the dark and square up",
+     "camera": {
+      "mode": "dolly",
+      "center": [
+       -40.0,
+       250.0
+      ],
+      "center_end": [
+       -40.0,
+       200.0
+      ],
+      "view_height": 760.0,
+      "view_height_end": 560.0
+     }
+    },
+    {
+     "id": "s2_feel_out",
+     "start": 3.246,
+     "end": 4.517,
+     "description": "KAI probes: jab blocked, cross ducked",
+     "camera": {
+      "target": "kai",
+      "view_height": 330.0,
+      "offset": [
+       0.0,
+       30.0
+      ],
+      "lead": 0.1,
+      "stiffness": 4.0,
+      "shake": 1.0,
+      "include": [
+       "char:rho"
+      ]
+     },
+     "cut_on": "event:strike_start@kai",
+     "cut_offset": -0.45
+    },
+    {
+     "id": "s3_counter",
+     "start": 4.517,
+     "end": 5.154,
+     "description": "RHO counters with a hook that lands",
+     "camera": {
+      "target": "kai",
+      "view_height": 330.0,
+      "offset": [
+       0.0,
+       30.0
+      ],
+      "lead": 0.1,
+      "stiffness": 4.0,
+      "shake": 1.2,
+      "include": [
+       "char:rho"
+      ]
+     },
+     "cut_on": "event:strike_start@rho",
+     "cut_offset": -0.15
+    },
+    {
+     "id": "s4_kicks",
+     "start": 5.154,
+     "end": 6.871,
+     "kind": "wide",
+     "description": "kick dodged, roundhouse ducked",
+     "camera": {
+      "target": "kai",
+      "view_height": 420.0,
+      "offset": [
+       0.0,
+       30.0
+      ],
+      "lead": 0.1,
+      "stiffness": 4.0,
+      "shake": 1.0,
+      "include": [
+       "char:rho"
+      ]
+     },
+     "cut_on": "event:dodge@rho",
+     "cut_offset": -0.2
+    },
+    {
+     "id": "s5_finish",
+     "start": 6.871,
+     "end": 11.613,
+     "description": "uppercut, sweep: RHO goes down hard",
+     "camera": {
+      "target": "kai",
+      "view_height": 380.0,
+      "offset": [
+       0.0,
+       30.0
+      ],
+      "lead": 0.1,
+      "stiffness": 4.0,
+      "shake": 1.4,
+      "include": [
+       "char:rho"
+      ]
+     },
+     "cut_on": "event:strike_start@kai",
+     "cut_offset": -0.2
+    },
+    {
+     "id": "s6_respect",
+     "start": 11.613,
+     "end": 16.5,
+     "description": "back on his feet; a fist bump",
+     "camera": {
+      "target": "kai",
+      "view_height": 330.0,
+      "offset": [
+       0.0,
+       30.0
+      ],
+      "lead": 0.1,
+      "stiffness": 4.0,
+      "include": [
+       "char:rho"
+      ]
+     },
+     "fade_out": 0.9,
+     "cut_on": "event:stood_up@rho",
+     "cut_offset": -0.6
+    }
+   ],
+   "goals": [
+    "blocked@kai",
+    "evaded@rho",
+    "hurt@kai",
+    "evaded@rho",
+    "evaded@kai",
+    "hurt@rho",
+    "knockdown@rho",
+    "settled@rho",
+    "stood_up@rho",
+    "fist_bump@kai"
+   ]
+  }
+ ]
+}

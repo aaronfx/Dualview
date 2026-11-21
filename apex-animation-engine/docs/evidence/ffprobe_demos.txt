@@ -1,0 +1,15 @@
+stream|codec_name=h264|width=1920|height=1080|r_frame_rate=24/1|nb_frames=204
+stream|codec_name=aac|sample_rate=48000|r_frame_rate=0/0|nb_frames=400
+format|duration=8.500000|size=4281590
+stream|codec_name=h264|width=1920|height=1080|r_frame_rate=24/1|nb_frames=252
+stream|codec_name=aac|sample_rate=48000|r_frame_rate=0/0|nb_frames=494
+format|duration=10.500000|size=5673528
+stream|codec_name=h264|width=1920|height=1080|r_frame_rate=24/1|nb_frames=336
+stream|codec_name=aac|r_frame_rate=0/0|nb_frames=658
+format|duration=14.000000|size=11373539
+stream|codec_name=h264|width=1920|height=1080|r_frame_rate=24/1|nb_frames=720
+stream|codec_name=aac|r_frame_rate=0/0|nb_frames=1408
+format|duration=30.000000|size=20891519
+stream|codec_name=h264|width=1920|height=1080|r_frame_rate=24/1|nb_frames=720
+stream|codec_name=aac|r_frame_rate=0/0|nb_frames=1408
+format|duration=30.000000|size=21569436

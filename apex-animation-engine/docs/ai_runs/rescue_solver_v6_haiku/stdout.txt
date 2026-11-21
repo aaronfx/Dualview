@@ -1,0 +1,3 @@
+paid experiment 20261121T075057Z-198e22: model anthropic/claude-haiku-5.5; reason: Owner-approved test of the new workflow (story goals + APEX setup solver + patch repairs) on The Rescue, with the low-cost default model; at most 3 call(s); worst-case estimate $0.0123 (hard caps: $0.10 per experiment, $1.00 total, $0.0000 already spent)
+cost: model anthropic/claude-haiku-5.5, 3 call(s), estimated up to $0.0100, actual $0.0069
+planning failed: PlanningError: planner output failed validation after 3 attempts: Proportions.__init__() got an unexpected keyword argument 'height'

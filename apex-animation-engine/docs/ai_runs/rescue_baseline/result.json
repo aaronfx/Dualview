@@ -1,0 +1,8 @@
+{
+ "story": "The Rescue (15-20 seconds, no dialogue). Two original stickman characters enter an industrial workshop. One tries to move a heavy metal container, loses control, and becomes trapped beneath a falling support. The second character notices the danger, runs to help, struggles to lift the obstruction, and uses a nearby lever to free the first character. The final moment should communicate relief and friendship without dialogue.",
+ "provider": "openrouter",
+ "model": "anthropic/claude-sonnet-5.5",
+ "started": "2026-11-21T03:05:38Z",
+ "status": "accepted",
+ "attempts": 3
+}

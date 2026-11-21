@@ -1,0 +1,712 @@
+{
+ "schema_version": "0.1",
+ "id": "the_rescue",
+ "title": "The Rescue - a stickman is trapped under a fallen support and his friend frees him with a lever",
+ "fps": 24,
+ "width": 1920,
+ "height": 1080,
+ "seed": 11,
+ "characters": [
+  {
+   "id": "milo",
+   "name": "MILO",
+   "rig": "stickman",
+   "proportions": {},
+   "style": {
+    "body_color": "#ffcf3a",
+    "far_color": "#c08f1e",
+    "visor_color": "#5ff6ff",
+    "scarf_color": "#19dcc6",
+    "glow_color": "#ffbe3c",
+    "limb_width": 7.0,
+    "has_scarf": true,
+    "cadence_scale": 1.0,
+    "stride_scale": 1.0,
+    "lean_scale": 1.0,
+    "arm_swing_scale": 1.0
+   }
+  },
+  {
+   "id": "juno",
+   "name": "JUNO",
+   "rig": "stickman",
+   "proportions": {},
+   "style": {
+    "body_color": "#ffcf3a",
+    "far_color": "#c08f1e",
+    "visor_color": "#5ff6ff",
+    "scarf_color": "#19dcc6",
+    "glow_color": "#ffbe3c",
+    "limb_width": 7.0,
+    "has_scarf": true,
+    "cadence_scale": 1.0,
+    "stride_scale": 1.0,
+    "lean_scale": 1.0,
+    "arm_swing_scale": 1.0
+   }
+  }
+ ],
+ "environments": [
+  {
+   "id": "workshop",
+   "room": {
+    "width": 1400.0,
+    "height": 700.0,
+    "depth_back": 700.0,
+    "depth_front": -120.0,
+    "entry_door": true,
+    "grid_spacing": 100.0
+   },
+   "theme": {
+    "accent": "#46ecff",
+    "alert": "#ff323e",
+    "back": "#15181e",
+    "floor": "#0a0c0f",
+    "side": "#111419",
+    "ceiling": "#08090b",
+    "background": "#050608",
+    "dust": "#bef5ff"
+   },
+   "gravity": [
+    0.0,
+    -1568.0
+   ],
+   "switches": [
+    {
+     "id": "release_lever",
+     "x": 330.0,
+     "height": 80.0,
+     "surface": "floor",
+     "effect": {
+      "to": [
+       0.0,
+       -1.0
+      ],
+      "rotate_deg": null,
+      "turn": "shortest",
+      "magnitude": null,
+      "delay": 0.3,
+      "duration": 0.2
+     }
+    }
+   ],
+   "props": [
+    {
+     "id": "metal_container",
+     "kind": "crate",
+     "position": [
+      -60.0,
+      45.0
+     ],
+     "size": [
+      90.0,
+      90.0
+     ],
+     "mass": 60.0
+    },
+    {
+     "id": "support_beam",
+     "kind": "crate",
+     "position": [
+      -150.0,
+      12.0
+     ],
+     "size": [
+      140.0,
+      24.0
+     ],
+     "mass": 40.0
+    }
+   ],
+   "exits": [],
+   "obstacles": [],
+   "dust": 160
+  }
+ ],
+ "scenes": [
+  {
+   "id": "rescue_scene",
+   "title": "container slips -> support falls -> friend runs in -> lever frees him -> relief",
+   "environment": "workshop",
+   "duration": 18.0,
+   "placements": [
+    {
+     "character": "milo",
+     "x": -660.0,
+     "facing": 1
+    },
+    {
+     "character": "juno",
+     "x": -700.0,
+     "facing": 1
+    }
+   ],
+   "actions": [
+    {
+     "type": "walk_to",
+     "character": "milo",
+     "target_x": -300.0,
+     "speed": 130.0,
+     "duration": null,
+     "switch": null,
+     "face": null,
+     "height": null,
+     "target": null,
+     "style": "normal",
+     "hesitate": false,
+     "release_deg": 35.0,
+     "swings": 1,
+     "note": ""
+    },
+    {
+     "type": "walk_to",
+     "character": "juno",
+     "target_x": -450.0,
+     "speed": 130.0,
+     "duration": null,
+     "switch": null,
+     "face": null,
+     "height": null,
+     "target": null,
+     "style": "normal",
+     "hesitate": false,
+     "release_deg": 35.0,
+     "swings": 1,
+     "note": ""
+    },
+    {
+     "type": "look_around",
+     "character": "juno",
+     "target_x": null,
+     "speed": null,
+     "duration": 1.0,
+     "switch": null,
+     "face": null,
+     "height": null,
+     "target": null,
+     "style": "normal",
+     "hesitate": false,
+     "release_deg": 35.0,
+     "swings": 1,
+     "note": ""
+    },
+    {
+     "type": "walk_to",
+     "character": "milo",
+     "target_x": -190.0,
+     "speed": 90.0,
+     "duration": null,
+     "switch": null,
+     "face": null,
+     "height": null,
+     "target": null,
+     "style": "normal",
+     "hesitate": false,
+     "release_deg": 35.0,
+     "swings": 1,
+     "note": ""
+    },
+    {
+     "type": "idle",
+     "character": "milo",
+     "target_x": null,
+     "speed": null,
+     "duration": 1.2,
+     "switch": null,
+     "face": null,
+     "height": null,
+     "target": null,
+     "style": "normal",
+     "hesitate": false,
+     "release_deg": 35.0,
+     "swings": 1,
+     "note": "strains to push the heavy container, loses control, support falls on him"
+    },
+    {
+     "type": "wait_grounded",
+     "character": "milo",
+     "target_x": null,
+     "speed": null,
+     "duration": null,
+     "switch": null,
+     "face": null,
+     "height": null,
+     "target": null,
+     "style": "normal",
+     "hesitate": false,
+     "release_deg": 35.0,
+     "swings": 1,
+     "note": ""
+    },
+    {
+     "type": "idle",
+     "character": "milo",
+     "target_x": null,
+     "speed": null,
+     "duration": 3.0,
+     "switch": null,
+     "face": null,
+     "height": null,
+     "target": null,
+     "style": "normal",
+     "hesitate": false,
+     "release_deg": 35.0,
+     "swings": 1,
+     "note": "trapped beneath the support, struggling"
+    },
+    {
+     "type": "look_around",
+     "character": "juno",
+     "target_x": null,
+     "speed": null,
+     "duration": 0.8,
+     "switch": null,
+     "face": null,
+     "height": null,
+     "target": null,
+     "style": "normal",
+     "hesitate": false,
+     "release_deg": 35.0,
+     "swings": 1,
+     "note": "notices the danger"
+    },
+    {
+     "type": "run_to",
+     "character": "juno",
+     "target_x": -250.0,
+     "speed": 330.0,
+     "duration": null,
+     "switch": null,
+     "face": null,
+     "height": null,
+     "target": null,
+     "style": "normal",
+     "hesitate": false,
+     "release_deg": 35.0,
+     "swings": 1,
+     "note": ""
+    },
+    {
+     "type": "idle",
+     "character": "juno",
+     "target_x": null,
+     "speed": null,
+     "duration": 1.6,
+     "switch": null,
+     "face": null,
+     "height": null,
+     "target": null,
+     "style": "normal",
+     "hesitate": false,
+     "release_deg": 35.0,
+     "swings": 1,
+     "note": "strains to lift the support, cannot"
+    },
+    {
+     "type": "turn",
+     "character": "juno",
+     "target_x": null,
+     "speed": null,
+     "duration": null,
+     "switch": null,
+     "face": 1,
+     "height": null,
+     "target": null,
+     "style": "normal",
+     "hesitate": false,
+     "release_deg": 35.0,
+     "swings": 1,
+     "note": ""
+    },
+    {
+     "type": "run_to",
+     "character": "juno",
+     "target_x": 300.0,
+     "speed": 330.0,
+     "duration": null,
+     "switch": null,
+     "face": null,
+     "height": null,
+     "target": null,
+     "style": "normal",
+     "hesitate": false,
+     "release_deg": 35.0,
+     "swings": 1,
+     "note": ""
+    },
+    {
+     "type": "press",
+     "character": "juno",
+     "target_x": null,
+     "speed": null,
+     "duration": null,
+     "switch": "release_lever",
+     "face": null,
+     "height": null,
+     "target": null,
+     "style": "normal",
+     "hesitate": false,
+     "release_deg": 35.0,
+     "swings": 1,
+     "note": ""
+    },
+    {
+     "type": "wait_grounded",
+     "character": "juno",
+     "target_x": null,
+     "speed": null,
+     "duration": null,
+     "switch": null,
+     "face": null,
+     "height": null,
+     "target": null,
+     "style": "normal",
+     "hesitate": false,
+     "release_deg": 35.0,
+     "swings": 1,
+     "note": ""
+    },
+    {
+     "type": "turn",
+     "character": "juno",
+     "target_x": null,
+     "speed": null,
+     "duration": null,
+     "switch": null,
+     "face": -1,
+     "height": null,
+     "target": null,
+     "style": "normal",
+     "hesitate": false,
+     "release_deg": 35.0,
+     "swings": 1,
+     "note": ""
+    },
+    {
+     "type": "walk_to",
+     "character": "juno",
+     "target_x": -90.0,
+     "speed": 150.0,
+     "duration": null,
+     "switch": null,
+     "face": null,
+     "height": null,
+     "target": null,
+     "style": "normal",
+     "hesitate": false,
+     "release_deg": 35.0,
+     "swings": 1,
+     "note": ""
+    },
+    {
+     "type": "idle",
+     "character": "milo",
+     "target_x": null,
+     "speed": null,
+     "duration": 1.5,
+     "switch": null,
+     "face": null,
+     "height": null,
+     "target": null,
+     "style": "normal",
+     "hesitate": false,
+     "release_deg": 35.0,
+     "swings": 1,
+     "note": "free, sits up with relief"
+    },
+    {
+     "type": "idle",
+     "character": "juno",
+     "target_x": null,
+     "speed": null,
+     "duration": 2.0,
+     "switch": null,
+     "face": null,
+     "height": null,
+     "target": null,
+     "style": "normal",
+     "hesitate": false,
+     "release_deg": 35.0,
+     "swings": 1,
+     "note": "friends share a relieved moment"
+    }
+   ],
+   "shots": [
+    {
+     "id": "s1_enter",
+     "start": 0.0,
+     "end": 4.0,
+     "kind": "medium",
+     "description": "MILO and JUNO enter the industrial workshop and approach the heavy container",
+     "camera": {
+      "mode": "follow",
+      "target": "milo",
+      "center": null,
+      "center_end": null,
+      "view_height": 560.0,
+      "view_height_end": null,
+      "offset": [
+       80.0,
+       60.0
+      ],
+      "lead": 0.4,
+      "stiffness": 6.0,
+      "roll": 0.0,
+      "roll_end": null,
+      "roll_ease": "in_out",
+      "roll_mode": "fixed",
+      "focus": "body",
+      "shake": 0.0,
+      "roll_rate": 110.0,
+      "keep_in_frame": true,
+      "include": [],
+      "include_margin": 45.0,
+      "min_subject_frac": null
+     },
+     "character_states": {},
+     "action_objectives": [
+      "both characters walk into the workshop",
+      "MILO heads for the container"
+     ],
+     "object_interactions": [],
+     "environment_state": {},
+     "physics_requirements": [
+      "both characters grounded on floor"
+     ],
+     "sound_cues": [],
+     "exit_conditions": [
+      "grounded_on:floor"
+     ],
+     "fade_out": 0.0
+    },
+    {
+     "id": "s2_accident",
+     "start": 4.0,
+     "end": 8.0,
+     "kind": "medium",
+     "description": "MILO strains to move the container, loses control, and the support falls and traps him",
+     "camera": {
+      "mode": "static",
+      "target": null,
+      "center": [
+       -150.0,
+       100.0
+      ],
+      "center_end": null,
+      "view_height": 380.0,
+      "view_height_end": null,
+      "offset": [
+       0.0,
+       40.0
+      ],
+      "lead": 0.25,
+      "stiffness": 6.0,
+      "roll": 0.0,
+      "roll_end": null,
+      "roll_ease": "in_out",
+      "roll_mode": "fixed",
+      "focus": "body",
+      "shake": 0.0,
+      "roll_rate": 110.0,
+      "keep_in_frame": true,
+      "include": [],
+      "include_margin": 45.0,
+      "min_subject_frac": null
+     },
+     "character_states": {},
+     "action_objectives": [
+      "MILO pushes the container",
+      "support falls and pins MILO"
+     ],
+     "object_interactions": [],
+     "environment_state": {},
+     "physics_requirements": [
+      "container slides under push",
+      "support beam falls under gravity onto MILO"
+     ],
+     "sound_cues": [
+      {
+       "on_event": "impact",
+       "sound": "metal_crash",
+       "gain": 1.0
+      }
+     ],
+     "exit_conditions": [
+      "event:impact",
+      "state:idle"
+     ],
+     "fade_out": 0.0
+    },
+    {
+     "id": "s3_notice_and_run",
+     "start": 8.0,
+     "end": 11.5,
+     "kind": "medium",
+     "description": "JUNO notices the danger and runs to MILO's side",
+     "camera": {
+      "mode": "follow",
+      "target": "juno",
+      "center": null,
+      "center_end": null,
+      "view_height": 520.0,
+      "view_height_end": null,
+      "offset": [
+       120.0,
+       60.0
+      ],
+      "lead": 0.3,
+      "stiffness": 6.0,
+      "roll": 0.0,
+      "roll_end": null,
+      "roll_ease": "in_out",
+      "roll_mode": "fixed",
+      "focus": "body",
+      "shake": 0.0,
+      "roll_rate": 110.0,
+      "keep_in_frame": true,
+      "include": [],
+      "include_margin": 45.0,
+      "min_subject_frac": null
+     },
+     "character_states": {},
+     "action_objectives": [
+      "JUNO looks up, notices MILO",
+      "JUNO runs to the trapped MILO"
+     ],
+     "object_interactions": [],
+     "environment_state": {},
+     "physics_requirements": [
+      "JUNO runs grounded on floor",
+      "MILO stays pinned"
+     ],
+     "sound_cues": [],
+     "exit_conditions": [
+      "grounded_on:floor",
+      "state:idle"
+     ],
+     "fade_out": 0.0
+    },
+    {
+     "id": "s4_lever",
+     "start": 11.5,
+     "end": 15.0,
+     "kind": "medium",
+     "description": "JUNO fails to lift the support, runs to the lever and pulls it to free MILO",
+     "camera": {
+      "mode": "static",
+      "target": null,
+      "center": [
+       80.0,
+       110.0
+      ],
+      "center_end": null,
+      "view_height": 480.0,
+      "view_height_end": null,
+      "offset": [
+       0.0,
+       40.0
+      ],
+      "lead": 0.25,
+      "stiffness": 6.0,
+      "roll": 0.0,
+      "roll_end": null,
+      "roll_ease": "in_out",
+      "roll_mode": "fixed",
+      "focus": "body",
+      "shake": 0.0,
+      "roll_rate": 110.0,
+      "keep_in_frame": true,
+      "include": [],
+      "include_margin": 45.0,
+      "min_subject_frac": null
+     },
+     "character_states": {},
+     "action_objectives": [
+      "JUNO struggles to lift the support",
+      "JUNO runs to the lever",
+      "JUNO pulls the lever"
+     ],
+     "object_interactions": [
+      "hand contacts release_lever"
+     ],
+     "environment_state": {},
+     "physics_requirements": [
+      "support too heavy to lift",
+      "lever press triggers release of the support"
+     ],
+     "sound_cues": [
+      {
+       "on_event": "press_contact",
+       "sound": "lever_clunk",
+       "gain": 1.0
+      }
+     ],
+     "exit_conditions": [
+      "event:press_contact",
+      "state:idle"
+     ],
+     "fade_out": 0.0
+    },
+    {
+     "id": "s5_relief",
+     "start": 15.0,
+     "end": 18.0,
+     "kind": "medium",
+     "description": "MILO is free; JUNO returns to him and the friends share a moment of relief",
+     "camera": {
+      "mode": "static",
+      "target": null,
+      "center": [
+       -150.0,
+       100.0
+      ],
+      "center_end": null,
+      "view_height": 360.0,
+      "view_height_end": null,
+      "offset": [
+       0.0,
+       40.0
+      ],
+      "lead": 0.25,
+      "stiffness": 6.0,
+      "roll": 0.0,
+      "roll_end": null,
+      "roll_ease": "in_out",
+      "roll_mode": "fixed",
+      "focus": "body",
+      "shake": 0.0,
+      "roll_rate": 110.0,
+      "keep_in_frame": true,
+      "include": [],
+      "include_margin": 45.0,
+      "min_subject_frac": null
+     },
+     "character_states": {},
+     "action_objectives": [
+      "MILO sits up free",
+      "JUNO returns and stands beside MILO in relief"
+     ],
+     "object_interactions": [],
+     "environment_state": {},
+     "physics_requirements": [
+      "both characters grounded on floor",
+      "support rests released on the floor"
+     ],
+     "sound_cues": [
+      {
+       "on_event": "recovered",
+       "sound": "soft_chime",
+       "gain": 1.0
+      }
+     ],
+     "exit_conditions": [
+      "event:recovered",
+      "state:idle",
+      "grounded_on:floor"
+     ],
+     "fade_out": 0.0
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,106 @@
+{
+ "name": "land_medium",
+ "duration": 0.7,
+ "description": "Medium landing: compress, small hold, rise.",
+ "phases": [
+  [
+   "contact",
+   0.0,
+   0.06
+  ],
+  [
+   "follow_through",
+   0.06,
+   0.35
+  ],
+  [
+   "action",
+   0.35,
+   0.6
+  ],
+  [
+   "settle",
+   0.6,
+   0.7
+  ]
+ ],
+ "keys": [
+  {
+   "t": 0.0,
+   "name": "contact",
+   "interp": "snap",
+   "pose": {
+    "crouch": 0.12,
+    "lean": 0.25,
+    "head": 0.08,
+    "arm_n": 0.9,
+    "elbow_n": 0.6,
+    "arm_f": 0.5,
+    "elbow_f": 0.7,
+    "squash": 0.92,
+    "eye": 1.3
+   }
+  },
+  {
+   "t": 0.07,
+   "name": "compress",
+   "pose": {
+    "crouch": 0.36,
+    "lean": 0.62,
+    "head": 0.3,
+    "arm_n": 1.3,
+    "elbow_n": 0.6,
+    "arm_f": 0.9,
+    "elbow_f": 0.8,
+    "squash": 0.9,
+    "eye": 0.8
+   }
+  },
+  {
+   "t": 0.3,
+   "name": "hold",
+   "pose": {
+    "crouch": 0.33,
+    "lean": 0.55,
+    "head": 0.2,
+    "arm_n": 1.0,
+    "elbow_n": 0.8,
+    "arm_f": 0.6,
+    "elbow_f": 0.9,
+    "squash": 1.0,
+    "eye": 1.0
+   }
+  },
+  {
+   "t": 0.58,
+   "name": "rise",
+   "interp": "back",
+   "pose": {
+    "crouch": 0.02,
+    "lean": 0.1,
+    "head": 0.0,
+    "arm_n": 0.3,
+    "elbow_n": 0.5,
+    "arm_f": -0.1,
+    "elbow_f": 0.5,
+    "squash": 1.0,
+    "eye": 1.05
+   }
+  },
+  {
+   "t": 0.7,
+   "name": "stand",
+   "pose": {
+    "crouch": 0.0,
+    "lean": 0.05,
+    "head": 0.0,
+    "arm_n": 0.15,
+    "elbow_n": 0.35,
+    "arm_f": -0.1,
+    "elbow_f": 0.4,
+    "squash": 1.0,
+    "eye": 1.0
+   }
+  }
+ ]
+}

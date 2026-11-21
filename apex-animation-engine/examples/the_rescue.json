@@ -1,0 +1,536 @@
+{
+ "schema_version": "0.1",
+ "id": "the_rescue",
+ "title": "The Rescue",
+ "fps": 24,
+ "width": 1920,
+ "height": 1080,
+ "seed": 21,
+ "characters": [
+  {
+   "id": "milo",
+   "name": "MILO",
+   "strength": 52000,
+   "proportions": {
+    "spine": 31,
+    "chest": 29,
+    "head": 25,
+    "upper_arm": 32,
+    "forearm": 30,
+    "thigh": 43,
+    "shin": 41
+   },
+   "style": {
+    "body_color": "#ff9d2e",
+    "far_color": "#b8651a",
+    "visor_color": "#7df3ff",
+    "glow_color": "#ffb45a",
+    "has_scarf": false,
+    "limb_width": 8.0,
+    "cadence_scale": 0.95,
+    "stride_scale": 1.05,
+    "lean_scale": 1.2
+   }
+  },
+  {
+   "id": "juno",
+   "name": "JUNO",
+   "strength": 45000,
+   "proportions": {
+    "spine": 28,
+    "chest": 26,
+    "head": 23,
+    "upper_arm": 30,
+    "forearm": 28,
+    "thigh": 45,
+    "shin": 43
+   },
+   "style": {
+    "body_color": "#5ef0c8",
+    "far_color": "#2b9c80",
+    "visor_color": "#ffe15a",
+    "glow_color": "#7cffd8",
+    "scarf_color": "#ffe15a",
+    "has_scarf": true,
+    "limb_width": 7.0,
+    "cadence_scale": 1.15,
+    "stride_scale": 0.95,
+    "lean_scale": 0.9,
+    "arm_swing_scale": 1.25
+   }
+  }
+ ],
+ "environments": [
+  {
+   "id": "workshop",
+   "room": {
+    "width": 1700,
+    "height": 700,
+    "depth_back": 520,
+    "grid_spacing": 85
+   },
+   "theme": {
+    "accent": "#7fd1ff",
+    "alert": "#ff4b3a",
+    "back": "#1a1d22",
+    "floor": "#0d0f12",
+    "side": "#15181c",
+    "ceiling": "#0a0b0d",
+    "background": "#060708",
+    "dust": "#d6e9ff"
+   },
+   "gravity": [
+    0,
+    -1568
+   ],
+   "props": [
+    {
+     "id": "container",
+     "kind": "container",
+     "position": [
+      -40.0,
+      51.0
+     ],
+     "size": [
+      120.0,
+      100.0
+     ],
+     "mass": 110.0,
+     "friction": 0.028,
+     "static_friction": 0.39
+    },
+    {
+     "id": "post",
+     "kind": "post",
+     "position": [
+      -340.0,
+      136.0
+     ],
+     "size": [
+      18.0,
+      270.0
+     ],
+     "mass": 80,
+     "friction": 0.9,
+     "com": [
+      0.0,
+      70.0
+     ]
+    },
+    {
+     "id": "toolbox",
+     "kind": "toolbox",
+     "position": [
+      2.0,
+      23
+     ],
+     "size": [
+      46,
+      44
+     ],
+     "mass": 40,
+     "friction": 0.9,
+     "collide_characters": false,
+     "solid": false,
+     "z": 38,
+     "depth": 34
+    },
+    {
+     "id": "bar",
+     "kind": "bar",
+     "position": [
+      300.0,
+      118
+     ],
+     "size": [
+      175.0,
+      7
+     ],
+     "mass": 9,
+     "friction": 0.9,
+     "angle": 1.5708,
+     "collide_characters": false,
+     "solid": false,
+     "z": 30,
+     "depth": 7
+    }
+   ],
+   "ropes": [
+    {
+     "id": "strap",
+     "a": "prop:post",
+     "a_local": [
+      0.0,
+      129.0
+     ],
+     "b": "prop:container",
+     "b_local": [
+      -56.0,
+      42.0
+     ],
+     "length": 378.52973051272465,
+     "break_force": 900000.0
+    }
+   ],
+   "dust": 90
+  }
+ ],
+ "scenes": [
+  {
+   "id": "rescue",
+   "title": "The Rescue",
+   "environment": "workshop",
+   "duration": 20.0,
+   "placements": [
+    {
+     "character": "milo",
+     "x": -300.0,
+     "facing": 1
+    },
+    {
+     "character": "juno",
+     "x": -380.0,
+     "facing": 1
+    }
+   ],
+   "actions": [
+    {
+     "character": "milo",
+     "type": "walk_to",
+     "target_x": -230.0,
+     "speed": 150
+    },
+    {
+     "character": "milo",
+     "type": "look_at",
+     "target": "prop:container",
+     "duration": 0.35
+    },
+    {
+     "character": "milo",
+     "type": "push",
+     "target": "prop:container",
+     "effort": 1.25
+    },
+    {
+     "character": "milo",
+     "type": "look_at",
+     "target": "prop:post",
+     "duration": 1.6
+    },
+    {
+     "character": "milo",
+     "type": "struggle",
+     "until": "event:lever_engage@juno"
+    },
+    {
+     "character": "milo",
+     "type": "crawl_out",
+     "distance": 40
+    },
+    {
+     "character": "milo",
+     "type": "get_up",
+     "target": "char:juno"
+    },
+    {
+     "character": "milo",
+     "type": "gesture",
+     "target": "char:juno",
+     "gesture": "fist_bump"
+    },
+    {
+     "character": "milo",
+     "type": "idle",
+     "duration": 3.0
+    },
+    {
+     "character": "juno",
+     "type": "walk_to",
+     "target_x": 130.0,
+     "speed": 165
+    },
+    {
+     "character": "juno",
+     "type": "wait_for",
+     "until": "event:pinned@milo"
+    },
+    {
+     "character": "juno",
+     "type": "notice",
+     "target": "char:milo",
+     "duration": 0.6
+    },
+    {
+     "character": "juno",
+     "type": "run_to",
+     "target": "char:milo"
+    },
+    {
+     "character": "juno",
+     "type": "lift",
+     "target": "prop:post",
+     "effort": 1.0,
+     "duration": 1.8
+    },
+    {
+     "character": "juno",
+     "type": "notice",
+     "target": "prop:bar",
+     "duration": 0.35
+    },
+    {
+     "character": "juno",
+     "type": "use_lever",
+     "tool": "prop:bar",
+     "fulcrum": "prop:toolbox",
+     "target": "prop:post",
+     "until": "event:get_up_start@milo",
+     "speed": 330
+    },
+    {
+     "character": "juno",
+     "type": "offer_hand",
+     "target": "char:milo"
+    },
+    {
+     "character": "juno",
+     "type": "gesture",
+     "target": "char:milo",
+     "gesture": "fist_bump"
+    },
+    {
+     "character": "juno",
+     "type": "idle",
+     "duration": 3.0
+    }
+   ],
+   "shots": [
+    {
+     "id": "s01_establish",
+     "kind": "establishing",
+     "description": "the workshop: a heavy container, a tall support post strapped to it; MILO and JUNO walk in",
+     "camera": {
+      "mode": "dolly",
+      "center": [
+       -140,
+       250
+      ],
+      "center_end": [
+       -110,
+       210
+      ],
+      "view_height": 640,
+      "view_height_end": 540
+     },
+     "start": 0.0,
+     "end": 1.45
+    },
+    {
+     "id": "s02_push",
+     "kind": "medium",
+     "description": "MILO braces and strains against the container",
+     "camera": {
+      "mode": "follow",
+      "target": "milo",
+      "view_height": 330,
+      "offset": [
+       60,
+       10
+      ],
+      "lead": 0.1,
+      "stiffness": 4.0,
+      "include": [
+       "prop:container"
+      ]
+     },
+     "sound_cues": [],
+     "exit_conditions": [
+      "event:push_start",
+      "event:push_lost"
+     ],
+     "start": 1.45,
+     "end": 3.59
+    },
+    {
+     "id": "s03_accident",
+     "kind": "wide",
+     "description": "it breaks loose; MILO falls; the strap snaps taut and yanks the post over onto him",
+     "camera": {
+      "mode": "static",
+      "center": [
+       -160,
+       150
+      ],
+      "view_height": 430,
+      "shake": 1.0,
+      "include": [
+       "prop:post"
+      ]
+     },
+     "exit_conditions": [
+      "event:rope_snap",
+      "event:body_fall",
+      "event:pinned"
+     ],
+     "start": 3.59,
+     "end": 5.22
+    },
+    {
+     "id": "s04_notice_run",
+     "kind": "tracking",
+     "description": "JUNO hears it, turns, sees MILO pinned and runs to him",
+     "camera": {
+      "mode": "follow",
+      "target": "juno",
+      "view_height": 360,
+      "offset": [
+       -40,
+       20
+      ],
+      "lead": 0.25,
+      "stiffness": 5.0,
+      "include": [
+       "char:milo"
+      ]
+     },
+     "exit_conditions": [
+      "event:notice"
+     ],
+     "start": 5.22,
+     "end": 6.62
+    },
+    {
+     "id": "s05_lift",
+     "kind": "medium",
+     "description": "two-shot: JUNO tries to lift the post by hand and cannot",
+     "camera": {
+      "mode": "static",
+      "center": [
+       -60,
+       90
+      ],
+      "view_height": 300,
+      "include": [
+       "char:juno"
+      ]
+     },
+     "exit_conditions": [
+      "event:lift_start",
+      "event:lift_fail"
+     ],
+     "start": 6.62,
+     "end": 8.77
+    },
+    {
+     "id": "s06_idea",
+     "kind": "tracking",
+     "description": "JUNO spots the pry bar on the rack, grabs it and runs back",
+     "camera": {
+      "mode": "follow",
+      "target": "juno",
+      "view_height": 380,
+      "offset": [
+       0,
+       20
+      ],
+      "lead": 0.3,
+      "stiffness": 5.0
+     },
+     "exit_conditions": [
+      "event:pick_up"
+     ],
+     "start": 8.77,
+     "end": 12.52
+    },
+    {
+     "id": "s07_lever",
+     "kind": "medium",
+     "description": "the bar goes over the toolbox, JUNO bears down, the post rises, MILO crawls free",
+     "camera": {
+      "mode": "static",
+      "center": [
+       0,
+       85
+      ],
+      "view_height": 310,
+      "include": [
+       "char:milo",
+       "char:juno"
+      ]
+     },
+     "exit_conditions": [
+      "event:lever_place",
+      "event:lever_engage",
+      "event:crawl_start",
+      "event:freed"
+     ],
+     "start": 12.52,
+     "end": 16.08
+    },
+    {
+     "id": "s08_help_up",
+     "kind": "medium",
+     "description": "JUNO lets the post down and offers a hand; MILO takes it and is pulled to his feet",
+     "camera": {
+      "mode": "follow",
+      "target": "milo",
+      "view_height": 300,
+      "offset": [
+       45,
+       25
+      ],
+      "lead": 0.05,
+      "stiffness": 3.0,
+      "include": [
+       "char:juno"
+      ]
+     },
+     "exit_conditions": [
+      "event:hand_grab",
+      "event:stood_up"
+     ],
+     "start": 16.08,
+     "end": 18.88
+    },
+    {
+     "id": "s09_friends",
+     "kind": "medium",
+     "description": "a breath of relief, then a fist bump",
+     "camera": {
+      "mode": "follow",
+      "target": "milo",
+      "view_height": 270,
+      "offset": [
+       45,
+       35
+      ],
+      "lead": 0.0,
+      "stiffness": 2.5,
+      "include": [
+       "char:juno"
+      ]
+     },
+     "exit_conditions": [
+      "event:fist_bump"
+     ],
+     "fade_out": 0.8,
+     "start": 18.88,
+     "end": 20.0
+    }
+   ],
+   "goals": [
+    "push_lost@milo",
+    "rope_snap@strap",
+    "pinned@milo[by=post]",
+    "notice@juno",
+    "lift_fail@juno",
+    "lever_engage@juno",
+    "freed@milo",
+    "hand_grab@milo",
+    "stood_up@milo",
+    "fist_bump@juno"
+   ]
+  }
+ ]
+}

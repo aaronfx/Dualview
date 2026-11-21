@@ -1,0 +1,43 @@
+{
+ "name": "brace",
+ "duration": 0.3,
+ "description": "Brace for a landing: legs reach for the surface, knees soft, arms back for balance, eyes on the spot.",
+ "keys": [
+  {
+   "t": 0.0,
+   "name": "spot",
+   "pose": {
+    "lean": 0.08,
+    "head": 0.25,
+    "arm_n": 1.2,
+    "elbow_n": 0.7,
+    "arm_f": -0.6,
+    "elbow_f": 0.7,
+    "thigh_n": 0.35,
+    "shin_n": -0.45,
+    "thigh_f": -0.05,
+    "shin_f": -0.35,
+    "eye": 1.6,
+    "twist": 0.0
+   }
+  },
+  {
+   "t": 0.3,
+   "name": "reach_down",
+   "pose": {
+    "lean": 0.15,
+    "head": 0.35,
+    "arm_n": 1.5,
+    "elbow_n": 0.55,
+    "arm_f": -0.75,
+    "elbow_f": 0.5,
+    "thigh_n": 0.15,
+    "shin_n": -0.12,
+    "thigh_f": -0.1,
+    "shin_f": -0.15,
+    "eye": 1.5,
+    "twist": 0.0
+   }
+  }
+ ]
+}

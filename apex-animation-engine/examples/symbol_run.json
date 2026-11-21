@@ -1,0 +1,506 @@
+{
+ "id": "symbol_run",
+ "title": "Symbol Run",
+ "seed": 21,
+ "characters": [
+  {
+   "id": "kai",
+   "name": "KAI",
+   "proportions": {
+    "spine": 30.0,
+    "chest": 28.0,
+    "head": 24.0,
+    "thigh": 44.0,
+    "shin": 42.0
+   },
+   "style": {
+    "body_color": "#ff8a3d",
+    "far_color": "#b3561c",
+    "visor_color": "#fff3d6",
+    "scarf_color": "#ffd27a",
+    "glow_color": "#ffb070",
+    "limb_width": 8.0,
+    "lean_scale": 1.1
+   },
+   "strength": 50000.0
+  },
+  {
+   "id": "rho",
+   "name": "RHO",
+   "proportions": {
+    "spine": 31.0,
+    "chest": 29.0,
+    "head": 23.0,
+    "thigh": 46.0,
+    "shin": 43.0
+   },
+   "style": {
+    "body_color": "#e8f0ff",
+    "far_color": "#8a97b0",
+    "visor_color": "#5ee0ff",
+    "glow_color": "#bfe8ff",
+    "limb_width": 7.5,
+    "has_scarf": false,
+    "cadence_scale": 1.05
+   },
+   "strength": 47000.0
+  }
+ ],
+ "environments": [
+  {
+   "id": "symbols",
+   "room": {
+    "width": 2600.0,
+    "height": 900.0,
+    "depth_back": 600.0,
+    "entry_door": false,
+    "grid_spacing": 130.0
+   },
+   "theme": {
+    "accent": "#7f8cff",
+    "alert": "#ff5a8a",
+    "back": "#0d0f1c",
+    "floor": "#090a13",
+    "side": "#0b0c17",
+    "ceiling": "#040408",
+    "background": "#020205",
+    "dust": "#a9b4ff"
+   },
+   "props": [
+    {
+     "id": "plus",
+     "kind": "glyph",
+     "glyph": "+",
+     "weight": 15.0,
+     "color": "#7dffb2",
+     "position": [
+      190.0,
+      30.0
+     ],
+     "size": [
+      58.0,
+      58.0
+     ],
+     "mass": 6.0,
+     "angle": 0.785,
+     "friction": 0.7
+    },
+    {
+     "id": "staff",
+     "kind": "glyph",
+     "glyph": "-",
+     "weight": 14.0,
+     "color": "#59e3ff",
+     "position": [
+      -150.0,
+      8.0
+     ],
+     "size": [
+      118.0,
+      16.0
+     ],
+     "mass": 5.0,
+     "friction": 0.8
+    }
+   ],
+   "obstacles": [
+    {
+     "id": "minus_floor",
+     "kind": "glyph",
+     "center": [
+      -760.0,
+      22.0
+     ],
+     "size": [
+      120.0,
+      30.0
+     ],
+     "glyph": "-",
+     "weight": 30.0,
+     "color": "#59e3ff"
+    },
+    {
+     "id": "pi",
+     "kind": "glyph",
+     "center": [
+      -380.0,
+      120.0
+     ],
+     "size": [
+      320.0,
+      240.0
+     ],
+     "glyph": "π",
+     "weight": 30.0,
+     "color": "#ffb347"
+    },
+    {
+     "id": "seven",
+     "kind": "glyph",
+     "center": [
+      880.0,
+      150.0
+     ],
+     "size": [
+      240.0,
+      300.0
+     ],
+     "glyph": "7",
+     "weight": 34.0,
+     "color": "#c77dff"
+    },
+    {
+     "id": "root",
+     "kind": "glyph",
+     "center": [
+      -980.0,
+      600.0
+     ],
+     "size": [
+      240.0,
+      170.0
+     ],
+     "glyph": "√",
+     "weight": 22.0,
+     "color": "#7f8cff"
+    },
+    {
+     "id": "divide",
+     "kind": "glyph",
+     "center": [
+      260.0,
+      640.0
+     ],
+     "size": [
+      170.0,
+      150.0
+     ],
+     "glyph": "÷",
+     "weight": 22.0,
+     "color": "#ff7ab8"
+    },
+    {
+     "id": "equals",
+     "kind": "glyph",
+     "center": [
+      -90.0,
+      720.0
+     ],
+     "size": [
+      150.0,
+      90.0
+     ],
+     "glyph": "=",
+     "weight": 18.0,
+     "color": "#59e3ff"
+    }
+   ],
+   "dust": 90
+  }
+ ],
+ "scenes": [
+  {
+   "id": "run",
+   "title": "Symbol Run",
+   "environment": "symbols",
+   "duration": 26.083333333333332,
+   "placements": [
+    {
+     "character": "kai",
+     "x": -1200.0,
+     "z": -10.0
+    },
+    {
+     "character": "rho",
+     "x": 640.0,
+     "facing": -1,
+     "z": 12.0
+    }
+   ],
+   "actions": [
+    {
+     "type": "run_to",
+     "character": "kai",
+     "target_x": -900.0,
+     "speed": 330.0
+    },
+    {
+     "type": "vault",
+     "character": "kai",
+     "speed": 330.0,
+     "target": "obstacle:minus_floor"
+    },
+    {
+     "type": "climb",
+     "character": "kai",
+     "target": "obstacle:pi"
+    },
+    {
+     "type": "run_to",
+     "character": "kai",
+     "target_x": -236.0,
+     "speed": 300.0
+    },
+    {
+     "type": "jump_to",
+     "character": "kai",
+     "target_x": -70.0,
+     "height": 70.0,
+     "flip": "front"
+    },
+    {
+     "type": "roll",
+     "character": "kai"
+    },
+    {
+     "type": "pick_up",
+     "character": "kai",
+     "target": "prop:plus"
+    },
+    {
+     "type": "throw",
+     "character": "kai",
+     "target": "char:rho",
+     "power": 0.9
+    },
+    {
+     "type": "wait_for",
+     "character": "kai",
+     "until": "next:strike_start@rho"
+    },
+    {
+     "type": "dodge",
+     "character": "kai"
+    },
+    {
+     "type": "pick_up",
+     "character": "kai",
+     "target": "prop:staff"
+    },
+    {
+     "type": "strike",
+     "character": "kai",
+     "speed": 300.0,
+     "target": "char:rho",
+     "move": "swing_weapon"
+    },
+    {
+     "type": "guard",
+     "character": "kai",
+     "until": "next:stood_up@rho"
+    },
+    {
+     "type": "throw",
+     "character": "kai",
+     "target": "point:-120,20",
+     "power": 0.6
+    },
+    {
+     "type": "idle",
+     "character": "kai",
+     "duration": 0.4
+    },
+    {
+     "type": "gesture",
+     "character": "kai",
+     "target": "char:rho",
+     "gesture": "fist_bump",
+     "distance": 86.0
+    },
+    {
+     "type": "idle",
+     "character": "kai",
+     "duration": 3.0
+    },
+    {
+     "type": "wait_for",
+     "character": "rho",
+     "until": "next:pick_up@kai"
+    },
+    {
+     "type": "guard",
+     "character": "rho",
+     "until": "next:block_hit@rho"
+    },
+    {
+     "type": "idle",
+     "character": "rho",
+     "duration": 0.3
+    },
+    {
+     "type": "strike",
+     "character": "rho",
+     "speed": 330.0,
+     "target": "char:kai",
+     "move": "flying_kick"
+    },
+    {
+     "type": "idle",
+     "character": "rho",
+     "duration": 0.3
+    },
+    {
+     "type": "wait_for",
+     "character": "rho",
+     "until": "next:knockdown@rho"
+    },
+    {
+     "type": "get_up",
+     "character": "rho"
+    },
+    {
+     "type": "wait_for",
+     "character": "rho",
+     "until": "next:gesture_start@kai"
+    },
+    {
+     "type": "gesture",
+     "character": "rho",
+     "target": "char:kai",
+     "gesture": "fist_bump",
+     "distance": 86.0
+    },
+    {
+     "type": "idle",
+     "character": "rho",
+     "duration": 3.0
+    }
+   ],
+   "shots": [
+    {
+     "id": "s1_run",
+     "start": 0.0,
+     "end": 3.096,
+     "kind": "wide",
+     "description": "KAI runs in through the symbols and vaults the minus",
+     "camera": {
+      "target": "kai",
+      "view_height": 520.0,
+      "lead": 0.15,
+      "stiffness": 4.0
+     }
+    },
+    {
+     "id": "s2_climb",
+     "start": 3.096,
+     "end": 5.479,
+     "description": "up onto the bar of the pi: hang, pull up, mantle",
+     "camera": {
+      "target": "kai",
+      "view_height": 440.0,
+      "lead": 0.15,
+      "stiffness": 4.0,
+      "include": [
+       "obstacle:pi"
+      ]
+     },
+     "cut_on": "event:climb_start@kai",
+     "cut_offset": -0.3
+    },
+    {
+     "id": "s3_flip",
+     "start": 5.479,
+     "end": 8.967,
+     "kind": "wide",
+     "description": "along the bar, a front flip off the end, a landing roll",
+     "camera": {
+      "target": "kai",
+      "view_height": 560.0,
+      "lead": 0.15,
+      "stiffness": 4.0
+     },
+     "cut_on": "event:climbed@kai",
+     "cut_offset": 0.2
+    },
+    {
+     "id": "s4_throw",
+     "start": 8.967,
+     "end": 11.838,
+     "kind": "wide",
+     "description": "KAI throws the plus; RHO blocks it",
+     "camera": {
+      "target": "kai",
+      "view_height": 520.0,
+      "lead": 0.15,
+      "stiffness": 4.0,
+      "shake": 1.0,
+      "include": [
+       "char:rho"
+      ]
+     },
+     "cut_on": "event:pick_up@kai",
+     "cut_offset": -0.5
+    },
+    {
+     "id": "s5_kick",
+     "start": 11.838,
+     "end": 14.171,
+     "description": "RHO's flying kick; KAI steps out of it",
+     "camera": {
+      "target": "kai",
+      "view_height": 420.0,
+      "lead": 0.15,
+      "stiffness": 4.0,
+      "shake": 1.2,
+      "include": [
+       "char:rho"
+      ]
+     },
+     "cut_on": "event:strike_start@rho",
+     "cut_offset": -0.35
+    },
+    {
+     "id": "s6_staff",
+     "start": 14.171,
+     "end": 18.85,
+     "description": "the minus as a staff: RHO goes down",
+     "camera": {
+      "target": "kai",
+      "view_height": 420.0,
+      "lead": 0.15,
+      "stiffness": 4.0,
+      "shake": 1.4,
+      "include": [
+       "char:rho"
+      ]
+     },
+     "cut_on": "event:pick_up@kai",
+     "cut_offset": -0.7
+    },
+    {
+     "id": "s7_respect",
+     "start": 18.85,
+     "end": 26.083333333333332,
+     "description": "the staff tossed aside; a fist bump",
+     "camera": {
+      "target": "kai",
+      "view_height": 380.0,
+      "lead": 0.15,
+      "stiffness": 4.0,
+      "include": [
+       "char:rho"
+      ]
+     },
+     "fade_out": 0.9,
+     "cut_on": "event:stood_up@rho",
+     "cut_offset": -0.8
+    }
+   ],
+   "goals": [
+    "vault@kai",
+    "climbed@kai",
+    "flip@kai",
+    "roll_start@kai",
+    "pick_up@kai",
+    "throw@kai",
+    "block_hit@rho",
+    "strike_start@rho",
+    "evaded@kai",
+    "hit@kai[move=swing_weapon]",
+    "knockdown@rho",
+    "stood_up@rho",
+    "fist_bump@kai"
+   ]
+  }
+ ]
+}

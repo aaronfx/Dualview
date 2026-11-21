@@ -1,0 +1,8 @@
+paid experiment 20261121T075646Z-e9f466: model anthropic/claude-haiku-5.5; reason: Owner-approved re-test after fixing the v6 findings (reasoning off, proportion validation, token estimate); at most 3 call(s); worst-case estimate $0.0134 (hard caps: $0.10 per experiment, $1.00 total, $0.0069 already spent)
+cost: model anthropic/claude-haiku-5.5, 3 call(s), estimated up to $0.0107, actual $0.0040
+planning failed: PlanningError: planner output failed validation after 3 attempts: 3 validation errors for ProjectSpec
+environments.0.switches.0.effect
+  Value error, rotate_deg must be non-zero and within +-360 [type=value_error, input_value={'rotate_deg': 0, 'delay': 0.4, 'duration': 0.3}, input_type=dict]
+    For further information visit https://errors.pydantic.dev/2.14/v/value_error
+scenes.0.actions.7.type
+  

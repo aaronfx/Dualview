@@ -1,0 +1,87 @@
+{
+ "name": "lose_balance",
+ "duration": 0.5,
+ "description": "Tense stance; the floor tilts away: flinch, then arms fly out, knees give, eyes wide.",
+ "phases": [
+  [
+   "anticipation",
+   0.0,
+   0.09
+  ],
+  [
+   "action",
+   0.09,
+   0.24
+  ],
+  [
+   "follow_through",
+   0.24,
+   0.5
+  ]
+ ],
+ "keys": [
+  {
+   "t": 0.0,
+   "name": "tense",
+   "interp": "ease",
+   "pose": {
+    "crouch": 0.09,
+    "lean": 0.16,
+    "arm_n": 0.55,
+    "elbow_n": 1.2,
+    "arm_f": 0.35,
+    "elbow_f": 1.4,
+    "eye": 1.3,
+    "head": 0.0,
+    "squash": 1.0
+   }
+  },
+  {
+   "t": 0.09,
+   "name": "flinch",
+   "interp": "snap",
+   "pose": {
+    "crouch": 0.05,
+    "lean": 0.22,
+    "arm_n": 0.75,
+    "elbow_n": 1.6,
+    "arm_f": 0.6,
+    "elbow_f": 1.7,
+    "eye": 0.7,
+    "head": 0.12,
+    "squash": 1.03
+   }
+  },
+  {
+   "t": 0.24,
+   "name": "whoa",
+   "interp": "back",
+   "pose": {
+    "crouch": 0.2,
+    "lean": -0.08,
+    "arm_n": 2.05,
+    "elbow_n": 0.35,
+    "arm_f": -1.55,
+    "elbow_f": 0.45,
+    "eye": 1.9,
+    "head": -0.18,
+    "squash": 0.98
+   }
+  },
+  {
+   "t": 0.5,
+   "name": "hang_on",
+   "pose": {
+    "crouch": 0.17,
+    "lean": -0.02,
+    "arm_n": 1.8,
+    "elbow_n": 0.5,
+    "arm_f": -1.3,
+    "elbow_f": 0.6,
+    "eye": 1.75,
+    "head": -0.1,
+    "squash": 1.0
+   }
+  }
+ ]
+}
