@@ -31,6 +31,7 @@ FILMS: Dict[str, str] = {
     "glyph_duel.json": "acrobatics + combat + time effects: hit-stop, slow motion, thrown and wielded glyphs",
     "foundry_flip.json": "gravity: surface switches and flips",
     "gravity_switch_1d.json": "gravity: slides, swings, doors",
+    "orb_runner.json": "level grid, orbs, portals (characters and a prop), beat sync, particles (Milestone 4)",
 }
 DRIFT_WARN = 0.5  # s: a goal that moved more than this may need its cut re-placed (reported, not a failure)
 _GRADE = {"PASS": 0, "WARN": 1, "FAIL": 2}

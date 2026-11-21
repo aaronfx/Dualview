@@ -277,9 +277,15 @@ def build_camera(rt: SceneRuntime, aspect: float) -> CameraDirector:
         xs, ys = [j[k][0] for k in keys], [j[k][1] for k in keys]
         return min(xs) - 14, min(ys) - 10, max(xs) + 14, max(ys) + 16
 
+    cuts = {cid: an.cuts for cid, an in res.animators.items()}
+
     def vel(cid: str, t: float):
-        a, b = res.animators[cid].pose_at(t - 0.05).root, res.animators[cid].pose_at(t + 0.05).root
-        return ((b[0] - a[0]) / 0.1, (b[1] - a[1]) / 0.1)
+        t0, t1 = t - 0.05, t + 0.05
+        for c in cuts.get(cid, ()):  # never measure a velocity across a portal jump
+            if t0 < c <= t1:
+                t0, t1 = (c, c + 0.1) if t >= c else (c - 0.1 - 1e-3, c - 1e-3)
+        a, b = res.animators[cid].pose_at(t0).root, res.animators[cid].pose_at(t1).root
+        return ((b[0] - a[0]) / (t1 - t0), (b[1] - a[1]) / (t1 - t0))
 
     shake = []
     for e in res.events:
@@ -297,8 +303,10 @@ def build_camera(rt: SceneRuntime, aspect: float) -> CameraDirector:
             shake.append((e.t, 2.0))
         elif e.type == "body_fall" and e.character and "point" in e.data:
             shake.append((e.t, 4.0))
+    jumps = [(e.t, e.character) for e in res.events if e.type == "portal_exit" and e.character in res.animators]
     return CameraDirector(rt.scene.shots, aspect, bbox, vel, gravity=res.gravity.at, focus_bbox=focus, shake_events=shake,
-                          gravity_angle=res.gravity.angle_unwrapped, resolve=lambda tg, t=0.0: _resolve_target(rt.env, tg, rt, t))
+                          gravity_angle=res.gravity.angle_unwrapped, resolve=lambda tg, t=0.0: _resolve_target(rt.env, tg, rt, t),
+                          jumps=jumps, room=(-rt.env.room.width / 2, rt.env.room.width / 2, -20.0, rt.env.room.height))
 
 
 def compute_diagnostics(rt: SceneRuntime, cam: CameraDirector, fps: int) -> List[dict]:
@@ -358,12 +366,14 @@ def render_scene(project: ProjectSpec, scene_id: str, out_path: str, samples: in
     warp = build_warp(scene, res.events, res.duration, project.fps)
     tfx = scene.time_fx
     fx = warp_effects(_effects_from_events(res.events, switches, rt.env) + strike_swooshes(res), warp)
+    from .particles import Particles
+    parts = Particles(res.events, rt.env, project.seed)
     os.makedirs(os.path.dirname(os.path.abspath(out_path)) or ".", exist_ok=True)
     wav = os.path.splitext(out_path)[0] + ".wav"
     sd = SoundDirector(project.seed, {c.on_event: c.sound for sh in scene.shots for c in sh.sound_cues})
     n = int(round(warp.film_duration * project.fps))
     film_events = warp_events(res.events, warp)
-    cues = sd.render(film_events, n / project.fps, wav)  # audio length == frame-quantised video length (no dropped frames)
+    cues = sd.render(film_events, n / project.fps, wav, music=scene.music)  # audio length == frame-quantised video length (no dropped frames)
     say("audio", 1.0, f"{len(cues)} cues")
     writer = VideoWriter(out_path, W, H, project.fps, audio=wav)
     try:
@@ -383,7 +393,7 @@ def render_scene(project: ProjectSpec, scene_id: str, out_path: str, samples: in
             if samples <= 1:
                 frame = renderer.render(rt.evaluate(t), film_camera(cam.at(t), warp, tf, tfx), red_flash(res.events, t), fx, fade,
                                         motion_trails(res, t), fx_t=tf if not warp.is_identity() else None, smears=smears,
-                                        prop_ghosts=ghosts, screen=scr)
+                                        prop_ghosts=ghosts, screen=scr, particles=parts.at(t))
             else:
                 acc = None
                 sh = cam.shot_at(t)
@@ -395,7 +405,7 @@ def render_scene(project: ProjectSpec, scene_id: str, out_path: str, samples: in
                     f = renderer.render(rt.evaluate(ts), film_camera(cam.at(ts), warp, tfk, tfx), red_flash(res.events, ts), fx, fade,
                                         motion_trails(res, ts) if k == samples // 2 else None, fx_t=tfk if not warp.is_identity() else None,
                                         smears=smears if k == samples // 2 else None, prop_ghosts=ghosts if k == samples // 2 else None,
-                                        screen=screen_effects(warp, tfk, tfx)).astype(np.float32)
+                                        screen=screen_effects(warp, tfk, tfx), particles=parts.at(ts)).astype(np.float32)
                     acc = f if acc is None else acc + f
                 frame = (acc / samples).astype(np.uint8)
             if hold is not None and tfx is not None and tfx.screen_fx and hold[0].kind != "block_hit":

@@ -279,12 +279,52 @@ class Synth:
             out += 0.7 * pad((73.4, 110.0, 146.8, 185.0, 220.0, 293.7), t_exit, duration)  # arrival: full D major
         return out * 0.05
 
+    def beat_track(self, music, duration: float) -> np.ndarray:
+        """A beat-locked groove (Milestone 4): a kick on every beat, a closed hat on the off-beats, a bass note that
+        changes each bar. Every onset is placed exactly on the film-time beat grid (QA measures them back)."""
+        n = _n(duration)
+        out = np.zeros(n)
+        P = 60.0 / music.bpm
+        kick = kick_wave()
+        kick_n = len(kick)
+        hat = _bandpass(self.rng.standard_normal(_n(0.05)), 6000, None) * np.exp(-np.arange(_n(0.05)) / SR * 70.0)
+        roots = (55.0, 55.0, 65.4, 49.0)  # A A C G: one note per bar
+        k = 0
+        while True:
+            tb = music.offset + k * P
+            if tb >= duration:
+                break
+            i = int(round(tb * SR))
+            m = min(kick_n, n - i)
+            out[i:i + m] += 0.9 * kick[:m]
+            j = int(round((tb + P / 2) * SR))
+            if j < n:
+                mh = min(len(hat), n - j)
+                out[j:j + mh] += 0.25 * hat[:mh]
+            if k % music.beats_per_bar == 0:
+                bar_n = min(_n(P * music.beats_per_bar), n - i)
+                tt = np.arange(bar_n) / SR
+                fr = roots[(k // music.beats_per_bar) % len(roots)]
+                out[i:i + bar_n] += 0.22 * (np.sin(2 * np.pi * fr * tt) + 0.35 * np.sin(4 * np.pi * fr * tt)) * np.exp(-tt * 1.2)
+            k += 1
+        return out * 0.32 * music.gain
+
     def ambience(self, duration: float) -> np.ndarray:
         n = _n(duration)
         t = np.arange(n) / SR
         a = 0.05 * np.sin(2 * np.pi * 50 * t) + 0.03 * np.sin(2 * np.pi * 100.3 * t)
         a += 0.04 * _norm(_bandpass(self.rng.standard_normal(n), 40, 260))
         return a * np.minimum(1, t / 0.3)
+
+
+def kick_wave() -> np.ndarray:
+    """The beat track's kick: a pitch-dropping sine (130 -> 45 Hz) with a 3 ms attack (QA matches against it)."""
+    kick_n = _n(0.22)
+    tk = np.arange(kick_n) / SR
+    f = 45.0 + 85.0 * np.exp(-tk * 30.0)
+    kick = np.sin(2 * np.pi * np.cumsum(f) / SR) * np.exp(-tk * 16.0)
+    kick[: _n(0.003)] *= np.linspace(0, 1, _n(0.003))
+    return kick
 
 
 def clamp01(x: float) -> float:
@@ -311,6 +351,9 @@ DEFAULT_BINDINGS = {
     "climb_start": None, "climbed": "footstep", "step_off": None, "wall_run": None, "wall_contact": "footstep", "wall_kick": "whoosh",
     "throw_start": None, "throw": "whoosh", "prop_hit": "clang", "bump": "tap",
     "slowmo": "whoosh", "body_block": None, "prop_blocked": "clang",
+    # orbs, portals, beats (Milestone 4)
+    "orb_jump": "jump", "orb_boost": "whoosh", "orb_pad": "jump", "collect": "chime", "portal_enter": "pulse", "portal_exit": None,
+    "beat_wait_end": None,
 }
 
 
@@ -370,7 +413,8 @@ class SoundDirector:
                 cues.append(Cue(e.t, e.type, snd, gain))
         return cues
 
-    def render(self, events, duration: float, path: str) -> List[Cue]:
+    def render(self, events, duration: float, path: str, music=None) -> List[Cue]:
+        """`music`: a MusicSpec; the beat-locked groove replaces the adaptive score bed."""
         n = _n(duration)
         L = np.zeros(n)
         Rch = np.zeros(n)  # sound effects are panned by where they happen in the room
@@ -431,7 +475,10 @@ class SoundDirector:
                 if m > 0:
                     L[i:i + m] += hum[:m] * 0.25
                     Rch[i:i + m] += hum[:m] * 0.25
-        if self.music_on:
+        if music is not None:
+            groove = sy.beat_track(music, duration)
+            L, Rch = L + groove, Rch + groove  # on the effects bus level, so it survives the final normalisation
+        elif self.music_on:
             bed = bed + sy.music(events, duration)
         L = L + bed
         Rch = Rch + bed

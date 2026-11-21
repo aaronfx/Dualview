@@ -19,6 +19,7 @@ from ..scene.schema import ActionSpec, EnvironmentSpec
 from ..scene.targets import bar_world, exit_world, resolve, switch_world
 from .frames import GroundFrame
 from .acrobatics import ACRO, AcroMixin
+from .arcade import ArcadeMixin
 from .combat import COMBAT, CombatMixin
 from .interaction import INTERACTIONS, LIE_H, InteractionMixin
 from .library import get_clip, landing_clip
@@ -85,7 +86,7 @@ class StepRecord:
     z: float = 0.0  # depth lane (negative = nearer the camera)
 
 
-class CharacterController(InteractionMixin, CombatMixin, AcroMixin):
+class CharacterController(InteractionMixin, CombatMixin, AcroMixin, ArcadeMixin):
     def __init__(self, cid: str, rig: StickmanRig, world: PhysicsWorld, frames: Dict[str, GroundFrame], gravity: GravityField,
                  env: EnvironmentSpec, x: float, facing: int, actions: List[ActionSpec], emit: Callable[[Event], None],
                  doors: Optional[Dict[str, Dict[str, Any]]] = None):
@@ -138,6 +139,7 @@ class CharacterController(InteractionMixin, CombatMixin, AcroMixin):
         self.ragdoll = None
         self.z, self.z_target = 0.0, None
         self._acro_init()
+        self._arcade_init()
         world.add_capsule(cid, self.frame.to_world(self.s, self.h), self.cap_a, self.cap_b, CAPSULE_R, MASS, kinematic=True)
         # the bounded-force physical body (props collide with it from knee height up; low things are stepped over)
         world.add_proxy(cid, (0.0, -self.stand_h + KNEE_UP * self.stand_h), self.cap_b, BODY_R, BODY_CONTACT_MASS, self.strength)
@@ -163,7 +165,7 @@ class CharacterController(InteractionMixin, CombatMixin, AcroMixin):
 
     # ------------------------------------------------------------ main update (before physics step)
     def update(self, t: float, dt: float) -> None:
-        self._now = t
+        self._now, self._dt = t, dt
         g = self.gravity.at(t)
         s_prev = self.s if self.mode in ("grounded", "landing") else None
         self._update(t, dt, g)
@@ -224,6 +226,7 @@ class CharacterController(InteractionMixin, CombatMixin, AcroMixin):
             self._thrown_tick(t)
         if self.posture == "prone":
             self._check_pinned(t)
+        self._arcade_tick(t)  # orbs change the body's velocity; portals move it (Milestone 4)
         st = self.world.state(self.cid)
         if self.mode in ("airborne", "swing"):
             s, h = self.frame.to_frame(st.pos)
@@ -309,7 +312,17 @@ class CharacterController(InteractionMixin, CombatMixin, AcroMixin):
                 a = self.cur
         dyn = a.target if a.target and a.target.split(":", 1)[0] in ("prop", "char") else None
         gaze = None if dyn or not a.target else resolve(self.env, a.target)
-        if a.type in ("idle", "look_around", "wait_grounded"):
+        if a.type == "wait_beat":
+            clock = getattr(self, "beat_clock", None)
+            if clock is None:
+                self._fail(f"{self.cid}: wait_beat needs the scene's music (a beat grid)")
+                self.beat_end = (t, -1)
+            else:
+                k, tb = clock.next(t, a.beats)
+                self.beat_end = (tb, k)
+            if self.seg.kind != "idle":
+                self._open("idle", t, fight=self.fight_mode)
+        elif a.type in ("idle", "look_around", "wait_grounded"):
             self._open("idle", t, look=(a.type == "look_around"), fight=self.fight_mode and a.type == "idle")
         elif a.type in ("look_at", "notice"):
             self._open("idle", t, gaze=gaze, gaze_mode=a.type, gaze_target=a.target, gaze_ref=dyn)
@@ -372,6 +385,10 @@ class CharacterController(InteractionMixin, CombatMixin, AcroMixin):
             pass
         elif a.type in ("idle", "look_around", "look_at", "notice", "point"):
             if tau >= (a.duration or (1.3 if a.type == "point" else 1.0)):
+                self._next_action(t)
+        elif a.type == "wait_beat":
+            if t >= self.beat_end[0] - 1e-9:  # the next action starts on the beat (to the 240 Hz step)
+                self.emit(Event(t, "beat_wait_end", self.cid, {"beat": self.beat_end[1], "target": self.beat_end[0]}))
                 self._next_action(t)
         elif a.type == "wait_grounded":
             # holds while a gravity change is still pending/in progress (the character waits, tense) and completes
@@ -713,6 +730,7 @@ class CharacterController(InteractionMixin, CombatMixin, AcroMixin):
         keep = self.cur is not None and self.cur.type not in ("idle", "look_around", "press", "look_at", "notice", "point")
         if keep:
             self.queue.appendleft(self.cur)
+            self._carried = self.cur  # the action carried through the fall (a portal on the way ends it)
         self.cur = None
         self.emit(Event(t, "lost_support", self.cid, {"surface": self.frame.tag}))
 
@@ -732,7 +750,9 @@ class CharacterController(InteractionMixin, CombatMixin, AcroMixin):
                 self._flip_control(t)
             else:
                 self.world.set_angular_velocity(self.cid, clamp(10.0 * wrap_angle(self.frame.body_angle - st.angle), -12, 12))
-            self.brace = clamp(1 - self.ttc / 0.3, 0, 1) if hit and self.air.get("flip_u", 1.0) > 0.85 else 0.0
+            gd = self.gravity.direction(t)
+            catches = hit is not None and -v_dot(gd, hit.normal) > 0.6  # only a surface that can hold the body is braced for
+            self.brace = clamp(1 - self.ttc / 0.3, 0, 1) if catches and self.air.get("flip_u", 1.0) > 0.85 else 0.0
             sw = self.air.get("switch")
             if sw and not self.air.get("pressed"):
                 d = math.dist(self._shoulder_world(), self.air["button"])

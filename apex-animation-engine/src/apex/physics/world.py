@@ -312,6 +312,12 @@ class PhysicsWorld:
         b.position, b.angle, b.velocity, b.angular_velocity = pos, angle, vel, angvel
         self.space.reindex_shapes_for_body(b)
 
+    def teleport(self, tag: str, pos: Vec, angle: float, vel: Vec, angvel: float) -> None:
+        """Move a body (a portal): position, angle and velocity at once, keeping its type and mass."""
+        b = self._bodies[tag]
+        b.position, b.angle, b.velocity, b.angular_velocity = pos, angle, vel, angvel
+        self.space.reindex_shapes_for_body(b)
+
     def set_dynamic(self, tag: str, vel: Vec, angvel: float, mass: float, moment: float) -> None:
         b = self._bodies[tag]
         if b.body_type != pymunk.Body.DYNAMIC:

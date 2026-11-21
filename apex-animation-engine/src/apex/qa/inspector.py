@@ -5,6 +5,7 @@ Subjective qualities (acting, appeal, comedy) are NOT scored here; previews are 
 from __future__ import annotations
 
 import math
+import os
 from dataclasses import asdict, dataclass, field
 from typing import Dict, List, Optional
 
@@ -22,6 +23,8 @@ TOL = {
     "structure_depth": 6.0, "top_overhang": 10.0, "flip_land": 0.45, "throw_momentum": 0.25,
     "bone_ratio_min": 0.86, "bone_ratio_max": 1.13,  # allows authored squash/stretch and IK stretch (<=8%) only
     "foot_slide": 1.5,  # world units a planted ankle may drift
+    "portal_err": 1.0,  # units (or u/s): a portal transfer agrees with its mapping
+    "orb_err": 0.03,  # relative: an orb's velocity change agrees with its spec
     "joint_speed": 3200.0,  # units/s; above this a joint "teleports" (fastest authored motion ~1500)
     "pelvis_speed": 2200.0,
     "room_margin": 4.0,
@@ -127,9 +130,10 @@ class Inspector:
         for fn in (self.check_hierarchy, self.check_bone_lengths, self.check_positions, self.check_teleport, self.check_foot_sliding,
                    self.check_gravity, self.check_geometry, self.check_camera, self.check_camera_motion, self.check_continuity,
                    self.check_secondary, self.check_exit_conditions, self.check_interactions, self.check_composition,
-                   self.check_combat, self.check_acrobatics, self._props_through_bodies):
+                   self.check_combat, self.check_acrobatics, self._props_through_bodies, self.check_arcade, self.check_particles):
             rep.checks.extend(fn())
         rep.checks.extend(self.check_time_fx())
+        rep.checks.extend(self.check_beats(video))
         rep.checks.extend(self.check_sync(cues))
         if check_determinism:
             rep.checks.append(self.check_determinism())
@@ -200,12 +204,22 @@ class Inspector:
                    for d in self.r.doors.values())
 
     def check_teleport(self) -> List[Check]:
+        """No joint moves faster than any authored motion. The one exception is a portal, and it is checked, not
+        excused: across a portal jump the earlier frame is carried through that portal's own mapping first, so the
+        joints must still agree to within one frame of ordinary motion."""
+        from ..motion.arcade import portal_maps
         out = []
         dt = 1.0 / self.fps
+        pm = portal_maps(self.rt.env)
+        jumps = {cid: [(e.t, e.data["from"]) for e in self.r.events if e.type == "portal_exit" and e.character == cid]
+                 for cid in self.joints}
         for cid, frames in self.joints.items():
             worst_joint, worst_pel, where = 0.0, 0.0, 0.0
             for i in range(1, len(frames)):
                 a, b = frames[i - 1], frames[i]
+                j = next((g for tj, g in jumps[cid] if self.times[i - 1] < tj <= self.times[i]), None)
+                if j is not None:
+                    a = {k: pm[j].point(v) for k, v in a.items()}
                 for k in a:
                     sp = math.dist(a[k], b[k]) / dt
                     if sp > worst_joint:
@@ -247,11 +261,16 @@ class Inspector:
             P = np.array([r.pos for r in recs])
             M = [r.mode for r in recs]
             worst_ang, worst_mag, n = 0.0, 0.0, 0
+            # an orb or a portal acts on the body at one physics step; that impulse is verified by its own check
+            # (orb_impulses, portal_transfers), so only the steps that straddle it are left out here
+            kicks = [e.t for e in self.r.events if e.character == cid and e.type.startswith(("orb_", "portal_"))]
             for seg in ctrl.segments:
                 if seg.kind != "airborne":
                     continue
                 for i in range(2, len(T) - 2):
                     if not (seg.t0 + 0.03 < T[i] < seg.t1 - 0.03) or M[i - 2] != "airborne" or M[i + 2] != "airborne":
+                        continue
+                    if any(abs(T[i] - tk) < 2.5 / 240.0 for tk in kicks):
                         continue
                     h = T[i + 1] - T[i]
                     acc = (P[i + 1] - 2 * P[i] + P[i - 1]) / (h * h)
@@ -960,6 +979,141 @@ class Inspector:
         stray = [c for c in cues if (round(c.t, 6), c.event_type) not in times]
         return [Check("audio_event_sync", "PASS" if not stray else "FAIL", float(len(stray)), 0.0,
                       f"{len(cues)} cues, each placed at its engine event time (0 unbound cues allowed)")]
+
+    def check_beats(self, video: Optional[str] = None) -> List[Check]:
+        """Beat sync (Milestone 4), in film time:
+        - beat_cuts: every snapped shot boundary is on its beat (to half a film frame);
+        - beat_waits: every beat wait ended on its beat (to one physics step);
+        - music_on_beat: measured back from the rendered soundtrack, the kick onsets sit on the beat grid."""
+        sc = self.rt.scene
+        mu = sc.music
+        if mu is None:
+            return []
+        from ..scene.beats import nearest_beat, period
+        film = (lambda t: t) if self.warp is None else self.warp.film_at
+        out = []
+        log = getattr(self.rt, "beat_log", [])
+        snapped = [b for b in log if b["snapped"]]
+        err = max((abs(film(b["after"]) - nearest_beat(mu, film(b["after"]))[1]) for b in snapped), default=0.0)
+        out.append(Check("beat_cuts", "PASS" if err <= 0.5 / self.fps + 1e-6 else "FAIL", err, 0.5 / self.fps,
+                         f"{len(snapped)} of {len(log)} cuts snapped onto beats (bpm {mu.bpm:g}; {sum(1 for b in log if b.get('locked'))} "
+                         f"kept on a portal crossing); worst offset in seconds of film"))
+        ends = [e for e in self.r.events if e.type == "beat_wait_end"]
+        P = period(mu)
+        werr = max((abs(film(e.t) - (mu.offset + e.data["beat"] * P)) for e in ends), default=0.0)
+        out.append(Check("beat_waits", "PASS" if werr <= 1.5 / 240.0 else "FAIL", werr, 1.5 / 240.0,
+                         f"{len(ends)} beat waits; worst offset from their beat (s of film)"))
+        wav = os.path.splitext(video)[0] + ".wav" if video else None
+        if wav and os.path.exists(wav):
+            import wave
+            import numpy as np
+            with wave.open(wav) as w:
+                sr = w.getframerate()
+                x = np.frombuffer(w.readframes(w.getnframes()), dtype="<i2").reshape(-1, w.getnchannels()).mean(1) / 32768.0
+            from ..audio.sound_director import SR, kick_wave
+            k = kick_wave()[: int(0.08 * SR)]  # matched filter on the kick's first 80 ms: other sounds barely correlate
+            k = k / (np.linalg.norm(k) + 1e-12)
+            errs, found = [], 0
+            beats = [b for b in (mu.offset + j * P for j in range(int(len(x) / sr / P) + 1)) if 0.05 < b < len(x) / sr - 0.3]
+            for b in beats:
+                i0 = int((b - 0.03) * sr)
+                seg = x[max(0, i0): int((b + 0.03) * sr) + len(k)]
+                if len(seg) < len(k) + 2:
+                    continue
+                corr = np.correlate(seg, k, mode="valid")
+                j = int(np.argmax(corr))
+                local = np.linalg.norm(seg[j:j + len(k)]) + 1e-12
+                if corr[j] / local > 0.6:  # the kick is really there (normalised correlation)
+                    found += 1
+                    errs.append(abs((max(0, i0) + j) / sr - b))
+            frac = found / max(1, len(beats))
+            worst = max(errs, default=1.0)
+            ok = frac >= 0.9 and worst <= 0.005
+            out.append(Check("music_on_beat", "PASS" if ok else "FAIL", worst, 0.005,
+                             f"kick found at {found}/{len(beats)} beats ({frac:.0%}) by matched filter on the rendered WAV; worst offset (s)"))
+        else:
+            out.append(Check("music_on_beat", "SKIP", details="no soundtrack rendered"))
+        return out
+
+    def check_particles(self) -> List[Check]:
+        """Event particles (Milestone 4): deterministic (two independent builds give identical particles at every
+        sampled frame, in any evaluation order), within the drawing budget, and every burst comes from an engine event."""
+        from ..render.particles import MAX_ALIVE, Particles
+        a = Particles(self.r.events, self.rt.env, self.rt.project.seed)
+        if not a.bursts:
+            return []
+        b = Particles(self.r.events, self.rt.env, self.rt.project.seed)
+        ts = self.times[::3]
+        same = all(a.at(t) == b.at(t) for t in reversed(ts))  # b evaluated backwards: no hidden state
+        peak = max(len(a.at(t)) for t in ts)
+        return [Check("particles_deterministic", "PASS" if same else "FAIL", details=f"{len(a.bursts)} bursts, each from an event"),
+                Check("particle_budget", "PASS" if peak <= MAX_ALIVE else "FAIL", float(peak), float(MAX_ALIVE), "most particles alive at once")]
+
+    def check_arcade(self) -> List[Check]:
+        """Orbs and portals (Milestone 4), checked against physics, not trusted:
+        - portal_transfers: every crossing keeps the speed, rotates the velocity by the portal pair's angle, and the body
+          (a character's pelvis, a prop's centre) really is at the mapped exit point just after;
+        - orb_impulses: each orb changed the body's velocity by what the orb does (jump/pad: the 'up' speed of a jump of
+          its apex height; boost: its speed added), measured from the simulation records around the event;
+        - collectibles_once: a collected orb is collected once."""
+        import numpy as np
+        from ..motion.arcade import ORB_DEFAULT, portal_maps
+        env = self.rt.env
+        if not (env.portals or env.orbs):
+            return []
+        out = []
+        if env.portals:
+            pm = portal_maps(env)
+            worst, n, where = 0.0, 0, "none"
+            for e in self.r.events:
+                if e.type != "portal_exit":
+                    continue
+                n += 1
+                m = pm[e.data["from"]]
+                ent = next(x for x in self.r.events if x.type == "portal_enter" and x.character == e.character and abs(x.t - e.t) < 1e-9)
+                v_in, v_out = ent.data["velocity"], e.data["velocity"]
+                err_v = math.dist(m.vec(v_in), v_out) + abs(math.hypot(*v_in) - math.hypot(*v_out))
+                err_p = math.dist(m.point(ent.data["point"]), e.data["point"])
+                if e.character in self.r.controllers:
+                    rec = next(r for r in self.r.controllers[e.character].records if r.t >= e.t - 1e-9)
+                    actual = rec.pos
+                else:
+                    tr = self.r.prop_tracks[e.character]
+                    k = int(np.searchsorted(self.r.prop_times, e.t - 1e-9))
+                    actual = (tr[k, 0], tr[k, 1])
+                err = max(err_v, err_p, math.dist(actual, e.data["point"]))
+                if err > worst:
+                    worst, where = err, f"{e.character} via {e.data['from']} at t={e.t:.2f}s"
+            out.append(Check("portal_transfers", "PASS" if worst <= TOL["portal_err"] else "FAIL", worst, TOL["portal_err"],
+                             f"{n} crossings; worst mismatch in speed, velocity direction or exit position ({where})"))
+        if env.orbs:
+            orbs = {o.id: o for o in env.orbs}
+            worst, n, where = 0.0, 0, "none"
+            for e in self.r.events:
+                if not e.type.startswith("orb_"):
+                    continue
+                n += 1
+                o = orbs[e.data["orb"]]
+                c = self.r.controllers[e.character]
+                g = self.r.gravity.at(e.t)
+                gm = math.hypot(*g)
+                after = next(r for r in c.records if r.t >= e.t + 1.0 / 240.0 - 1e-9)  # one physics step later
+                v1 = (after.vel[0] - g[0] / 240.0, after.vel[1] - g[1] / 240.0)  # remove that step's gravity
+                power = o.power if o.power is not None else ORB_DEFAULT[o.kind]
+                if o.kind == "boost":
+                    err = abs(abs(v1[0] - e.data["v_before"][0]) - power) / power
+                else:
+                    up = (-g[0] / gm, -g[1] / gm)
+                    want = math.sqrt(2 * gm * power)
+                    err = abs(v1[0] * up[0] + v1[1] * up[1] - want) / want
+                if err > worst:
+                    worst, where = err, f"{e.data['orb']} ({o.kind}) on {e.character} at t={e.t:.2f}s"
+            out.append(Check("orb_impulses", "PASS" if worst <= TOL["orb_err"] else "FAIL", worst, TOL["orb_err"],
+                             f"{n} orb hits; worst relative error of the velocity change against the orb's spec ({where})"))
+            got = [e.data["orb"] for e in self.r.events if e.type == "collect"]
+            out.append(Check("collectibles_once", "PASS" if len(got) == len(set(got)) else "FAIL", float(len(got) - len(set(got))), 0.0,
+                             f"{len(set(got))} of {sum(1 for o in env.orbs if o.kind == 'collect')} collectibles taken"))
+        return out
 
     def check_time_fx(self) -> List[Check]:
         """Hit-stop and slow motion: the warp is monotonic and covers the whole story; every blow holds for its frames;

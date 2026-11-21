@@ -1,0 +1,360 @@
+{
+ "schema_version": "0.1",
+ "id": "orb_runner",
+ "title": "Orb Runner",
+ "fps": 24,
+ "width": 1280,
+ "height": 720,
+ "seed": 31,
+ "characters": [
+  {
+   "id": "iko",
+   "name": "IKO",
+   "strength": 48000,
+   "proportions": {
+    "spine": 29,
+    "chest": 27,
+    "head": 23,
+    "thigh": 45,
+    "shin": 43
+   },
+   "style": {
+    "body_color": "#ffd84a",
+    "far_color": "#b8962a",
+    "visor_color": "#7cf6ff",
+    "glow_color": "#ffe07a",
+    "scarf_color": "#ff5ab4",
+    "has_scarf": true,
+    "limb_width": 7.5,
+    "cadence_scale": 1.05
+   }
+  },
+  {
+   "id": "pell",
+   "name": "PELL",
+   "strength": 52000,
+   "proportions": {
+    "spine": 31,
+    "chest": 29,
+    "head": 24,
+    "thigh": 43,
+    "shin": 41
+   },
+   "style": {
+    "body_color": "#6fe3ff",
+    "far_color": "#3d93ad",
+    "visor_color": "#ffd166",
+    "glow_color": "#a8f0ff",
+    "has_scarf": false,
+    "limb_width": 8.0,
+    "cadence_scale": 0.95
+   }
+  }
+ ],
+ "environments": [
+  {
+   "id": "grid",
+   "room": {
+    "width": 1800,
+    "height": 820,
+    "depth_back": 520,
+    "grid_spacing": 60,
+    "entry_door": false
+   },
+   "theme": {
+    "accent": "#ff5ab4",
+    "alert": "#ffd84a",
+    "back": "#141026",
+    "floor": "#0b0916",
+    "side": "#120e22",
+    "ceiling": "#08060f",
+    "background": "#05040a",
+    "dust": "#ffd9f2"
+   },
+   "dust": 70,
+   "level": {
+    "cell": 60.0,
+    "origin": [
+     -900.0,
+     0.0
+    ],
+    "rows": [
+     "                            c ",
+     "                         b    ",
+     "                    a         ",
+     "            *       ======    ",
+     "                              ",
+     "         o                    ",
+     "                              ",
+     "                           ###",
+     "C             ####         ###",
+     " 1 2  ^       ####  A      ###"
+    ],
+    "legend": {
+     "^": {
+      "power": 150.0
+     },
+     "o": {
+      "power": 120.0,
+      "flip": "front"
+     },
+     "b": {
+      "power": 260.0
+     },
+     "A": {
+      "angle": 180.0
+     },
+     "a": {
+      "angle": 0.0
+     },
+     "C": {
+      "angle": 0.0,
+      "height": 120.0
+     },
+     "c": {
+      "angle": -90.0,
+      "height": 110.0,
+      "center": [
+       790.0,
+       600.0
+      ]
+     }
+    }
+   },
+   "portals": [],
+   "props": [
+    {
+     "id": "plus",
+     "kind": "glyph",
+     "glyph": "+",
+     "position": [
+      -630.0,
+      20.0
+     ],
+     "size": [
+      40.0,
+      40.0
+     ],
+     "mass": 3.0,
+     "weight": 10.0,
+     "color": "#ffd84a",
+     "z": 40,
+     "depth": 20
+    }
+   ]
+  }
+ ],
+ "scenes": [
+  {
+   "id": "run",
+   "title": "Orb Runner",
+   "environment": "grid",
+   "duration": 14.5,
+   "music": {
+    "bpm": 120.0,
+    "offset": 0.0,
+    "snap_cuts": true
+   },
+   "goals": [
+    "orb_pad@iko",
+    "orb_jump@iko",
+    "collect@iko",
+    "portal_enter@iko",
+    "portal_exit@iko",
+    "orb_boost@iko",
+    "throw@pell",
+    "portal_exit@plus",
+    "pick_up@iko"
+   ],
+   "placements": [
+    {
+     "character": "iko",
+     "at": "1",
+     "facing": 1,
+     "z": -10
+    },
+    {
+     "character": "pell",
+     "at": "2",
+     "facing": 1,
+     "z": 40
+    }
+   ],
+   "actions": [
+    {
+     "character": "iko",
+     "type": "wait_beat",
+     "beats": 4
+    },
+    {
+     "character": "iko",
+     "type": "run_to",
+     "target_x": 860.0
+    },
+    {
+     "character": "iko",
+     "type": "run_to",
+     "target_x": 615.0
+    },
+    {
+     "character": "iko",
+     "type": "jump_to",
+     "target_x": 690.0,
+     "height": 50.0
+    },
+    {
+     "character": "iko",
+     "type": "walk_to",
+     "target_x": 770.0
+    },
+    {
+     "character": "iko",
+     "type": "wait_for",
+     "until": "event:portal_exit@plus"
+    },
+    {
+     "character": "iko",
+     "type": "pick_up",
+     "target": "prop:plus"
+    },
+    {
+     "character": "iko",
+     "type": "idle",
+     "duration": 3.0
+    },
+    {
+     "character": "pell",
+     "type": "wait_for",
+     "until": "event:orb_boost@iko"
+    },
+    {
+     "character": "pell",
+     "type": "pick_up",
+     "target": "prop:plus"
+    },
+    {
+     "character": "pell",
+     "type": "wait_beat",
+     "beats": 2
+    },
+    {
+     "character": "pell",
+     "type": "throw",
+     "target": "point:-1000,60"
+    },
+    {
+     "character": "pell",
+     "type": "idle",
+     "duration": 4.0
+    }
+   ],
+   "shots": [
+    {
+     "id": "s01_level",
+     "kind": "establishing",
+     "description": "the grid level: pad, orbs, portals, the far tower; IKO waits for the bar",
+     "camera": {
+      "mode": "dolly",
+      "center": [
+       -60,
+       380
+      ],
+      "center_end": [
+       -200,
+       330
+      ],
+      "view_height": 900,
+      "view_height_end": 760,
+      "bound_to_room": true
+     },
+     "start": 0.0,
+     "end": 1.75
+    },
+    {
+     "id": "s02_run",
+     "kind": "tracking",
+     "description": "IKO runs: the pad launches him, the jump orb flips him, he takes the star, lands, drops into the portal",
+     "camera": {
+      "mode": "follow",
+      "target": "iko",
+      "view_height": 470,
+      "offset": [
+       90,
+       40
+      ],
+      "lead": 0.3,
+      "stiffness": 4.5,
+      "bound_to_room": true
+     },
+     "start": 1.75,
+     "end": 4.87
+    },
+    {
+     "id": "s03_ledge",
+     "kind": "tracking",
+     "description": "out of the partner portal on the high ledge; the jump for the floor, the boost, the tower",
+     "camera": {
+      "mode": "follow",
+      "target": "iko",
+      "view_height": 560,
+      "offset": [
+       110,
+       -20
+      ],
+      "lead": 0.25,
+      "stiffness": 4.0,
+      "include": [
+       "point:780,180"
+      ],
+      "bound_to_room": true
+     },
+     "start": 4.87,
+     "end": 7.27
+    },
+    {
+     "id": "s04_throw",
+     "kind": "medium",
+     "description": "PELL picks up the plus and throws it at the wall portal",
+     "camera": {
+      "mode": "follow",
+      "target": "pell",
+      "view_height": 380,
+      "offset": [
+       -90,
+       40
+      ],
+      "lead": 0.1,
+      "stiffness": 4.0,
+      "include": [
+       "point:-870,120"
+      ],
+      "bound_to_room": true
+     },
+     "start": 7.27,
+     "end": 8.82
+    },
+    {
+     "id": "s05_drop",
+     "kind": "medium",
+     "description": "the plus drops out of the ceiling portal onto the tower; IKO picks it up on the beat",
+     "camera": {
+      "mode": "static",
+      "target": "iko",
+      "center": [
+       400,
+       380
+      ],
+      "view_height": 580,
+      "include": [
+       "point:790,600"
+      ],
+      "bound_to_room": true
+     },
+     "fade_out": 0.8,
+     "start": 8.82,
+     "end": 14.5
+    }
+   ]
+  }
+ ]
+}

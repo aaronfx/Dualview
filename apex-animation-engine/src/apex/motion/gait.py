@@ -57,8 +57,9 @@ class Gait:
     """Gait for one locomotion segment [t0, t1] on one surface."""
 
     def __init__(self, times: np.ndarray, s: np.ndarray, v: np.ndarray, params: GaitParams, direction: float,
-                 start_plants: Tuple[float, float], lead_leg: int = 0):
+                 start_plants: Tuple[float, float], lead_leg: int = 0, bounds: Tuple[float, float] = (-math.inf, math.inf)):
         self.times, self.s, self.v = times, s, v
+        self.bounds = bounds  # a top's ends: a foot is never planted past them (the body runs off, the foot stays on)
         self.p = params
         self.dir = 1.0 if direction >= 0 else -1.0
         self.t0, self.t1 = float(times[0]), float(times[-1])
@@ -108,6 +109,7 @@ class Gait:
             if tk is None:  # beyond the segment: extrapolate from the end state
                 tk = self.t1
             val = self._interp(self.s, tk) + self.lead(self._interp(self.v, tk))
+            val = min(max(val, self.bounds[0] + 4.0), self.bounds[1] - 4.0)
         self._plant_cache[k] = val
         return val
 
@@ -117,7 +119,16 @@ class Gait:
         k_last = math.floor((p - leg) / 2) * 2 + leg  # last footfall index for this leg
         q = (p - k_last) / 2.0  # 0..1 over the leg's full cycle
         v = self._interp(self.v, clamp(t, self.t0, self.t1))
-        sf = self.p.stance_fraction(v)
+        # the stance fraction of a step only ever shrinks: speeding up shortens the stance (the planted foot stays
+        # within reach), but slowing down mid-swing must not put the foot back on the ground it already left
+        # (a walk's stance is longer than a run's), so it follows the highest speed since this foot landed
+        tk = self.time_of(k_last)
+        if tk is not None and tk < t:
+            i0, i1 = np.searchsorted(self.times, [tk, min(t, self.t1)])
+            vmax = max(abs(v), float(np.max(np.abs(self.v[i0:i1 + 1]))) if i1 >= i0 else abs(v))
+        else:
+            vmax = abs(v)
+        sf = self.p.stance_fraction(vmax)
         s0 = self.plant(int(k_last))
         if q < sf:
             u = q / sf

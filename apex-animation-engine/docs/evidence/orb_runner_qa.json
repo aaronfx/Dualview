@@ -1,0 +1,483 @@
+{
+ "scene": "run",
+ "passed": true,
+ "gates": {
+  "technical": "PASS",
+  "cinematic": "PASS"
+ },
+ "counts": {
+  "total": 58,
+  "by_status": {
+   "PASS": 57,
+   "SKIP": 1
+  },
+  "exit_conditions": 0,
+  "engine_and_video_checks": 58
+ },
+ "checks": [
+  {
+   "name": "joint_hierarchy[iko]",
+   "status": "PASS",
+   "metric": null,
+   "threshold": null,
+   "details": "16 bones, roots=['spine', 'thigh_n', 'thigh_f']",
+   "gate": "technical"
+  },
+  {
+   "name": "joint_hierarchy[pell]",
+   "status": "PASS",
+   "metric": null,
+   "threshold": null,
+   "details": "16 bones, roots=['spine', 'thigh_n', 'thigh_f']",
+   "gate": "technical"
+  },
+  {
+   "name": "bone_lengths[iko]",
+   "status": "PASS",
+   "metric": 1.080000000000001,
+   "threshold": 1.13,
+   "details": "ratio range [1.000, 1.080] over 348 frames, violations=0",
+   "gate": "technical"
+  },
+  {
+   "name": "character_continuity[iko]",
+   "status": "PASS",
+   "metric": null,
+   "threshold": null,
+   "details": "single rig instance, proportions=(45.0, 43.0, 29.0, 23.0)",
+   "gate": "technical"
+  },
+  {
+   "name": "bone_lengths[pell]",
+   "status": "PASS",
+   "metric": 1.009145183276825,
+   "threshold": 1.13,
+   "details": "ratio range [1.000, 1.009] over 348 frames, violations=0",
+   "gate": "technical"
+  },
+  {
+   "name": "character_continuity[pell]",
+   "status": "PASS",
+   "metric": null,
+   "threshold": null,
+   "details": "single rig instance, proportions=(43.0, 41.0, 31.0, 24.0)",
+   "gate": "technical"
+  },
+  {
+   "name": "invalid_positions[iko]",
+   "status": "PASS",
+   "metric": 0.0,
+   "threshold": 0.0,
+   "details": "NaN/inf joint coordinates",
+   "gate": "technical"
+  },
+  {
+   "name": "surface_penetration[iko]",
+   "status": "PASS",
+   "metric": 0.0,
+   "threshold": 4.0,
+   "details": "deepest joint penetration into floor/walls/ceiling (units) at ; violations=0",
+   "gate": "technical"
+  },
+  {
+   "name": "invalid_positions[pell]",
+   "status": "PASS",
+   "metric": 0.0,
+   "threshold": 0.0,
+   "details": "NaN/inf joint coordinates",
+   "gate": "technical"
+  },
+  {
+   "name": "surface_penetration[pell]",
+   "status": "PASS",
+   "metric": 0.0,
+   "threshold": 4.0,
+   "details": "deepest joint penetration into floor/walls/ceiling (units) at ; violations=0",
+   "gate": "technical"
+  },
+  {
+   "name": "no_teleport_joints[iko]",
+   "status": "PASS",
+   "metric": 3134.7663331974013,
+   "threshold": 3200.0,
+   "details": "max joint speed (units/s) at t=9.750s",
+   "gate": "technical"
+  },
+  {
+   "name": "no_teleport_root[iko]",
+   "status": "PASS",
+   "metric": 1157.808549166318,
+   "threshold": 2200.0,
+   "details": "",
+   "gate": "technical"
+  },
+  {
+   "name": "no_teleport_joints[pell]",
+   "status": "PASS",
+   "metric": 2106.724539488546,
+   "threshold": 3200.0,
+   "details": "max joint speed (units/s) at t=8.167s",
+   "gate": "technical"
+  },
+  {
+   "name": "no_teleport_root[pell]",
+   "status": "PASS",
+   "metric": 237.42997408371716,
+   "threshold": 2200.0,
+   "details": "",
+   "gate": "technical"
+  },
+  {
+   "name": "foot_sliding[iko]",
+   "status": "PASS",
+   "metric": 5.684341886080802e-14,
+   "threshold": 1.5,
+   "details": "max planted-ankle drift over 1562 samples (stance/f t=5.270)",
+   "gate": "technical"
+  },
+  {
+   "name": "foot_sliding[pell]",
+   "status": "PASS",
+   "metric": 1.2000000000000455,
+   "threshold": 1.5,
+   "details": "max planted-ankle drift over 2465 samples (settled/f t=8.725)",
+   "gate": "technical"
+  },
+  {
+   "name": "gravity_transitions_caused_by_switch",
+   "status": "PASS",
+   "metric": null,
+   "threshold": null,
+   "details": "0 transition(s); labels at end: G0",
+   "gate": "technical"
+  },
+  {
+   "name": "gravity_direction[iko]",
+   "status": "PASS",
+   "metric": 2.3928156689280753e-10,
+   "threshold": 3.0,
+   "details": "airborne root acceleration vs gravity vector over 521 samples; worst magnitude error 0.000%",
+   "gate": "technical"
+  },
+  {
+   "name": "gravity_direction[pell]",
+   "status": "SKIP",
+   "metric": null,
+   "threshold": null,
+   "details": "no airborne phase",
+   "gate": "technical"
+  },
+  {
+   "name": "collision_events_valid",
+   "status": "PASS",
+   "metric": 3.0,
+   "threshold": null,
+   "details": "3 character impact(s): lv_block1@4.104s v=693, lv_ledge2@4.925s v=621, lv_block0@6.817s v=956",
+   "gate": "technical"
+  },
+  {
+   "name": "scene_geometry_stable",
+   "status": "PASS",
+   "metric": 16.0,
+   "threshold": null,
+   "details": "static colliders identical across runs; never moved by gravity changes",
+   "gate": "technical"
+  },
+  {
+   "name": "camera_config_valid",
+   "status": "PASS",
+   "metric": 0.0,
+   "threshold": 0.0,
+   "details": "non-finite or non-positive camera states",
+   "gate": "technical"
+  },
+  {
+   "name": "subject_in_frame",
+   "status": "PASS",
+   "metric": 0.9671717171717171,
+   "threshold": 0.95,
+   "details": "fraction of frames whose framed subject is fully visible (body; focus region for close-ups; the switch for inserts)",
+   "gate": "cinematic"
+  },
+  {
+   "name": "min_shot_length",
+   "status": "PASS",
+   "metric": 1.5,
+   "threshold": 0.5,
+   "details": "5 shots; too short: []",
+   "gate": "cinematic"
+  },
+  {
+   "name": "camera_roll_rate",
+   "status": "PASS",
+   "metric": 0.0,
+   "threshold": 150.0,
+   "details": "max roll speed inside a shot (deg/s) at -; cuts are excluded",
+   "gate": "cinematic"
+  },
+  {
+   "name": "gravity_indicator_matches_physics",
+   "status": "PASS",
+   "metric": 0.0,
+   "threshold": 0.5,
+   "details": "",
+   "gate": "technical"
+  },
+  {
+   "name": "screen_direction_across_cuts",
+   "status": "PASS",
+   "metric": 0.0,
+   "threshold": 0.0,
+   "details": "cuts that flip the character's screen direction: none",
+   "gate": "cinematic"
+  },
+  {
+   "name": "static_layout",
+   "status": "PASS",
+   "metric": null,
+   "threshold": null,
+   "details": "room 1800.0x820.0, switches [], exits [], obstacles [('platform', (810.0, 90.0)), ('platform', (60.0, 60.0)), ('platform', (480.0, 412.5))] are spec constants (never animated)",
+   "gate": "technical"
+  },
+  {
+   "name": "scarf_integrity[iko]",
+   "status": "PASS",
+   "metric": 1.250000000000009,
+   "threshold": 1.35,
+   "details": "max segment stretch; anchor error 0.000",
+   "gate": "technical"
+  },
+  {
+   "name": "scarf_inside_room[iko]",
+   "status": "PASS",
+   "metric": null,
+   "threshold": null,
+   "details": "",
+   "gate": "technical"
+  },
+  {
+   "name": "dust_inside_room",
+   "status": "PASS",
+   "metric": null,
+   "threshold": null,
+   "details": "70 particles x 878 steps",
+   "gate": "technical"
+  },
+  {
+   "name": "gravity_angle_report",
+   "status": "PASS",
+   "metric": null,
+   "threshold": null,
+   "details": "G0: world -90 deg, vs previous +0, vs original +0",
+   "gate": "technical"
+  },
+  {
+   "name": "camera_roll_follows_gravity_direction",
+   "status": "PASS",
+   "metric": 0.0,
+   "threshold": 0.0,
+   "details": "aligned or eased-roll shots turning against the gravity sweep: none",
+   "gate": "cinematic"
+  },
+  {
+   "name": "landings_on_supporting_surfaces",
+   "status": "PASS",
+   "metric": 0.0,
+   "threshold": 0.0,
+   "details": "impacts (landings) where gravity could not hold the body: none",
+   "gate": "technical"
+  },
+  {
+   "name": "composition_subject_size",
+   "status": "PASS",
+   "metric": 0.22692087941945135,
+   "threshold": null,
+   "details": "median subject size per shot (body extent / frame height); smallest in s01_level; too small: none",
+   "gate": "cinematic"
+  },
+  {
+   "name": "composition_required_objects",
+   "status": "PASS",
+   "metric": 0.0,
+   "threshold": 0.0,
+   "details": "objects a shot must show (camera.include) left the frame: none",
+   "gate": "cinematic"
+  },
+  {
+   "name": "no_roll_during_fast_action",
+   "status": "PASS",
+   "metric": 0.0,
+   "threshold": 0.0,
+   "details": "0 rolling frames; rolling while the subject moved faster than 260 u/s: none",
+   "gate": "cinematic"
+  },
+  {
+   "name": "body_outside_structures",
+   "status": "PASS",
+   "metric": 0.0,
+   "threshold": 6.0,
+   "details": "deepest a body point goes inside a structure (never)",
+   "gate": "technical"
+  },
+  {
+   "name": "feet_on_tops",
+   "status": "PASS",
+   "metric": 0.0,
+   "threshold": 10.0,
+   "details": "how far a planted foot is past the end of the top it stands on (none)",
+   "gate": "technical"
+  },
+  {
+   "name": "held_props_outside_structures",
+   "status": "PASS",
+   "metric": 0.09949647124275884,
+   "threshold": 3.0,
+   "details": "deepest a carried prop goes into a structure (2 carries; plus in 'lv_block0' at t=10.75s)",
+   "gate": "technical"
+  },
+  {
+   "name": "flips_land_upright",
+   "status": "PASS",
+   "metric": 0.22600235330228433,
+   "threshold": 0.45,
+   "details": "body angle from upright at the landing of each flip (rad; 1 flips; worst iko at t=4.10s)",
+   "gate": "technical"
+  },
+  {
+   "name": "props_not_through_bodies",
+   "status": "PASS",
+   "metric": 0.0,
+   "threshold": 5.0,
+   "details": "deepest a dynamic prop goes into a standing body in its depth lane (never)",
+   "gate": "technical"
+  },
+  {
+   "name": "portal_transfers",
+   "status": "PASS",
+   "metric": 1.1368683772161603e-13,
+   "threshold": 1.0,
+   "details": "2 crossings; worst mismatch in speed, velocity direction or exit position (plus via portal_C at t=8.89s)",
+   "gate": "technical"
+  },
+  {
+   "name": "orb_impulses",
+   "status": "PASS",
+   "metric": 0.0,
+   "threshold": 0.03,
+   "details": "3 orb hits; worst relative error of the velocity change against the orb's spec (none)",
+   "gate": "technical"
+  },
+  {
+   "name": "collectibles_once",
+   "status": "PASS",
+   "metric": 0.0,
+   "threshold": 0.0,
+   "details": "1 of 1 collectibles taken",
+   "gate": "technical"
+  },
+  {
+   "name": "particles_deterministic",
+   "status": "PASS",
+   "metric": null,
+   "threshold": null,
+   "details": "10 bursts, each from an event",
+   "gate": "technical"
+  },
+  {
+   "name": "particle_budget",
+   "status": "PASS",
+   "metric": 48.0,
+   "threshold": 900.0,
+   "details": "most particles alive at once",
+   "gate": "technical"
+  },
+  {
+   "name": "beat_cuts",
+   "status": "PASS",
+   "metric": 0.0,
+   "threshold": 0.020833333333333332,
+   "details": "3 of 4 cuts snapped onto beats (bpm 120; 1 kept on a portal crossing); worst offset in seconds of film",
+   "gate": "technical"
+  },
+  {
+   "name": "beat_waits",
+   "status": "PASS",
+   "metric": 0.0,
+   "threshold": 0.00625,
+   "details": "2 beat waits; worst offset from their beat (s of film)",
+   "gate": "technical"
+  },
+  {
+   "name": "music_on_beat",
+   "status": "PASS",
+   "metric": 0.0002708333333334423,
+   "threshold": 0.005,
+   "details": "kick found at 26/28 beats (93%) by matched filter on the rendered WAV; worst offset (s)",
+   "gate": "technical"
+  },
+  {
+   "name": "audio_event_sync",
+   "status": "PASS",
+   "metric": 0.0,
+   "threshold": 0.0,
+   "details": "17 cues, each placed at its engine event time (0 unbound cues allowed)",
+   "gate": "technical"
+  },
+  {
+   "name": "deterministic_replay",
+   "status": "PASS",
+   "metric": null,
+   "threshold": null,
+   "details": "hash 437585eaaced vs 437585eaaced",
+   "gate": "technical"
+  },
+  {
+   "name": "video_dimensions",
+   "status": "PASS",
+   "metric": null,
+   "threshold": null,
+   "details": "1280x720 (expected 1280x720), codec h264",
+   "gate": "technical"
+  },
+  {
+   "name": "video_fps",
+   "status": "PASS",
+   "metric": 24.0,
+   "threshold": 24.0,
+   "details": "",
+   "gate": "technical"
+  },
+  {
+   "name": "frame_count",
+   "status": "PASS",
+   "metric": 348.0,
+   "threshold": 348.0,
+   "details": "no missing / duplicated frames",
+   "gate": "technical"
+  },
+  {
+   "name": "frame_duration",
+   "status": "PASS",
+   "metric": 14.5,
+   "threshold": 14.5,
+   "details": "",
+   "gate": "technical"
+  },
+  {
+   "name": "av_duration_match",
+   "status": "PASS",
+   "metric": 0.0,
+   "threshold": 0.07166666666666666,
+   "details": "audio 14.500s vs video 14.500s",
+   "gate": "technical"
+  },
+  {
+   "name": "full_decode",
+   "status": "PASS",
+   "metric": 348.0,
+   "threshold": 348.0,
+   "details": "every frame decoded; decoder errors: none; audio errors: none",
+   "gate": "technical"
+  }
+ ]
+}

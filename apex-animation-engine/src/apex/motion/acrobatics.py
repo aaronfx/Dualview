@@ -176,6 +176,11 @@ class AcroMixin:
         if hit is None:
             return a
         face, b = hit
+        sp = self._portal_on_path(self.s, a.target_x) if getattr(self, "portal_maps", None) else None
+        if sp is not None and (face - sp) * (1.0 if a.target_x > self.s else -1.0) > 12.0:
+            return a  # the walk goes through a portal before it would reach the structure
+        if getattr(self, "portal_maps", None) is not None and self._pad_on_path(self.s, face):
+            return a  # a launch pad on the way: the walk is checked again from where the body lands
         d = 1.0 if a.target_x > self.s else -1.0
         msg = (f"{self.cid}: walking from x {self.s:.0f} to {a.target_x:.0f} runs into structure '{b.owner}' (face at x {face:.0f}); "
                f"vault over it, climb onto it or jump_to onto it")
@@ -463,6 +468,7 @@ class AcroMixin:
         self.overlay = None
         if self.cur is not None and self.cur.type in ("walk_to", "run_to"):
             self.queue.appendleft(self.cur)  # keeps walking once down (lands into the walk)
+            self._carried = self.cur
         self.cur = None
         self.body_tilt = 0.0
         self._open("airborne", t, intent="jump", drop=True)

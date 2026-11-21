@@ -3,7 +3,7 @@ the runtime and the renderer. Every field is validated; see docs/SCENE_SCHEMA.md
 """
 from __future__ import annotations
 
-from typing import Dict, List, Literal, Optional, Tuple
+from typing import Any, Dict, List, Literal, Optional, Tuple
 
 from pydantic import AliasChoices, BaseModel, ConfigDict, Field, field_validator, model_validator
 
@@ -186,6 +186,50 @@ class ObstacleSpec(Strict):
         return self
 
 
+class OrbSpec(Strict):
+    """An arcade orb (Milestone 4). It changes the physical state of a character whose body touches it:
+    `jump`: in the air, the body's velocity along "up" is set to that of a jump of apex `power` (a mid-air jump);
+    `boost`: in the air, `power` u/s is added along the direction of travel; `pad`: on a surface, stepping on it launches
+    the body to apex height `power` (keeping its run speed); `collect`: a pick-up (an event; it disappears).
+    Jump, boost and pad orbs re-arm once the body has left them; a collect orb is taken once."""
+    id: str
+    kind: Literal["jump", "boost", "pad", "collect"] = "jump"
+    center: Vec2
+    radius: float = Field(20.0, gt=2, le=120)
+    power: Optional[float] = Field(None, gt=0)  # jump/pad: apex height (default 130/170); boost: speed added (default 320)
+    flip: Optional[Literal["front", "back"]] = None  # jump orb: the mid-air jump is a somersault
+    color: Optional[str] = None
+
+
+class PortalSpec(Strict):
+    """One end of a portal pair (Milestone 4). A body (character or prop) whose centre crosses the portal's plane from
+    its open side, within its height, comes out of the linked portal with the same speed: position and velocity are
+    rotated from this portal's frame into the other's (momentum preserved). `angle` is the direction the portal opens
+    toward, in degrees (0 = facing +x, 180 = facing -x, 90 = facing up)."""
+    id: str
+    center: Vec2
+    link: str  # the other end's id
+    angle: float = 0.0
+    height: float = Field(150.0, gt=20)
+    color: Optional[str] = None
+
+
+class LevelSpec(Strict):
+    """A level drawn as a character grid (Milestone 4), expanded into platforms, orbs, portals and markers.
+    Rows run top to bottom; the bottom row sits on the floor; `origin` is the floor point under the left edge of column 0.
+    Legend: `#` solid block (runs are merged into platforms), `=` a thin ledge on the top of its cell,
+    `o` jump orb, `b` boost orb, `^` jump pad (on the floor or a block), `*` collectible,
+    a capital letter and the same lower-case letter: a linked portal pair (opening toward the free side),
+    a digit: a marker (`placements[].at`), `.` or space: empty. `legend` overrides an entry's fields by symbol,
+    e.g. {"o": {"power": 160}, "A": {"angle": 180}}."""
+    rows: List[str]
+    cell: float = Field(60.0, gt=10)
+    origin: Vec2 = (-600.0, 0.0)
+    legend: Dict[str, Dict[str, Any]] = Field(default_factory=dict)
+    markers: Dict[str, Vec2] = Field(default_factory=dict)  # filled by the expansion: digit -> world point (cell bottom centre)
+    expanded: bool = False  # set once the grid has been expanded into the environment (re-validation does not repeat it)
+
+
 class ThemeSpec(Strict):
     """Art direction of an environment (renderer colours). Defaults reproduce the original lab look."""
     accent: str = "#46ecff"  # grid lines, console trims, rail brackets
@@ -209,6 +253,20 @@ class EnvironmentSpec(Strict):
     obstacles: List[ObstacleSpec] = Field(default_factory=list)
     ropes: List[RopeSpec] = Field(default_factory=list)
     dust: int = Field(160, ge=0, le=2000)  # ambient particles that visualise the gravity field
+    orbs: List[OrbSpec] = Field(default_factory=list)
+    portals: List[PortalSpec] = Field(default_factory=list)
+    level: Optional[LevelSpec] = None  # a grid level, expanded into obstacles, orbs, portals and markers
+
+    @model_validator(mode="after")
+    def _level(self) -> "EnvironmentSpec":
+        if self.level is not None and not self.level.expanded:
+            from .level import expand
+            expand(self)
+        ids = {p.id for p in self.portals}
+        for p in self.portals:
+            if p.link not in ids or p.link == p.id:
+                raise ValueError(f"portal {p.id}: link {p.link!r} must name another portal")
+        return self
 
     @model_validator(mode="after")
     def _rope_lengths(self) -> "EnvironmentSpec":
@@ -245,7 +303,9 @@ ActionType = Literal["idle", "walk_to", "run_to", "turn", "press", "jump", "look
                      # combat (Milestone 1)
                      "strike", "guard", "dodge",
                      # acrobatics and symbols (Milestone 2)
-                     "roll", "vault", "climb", "wall_kick", "pick_up", "throw"]
+                     "roll", "vault", "climb", "wall_kick", "pick_up", "throw",
+                     # beat sync (Milestone 4)
+                     "wait_beat"]
 StrikeMove = Literal["jab", "cross", "hook", "uppercut", "front_kick", "side_kick", "roundhouse", "sweep", "flying_kick",
                      "swing_weapon"]
 
@@ -279,6 +339,7 @@ class ActionSpec(Strict):
     onto: Optional[str] = None  # jump_to: land on this structure's top ("obstacle:<id>"); default: the floor (from a top)
     flip: Optional[Literal["front", "back"]] = None  # jump_to / wall_kick: a somersault in the air
     lane: Optional[float] = Field(None, ge=-80, le=80)  # move to this depth lane during the action (negative = nearer the camera)
+    beats: int = Field(1, ge=1, le=64)  # wait_beat: hold until this many beats from now have started (the next action starts on it)
     note: str = ""
 
     @model_validator(mode="after")
@@ -331,7 +392,8 @@ class ActionSpec(Strict):
 
 class CharacterPlacement(Strict):
     character: str
-    x: float
+    x: float = 0.0
+    at: Optional[str] = None  # a level marker (digit): x comes from the level grid
     facing: Literal[-1, 1] = 1
     z: float = Field(0.0, ge=-60, le=60)  # drawing depth lane (negative = nearer the camera); does not affect physics
 
@@ -355,6 +417,7 @@ class CameraSpec(Strict):
     shake: float = Field(0.0, ge=0, le=3)  # event-driven camera shake amount (impacts, pulses)
     roll_rate: float = Field(110.0, gt=0, le=360)  # max camera roll speed (deg/s) for align_gravity shots
     keep_in_frame: bool = True
+    bound_to_room: bool = False  # the view never shows past the room's walls (it slides along them instead)
     include: List[str] = Field(default_factory=list)  # world objects kept in frame with the subject ("bar:rail", "exit:door1", ...)
     include_margin: float = Field(45.0, ge=0)  # world units around each included object
     min_subject_frac: Optional[float] = None  # composition: subject height / frame height (default by shot kind)
@@ -417,6 +480,18 @@ class TimeFxSpec(Strict):
     punch_in: bool = True  # camera punch-in on heavy blows and a slow push-in during slow motion
 
 
+class MusicSpec(Strict):
+    """A beat grid in film time (what the audience hears), Milestone 4. Beat k is at `offset + k * 60 / bpm` s.
+    `snap_cuts`: each shot boundary within `snap_window` beats of a beat moves onto it. `wait_beat` actions end on
+    beats. The soundtrack is rendered on the grid; QA checks that cuts, beat waits and the music's onsets agree."""
+    bpm: float = Field(120.0, ge=40, le=240)
+    offset: float = Field(0.0, ge=0, le=10)
+    beats_per_bar: int = Field(4, ge=2, le=8)
+    snap_cuts: bool = True
+    snap_window: float = Field(0.5, gt=0, le=0.5)
+    gain: float = Field(1.0, ge=0, le=2)
+
+
 class SceneSpec(Strict):
     id: str
     title: str = ""
@@ -429,6 +504,7 @@ class SceneSpec(Strict):
     # the dry run checks them and the setup solver tunes the physical setup until they happen
     goals: List[str] = Field(default_factory=list)
     time_fx: Optional[TimeFxSpec] = None  # hit-stop, slow motion, smears and screen effects (Milestone 3)
+    music: Optional[MusicSpec] = None  # beat grid: cut snapping, beat waits, beat-locked soundtrack (Milestone 4)
 
     @model_validator(mode="after")
     def _shots(self) -> "SceneSpec":
@@ -477,6 +553,11 @@ class ProjectSpec(Strict):
             for pl in sc.placements:
                 if pl.character not in chars:
                     raise ValueError(f"scene {sc.id}: unknown character {pl.character}")
+                if pl.at is not None:
+                    lv = envs[sc.environment].level
+                    if lv is None or pl.at not in lv.markers:
+                        raise ValueError(f"scene {sc.id}: placement of {pl.character} at unknown level marker {pl.at!r}")
+                    pl.x = lv.markers[pl.at][0]
             placed = {pl.character for pl in sc.placements}
             exits = {x.id for x in envs[sc.environment].exits}
             bars = {o.id for o in envs[sc.environment].obstacles if o.kind == "bar"}

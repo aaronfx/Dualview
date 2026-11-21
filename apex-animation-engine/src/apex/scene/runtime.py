@@ -71,6 +71,8 @@ class FrameState:
     doors: Dict[str, Tuple[str, float]] = field(default_factory=dict)  # exit id -> (state, progress 0..1)
     ropes: List[RopeState] = field(default_factory=list)
     depth: Dict[str, float] = field(default_factory=dict)  # character id -> depth lane at this instant
+    orbs_taken: Dict[str, float] = field(default_factory=dict)  # collected orb id -> when (Milestone 4)
+    orb_fired: Dict[str, float] = field(default_factory=dict)  # orb id -> seconds since it last fired
 
 
 @dataclass
@@ -89,6 +91,17 @@ class SimulationResult:
     doors: Dict[str, Dict[str, Optional[float]]] = field(default_factory=dict)  # exit id -> state-machine times
     rope_snaps: Dict[str, float] = field(default_factory=dict)  # rope id -> time it broke
     rope_peak: Dict[str, float] = field(default_factory=dict)  # rope id -> highest tension seen (force units)
+    prop_cuts: Dict[str, List[int]] = field(default_factory=dict)  # prop id -> first track samples after a portal
+    orbs_taken: Dict[str, float] = field(default_factory=dict)
+
+
+def interp_track(times: np.ndarray, col: np.ndarray, t: float, cuts=()) -> float:
+    """Linear interpolation of a 240 Hz track that never mixes the samples on either side of a portal jump."""
+    if cuts:
+        i = int(np.searchsorted(times, t, side="left"))
+        if i in cuts and 0 < i < len(times) and t < times[i]:
+            return float(col[i - 1])
+    return float(np.interp(t, times, col))
 
 
 def door_state(d: Dict[str, Optional[float]], t: float) -> Tuple[str, float]:
@@ -125,7 +138,39 @@ class SceneRuntime:
     # ------------------------------------------------------------ simulation
     def simulate(self, physics_only: bool = False, horizon: Optional[float] = None) -> SimulationResult:
         """Simulate the scene. `physics_only` skips the animation layer (poses, scarves, dust): it is much faster and
-        is what the planners and the setup solver use. `horizon` simulates for a different length than the scene."""
+        is what the planners and the setup solver use. `horizon` simulates for a different length than the scene.
+
+        With music (Milestone 4): beat waits end on beats of the film clock. When hit-stops or slow motion make film
+        and story time differ, and those depend on the simulated events, the scene is simulated again with the
+        previous pass's warp until the beat waits stop moving (at most 4 passes). Shot boundaries near a beat are then
+        snapped onto it (`beat_log` records each)."""
+        from .beats import BeatClock, snap_shots
+        music = self.scene.music
+        if music is None:
+            return self._simulate_once(physics_only, horizon, None)
+        from ..render.timewarp import build_warp
+        waits = any(a.type == "wait_beat" for a in self.scene.actions)
+        clock = BeatClock(music)
+        res = self._simulate_once(physics_only, horizon, clock)
+        self.beat_passes = 1
+        if waits and self.scene.time_fx is not None:
+            prev = None
+            for _ in range(3):
+                w = build_warp(self.scene, res.events, res.duration, self.project.fps)
+                ends = [round(e.t, 5) for e in res.events if e.type == "beat_wait_end"]
+                if w.is_identity() or ends == prev:
+                    break
+                prev = ends
+                res = self._simulate_once(physics_only, horizon, BeatClock(music, w.film_at, w.sim_at))
+                self.beat_passes += 1
+        if not physics_only and music.snap_cuts and horizon is None:
+            w = build_warp(self.scene, res.events, res.duration, self.project.fps)
+            locks = [e.t for e in res.events if e.type == "portal_exit" and e.character in res.controllers]
+            shots, self.beat_log = snap_shots(self.scene, w, self.project.fps, locks)
+            self.scene = self.scene.model_copy(update={"shots": shots})
+        return res
+
+    def _simulate_once(self, physics_only: bool, horizon: Optional[float], clock) -> SimulationResult:
         room = self.env.room
         world = PhysicsWorld(self.env.gravity)
         hw = room.width / 2
@@ -190,8 +235,17 @@ class SceneRuntime:
             ctrls[pl.character].strength = self.project.character(pl.character).strength
             ctrls[pl.character].strict = self.strict
             ctrls[pl.character].z = float(pl.z)
+        shared = {"taken": {}}
         for c in ctrls.values():  # characters can see each other, the props and everything that has happened so far
             c.others, c.all_events = ctrls, events
+            c.arcade = shared
+            if clock is not None:
+                c.beat_clock = clock
+        from ..motion.arcade import portal_maps
+        pmaps = portal_maps(self.env)
+        roped = {r.a.split(":", 1)[1] for r in self.env.ropes} | {r.b.split(":", 1)[1] for r in self.env.ropes if r.b.startswith("prop:")}
+        prop_prev: Dict[str, Vec] = {}
+        prop_cuts: Dict[str, List[int]] = {}
         dt = 1.0 / SIM_HZ
         sim_len = horizon if horizon is not None else self.scene.duration
         n = int(round(sim_len * SIM_HZ)) + 1
@@ -248,6 +302,28 @@ class SceneRuntime:
                 if ce.a in prop_tracks and ce.normal_speed > 120 and t - last_hit.get(key, -1.0) > 0.15:
                     last_hit[key] = t
                     events.append(Event(ce.t, "prop_impact", ce.a, {"surface": ce.b, "normal_speed": ce.normal_speed, "point": ce.point}))
+            if pmaps:  # a free prop crossing a portal comes out of the other end with its velocity rotated
+                for pid in prop_ids:
+                    st = world.state(pid)
+                    p0 = prop_prev.get(pid)
+                    prop_prev[pid] = st.pos
+                    if p0 is None or pid in roped or pid in world.carried or world.is_kinematic(pid):
+                        continue
+                    for gid, pm in pmaps.items():
+                        if pm.crossed(p0, st.pos):
+                            p2 = pm.point(st.pos)
+                            world.teleport(pid, p2, pm.angle(st.angle), pm.vec(st.vel), pm.spin(st.angvel))
+                            prop_prev[pid] = p2
+                            prop_cuts.setdefault(pid, []).append(i)
+                            events.append(Event(t + dt, "portal_enter", pid, {"portal": gid, "point": st.pos, "speed": math.hypot(*st.vel),
+                                                                              "velocity": st.vel}))
+                            events.append(Event(t + dt, "portal_exit", pid, {"portal": pm.b.id, "from": gid, "point": p2,
+                                                                             "speed": math.hypot(*st.vel), "velocity": pm.vec(st.vel)}))
+                            break
+            for c in ctrls.values():  # a prop carried through a portal jumps with its carrier
+                for (tc, what) in c.portal_log:
+                    if what.startswith("prop:") and abs(tc - (t + dt)) < 1e-9:
+                        prop_cuts.setdefault(what[5:], []).append(i)
             times[i] = t + dt
             for pid in prop_ids:
                 st = world.state(pid)
@@ -258,7 +334,7 @@ class SceneRuntime:
         if physics_only:
             events.sort(key=lambda e: (e.t, e.type))
             self.result = SimulationResult(end, frames, gravity, {}, ctrls, events, times, prop_tracks, world.static_segments(),
-                                           {}, None, doors, snapped, rope_peak)
+                                           {}, None, doors, snapped, rope_peak, prop_cuts, dict(shared["taken"]))
             return self.result
         animators = {}
         for cid, c in ctrls.items():
@@ -271,7 +347,8 @@ class SceneRuntime:
 
         def prop_at(pid: str, tt: float) -> Tuple[float, float, float]:
             x, y, a = _tracks[pid]
-            return float(np.interp(tt, _pt, x)), float(np.interp(tt, _pt, y)), float(np.interp(tt, _pt, a))
+            cu = prop_cuts.get(pid, ())
+            return interp_track(_pt, x, tt, cu), interp_track(_pt, y, tt, cu), interp_track(_pt, a, tt, cu)
 
         for an in animators.values():
             an.prop_at, an.others = prop_at, animators
@@ -292,7 +369,7 @@ class SceneRuntime:
                      for e in events if e.type == "switch_activated"]
         dust = DustField(self.env.dust, room, gravity, impulses, end + 0.1, seed=self.project.seed) if self.env.dust else None
         self.result = SimulationResult(end, frames, gravity, animators, ctrls, events, times, prop_tracks, world.static_segments(),
-                                       scarves, dust, doors, snapped, rope_peak)
+                                       scarves, dust, doors, snapped, rope_peak, prop_cuts, dict(shared["taken"]))
         return self.result
 
     # ------------------------------------------------------------ evaluation
@@ -302,9 +379,10 @@ class SceneRuntime:
         props = []
         for pr in self.env.props:
             tr = r.prop_tracks[pr.id]
-            x = float(np.interp(t, r.prop_times, tr[:, 0]))
-            y = float(np.interp(t, r.prop_times, tr[:, 1]))
-            a = float(np.interp(t, r.prop_times, np.unwrap(tr[:, 2])))
+            cu = r.prop_cuts.get(pr.id, ())
+            x = interp_track(r.prop_times, tr[:, 0], t, cu)
+            y = interp_track(r.prop_times, tr[:, 1], t, cu)
+            a = interp_track(r.prop_times, np.unwrap(tr[:, 2]), t, cu)
             props.append(PropState(pr.id, pr.kind, pr.size, (x, y), a, pr.z, pr.depth, pr.z < -5.0))
         ropes = []
         for rp in self.env.ropes:
@@ -330,8 +408,13 @@ class SceneRuntime:
         dust = r.dust.at(t) if r.dust else None
         dprev = r.dust.at(t - 0.06) if r.dust else None
         doors = {ex_id: door_state(d, t) for ex_id, d in r.doors.items()}
+        fired = {}
+        for e in r.events:
+            if e.type.startswith("orb_") and e.t <= t:
+                fired[e.data["orb"]] = t - e.t
         return FrameState(t, poses, props, r.gravity.at(t), r.gravity.state_label(t), glow, recent, scarves, dust, dprev, doors, ropes,
-                          {cid: a.depth_at(t) for cid, a in r.animators.items()})
+                          {cid: a.depth_at(t) for cid, a in r.animators.items()},
+                          {k: v for k, v in r.orbs_taken.items() if v <= t}, fired)
 
     def state_hash(self, times: List[float]) -> str:
         """Hash of character joints over the given times (determinism / regression checks)."""

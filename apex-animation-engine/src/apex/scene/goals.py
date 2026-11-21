@@ -19,7 +19,8 @@ point press_contact prop_impact push_end push_fail push_lost push_start recovere
 slide_start stood_up switch_activated takeoff turn fist_bump shoulder_pat wave
 strike_start swing hit hurt blocked block_hit whiff evaded knockdown settled dodge gesture_start
 step_off flip roll_start roll_end vault_start vault climb_start ledge_grab climbed wall_run wall_contact wall_kick throw_start throw
-prop_hit bump""".split())
+prop_hit bump
+orb_jump orb_boost orb_pad collect portal_enter portal_exit beat_wait_end""".split())
 
 
 def check_event(etype: str, where: str) -> None:

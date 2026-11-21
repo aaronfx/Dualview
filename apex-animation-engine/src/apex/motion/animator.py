@@ -132,6 +132,8 @@ class Animator(InteractionAnimMixin, CombatAnimMixin, AcroAnimMixin):
         self.others: Dict[str, "Animator"] = {}
         self.prop_specs: Dict[str, object] = {}
         self.shoulder_up_rest = rig.p.spine + 0.86 * rig.p.chest
+        # portal cuts: the body is somewhere else from this instant (records on either side are never mixed)
+        self.cuts = [s.t0 for s in segments if s.data.get("cut")]
         self._prepare()
         self._follow_through()
 
@@ -139,6 +141,9 @@ class Animator(InteractionAnimMixin, CombatAnimMixin, AcroAnimMixin):
     def _rec(self, arr: np.ndarray, t: float, seg: Optional[Segment] = None) -> float:
         if seg is not None:
             t = clamp(t, seg.t0, seg.t1)
+        for c in self.cuts:
+            if c - 1.0 / 240.0 < t < c:
+                t = c - 1.0 / 240.0
         return float(np.interp(t, self.T, arr))
 
     def _prepare(self) -> None:
@@ -147,6 +152,8 @@ class Animator(InteractionAnimMixin, CombatAnimMixin, AcroAnimMixin):
         for seg in self.segments:
             F = self.frames[seg.frame]
             f = seg.facing
+            if seg.data.get("cut"):
+                plants = None  # through a portal: the feet are planted afresh at the exit
             if seg.kind in ("airborne", "swing", "slide") + FREE or seg.kind in LYING:
                 plants = None
                 continue
@@ -173,6 +180,9 @@ class Animator(InteractionAnimMixin, CombatAnimMixin, AcroAnimMixin):
                     plants = (s0 + 9.0 * u * f, s0 - 9.0 * u * f)
             if seg.kind == "loco":
                 m = (self.T >= seg.t0 - 1e-9) & (self.T <= seg.t1 + 1e-9)
+                for c in self.cuts:  # the samples after a portal jump belong to the next segment
+                    if seg.t0 < c <= seg.t1 + 1e-9:
+                        m &= self.T < c - 1e-9
                 ts, ss = self.T[m], self.S[m]
                 if len(ts) < 3:
                     seg.data["plants"] = plants
@@ -184,7 +194,7 @@ class Animator(InteractionAnimMixin, CombatAnimMixin, AcroAnimMixin):
                 if seg.data.get("style") == "cautious":
                     from dataclasses import replace as _rep
                     gp = _rep(gp, stride_scale=gp.stride_scale * 0.78, cadence_scale=gp.cadence_scale * 0.9)
-                gait = Gait(ts, ss, vs, gp, direction, plants, lead_leg=lead)
+                gait = Gait(ts, ss, vs, gp, direction, plants, lead_leg=lead, bounds=(F.lo, F.hi))
                 seg.data["gait"] = gait
                 seg.data["plants_in"] = plants
                 for ff in gait.footfalls:
@@ -373,7 +383,16 @@ class Animator(InteractionAnimMixin, CombatAnimMixin, AcroAnimMixin):
         i = self.segment_at(t)
         seg = self.segments[i]
         pose = self._eval(seg, t)
-        if i > 0:
+        if i > 0 and seg.data.get("cut"):  # a portal: the body is elsewhere at once, but the limbs carry on smoothly
+            u = (t - seg.t0) / 0.12
+            if u < 1:
+                prev = self._eval(self.segments[i - 1], t)
+                prev.root, prev.body_angle = pose.root, pose.body_angle
+                if prev.facing != pose.facing:
+                    prev = pose
+                pose = blend_poses(prev, pose, smoothstep(0, 1, u))
+                pose.root, pose.body_angle = self._eval(seg, t).root, self._eval(seg, t).body_angle
+        elif i > 0:
             bl = BLEND_IN.get(seg.kind, 0.15)
             u = (t - seg.t0) / bl
             if u < 1:
@@ -771,11 +790,11 @@ class Animator(InteractionAnimMixin, CombatAnimMixin, AcroAnimMixin):
         pose = Pose(local=base_pose(), facing=seg.facing, state="airborne")
         pose.root = (self._rec(self.PX, tc), self._rec(self.PY, tc))
         pose.body_angle = self._rec(self.ANG, tc)
-        tau = tc - seg.t0
+        tau = tc - seg.data.get("t_origin", seg.t0)  # through a portal the flight carries on (same tuck timing)
         b = self._rec(self.BR, tc)
         L = pose.local
         if seg.data.get("intent") == "jump":
-            tuck = smoothstep(0.0, 0.2, tau) * (1 - b)
+            tuck = smoothstep(0.0, 0.28, tau) * (1 - b) * seg.data.get("tuck", 1.0)  # arms swing up through takeoff
             set_lean(L, 0.25 * tuck + 0.1, head=-0.2)
             set_arm(L, "n", lerp(0.5, 2.6, tuck) - 1.2 * b, 0.4)
             set_arm(L, "f", lerp(-0.4, 2.3, tuck) - 1.0 * b, 0.5)

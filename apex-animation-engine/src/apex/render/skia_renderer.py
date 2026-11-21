@@ -93,7 +93,7 @@ class SkiaRenderer:
     def render(self, fs: FrameState, cam: CameraState, red_flash: float = 0.0, fx: Optional[List[dict]] = None, fade: float = 0.0,
                trails: Optional[Dict[str, List[Tuple[Pose, float]]]] = None, fx_t: Optional[float] = None,
                smears: Optional[Dict[str, Pose]] = None, prop_ghosts: Optional[Dict[str, List[Tuple[float, float, float, float]]]] = None,
-               screen: Optional[Dict[str, float]] = None) -> np.ndarray:
+               screen: Optional[Dict[str, float]] = None, particles=None) -> np.ndarray:
         """`fx_t`: the clock effects run on (film time: they keep animating through a hit-stop). `smears`: each character's
         pose a moment earlier (fast limbs leave a smear). `prop_ghosts`: earlier poses of fast props. `screen`: full-screen
         effects (flash, speed lines, vignette pulse)."""
@@ -111,6 +111,10 @@ class SkiaRenderer:
         self._shafts(c, fs)
         self._switches(c, fs)
         self._obstacles(c, back=True)
+        if self.env.portals:
+            self._portals(c, fs)
+        if self.env.orbs:
+            self._orbs(c, fs)
         self._dust(c, fs, front=False)
         vis = {cid: self._exit_fade(pose, fs) for cid, pose in fs.poses.items()}
         for cid, pose in fs.poses.items():
@@ -153,6 +157,8 @@ class SkiaRenderer:
             c.restore()
         for pr in sorted(front, key=lambda p: -p.z):
             self._prop(c, pr)
+        if particles:
+            self._particles(c, particles)
         self._obstacles(c, back=False)
         self._dust(c, fs, front=True)
         self._cutaway(c, red_flash, fs)
@@ -164,6 +170,98 @@ class SkiaRenderer:
             c.drawRect(skia.Rect(0, 0, self.W, self.H), skia.Paint(Color=col((0, 0, 0), clamp(fade, 0.0, 1.0))))
         img = self.surface.makeImageSnapshot()
         return img.toarray(colorType=skia.ColorType.kRGBA_8888_ColorType)
+
+    # ------------------------------------------------------------ orbs, portals, particles (Milestone 4)
+    ORB_RGB = {"jump": (255, 222, 70), "boost": (255, 100, 225), "pad": (255, 200, 60), "collect": (255, 245, 200)}
+
+    def _orbs(self, c: skia.Canvas, fs: FrameState) -> None:
+        taken = getattr(fs, "orbs_taken", {}) or {}
+        fired = getattr(fs, "orb_fired", {}) or {}
+        t = fs.t
+        for o in self.env.orbs:
+            rgb = hex_rgb(o.color) if o.color else self.ORB_RGB[o.kind]
+            x, y = o.center
+            if o.id in taken:
+                continue
+            pulse = 1.0 + 0.08 * math.sin(t * 6.0 + x * 0.01)
+            sx, sy, k = self.P(x, y, 0.0)
+            r = o.radius * k * pulse
+            if o.kind == "pad":
+                pts = [self.P(x + o.radius * math.cos(a), y, 30.0 * math.sin(a)) for a in np.linspace(0, 2 * math.pi, 28)]
+                path = skia.Path()
+                for i, p in enumerate(pts):
+                    (path.lineTo if i else path.moveTo)(p[0], p[1])
+                path.close()
+                c.drawPath(path, skia.Paint(AntiAlias=True, Color=col(rgb, 0.35)))
+                c.drawPath(path, skia.Paint(AntiAlias=True, Color=col(mix(rgb, WHITE, 0.4), 0.9), Style=skia.Paint.kStroke_Style,
+                                            StrokeWidth=max(1.0, 2.2 * k)))
+                self._glow(c, (sx, sy), r * 1.8, rgb, 0.35)
+            elif o.kind == "collect":
+                a = t * 2.2 + x * 0.003
+                d = [(0.0, -r), (r * 0.62 * abs(math.cos(a)) + 1.0, 0.0), (0.0, r), (-r * 0.62 * abs(math.cos(a)) - 1.0, 0.0)]
+                path = skia.Path()
+                for i, (px, py) in enumerate(d):
+                    (path.lineTo if i else path.moveTo)(sx + px, sy + py)
+                path.close()
+                self._glow(c, (sx, sy), r * 2.2, rgb, 0.45)
+                c.drawPath(path, skia.Paint(AntiAlias=True, Color=col(rgb, 0.95)))
+            else:
+                self._glow(c, (sx, sy), r * 2.4, rgb, 0.4)
+                c.drawCircle(sx, sy, r, skia.Paint(AntiAlias=True, Color=col(rgb, 0.18)))
+                c.drawCircle(sx, sy, r, skia.Paint(AntiAlias=True, Color=col(mix(rgb, WHITE, 0.3), 0.95), Style=skia.Paint.kStroke_Style,
+                                                   StrokeWidth=max(1.2, 3.0 * k)))
+                c.drawCircle(sx, sy, r * 0.42, skia.Paint(AntiAlias=True, Color=col(mix(rgb, WHITE, 0.6), 0.95)))
+                if o.kind == "boost":  # chevrons point the way it pushes
+                    for dx in (-0.25, 0.2):
+                        p = skia.Path()
+                        p.moveTo(sx + (dx - 0.15) * r, sy - 0.35 * r)
+                        p.lineTo(sx + (dx + 0.1) * r, sy)
+                        p.lineTo(sx + (dx - 0.15) * r, sy + 0.35 * r)
+                        c.drawPath(p, skia.Paint(AntiAlias=True, Color=col(WHITE, 0.9), Style=skia.Paint.kStroke_Style,
+                                                 StrokeWidth=max(1.0, 2.0 * k)))
+            if o.id in fired and fired[o.id] < 0.35:  # it just fired: a ring expands from it
+                u = fired[o.id] / 0.35
+                c.drawCircle(sx, sy, r * (1.0 + 2.2 * u), skia.Paint(AntiAlias=True, Color=col(WHITE, 0.7 * (1 - u)),
+                                                                     Style=skia.Paint.kStroke_Style, StrokeWidth=max(1.0, 3.0 * k * (1 - u))))
+
+    def _portals(self, c: skia.Canvas, fs: FrameState) -> None:
+        from .particles import portal_rgb
+        t = fs.t
+        for p in self.env.portals:
+            rgb = portal_rgb(self.env, p.id)
+            ra = math.radians(p.angle)
+            nx, ny = math.cos(ra), math.sin(ra)
+            tx, ty = -ny, nx
+            h = p.height / 2
+            pts = []
+            for a in np.linspace(0, 2 * math.pi, 40):
+                u, w = math.sin(a), math.cos(a)
+                pts.append(self.P(p.center[0] + tx * h * u + nx * 9.0 * w, p.center[1] + ty * h * u + ny * 9.0 * w, 26.0 * w))
+            path = skia.Path()
+            for i, q in enumerate(pts):
+                (path.lineTo if i else path.moveTo)(q[0], q[1])
+            path.close()
+            sx, sy, k = self.P(p.center[0], p.center[1], 0.0)
+            self._glow(c, (sx, sy), h * k * 1.25, rgb, 0.28, squash=1.0)
+            c.drawPath(path, skia.Paint(AntiAlias=True, Color=col(mix(rgb, (0, 0, 0), 0.55), 0.85)))
+            for j in range(3):  # a slow inner swirl
+                f = 0.35 + 0.2 * j
+                ph = t * (1.6 + 0.5 * j) + j
+                q0 = self.P(p.center[0] + tx * h * f * math.sin(ph), p.center[1] + ty * h * f * math.sin(ph), 0.0)
+                self._glow(c, (q0[0], q0[1]), 10.0 * k, mix(rgb, WHITE, 0.4), 0.5)
+            c.drawPath(path, skia.Paint(AntiAlias=True, Color=col(mix(rgb, WHITE, 0.25), 0.95), Style=skia.Paint.kStroke_Style,
+                                        StrokeWidth=max(1.5, 4.0 * k)))
+            # the open side: a short tick along the facing direction
+            a0 = self.P(p.center[0] + nx * 10.0, p.center[1] + ny * 10.0)
+            a1 = self.P(p.center[0] + nx * 26.0, p.center[1] + ny * 26.0)
+            c.drawLine(a0[0], a0[1], a1[0], a1[1], skia.Paint(AntiAlias=True, Color=col(rgb, 0.6), StrokeWidth=max(1.0, 2.0 * k)))
+
+    def _particles(self, c: skia.Canvas, parts) -> None:
+        for (x, y, r, a, rgb) in parts:
+            sx, sy, k = self.P(x, y, 0.0)
+            rr = max(0.8, r * k)
+            self._glow(c, (sx, sy), rr * 3.0, rgb, 0.35 * a)
+            c.drawCircle(sx, sy, rr, skia.Paint(AntiAlias=True, Color=col(mix(rgb, WHITE, 0.5), a)))
 
     # ------------------------------------------------------------ environment
     def _room(self, c: skia.Canvas, fs: FrameState, red: float) -> None:

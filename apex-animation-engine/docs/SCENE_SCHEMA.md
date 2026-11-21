@@ -125,6 +125,34 @@ Each standable top is a support surface with ends. Walking past an end steps off
 
 Sounds and effects are placed on the film clock. QA checks the warp (`time_warp_valid`, `hit_stop_frames`, `flash_safety`, `slowmo_bounds`).
 
+## Levels, orbs, portals, beats (Milestone 4)
+
+**`EnvironmentSpec.level`**: `{rows, cell, origin, legend}`. The grid is expanded into platforms, orbs, portals and markers. Its symbols:
+- `#` block; `=` ledge;
+- `o` jump orb, `b` boost orb, `^` pad, `*` collectible;
+- `A`/`a` a portal pair;
+- digits: markers.
+
+`CharacterPlacement.at` places a character on a marker.
+
+**`EnvironmentSpec.orbs`**: `{id, kind: jump|boost|pad|collect, center, radius, power, flip, color}`. Default `power`: jump 130 (apex), pad 170 (apex), boost 320 (u/s added).
+
+**`EnvironmentSpec.portals`**: `{id, center, link, angle, height, color}`. `angle` is the direction the portal opens toward, in degrees. A crossing maps position and velocity rigidly to `link`, so the speed is kept. A walk that runs into a portal ends at it.
+
+**`SceneSpec.music`**: `{bpm, offset, beats_per_bar, snap_cuts, snap_window, gain}`. It defines a film-time beat grid:
+- shot boundaries near a beat snap onto it, except on a portal crossing;
+- action `wait_beat` (`beats`: n) holds until the n-th next beat;
+- the soundtrack is a beat-locked groove.
+
+**`CameraSpec.bound_to_room`**: the view never shows past the room's walls.
+
+Events: `orb_jump`, `orb_boost`, `orb_pad`, `collect`, `portal_enter`, `portal_exit`, `beat_wait_end`.
+
+QA checks:
+- `portal_transfers`, `orb_impulses`, `collectibles_once`;
+- `beat_cuts`, `beat_waits`, `music_on_beat`;
+- `particles_deterministic`, `particle_budget`.
+
 ## Gravity angles (GravityEffect)
 
 Each switch changes gravity in exactly one of two ways:

@@ -60,7 +60,8 @@ def _noise(x: float, seed: float) -> float:
 class CameraDirector:
     def __init__(self, shots: List[ShotSpec], aspect: float, bbox: BBoxFn, velocity: VelFn, gravity: Optional[GravFn] = None,
                  focus_bbox: Optional[FocusFn] = None, shake_events: Optional[List[Tuple[float, float]]] = None,
-                 gravity_angle: Optional[Callable[[float], float]] = None, resolve: Optional[Callable[[str], Optional[Vec]]] = None):
+                 gravity_angle: Optional[Callable[[float], float]] = None, resolve: Optional[Callable[[str], Optional[Vec]]] = None,
+                 jumps: Optional[List[Tuple[float, str]]] = None, room: Optional[Tuple[float, float, float, float]] = None):
         self.shots = sorted(shots, key=lambda s: s.start)
         self.aspect = aspect
         self.bbox, self.velocity = bbox, velocity
@@ -70,6 +71,8 @@ class CameraDirector:
         self.resolve = resolve  # target string -> world point (composition: objects kept in frame)
         self.focus_bbox = focus_bbox
         self.shake_events = shake_events or []  # (time, strength)
+        self.room = room  # (x0, x1, y0, y1) of the room, for shots bound to it
+        self.jumps = jumps or []  # (time, character): the subject went through a portal; a follow camera cuts with it
         self._tracks: Dict[str, Tuple[np.ndarray, np.ndarray]] = {}
         for sh in self.shots:
             self._tracks[sh.id] = self._bake(sh)
@@ -127,7 +130,11 @@ class CameraDirector:
         dt = ts[1] - ts[0]
         for i, t in enumerate(ts):
             tgt = np.array(self._target(cam, sh, float(t)))
-            if cam.mode in ("follow", "track_x"):
+            if cam.mode in ("follow", "track_x") and any(c == cam.target and t - dt < tj <= t for tj, c in self.jumps):
+                x, v = tgt.copy(), np.zeros(3)  # a cut inside the shot: the operator is already at the exit
+                if cam.keep_in_frame and cam.target:
+                    x = np.array(self._frame_guard(cam.target, float(t), *x, roll, cam.focus, self._includes(cam, float(t))))
+            elif cam.mode in ("follow", "track_x"):
                 w = cam.stiffness
                 if cam.mode == "follow" and cam.target:  # an airborne subject (a flip, a fall): the operator tracks it tighter
                     vy = abs(self.velocity(cam.target, float(t))[1])
@@ -150,6 +157,13 @@ class CameraDirector:
                 roll = rt
             if cam.keep_in_frame and cam.target:
                 cx, cy, vh = self._frame_guard(cam.target, float(t), cx, cy, vh, roll, cam.focus, self._includes(cam, float(t)))
+            if cam.bound_to_room and self.room is not None and abs(roll) < 1e-6:
+                x0, x1, y0, y1 = self.room
+                hw, hh = vh * self.aspect / 2, vh / 2
+                if 2 * hw < x1 - x0:
+                    cx = clamp(cx, x0 + hw, x1 - hw)
+                if 2 * hh < y1 - y0:
+                    cy = clamp(cy, y0 + hh, y1 - hh)
             out[i] = (cx, cy, vh, roll)
         return ts, out
 
@@ -204,10 +218,15 @@ class CameraDirector:
     def at(self, t: float) -> CameraState:
         sh = self.shot_at(t)
         ts, arr = self._tracks[sh.id]
-        cx = float(np.interp(t, ts, arr[:, 0]))
-        cy = float(np.interp(t, ts, arr[:, 1]))
-        vh = float(np.interp(t, ts, arr[:, 2]))
-        roll = float(np.interp(t, ts, arr[:, 3]))
+        i = int(np.searchsorted(ts, t))
+        tj = next((tj for tj, c in self.jumps if c == sh.camera.target and 0 < i < len(ts) and ts[i - 1] < tj <= ts[i]), None)
+        if tj is not None and sh.camera.mode in ("follow", "track_x"):  # never interpolate across a portal cut
+            cx, cy, vh, roll = (float(v) for v in (arr[i] if t >= tj else arr[i - 1]))
+        else:
+            cx = float(np.interp(t, ts, arr[:, 0]))
+            cy = float(np.interp(t, ts, arr[:, 1]))
+            vh = float(np.interp(t, ts, arr[:, 2]))
+            roll = float(np.interp(t, ts, arr[:, 3]))
         shx = shy = 0.0
         if sh.camera.shake > 0:
             for te, strength in self.shake_events:
