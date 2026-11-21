@@ -292,7 +292,15 @@ class InteractionMixin:
                 vel=(d * v0 * 0.44 * tangent[0], d * v0 * 0.44 * tangent[1]),
                 angvel=-self.facing * 1.5,
             )
-        self._open("fall", t, dir=d, s0=self.s, active_fall=active)
+        jointed = active and os.getenv("APEX_EXPERIMENTAL_JOINTED_FALL", "0").strip().lower() in ("1", "yes", "true")
+        self._ragdoll = None
+        if jointed:
+            from ..physics.articulated import ArticulatedFall
+            self._ragdoll = ArticulatedFall(self.world, self.cid, self.rig, self.facing)
+            self._ragdoll.record(t)
+        self._open("fall", t, dir=d, s0=self.s, active_fall=active,
+                   jointed_fall=jointed,
+                   ragdoll_samples=self._ragdoll.samples if jointed else [])
 
     def _complete_fall(self, t: float, normal_speed: float) -> None:
         # Hand control back to the existing prone/lever/contact machinery.
@@ -301,6 +309,10 @@ class InteractionMixin:
         if self.inter.get("active_fall"):
             st = self.world.state(self.cid)
             self.s, _ = self.frame.to_frame(st.pos)
+        ragdoll = getattr(self, "_ragdoll", None)
+        if ragdoll is not None:
+            ragdoll.cleanup()
+            self._ragdoll = None
         self.mode = "grounded"
         self.posture = "prone"
         self.body_tilt = math.pi / 2
