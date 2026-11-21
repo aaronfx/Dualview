@@ -68,6 +68,66 @@ Seven shots, each cut placed at a simulated event (`cut_on`).
 - `docs/evidence/ffprobe_symbol_run.txt`
 - `docs/evidence/symbol_run_decode.json`
 
+## Acceptance: the owner's review and *Glyph Duel*
+
+The review asked for five weaknesses to be fixed in the engine, and for one 30–45 s film that chains everything: fight, dodge with acrobatics, land, climb a symbolic structure, pick up a symbol, fight with it, and throw it at the opponent.
+
+| Review concern | What changed in the engine | Evidence |
+|---|---|---|
+| **Kinematic movement:** an authoring error is not enough; nothing may pass through objects *in simulation* | Every step of grounded or landing motion goes through `_enforce_solid`, whatever caused it: walks, strike lunges, dodges, knockbacks, landing slides, rolls. The body stops at a structure's face, with a `bump` event. The dry-run error for walks stays as an early warning | `test_knockback_never_passes_through_a_structure` (a stagger into a slab stops at its face). QA `body_outside_structures` = 0 in both films |
+| **Flips:** a planned rotation profile is not angular momentum | Flips are now **conservation of angular momentum**. At takeoff the legs give the body a momentum L, chosen so that, with the tuck it will make, it turns once by touchdown. In the air L is conserved: the spin rate is L / I(tuck), faster tucked (I = 0.4) and slower opening out. Nothing steers the angle. A contact that changes the spin changes L, and an early or late landing lands under- or over-rotated. The animation uses the same tuck curve | `test_flip_spin_follows_angular_momentum`: peak spin > 1.9× the takeoff spin, slower again before landing, total turn within 0.35 rad of 2π. QA `flips_land_upright` 0.035 rad |
+| **Throws:** mass, velocity, direction and response must be consistent | Impact is an **impulse exchange** along the contact normal: J = (1+e)·m_prop·m_body/(m_prop+m_body)·v_n, with e = 0.35 and m_body 35 kg (struck part) or 70 kg (braced guard). J is applied to the prop at the contact point (rigid-body response with spin). The reaction is sized from J alone; `power` only sets the throw speed. Every hit records J, the normal, the masses and the prop's velocities before and after | `test_thrown_glyph_exchanges_momentum` (Δv·n = J/m, 0 < e < 1). New QA `throw_momentum` compares against the *tracked* motion: within 14% |
+| **Landing transitions into combat** | A landing whose next action is combat (strike, guard, dodge) goes straight into the fighting stance after 0.2 s, with no relief beat. Rolls hand over directly. A roll now evades head and body strikes (rolled under), and an airborne body is never hit | `test_landing_goes_straight_into_combat` (`recovered` with `into=strike` < 0.35 s after touchdown). `test_rolling_under_a_strike`. In the film: `recovered into guard` twice |
+| **Glyph edges** | Edge checks now run after *every* grounded step (walks, lunges, dodges, knockbacks), not only walks. Tops of real glyph strokes are tested at both ends | `test_glyph_tops_stand_and_step_off_both_ends` for `7`, `π`, `=` and `-`. `test_dodging_back_off_a_platform_edge_steps_off`. QA `feet_on_tops` |
+
+**Fixes found while building the film**
+- **Limbs in the floor:** a hand or elbow of a body lying face down could sink into the floor. Hands and elbows are now placed on the floor, and knees lifted, for every lying pose.
+- **Framing check:** `subject_in_frame` now judges each following shot by its target and the characters it includes, rather than requiring every character in every shot.
+- **Overlap check:** `fighters_do_not_overlap` no longer counts frames inside a roll, because the roll passes under the opponent by design. It reports how many frames it excluded: 26 in this film.
+
+### *Glyph Duel* (original, hand-authored; the acceptance film)
+
+| | |
+|---|---|
+| Video | 720p draft, 24 fps, **39.3 s**, H.264 + AAC (`docs/evidence/ffprobe_glyph_duel.txt`). Delivered separately; MP4s are not committed |
+| Source | `examples/glyph_duel.json` (built by `examples/build_glyph_duel.py`) |
+| QA | **51 PASS / 1 SKIP / 0 WARN** (`docs/evidence/glyph_duel_qa.json`): strike contact worst 19.4 (limit 24); throw momentum 14% (limit 25%); flips land within 0.035 rad of upright; no body inside a structure; fighters stay at least 67.7 apart outside the roll; both knockdowns settle; audio and video match within 0.3 ms; all 944 frames decode |
+| Tests | **178 passed** (20 in `tests/test_acrobatics.py`) |
+
+| Time | Event (decided by the simulation) |
+|---|---|
+| 3.9 s | KAI's jab is **blocked** |
+| 4.8 s | RHO's roundhouse; KAI **back-flips** |
+| 5.0 s | The roundhouse whiffs: KAI is airborne |
+| 5.9 s | KAI lands **straight into his guard** |
+| 7.4 s | RHO's cross; KAI **rolls under it** |
+| 7.6 s | The cross whiffs; KAI comes out past RHO |
+| 11.7 s | KAI grabs the ledge of the giant **π** |
+| 13.1 s | He climbs onto it |
+| 14.9 s | He **picks up** the times sign resting on the bar |
+| 15.9 s | He **throws** it down at RHO |
+| 16.6 s | Falling from the bar, it gathers speed: an impulse of 6,300 knocks RHO down (ragdoll) |
+| 16.5 s | KAI **front-flips** off the bar. He throws before he jumps; the times sign lands just after the flip starts |
+| 17.7 s | KAI lands in his guard |
+| 20.6 s | RHO gets up |
+| 21.5 s | KAI's **flying kick** is **blocked** |
+| 22.5 s | RHO's counter-hook; KAI **ducks** it |
+| 25.2 s | KAI **picks up** a minus sign |
+| 27.0 s | First **staff swing**: RHO steps back, a whiff |
+| 28.4 s | Second swing **lands** (stagger) |
+| 29.4 s | KAI **throws** the staff: knockdown |
+| 33.5 s | RHO gets up |
+| 36.7 s | Fist bump |
+
+Nine shots, each cut placed at a simulated event. One wide shot is static, framing both fighters while KAI is up on the π.
+
+**Evidence:**
+- `docs/media/glyph_duel_key_moments.jpg`
+- `docs/media/glyph_duel_contact_sheet.jpg`
+- `docs/evidence/glyph_duel_decode.json`
+
+*Symbol Run* was re-simulated on the updated engine: `examples/symbol_run.json` is regenerated, and its acrobatics, combat and contact checks all pass (flip lands within 0.02 rad).
+
 ## Known defects (honest list)
 
 | # | Defect | Severity |
@@ -76,7 +136,9 @@ Seven shots, each cut placed at a simulated event (`cut_on`).
 | A2 | **The wall kick is short:** two steps up the wall, not a sustained wall-run. It is not in the film; it is covered by `tests/test_acrobatics.py` | Low |
 | A3 | **A held glyph is drawn mirrored** when the character faces left: the prop axis is flipped, so an asymmetric glyph such as a 7 would show back to front | Low |
 | A4 | **Pauses while walking to props.** The approach walks to the staff and to RHO take about 1.5–2 s each. There is no automatic choreographer to tighten them | Low |
-| A5 | **Flips and rolls are keyed rotations.** The somersault is physics-driven along a planned profile, not a full-body ragdoll simulation. Momentum through the roll is approximate | Low |
+| A5 | *Flips fixed in acceptance: now conserved angular momentum.* **The roll is still a keyed rotation,** with approximate momentum through it. A flip's tuck is a moment-of-inertia curve on one rigid body, not a full-body simulation | Low |
+| A8 | **Close exchanges still crowd the frame** in places: the jab at 3.9 s and the duck at 22.5 s (C1 from Milestone 1) | Medium |
+| A9 | **A carried prop can pass through a structure** while held, because it is kinematic until it is thrown. Thrown props collide with everything | Low |
 | A6 | **No hit-stop, slow motion or smears** (Milestone 3) | Medium |
 | A7 | **Choreography is written by hand** (as in Milestone 1) | — |
 

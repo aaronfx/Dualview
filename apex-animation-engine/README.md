@@ -40,7 +40,7 @@ The engine is **independent of Creator Studio**. It has its own backend (FastAPI
 | AI Director with simulation feedback: a prompt generated from the schema, a dry run that reports unfinished story steps with physics numbers, and every raw response preserved (`apex plan --log-dir`) | `ai/director.py` | `docs/ai_runs/` |
 | Setup solver: the planner states ordered story `goals`. APEX tunes friction, mass, rope slack and break force, and prop positions until they happen in simulation, and times cuts from simulated events (`cut_on`). Repairs are JSON patches | `scene/solver.py`, `scene/goals.py` | `docs/SETUP_SOLVER.md` |
 | Combat: strikes (jab, cross, hook, uppercut, front, side and roundhouse kicks, sweep), guard, dodges. Hit, block or whiff is decided in simulation at contact; flinch, stagger and knockdown reactions; knockdowns are ragdoll physics falls that settle face up or face down and get up again; impact, spark and swoosh effects, shake and sounds | `motion/combat.py`, `motion/ragdoll.py`, `motion/combat_anim.py` | `docs/COMBAT_AUDIT.md`, `docs/COMBAT_REPORT.md` |
-| Acrobatics and symbols: platforms and glyph structures you can stand on (step off an end and you fall), jump onto, flips, landing rolls, vaults, ledge climbs, wall kicks, flying kicks; glyph props you can pick up, throw (hit / blocked / miss decided in simulation) and wield as weapons | `scene/glyphs.py`, `scene/structures.py`, `motion/acrobatics.py`, `motion/acro_anim.py` | `docs/ACROBATICS_AUDIT.md`, `docs/ACROBATICS_REPORT.md` |
+| Acrobatics and symbols: platforms and glyph structures you can stand on (step off an end and you fall), jump onto, flips, landing rolls, vaults, ledge climbs, wall kicks, flying kicks; glyph props you can pick up, throw (hit / blocked / miss decided in simulation) and wield as weapons | `scene/glyphs.py`, `scene/structures.py`, `motion/acrobatics.py`, `motion/acro_anim.py` | `docs/ACROBATICS_AUDIT.md`, `docs/ACROBATICS_REPORT.md` (acceptance film: *Glyph Duel*) |
 | AI spending controls: paid calls off by default, low-cost models only unless approved, no model escalation, call and spend caps, cost ledger | `ai/budget.py` (`apex ai-budget`) | `docs/AI_SPEND.md` |
 | Automated QA, 24–61 checks per scene | `qa/inspector.py` | `docs/evidence/*_qa.json` |
 | Schema-validated scene plans; AI director with validation and repair loop; offline template planner | `scene/schema.py`, `ai/` | `tests/test_ai_api.py` |
@@ -140,6 +140,6 @@ src/apex/
   api/       FastAPI app + storage
 examples/    project JSON files (milestone scenes); build_gravity_switch_1d.py / build_foundry_flip.py / build_rescue.py regenerate them
 scripts/     motion_test.py (original-vs-improved motion comparison), interaction_diagnostics.py
-tests/       pytest suite (168 tests)
+tests/       pytest suite (178 tests)
 docs/        architecture, schema, reference analysis, milestone status, roadmap, evidence
 ```

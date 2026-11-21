@@ -289,6 +289,10 @@ class PhysicsWorld:
         b = self._bodies[tag]
         b.apply_impulse_at_world_point(impulse, b.local_to_world(b.center_of_gravity))
 
+    def apply_impulse_at(self, tag: str, impulse: Vec, point: Vec) -> None:
+        """Impulse at a world point (changes both the velocity and the spin of a rigid body)."""
+        self._bodies[tag].apply_impulse_at_world_point(impulse, point)
+
     def set_angular_velocity(self, tag: str, w: float) -> None:
         self._bodies[tag].angular_velocity = w
 

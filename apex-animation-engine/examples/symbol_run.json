@@ -203,7 +203,7 @@
    "id": "run",
    "title": "Symbol Run",
    "environment": "symbols",
-   "duration": 25.916666666666668,
+   "duration": 26.083333333333332,
    "placements": [
     {
      "character": "kai",
@@ -434,7 +434,7 @@
     {
      "id": "s5_kick",
      "start": 11.838,
-     "end": 14.167,
+     "end": 14.171,
      "description": "RHO's flying kick; KAI steps out of it",
      "camera": {
       "target": "kai",
@@ -451,8 +451,8 @@
     },
     {
      "id": "s6_staff",
-     "start": 14.167,
-     "end": 18.833,
+     "start": 14.171,
+     "end": 18.85,
      "description": "the minus as a staff: RHO goes down",
      "camera": {
       "target": "kai",
@@ -469,8 +469,8 @@
     },
     {
      "id": "s7_respect",
-     "start": 18.833,
-     "end": 25.916666666666668,
+     "start": 18.85,
+     "end": 26.083333333333332,
      "description": "the staff tossed aside; a fist bump",
      "camera": {
       "target": "kai",

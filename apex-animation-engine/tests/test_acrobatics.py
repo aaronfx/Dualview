@@ -143,3 +143,101 @@ def test_flying_kick_hits_and_can_be_stepped_out_of():
                   {"character": "rho", "type": "wait_for", "until": "next:strike_start@kai"},
                   {"character": "rho", "type": "dodge", "dodge": "back"}], dur=4, **two))
     assert first(r, "whiff") is not None and first(r, "hit") is None
+
+
+# ---------------------------------------------------------------- Milestone 2 acceptance: the owner's review
+def _two(xk=-300, xr=0, fr=-1):
+    return dict(chars=("kai", "rho"), placements=[{"character": "kai", "x": xk, "facing": 1}, {"character": "rho", "x": xr, "facing": fr}])
+
+
+def test_knockback_never_passes_through_a_structure():
+    """A stagger drives RHO back into a platform: the simulation stops the body at its face (not just an authoring check)."""
+    wall = {"id": "slab", "kind": "platform", "center": [140, 120], "size": [100, 240]}  # face at x 90
+    r = sim(proj([{"character": "kai", "type": "strike", "target": "char:rho", "move": "uppercut", "reaction": "stagger", "power": 1.6},
+                  {"character": "rho", "type": "idle", "duration": 4}], [wall], dur=4, **_two(xk=-200, xr=40)))
+    assert first(r, "hurt", "rho").data["reaction"] == "stagger"
+    assert max(rec.s for rec in r.controllers["rho"].records) <= 90 - 10 + 1e-6
+    assert first(r, "bump", "rho").data["structure"] == "slab"
+
+
+def test_flip_spin_follows_angular_momentum():
+    r = sim(proj([{"character": "kai", "type": "walk_to", "target_x": -340},
+                  {"character": "kai", "type": "jump_to", "target_x": 100, "height": 140, "flip": "back"}], dur=4))
+    c = r.controllers["kai"]
+    f, land = first(r, "flip"), first(r, "impact")
+    flight = [x for x in c.records if f.t <= x.t < land.t]
+    w = [abs(x.angvel) for x in flight]
+    assert max(w) > 1.9 * w[1]  # the tuck spins the body up (smaller moment of inertia, same momentum)
+    assert w[-1] < 0.75 * max(w)  # opening out slows it before the landing
+    turn = flight[-1].angle - flight[0].angle
+    assert abs(turn - 2 * math.pi) < 0.35  # a back flip facing +x turns counter-clockwise by one revolution
+
+
+def test_thrown_glyph_exchanges_momentum():
+    r = _throw([{"character": "rho", "type": "idle", "duration": 6}])
+    h = first(r, "hit")
+    d = h.data
+    n, J, m = d["normal"], d["impulse"], d["prop_mass"]
+    dv = ((d["v_after"][0] - d["v_before"][0]) * n[0] + (d["v_after"][1] - d["v_before"][1]) * n[1])
+    assert J > 0 and abs(dv - J / m) < 0.02 * J / m + 1.0  # the prop's velocity change along the normal is J / m
+    vn_before = d["v_before"][0] * n[0] + d["v_before"][1] * n[1]
+    vn_after = d["v_after"][0] * n[0] + d["v_after"][1] * n[1]
+    e = vn_after / -vn_before  # (the body barely moves during the contact) restitution between the masses' limit and 1
+    assert 0.0 < e < 1.0
+    import numpy as np
+    tr, ts = r.prop_tracks["plus"], r.prop_times
+    i = int(np.searchsorted(ts, h.t))
+    vx = (tr[i + 3, 0] - tr[i + 1, 0]) / (ts[i + 3] - ts[i + 1])
+    assert abs(vx - d["v_after"][0]) < 40.0  # what the world then integrates is that velocity
+
+
+def test_landing_goes_straight_into_combat():
+    r = sim(proj([{"character": "kai", "type": "jump_to", "target_x": -150, "height": 90},
+                  {"character": "kai", "type": "strike", "target": "char:rho", "move": "cross"},
+                  {"character": "rho", "type": "idle", "duration": 4}], dur=4, **_two(xk=-350, xr=0)))
+    land = first(r, "impact")
+    rec = first(r, "recovered")
+    assert rec.data.get("into") == "strike" and rec.t - land.t < 0.35
+    assert first(r, "strike_start").t - land.t < 0.6
+
+
+def test_rolling_under_a_strike():
+    r = sim(proj([{"character": "kai", "type": "strike", "target": "char:rho", "move": "cross"},
+                  {"character": "rho", "type": "wait_for", "until": "next:strike_start@kai"},
+                  {"character": "rho", "type": "roll", "target_x": -260}], dur=4, **_two(xk=-200, xr=0)))
+    assert first(r, "whiff") is not None and first(r, "hit") is None
+
+
+@pytest.mark.parametrize("glyph,size", [("7", [240, 260]), ("π", [300, 240]), ("=", [260, 150]), ("-", [260, 60])])
+def test_glyph_tops_stand_and_step_off_both_ends(glyph, size):
+    ob = {"id": "g", "kind": "glyph", "glyph": glyph, "center": [0, size[1] / 2 + 10], "size": size, "weight": 26}
+    from apex.scene import structures
+    from apex.scene.schema import EnvironmentSpec
+    tops = sorted(structures.top_frames(EnvironmentSpec(id="e", obstacles=[ob])).values(), key=lambda f: -f.origin[1])
+    F = tops[0]
+    for exit_x, start in ((F.lo - 120, F.hi - 30), (F.hi + 120, F.lo + 30)):
+        side = 1 if start > 0 else -1
+        acts = [{"character": "kai", "type": "walk_to", "target_x": side * 420},
+                {"character": "kai", "type": "jump_to", "target_x": start, "height": F.origin[1] + 80, "onto": "obstacle:g"},
+                {"character": "kai", "type": "walk_to", "target_x": exit_x}]
+        r = sim(proj(acts, [ob], dur=8, placements=[{"character": "kai", "x": side * 600, "facing": -side}]))
+        land = first(r, "impact")
+        assert land.data["surface"] == F.tag, (glyph, land.data)
+        off = first(r, "step_off")
+        assert off is not None and off.data["surface"] == F.tag
+        assert not (F.lo - 4.0 <= off.data["point"][0] <= F.hi + 4.0) or abs(off.data["point"][0] - (F.lo if exit_x < 0 else F.hi)) < 12.0
+        on_top = [x for x in r.controllers["kai"].records if x.frame == F.tag and x.mode not in ("airborne",)]
+        assert on_top and all(F.lo - 4.0 <= x.s <= F.hi + 4.0 for x in on_top)
+        assert next(e for e in r.events if e.type == "impact" and e.t > off.t).data["surface"] == "floor"
+
+
+def test_dodging_back_off_a_platform_edge_steps_off():
+    plat = {"id": "p", "kind": "platform", "center": [100, 60], "size": [300, 120]}
+    acts = [{"character": "rho", "type": "jump_to", "target_x": 210, "height": 170, "onto": "obstacle:p"},
+            {"character": "rho", "type": "turn", "face": -1},
+            {"character": "rho", "type": "dodge", "dodge": "back"},
+            {"character": "rho", "type": "dodge", "dodge": "back"}]
+    r = sim(proj(acts, [plat], dur=5, **_two(xk=-400, xr=330)))
+    assert first(r, "impact", "rho").data["surface"] == "p"
+    off = first(r, "step_off", "rho")
+    assert off is not None and off.data["surface"] == "p"

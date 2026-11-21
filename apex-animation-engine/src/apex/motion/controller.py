@@ -155,6 +155,14 @@ class CharacterController(InteractionMixin, CombatMixin, AcroMixin):
     # ------------------------------------------------------------ main update (before physics step)
     def update(self, t: float, dt: float) -> None:
         g = self.gravity.at(t)
+        s_prev = self.s if self.mode in ("grounded", "landing") else None
+        self._update(t, dt, g)
+        if s_prev is not None and self.mode in ("grounded", "landing"):
+            self._enforce_solid(t, s_prev)  # no motion of any kind carries the body through a structure
+        if self.mode == "grounded":
+            self._edge_check(t)  # any motion past the end of a top steps off it (walks, lunges, dodges, knockbacks)
+
+    def _update(self, t: float, dt: float, g) -> None:
         if self.mode == "grounded":
             gn = math.hypot(*g) or 1.0
             support = -v_dot((g[0] / gn, g[1] / gn), self.frame.normal)
@@ -783,6 +791,17 @@ class CharacterController(InteractionMixin, CombatMixin, AcroMixin):
         self.world.set_kinematic(self.cid, self.frame.to_world(s, h), self.frame.body_angle + a)
         name, perf = landing_clip(L["approach"])
         min_t = max(0.45, get_clip(name).length(perf) - 0.02)  # the landing performance plays out in full
+        nxt = self.queue[0] if self.queue else None
+        if nxt is not None and nxt.type in COMBAT and tau > 0.2 and abs(h - self.stand_h) < 12.0 and abs(a) < 0.1:
+            # a fighter lands into the fighting stance: no relief beat, the next combat action takes over the absorption
+            self.mode = "grounded"
+            self.h = self.stand_h - 10.0
+            self.fight_mode = True
+            self.emit(Event(t, "recovered", self.cid, {"surface": self.frame.tag, "into": nxt.type}))
+            self._open("idle", t, fight=True)
+            self.cur = None
+            self._place(t)
+            return
         if tau > min_t and abs(h - self.stand_h) < 1.5 and abs(hv) < 15 and abs(a) < 0.02 and abs(av) < 0.15:
             self.mode = "grounded"
             self.h = self.stand_h

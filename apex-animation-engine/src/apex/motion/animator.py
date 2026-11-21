@@ -384,6 +384,8 @@ class Animator(InteractionAnimMixin, CombatAnimMixin, AcroAnimMixin):
                 elif seg.kind in ("getup", "crawl", "prone", "supine"):  # blending between lying poses: feet stay above the floor
                     self._ground_clamp(pose, self.frames[seg.frame])
         self._overlap(pose, t)
+        if pose.state in ("ragdoll", "getup", "prone", "supine", "crawl", "fall"):
+            self._limbs_above_floor(pose, self.frames[seg.frame])
         self._hold_carried(pose, t)
         self._hands_in_room(pose)
         return pose
@@ -777,8 +779,8 @@ class Animator(InteractionAnimMixin, CombatAnimMixin, AcroAnimMixin):
             L["shin_f"] = -lerp(0.4, 1.6, tuck) - 0.15 * b
             pose.eye = 1.15
             if seg.data.get("flip"):  # somersault: a tight tuck through the rotation, opening out to land
-                T = seg.data.get("T", 0.8)
-                wf = smoothstep(0.04 * T, 0.2 * T, tau) * (1 - smoothstep(0.6 * T, 0.8 * T, tau))
+                from .acrobatics import flip_tuck
+                wf = flip_tuck(tau, seg.data.get("T", 0.8))  # the same tuck the physics spins with
                 set_lean(L, lerp(0.1, 0.85, wf), chest=0.25 * wf, head=lerp(-0.2, 0.6, wf))
                 self._tuck(L, max(wf, 0.25 * tuck))
                 set_arm(L, "n", lerp(2.4, 1.2, wf) - 1.0 * b, 0.4)

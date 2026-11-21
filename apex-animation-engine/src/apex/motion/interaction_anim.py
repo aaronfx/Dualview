@@ -263,6 +263,21 @@ class InteractionAnimMixin:
         pose.eye = 0.9
         return pose
 
+    def _limbs_above_floor(self, pose: Pose, F) -> None:
+        """A body on the floor: no hand, elbow or knee may sink into the surface. A hand below it is placed on it
+        (elbow kept above), and knees are lifted by re-solving the legs."""
+        j = self.rig.world_joints(pose)
+        for side in "nf":
+            hs, hh = F.to_frame(j[f"hand_{side}"])
+            es, eh = F.to_frame(j[f"elbow_{side}"])
+            if hh < 1.0 or eh < 1.0:
+                self._arm_floor_safe(pose, side, F.to_world(hs, 2.0), F)
+                pose.hands[side] = "open"
+        j = self.rig.world_joints(pose)
+        if min(F.to_frame(j["knee_n"])[1], F.to_frame(j["knee_f"])[1]) < 1.0:
+            # knees (and toes) never under the floor: lift the pelvis and re-solve the legs toward the same ankles
+            self._knees_above_floor(pose, F, max_raise=40.0)
+
     def _knees_above_floor(self, pose: Pose, F, max_raise: float = 1e9) -> None:
         """Joint-level collision for kneeling: knees may rest on the floor, never sink into it. Raise the pelvis by the
         deficit and re-solve the legs toward the same ankle positions."""

@@ -309,7 +309,7 @@ DEFAULT_BINDINGS = {
     # acrobatics and symbols
     "flip": "whoosh", "roll_start": "slide", "roll_end": None, "vault": "tap", "vault_start": None, "ledge_grab": "clank",
     "climb_start": None, "climbed": "footstep", "step_off": None, "wall_run": None, "wall_contact": "footstep", "wall_kick": "whoosh",
-    "throw_start": None, "throw": "whoosh", "prop_hit": "clang",
+    "throw_start": None, "throw": "whoosh", "prop_hit": "clang", "bump": "tap",
 }
 
 

@@ -90,6 +90,8 @@ Glyphs: `+ - x ÷ = < > ! ? π √ 0-9`. Aliases: `× − * /`. The strokes are 
 
 Each standable top is a support surface with ends. Walking past an end steps off it (`step_off`) and drops. A walk that runs into a structure is rejected with the structure's name. Use `vault`, `climb` or `jump_to … onto` instead.
 
+**Simulation guarantees.** Whatever moves a standing body (a walk, a strike's lunge, a dodge, a knockback, a landing slide, a roll), it stops at a structure's face (`bump` event), and moving past the end of a top steps off it. A landing whose next action is combat goes straight into the fighting stance. A roll evades head and body strikes, and an airborne body is never hit. Flips conserve angular momentum, so a landing earlier or later than planned lands under- or over-rotated. A thrown prop's impact is an impulse exchange; the `hit`/`blocked` event records `impulse`, `normal`, `prop_mass`, `body_mass`, `v_before` and `v_after`.
+
 **Symbols as props.** `PropSpec.kind: "glyph"` (with `glyph`, `size`, `weight`, `mass`, `color`) is a dynamic compound body built from the glyph's strokes. It can be pushed, picked up, carried, swung and thrown.
 
 | Action | Fields | What the simulation does | Events |

@@ -211,6 +211,8 @@ class CombatMixin:
             outcome = "whiff"
         elif dodge and dodge["kind"] == "duck" and part == "head" and dodge["t0"] <= t <= dodge["t1"]:
             outcome = "whiff"
+        elif oc.cur is not None and oc.cur.type == "roll" and part != "legs" and oc.h < 0.6 * oc.stand_h:
+            outcome = "whiff"  # rolled under it
         elif (oc.cur is not None and oc.cur.type == "guard" and oc.facing == -direction and part != "legs"):
             outcome = "blocked"
         else:

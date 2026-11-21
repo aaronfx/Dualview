@@ -31,6 +31,24 @@ PICK_T, THROW_T, THROW_RELEASE = 0.7, 0.62, 0.3
 WALL_T = (0.24, 0.42, 0.52)  # first foot on the wall, second foot, push-off
 
 
+BODY_MASS_HIT, BODY_MASS_GUARD = 35.0, 70.0  # kg of body that takes a thrown prop: the struck part, or the braced body
+RESTITUTION = 0.35  # a hard glyph on a body
+IMPULSE_REF = 4200.0  # impulse (kg u/s) that counts as power 1.0 (about a heavy punch)
+TUCK_INERTIA = 0.4  # a tight tuck has about 0.4 of the open body's moment of inertia about the centre of mass
+
+
+def flip_tuck(tau: float, T: float) -> float:
+    """How tucked a somersaulting body is (0 open .. 1 tight) at time tau of a flight lasting T."""
+    def ss(a, b, x):
+        u = clamp((x - a) / (b - a), 0.0, 1.0)
+        return u * u * (3 - 2 * u)
+    return ss(0.04 * T, 0.2 * T, tau) * (1.0 - ss(0.6 * T, 0.8 * T, tau))
+
+
+def flip_inertia(tuck: float) -> float:
+    return 1.0 - (1.0 - TUCK_INERTIA) * tuck
+
+
 def keys_at(keys: Sequence[Tuple[float, Any]], u: float):
     """Smoothly interpolated key values (numbers or tuples) at u."""
     for (u0, v0), (u1, v1) in zip(keys, keys[1:]):
@@ -101,9 +119,37 @@ class AcroMixin:
         self.violation = self.violation or msg
         return a.model_copy(update={"target_x": face - d * 14.0})
 
+    def _enforce_solid(self, t: float, s_prev: float) -> None:
+        """Simulation-time guard: whatever moved the body this step (a walk, a strike's lunge, a dodge, a knockback, a
+        landing slide, a roll), it stops at a structure's face instead of passing through it."""
+        if self.cur is not None and self.cur.type in ("vault", "climb", "wall_kick"):
+            return  # keyed moves that go over / up a structure by design
+        if abs(self.s - s_prev) < 1e-9 or not self._upright():
+            return
+        top = 30.0 if self.lying else max(0.4 * self.stand_h, self.h + 0.72 * self.stand_h)
+        hit = self._path_blocker(s_prev, self.s, top=top)
+        if hit is None:
+            return
+        face, b = hit
+        d = 1.0 if self.s > s_prev else -1.0
+        stop = face - d * 10.0  # the body's half thickness
+        if (self.s - stop) * d <= 0:
+            return
+        self.s, self.v = stop, 0.0
+        last = getattr(self, "_bump_t", -1.0)
+        if t - last > 0.4:
+            from .controller import Event
+            self.emit(Event(t, "bump", self.cid, {"structure": b.owner, "point": self.frame.to_world(face, self.h)}))
+        self._bump_t = t
+        if self.mode == "landing":
+            self.land["s0"], self.land["vt"] = stop, 0.0
+        tan = self.frame.tangent
+        self.world.set_kinematic(self.cid, self.frame.to_world(self.s, self.h), self.world.state(self.cid).angle)
+
     def _edge_check(self, t: float) -> bool:
         F = self.frame
-        if not F.bounded or self.mode != "grounded" or self.posture != "stand" or (self.cur is not None and self.cur.type in ("climb",)):
+        if not F.bounded or self.mode != "grounded" or self.posture != "stand" or \
+                (self.cur is not None and self.cur.type in ("climb", "vault", "wall_kick")):
             return False
         if F.lo - 3.0 <= self.s <= F.hi + 3.0:
             return False
@@ -387,18 +433,27 @@ class AcroMixin:
             self.emit(Event(t, "flip", self.cid, {"dir": flip}))
 
     def _flip_control(self, t: float) -> None:
-        """Rotate the airborne body along a planned somersault that completes at 80% of the flight."""
+        """A somersault by conservation of angular momentum. At takeoff the legs give the body an angular momentum L
+        chosen so that, with the tuck the body will make (shared with the animation, `flip_tuck`), the rotation adds up
+        to one full turn by the planned touchdown. In the air L is conserved: the spin rate is L / I(tuck), so it
+        speeds up in the tuck and slows as the body opens out to land. Nothing steers the angle. A contact that
+        changes the spin (a graze) changes L, and a landing earlier or later than planned lands under- or
+        over-rotated."""
         A = self.air
         st = self.world.state(self.cid)
         T = A["T"]
-        span = max(0.12, 0.8 * T - 0.04)
-        u = clamp((t - A["t0"] - 0.04) / span, 0.0, 1.0)
-        prof = u * u * u * (u * (6 * u - 15) + 10)
-        dprof = 30 * u * u * (u - 1) ** 2 / span if 0 < u < 1 else 0.0
-        plan = A["ang0"] + A["sgn"] * 2 * math.pi * prof
-        w = 14.0 * (plan - st.angle) + A["sgn"] * 2 * math.pi * dprof
-        self.world.set_angular_velocity(self.cid, clamp(w, -32.0, 32.0))
-        A["flip_u"] = u
+        tau = t - A["t0"]
+        if "L" not in A:
+            n = 240
+            integ = sum(1.0 / flip_inertia(flip_tuck((k + 0.5) * T / n, T)) for k in range(n)) * T / n
+            A["L"] = A["sgn"] * 2 * math.pi / integ  # in units of the open body's moment of inertia
+            A["w_set"] = st.angvel
+        elif abs(st.angvel - A["w_set"]) > 0.5:  # something (a contact) changed the spin: the momentum changes with it
+            A["L"] = st.angvel * flip_inertia(flip_tuck(max(0.0, tau - 1.0 / 240), T))
+        w = A["L"] / flip_inertia(flip_tuck(tau, T))
+        self.world.set_angular_velocity(self.cid, w)
+        A["w_set"] = w
+        A["flip_u"] = clamp(tau / T, 0.0, 1.0)
 
     # ------------------------------------------------------------ pick up, carry, throw
     def _start_pick_up(self, t: float, a: ActionSpec) -> None:
@@ -555,12 +610,34 @@ class AcroMixin:
                 continue
             T["done"].add(cid)
             point = best[1]
-            direction = 1.0 if st.vel[0] >= 0 else -1.0
+            # contact normal: from the nearest point of the body axis toward the prop's contact point
+            axis_pt = _seg_dist(point, point, ends[0], ends[1])[1]
+            nx, ny = point[0] - axis_pt[0], point[1] - axis_pt[1]
+            nn = math.hypot(nx, ny)
+            if nn < 1e-6:
+                nx, ny, nn = -st.vel[0], -st.vel[1], max(1e-6, speed)
+            n = (nx / nn, ny / nn)
+            vrel = (st.vel[0] - cs.vel[0], st.vel[1] - cs.vel[1])
+            vn = vrel[0] * n[0] + vrel[1] * n[1]
+            if vn >= 0.0:  # already separating
+                T["done"].discard(cid)
+                continue
             fy = oc.frame.to_frame(point)[1]
             part = "head" if fy > oc.h + oc.shoulder_up - 4 else "body" if fy > 0.45 * oc.stand_h else "legs"
-            eff = clamp(sp.mass * speed / 5200.0 * T["power"] * (self.strength / 45000.0), 0.2, 1.9)
-            data = {"move": "throw", "target": cid, "part": part, "point": point, "dir": direction, "power": round(eff, 3), "prop": pid}
+            direction = 1.0 if st.vel[0] >= 0 else -1.0
             guarded = oc.cur is not None and oc.cur.type == "guard" and oc.facing == -direction and part != "legs"
+            # an impulse exchange along the normal: the prop against the part of the body that takes the blow (a braced
+            # guard couples more of the body), with a restitution of a hard symbol on a body
+            m_p, m_b, e = sp.mass, (BODY_MASS_GUARD if guarded else BODY_MASS_HIT), RESTITUTION
+            J = -(1.0 + e) * vn * m_p * m_b / (m_p + m_b)
+            v_before = st.vel
+            self.world.apply_impulse_at(pid, (n[0] * J, n[1] * J), point)
+            v_after = self.world.state(pid).vel
+            eff = clamp(J / IMPULSE_REF, 0.15, 1.9)  # the blow is what the impulse was (power already set the throw speed)
+            data = {"move": "throw", "target": cid, "part": part, "point": point, "dir": direction, "power": round(eff, 3), "prop": pid,
+                    "impulse": round(J, 1), "normal": (round(n[0], 4), round(n[1], 4)), "prop_mass": m_p, "body_mass": m_b,
+                    "v_before": (round(v_before[0], 1), round(v_before[1], 1)), "v_after": (round(v_after[0], 1), round(v_after[1], 1)),
+                    "body_dv": round(J / m_b, 1)}
             if guarded:
                 self.emit(Event(t, "blocked", self.cid, data))
                 oc._receive(t, self.cid, "throw", "block", eff, direction, part, point)
@@ -568,8 +645,7 @@ class AcroMixin:
                 reaction = "flinch" if eff < 0.7 else "stagger" if eff < 1.1 else "knockdown"
                 data["reaction"] = reaction
                 self.emit(Event(t, "hit", self.cid, data))
-                oc._receive(t, self.cid, "throw", reaction, eff, direction, part, point, (1.0, 0.2))
-            self.emit(Event(t, "prop_hit", pid, {"prop": pid, "target": cid, "point": point, "normal_speed": speed, "blocked": guarded}))
-            # the prop glances off the body
-            self.world.set_dynamic(pid, (-st.vel[0] * 0.22, abs(st.vel[1]) * 0.2 + 160.0), st.angvel * -0.6, *self.world._mass_moment[pid])
+                oc._receive(t, self.cid, "throw", reaction, eff, direction, part, point, (-n[0] * direction, max(0.1, -n[1])))
+            self.emit(Event(t, "prop_hit", pid, {"prop": pid, "target": cid, "point": point, "normal_speed": -vn, "blocked": guarded,
+                                                 "impulse": round(J, 1)}))
             break

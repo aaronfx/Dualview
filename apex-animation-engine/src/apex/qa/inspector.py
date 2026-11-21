@@ -17,7 +17,7 @@ from ..scene.targets import in_portal, switch_world
 
 # Each tolerance below is named so failures can be traced back to an explicit, documented threshold.
 TOL = {
-    "structure_depth": 6.0, "top_overhang": 10.0, "flip_land": 0.45,
+    "structure_depth": 6.0, "top_overhang": 10.0, "flip_land": 0.45, "throw_momentum": 0.25,
     "bone_ratio_min": 0.86, "bone_ratio_max": 1.13,  # allows authored squash/stretch and IK stretch (<=8%) only
     "foot_slide": 1.5,  # world units a planted ankle may drift
     "joint_speed": 3200.0,  # units/s; above this a joint "teleports" (fastest authored motion ~1500)
@@ -591,9 +591,13 @@ class Inspector:
                          f"fist/foot distance from the struck body point at contact ({len(hits)} contacts; worst: {where})"))
         cids = list(self.joints)
         worst_gap, where = 1e9, ""
+        rolls = 0
         for a in range(len(cids)):
             for b in range(a + 1, len(cids)):
                 for i, t in enumerate(self.times):
+                    if any(self.r.animators[c].segments[self.r.animators[c].segment_at(t)].kind == "roll" for c in (cids[a], cids[b])):
+                        rolls += 1
+                        continue  # a roll passes under / past the other fighter by design
                     ja, jb = self.joints[cids[a]][i], self.joints[cids[b]][i]
                     if ja["head_center"][1] < 0.6 * self.rt.rigs[cids[a]].p.stand_height or jb["head_center"][1] < 0.6 * self.rt.rigs[cids[b]].p.stand_height:
                         continue  # someone is down / crouched low: overlapping in depth is fine
@@ -602,7 +606,7 @@ class Inspector:
                         worst_gap, where = gap, f"{cids[a]}/{cids[b]} at t={t:.2f}s"
         if worst_gap < 1e9:
             out.append(Check("fighters_do_not_overlap", "PASS" if worst_gap >= TOL["fighter_gap"] else "FAIL", worst_gap, TOL["fighter_gap"],
-                             f"minimum pelvis distance between standing characters ({where})"))
+                             f"minimum pelvis distance between standing characters ({where}; {rolls} frames inside a roll not counted)"))
         kd = [e for e in ev if e.type == "knockdown"]
         settled = [e for e in ev if e.type == "settled"]
         ok = all(any(s.character == k.character and s.t > k.t for s in settled) for k in kd)
@@ -670,6 +674,29 @@ class Inspector:
         if any(f.bounded for f in self.r.frames.values()):
             out.append(Check("feet_on_tops", "PASS" if worst <= TOL["top_overhang"] else "FAIL", worst, TOL["top_overhang"],
                              f"how far a planted foot is past the end of the top it stands on ({where or 'none'})"))
+        throws = [e for e in ev if e.type in ("hit", "blocked") and e.data.get("move") == "throw" and "impulse" in e.data]
+        if throws:
+            import numpy as np
+            worst, where = 0.0, ""
+            ts = self.r.prop_times
+            for e in throws:
+                tr = self.r.prop_tracks[e.data["prop"]]
+                i = int(np.searchsorted(ts, e.t))
+                if i < 3 or i + 3 >= len(ts):
+                    continue
+                g = self.r.gravity.at(e.t)
+                v0 = (tr[i - 1] - tr[i - 3]) / (ts[i - 1] - ts[i - 3])
+                v1 = (tr[i + 3] - tr[i + 1]) / (ts[i + 3] - ts[i + 1])
+                span = (ts[i + 2] - ts[i - 2])
+                n = e.data["normal"]
+                dv = (v1[0] - v0[0] - g[0] * span) * n[0] + (v1[1] - v0[1] - g[1] * span) * n[1]
+                expect = e.data["impulse"] / e.data["prop_mass"]
+                err = abs(dv - expect) / max(1.0, expect)
+                if err > worst:
+                    worst, where = err, f"{e.data['prop']} at t={e.t:.2f}s (measured {dv:.0f}, impulse/mass {expect:.0f} u/s)"
+            out.append(Check("throw_momentum", "PASS" if worst <= TOL["throw_momentum"] else "FAIL", worst, TOL["throw_momentum"],
+                             f"prop velocity change along the contact normal vs impulse / mass, from the tracked motion ({len(throws)} impacts; "
+                             f"worst {where})"))
         flips = [e for e in ev if e.type == "flip"]
         if flips:
             worst, where = 0.0, ""
