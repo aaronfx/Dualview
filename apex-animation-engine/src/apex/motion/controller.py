@@ -18,6 +18,7 @@ from ..rig.stickman import StickmanRig
 from ..scene.schema import ActionSpec, EnvironmentSpec
 from ..scene.targets import bar_world, exit_world, resolve, switch_world
 from .frames import GroundFrame
+from .combat import COMBAT, CombatMixin
 from .interaction import INTERACTIONS, LIE_H, InteractionMixin
 from .library import get_clip, landing_clip
 
@@ -77,7 +78,7 @@ class StepRecord:
     ttc: float = -1.0
 
 
-class CharacterController(InteractionMixin):
+class CharacterController(InteractionMixin, CombatMixin):
     def __init__(self, cid: str, rig: StickmanRig, world: PhysicsWorld, frames: Dict[str, GroundFrame], gravity: GravityField,
                  env: EnvironmentSpec, x: float, facing: int, actions: List[ActionSpec], emit: Callable[[Event], None],
                  doors: Optional[Dict[str, Dict[str, Any]]] = None):
@@ -123,6 +124,11 @@ class CharacterController(InteractionMixin):
         self.free_t: Optional[float] = None
         self.unpinned_t: Optional[float] = None
         self.carrying: Optional[str] = None
+        # combat state (see combat.py)
+        self.fight_mode = False
+        self.dodging: Optional[Dict[str, Any]] = None
+        self.knocked = False
+        self.ragdoll = None
         world.add_capsule(cid, self.frame.to_world(self.s, self.h), self.cap_a, self.cap_b, CAPSULE_R, MASS, kinematic=True)
         self._open("idle", 0.0)
 
@@ -162,6 +168,7 @@ class CharacterController(InteractionMixin):
             self._swing(t, dt, g)
         elif self.mode == "falling":
             self._falling(t, dt)
+        # "ragdoll": the bodies are stepped by the physics world; see after_step
 
     def after_step(self, t: float, contacts: List[ContactEvent]) -> None:
         if self.mode == "airborne":
@@ -174,6 +181,8 @@ class CharacterController(InteractionMixin):
                         self._touch_down(t, c)
                         break
                     self.emit(Event(t, "graze", self.cid, {"surface": c.b, "normal_speed": c.normal_speed, "point": c.point}))
+        if self.mode == "ragdoll":
+            self._ragdoll_after_step(t, contacts)
         if self.posture == "prone":
             self._check_pinned(t)
         st = self.world.state(self.cid)
@@ -205,12 +214,21 @@ class CharacterController(InteractionMixin):
         self.cur_dir = None
         a = self.cur
         if a is None:
-            if self.posture == "prone":
-                if self.seg.kind not in ("prone",):
-                    self._open("prone", t)
+            if self.lying:
+                if self.seg.kind != self.posture:
+                    self._open(self.posture, t, rest=True)
             elif self.seg.kind != "idle":
-                self._open("idle", t)
+                self._open("idle", t, fight=self.fight_mode)
             return
+        if self.lying and self.knocked and a.type not in ("get_up", "wait_for", "look_at", "notice", "idle", "struggle", "crawl_out"):
+            # knocked down: get up before anything that needs standing
+            self.queue.appendleft(a)
+            a = self.cur = ActionSpec(type="get_up", character=self.cid)
+        if a.type in COMBAT:
+            self._start_combat(t, a)
+            return
+        if a.type in ("gesture", "offer_hand"):
+            self.fight_mode = False
         if a.type in ("walk_to", "run_to") and a.target_x is None:  # walk to a character / prop
             ts = self._target_s(a.target)
             d0 = 1.0 if ts >= self.s else -1.0
@@ -224,9 +242,9 @@ class CharacterController(InteractionMixin):
                 self.inter_action = a
             self._start_or_resume(t, a)
             return
-        if self.posture == "prone":  # looking / waiting while lying down
+        if self.lying:  # looking / waiting while lying down
             dyn = a.target if a.target and a.target.split(":", 1)[0] in ("prop", "char") else None
-            self._open("prone", t, gaze_ref=dyn, gaze=None if dyn or not a.target else resolve(self.env, a.target),
+            self._open(self.posture, t, gaze_ref=dyn, gaze=None if dyn or not a.target else resolve(self.env, a.target),
                        gaze_mode=a.type, rest=True)
             return
         if a.type in ("walk_to", "run_to"):
@@ -245,7 +263,7 @@ class CharacterController(InteractionMixin):
         dyn = a.target if a.target and a.target.split(":", 1)[0] in ("prop", "char") else None
         gaze = None if dyn or not a.target else resolve(self.env, a.target)
         if a.type in ("idle", "look_around", "wait_grounded"):
-            self._open("idle", t, look=(a.type == "look_around"))
+            self._open("idle", t, look=(a.type == "look_around"), fight=self.fight_mode and a.type == "idle")
         elif a.type in ("look_at", "notice"):
             self._open("idle", t, gaze=gaze, gaze_mode=a.type, gaze_target=a.target, gaze_ref=dyn)
             if a.type == "notice":
@@ -329,6 +347,12 @@ class CharacterController(InteractionMixin):
                 self._next_action(t)
         elif a.type in ("walk_to", "run_to"):
             self._locomote(t, dt, a)
+        elif a.type in COMBAT:
+            self._tick_combat(t, dt, a)
+            if self.cur is not a:
+                if self.mode == "grounded":
+                    self._place(t)
+                return
         elif a.type in INTERACTIONS:
             self._tick_interaction(t, dt, a)
             if self.cur is not a:  # the interaction finished or handed over (placement already done)

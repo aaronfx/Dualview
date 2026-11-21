@@ -81,9 +81,10 @@ class InteractionMixin:
     def _event_seen(self, spec: Optional[str], t: float) -> bool:
         if not spec:
             return False
-        body = spec.split(":", 1)[1]
+        kind, _, body = spec.partition(":")
         etype, _, who = body.partition("@")
-        return any(e.type == etype and e.t <= t + 1e-9 and (not who or e.character == who) for e in self.all_events)
+        t_from = self.cur_t0 - 1e-9 if kind == "next" else -1e9  # next: only events after the action started
+        return any(e.type == etype and t_from <= e.t <= t + 1e-9 and (not who or e.character == who) for e in self.all_events)
 
     def _target_s(self, ref: str) -> float:
         kind, _, ref_id = ref.partition(":")
@@ -143,9 +144,9 @@ class InteractionMixin:
         self.inter = {"t0": t}
         I = self.inter
         bad = None
-        if self.posture == "prone" and a.type not in ("struggle", "crawl_out", "get_up", "wait_for"):
+        if self.lying and a.type not in ("struggle", "crawl_out", "get_up", "wait_for"):
             bad = f"{self.cid}: action '{a.type}' is not possible while lying down (use crawl_out / get_up first)"
-        if self.posture != "prone" and a.type in ("struggle", "crawl_out", "get_up"):
+        if (not self.lying and a.type in ("struggle", "crawl_out", "get_up")) or (self.posture == "supine" and a.type in ("struggle", "crawl_out")):
             bad = (f"{self.cid}: action '{a.type}' needs the character to be lying down at t={t:.2f}s, but it is "
                    f"standing (nothing has knocked it down by then)")
         if bad:
@@ -154,11 +155,11 @@ class InteractionMixin:
             # non-strict (setup solver): the character stops here and the run is scored on what happened so far
             self.violation = bad
             I.update(phase="blocked")
-            self._open("prone" if self.posture == "prone" else "idle", t, waiting=True)
+            self._open(self.posture if self.lying else "idle", t, waiting=True)
             self.emit(self._ev(t, "action_impossible", {"action": a.type, "reason": bad}))
             return
         if a.type == "wait_for":
-            self._open("prone" if self.posture == "prone" else "idle", t, waiting=True)
+            self._open(self.posture if self.lying else "idle", t, waiting=True)
         elif a.type == "struggle":
             self._open("prone", t, struggle=True, gaze_prop=self.pinned_by)
         elif a.type == "push":
@@ -194,8 +195,10 @@ class InteractionMixin:
             I.update(phase="wait", prop=self.pinned_by)
         elif a.type == "get_up":
             helper = self._pid(a.target) if a.target else None
+            if self.posture == "supine":
+                helper = None  # getting up from the back is unassisted
             I.update(phase="up", helper=helper, s0=self.s)
-            self._open("getup", t, helper=helper, assisted=helper is not None)
+            self._open("getup", t, helper=helper, assisted=helper is not None, back=self.posture == "supine", s0=self.s)
             self.emit(self._ev(t, "get_up_start", {"helper": helper}))
         elif a.type == "offer_hand":
             other = self._pid(a.target)
@@ -405,6 +408,8 @@ class InteractionMixin:
 
     # -- getting up (prone -> push-up -> kneel -> stand), optionally pulled up by a helper's hand
     def _getup_tick(self, t: float, dt: float, a: ActionSpec) -> None:
+        if self.posture == "supine":
+            return self._getup_back_tick(t, dt, a)
         I = self.inter
         tau = t - self.cur_t0
         helper = I["helper"]
@@ -450,6 +455,7 @@ class InteractionMixin:
         if u >= 1.0:
             self.posture, self.body_tilt, self.h = "stand", 0.0, self.stand_h
             self.world.set_solid_to_props(self.cid, False)
+            self.knocked = False
             self.inter["phase"] = "done"
             self.emit(self._ev(t, "stood_up", {"helper": helper}))
             self._next_action(t)

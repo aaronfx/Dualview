@@ -19,7 +19,8 @@ from ..scene.schema import CharacterStyle
 from .controller import NOTICE_DOUBLE_TAKE, PRESS_CONTACT_T, PRESS_H_CONTACT_T, SLIDE_DROP, TURN_DURATION, Event, Segment, StepRecord
 from .frames import GroundFrame
 from .gait import Gait, GaitParams
-from .interaction_anim import LYING, STANCE, InteractionAnimMixin
+from .combat_anim import FIGHT_STANCE, CombatAnimMixin
+from .interaction_anim import LYING, MOVING_STANCE, STANCE, InteractionAnimMixin
 from .library import NEUTRAL, MotionClip, Performance, get_clip, landing_clip
 
 
@@ -32,7 +33,8 @@ KNEE_CLEARANCE = 2.0  # knee may rest on a surface (kneeling) but not pass throu
 
 BLEND_IN = {"airborne": 0.16, "landing": 0.12, "loco": 0.18, "idle": 0.2, "press": 0.18, "turn": 0.06, "point": 0.12,
             "slide": 0.1, "crouch": 0.14, "swing": 0.08, "push": 0.28, "fall": 0.06, "prone": 0.22, "crawl": 0.2, "getup": 0.12,
-            "lift": 0.25, "lever": 0.22, "offer": 0.25, "gesture": 0.2}
+            "lift": 0.25, "lever": 0.22, "offer": 0.25, "gesture": 0.2,
+            "strike": 0.07, "guard": 0.14, "dodge": 0.06, "hurt": 0.03, "ragdoll": 0.06, "supine": 0.3}
 
 # press action: hand target offsets relative to the button (ds toward the character, dh above), IK weight, body
 PRESS = {
@@ -98,7 +100,7 @@ class PlantedInterval:
     reason: str
 
 
-class Animator(InteractionAnimMixin):
+class Animator(InteractionAnimMixin, CombatAnimMixin):
     def __init__(self, cid: str, rig: StickmanRig, style: CharacterStyle, segments: List[Segment], records: List[StepRecord],
                  frames: Dict[str, GroundFrame], events: List[Event]):
         self.cid, self.rig, self.style = cid, rig, style
@@ -187,16 +189,21 @@ class Animator(InteractionAnimMixin):
                 seg.data["plants"] = plants
             else:
                 seg.data["plants"] = plants
-                if seg.kind == "idle" and not seg.data.get("settle"):
+                if seg.kind == "idle" and seg.data.get("fight"):
+                    plants = self._settle(seg, F, plants, FIGHT_STANCE)
+                elif seg.kind == "idle" and not seg.data.get("settle"):
                     plants = self._settle(seg, F, plants)
+                elif seg.kind in MOVING_STANCE:  # back-steps / staggers: the feet follow the pelvis to where it ends up
+                    plants = self._settle(seg, F, plants, STANCE[seg.kind], at=max(seg.t0, seg.t1 - 0.02), step=0.2)
                 elif seg.kind in STANCE:  # step into a working stance (push / lift / lever / offer / gesture)
                     plants = self._settle(seg, F, plants, STANCE[seg.kind])
 
     def _settle(self, seg: Segment, F: GroundFrame, plants: Tuple[float, float],
-                stance: Tuple[float, float] = (9.0, -9.0)) -> Tuple[float, float]:
+                stance: Tuple[float, float] = (9.0, -9.0), at: Optional[float] = None, step: float = 0.26) -> Tuple[float, float]:
         """After stopping, step any foot that ended far from the pelvis back under the body (balance correction), or
-        into a working stance (e.g. the long rear leg of a push)."""
-        s = self._rec(self.S, seg.t0, seg)
+        into a working stance (e.g. the long rear leg of a push). `at`: settle around where the pelvis is at that time
+        (a back-step or a stagger moves the pelvis during the segment)."""
+        s = self._rec(self.S, seg.t0 if at is None else at, seg)
         f = seg.facing
         u = (self.p.thigh + self.p.shin) / 86.0
         want = (s + stance[0] * u * f, s + stance[1] * u * f)
@@ -205,9 +212,9 @@ class Animator(InteractionAnimMixin):
         cur = list(plants)
         for k in order:
             if abs(cur[k] - want[k]) > 14.0:
-                steps.append((k, t, t + 0.26, cur[k], want[k]))
+                steps.append((k, t, t + step, cur[k], want[k]))
                 cur[k] = want[k]
-                t += 0.2
+                t += 0.77 * step
         seg.data["settle_steps"] = steps
         seg.data["plants_final"] = tuple(cur)
         return tuple(cur)
@@ -369,7 +376,7 @@ class Animator(InteractionAnimMixin):
                 elif seg.kind not in ("airborne",) + LYING and self.segments[i - 1].kind not in LYING:
                     # blended legs may not dip through the support surface
                     self._ground_clamp(pose, self.frames[seg.frame])
-                elif seg.kind in ("getup", "crawl", "prone"):  # blending between lying poses: feet stay above the floor
+                elif seg.kind in ("getup", "crawl", "prone", "supine"):  # blending between lying poses: feet stay above the floor
                     self._ground_clamp(pose, self.frames[seg.frame])
         self._overlap(pose, t)
         self._hands_in_room(pose)
@@ -446,6 +453,8 @@ class Animator(InteractionAnimMixin):
 
     # -- idle (with optional look-around)
     def _eval_idle(self, seg: Segment, t: float) -> Pose:
+        if seg.data.get("fight"):  # between combat moves: the fighting stance
+            return self._eval_guard(seg, t)
         pose, F = self._base(seg, t)
         tau = t - seg.t0
         s = self._rec(self.S, t, seg)
@@ -834,6 +843,8 @@ class Animator(InteractionAnimMixin):
                 a = seg.t0 + bl
                 if seg.t1 - a > 0.05:
                     for k, side in enumerate("nf"):
+                        if seg.kind == "strike" and seg.data.get("limb", "").endswith("_" + side) and seg.data["limb"].startswith("foot"):
+                            continue  # the kicking foot leaves the floor
                         steps = [st for st in seg.data.get("settle_steps", []) if st[0] == k]
                         if steps:  # planted before the corrective step (if any time remains) and after it
                             st = steps[0]

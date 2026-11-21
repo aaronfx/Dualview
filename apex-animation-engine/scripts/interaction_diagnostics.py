@@ -24,7 +24,9 @@ from apex.scene.schema import ProjectSpec
 
 STATE_COL = {"idle": (90, 100, 115), "loco": (80, 160, 220), "push": (255, 150, 60), "fall": (255, 70, 70), "prone": (200, 80, 80),
              "crawl": (255, 120, 120), "getup": (250, 200, 90), "lift": (255, 205, 60), "lever": (120, 230, 140), "offer": (150, 220, 255),
-             "gesture": (220, 150, 255), "turn": (130, 130, 150)}
+             "gesture": (220, 150, 255), "turn": (130, 130, 150),
+             "strike": (255, 90, 160), "guard": (110, 120, 200), "dodge": (90, 220, 220), "hurt": (255, 60, 60),
+             "ragdoll": (200, 40, 40), "supine": (180, 90, 90)}
 
 
 def collect(path: str):
@@ -51,6 +53,11 @@ def collect(path: str):
             elif seg.kind == "lift" and 0.5 < t - seg.t0 < seg.data.get("dur", 2.4) - 0.45:  # while gripping
                 g = an._prop_world(seg.data["prop"], float(t), seg.data["grip_local"])
                 err = min(math.dist(j["wrist_n"], g), math.dist(j["wrist_f"], g), math.dist(j["hand_n"], g))
+            elif seg.kind == "strike" and abs(float(t) - (seg.t0 + seg.data["t_c"])) <= 0.05:  # around contact
+                limb = seg.data["limb"]
+                joint = ("hand_" if limb.startswith("hand") else "ankle_") + limb[-1]
+                tp = an._target_point(seg.data["other"], float(t), seg.data["height"], seg.facing)
+                err = math.dist(j[joint], tp)
             elif seg.kind == "lever" and seg.data.get("phase") in ("press", "hold"):
                 g, _ = an._bar_grips(seg.data["bar"], float(t), "handle")
                 err = max(0.0, min(math.dist(j["hand_n"], g), math.dist(j["wrist_n"], g) - rig.p.hand))
@@ -129,7 +136,8 @@ def chart(d: dict, path: str) -> None:
         plot(ch["series"]["min_joint_height"], ts, top, 60, -5, 60, (255, 120, 120), f"{cid}: lowest joint height")
         top += 75
     for e in d["events"]:  # event ticks
-        if e["type"] in ("push_lost", "rope_snap", "pinned", "lift_fail", "lever_engage", "freed", "stood_up", "fist_bump"):
+        if e["type"] in ("push_lost", "rope_snap", "pinned", "lift_fail", "lever_engage", "freed", "stood_up", "fist_bump",
+                         "hit", "blocked", "whiff", "knockdown", "settled"):
             c.drawLine(X(e["t"]), y + 10, X(e["t"]), H - 10, skia.Paint(Color=skia.Color(255, 255, 255, 60)))
             c.drawString(e["type"], X(e["t"]) + 2, y + 14, small, skia.Paint(Color=skia.Color(255, 255, 255, 170)))
     surf.makeImageSnapshot().save(path, skia.kPNG)

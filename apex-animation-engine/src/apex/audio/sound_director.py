@@ -303,6 +303,9 @@ DEFAULT_BINDINGS = {
     "lever_release": "clang", "crawl_start": "slide", "hand_grab": "tap", "fist_bump": "tap", "shoulder_pat": "tap",
     "stood_up": "resolve", "pinned": None, "load_off": None, "freed": None, "get_up_start": None, "hand_offered": None,
     "push_end": None, "push_fail": None, "lift_ok": None, "wave": None,
+    # combat
+    "swing": "whoosh", "hit": "impact", "block_hit": "clang", "dodge": "whoosh", "strike_start": None, "hurt": None,
+    "blocked": None, "whiff": None, "evaded": None, "knockdown": None, "settled": None,
 }
 
 
@@ -343,6 +346,14 @@ class SoundDirector:
                     gain = 0.35 + 0.5 * clamp01(e.data.get("speed", 150) / 450)
                 elif e.type in ("impact", "prop_impact", "body_fall"):
                     gain = 0.4 + 0.6 * clamp01(e.data.get("normal_speed", 600) / 1200)
+                elif e.type == "hit":
+                    gain = 0.7 + 0.6 * clamp01(e.data.get("power", 1.0) / 1.6)
+                elif e.type == "swing":
+                    gain = 0.45
+                elif e.type == "dodge":
+                    gain = 0.3
+                elif e.type == "block_hit":
+                    gain = 0.8
                 cues.append(Cue(e.t, e.type, snd, gain))
         return cues
 

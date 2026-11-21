@@ -17,8 +17,11 @@ from .interaction import CRAWL_SPEED, GESTURE_CONTACT, LIE_H, PRESS_T
 
 STANCE = {  # (front foot, rear foot) as multiples of the leg-length unit, relative to the pelvis, along facing
     "push": (8.0, -36.0), "lift": (16.0, -20.0), "lever": (10.0, -26.0), "offer": (12.0, -16.0), "gesture": (9.0, -9.0),
+    # combat: a staggered fighting stance
+    "strike": (16.0, -18.0), "guard": (16.0, -18.0), "dodge": (16.0, -18.0), "hurt": (16.0, -18.0),
 }
-LYING = ("fall", "prone", "crawl", "getup")
+LYING = ("fall", "prone", "crawl", "getup", "ragdoll", "supine")
+MOVING_STANCE = ("dodge", "hurt")  # the feet step to follow the pelvis (back-steps, staggers)
 
 
 class InteractionAnimMixin:
@@ -201,6 +204,8 @@ class InteractionAnimMixin:
         return pose
 
     def _eval_getup(self, seg: Segment, t: float) -> Pose:
+        if seg.data.get("back"):
+            return self._eval_getup_back(seg, t)
         pose, F = self._lying_base(seg, t)
         f = pose.facing
         tilt = abs(math.atan2(math.sin(pose.body_angle - F.body_angle), math.cos(pose.body_angle - F.body_angle)))

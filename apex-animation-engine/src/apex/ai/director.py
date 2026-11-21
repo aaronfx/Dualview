@@ -39,11 +39,18 @@ ACTION_HELP = {
     "get_up": "while prone: get up; with target char: take that character's offered hand",
     "offer_hand": "walk to a lying/kneeling character (target char:) and offer a hand, pull them up",
     "gesture": "gesture with another character (target char:, gesture fist_bump|shoulder_pat|wave)",
-    "wait_for": "wait until an event happens (until 'event:<type>' or 'event:<type>@<character>')",
+    "wait_for": "wait until an event happens (until 'event:<type>[@<who>]' = has happened at any time; "
+                "'next:<type>[@<who>]' = the next one after this action starts)",
+    "strike": "attack another character (target char:, move jab|cross|hook|uppercut|front_kick|side_kick|roundhouse|sweep, "
+              "power 0.3-2, optional reaction flinch|stagger|knockdown); closes to range first; the simulation decides "
+              "hit / blocked (target guarding and facing) / whiff (out of reach, ducked); knockdowns are physics falls",
+    "guard": "fighting stance with fists up (duration or until); blocks head and body strikes from the front",
+    "dodge": "dodge = back (step out of reach) or duck (under head-height strikes)",
 }
 EVENT_TYPES = ("footstep turn notice point press_contact switch_activated gravity_shift lost_support impact recovered takeoff "
                "push_start push_lost rope_taut rope_snap body_fall pinned load_off lift_start lift_fail lift_ok pick_up lever_place "
-               "lever_engage lever_release crawl_start freed get_up_start hand_offered hand_grab stood_up fist_bump shoulder_pat prop_impact")
+               "lever_engage lever_release crawl_start freed get_up_start hand_offered hand_grab stood_up fist_bump shoulder_pat prop_impact "
+               "strike_start swing hit hurt blocked block_hit whiff evaded knockdown settled dodge")
 
 
 def system_prompt() -> str:

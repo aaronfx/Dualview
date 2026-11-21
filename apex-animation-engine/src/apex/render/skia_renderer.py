@@ -890,6 +890,60 @@ class SkiaRenderer:
                 return
             p = self.P(e["x"], e["y"], 0)
             self._glow(c, (p[0], p[1]), (e.get("r", 60) + e.get("grow", 120) * u) * p[2], e.get("rgb", (255, 230, 150)), e.get("a", 0.7) * (1 - u))
+        elif kind == "impact":  # a blow lands: spikes radiating from the contact, a hot core and a ring
+            u = age / e.get("life", 0.24)
+            if not 0 <= u <= 1:
+                return
+            p = self.P(e["x"], e["y"], 0)
+            st = e.get("strength", 1.0)
+            rng = np.random.default_rng(e.get("seed", 3))
+            grow = 1 - (1 - u) ** 3
+            fade = (1 - u) ** 1.5
+            n = 11
+            for i in range(n):
+                ang = 2 * math.pi * i / n + rng.uniform(-0.18, 0.18)
+                L = (rng.uniform(26, 54) if i % 2 else rng.uniform(52, 92)) * st
+                r0, r1 = 6 + 0.3 * L * grow, 8 + L * (0.35 + 0.65 * grow)
+                a3 = (p[0] + math.cos(ang) * r0 * p[2], p[1] - math.sin(ang) * r0 * p[2])
+                b3 = (p[0] + math.cos(ang) * r1 * p[2], p[1] - math.sin(ang) * r1 * p[2])
+                c.drawLine(a3[0], a3[1], b3[0], b3[1], skia.Paint(AntiAlias=True, Color=col((255, 250, 235), 0.95 * fade),
+                                                                 StrokeWidth=max(1.2, (4.5 if i % 2 == 0 else 2.6) * st * p[2] * (1 - u)),
+                                                                 StrokeCap=skia.Paint.kRound_Cap))
+            c.drawCircle(p[0], p[1], (10 + 34 * grow) * st * p[2], skia.Paint(AntiAlias=True, Color=col((255, 255, 255), 0.7 * fade),
+                                                                                Style=skia.Paint.kStroke_Style, StrokeWidth=max(1.0, 3.5 * st * (1 - u) * p[2])))
+            c.drawCircle(p[0], p[1], max(1.0, 9 * st * (1 - u) * p[2]), skia.Paint(AntiAlias=True, Color=col((255, 255, 255), fade)))
+        elif kind == "spark":  # blocked: bright sparks thrown off the guard
+            u = age / e.get("life", 0.3)
+            if not 0 <= u <= 1:
+                return
+            rng = np.random.default_rng(e.get("seed", 5))
+            st = e.get("strength", 1.0)
+            for i in range(12):
+                ang = rng.uniform(0.2, math.pi - 0.2) * (1 if i % 3 else -0.4)
+                v = rng.uniform(160, 380) * st
+                x = e["x"] + math.cos(ang) * v * age
+                y = e["y"] + math.sin(ang) * v * age - 700 * age * age
+                tail = 0.035
+                xa = e["x"] + math.cos(ang) * v * max(0.0, age - tail)
+                ya = e["y"] + math.sin(ang) * v * max(0.0, age - tail) - 700 * max(0.0, age - tail) ** 2
+                a3, b3 = self.P(xa, ya, 0), self.P(x, y, 0)
+                c.drawLine(a3[0], a3[1], b3[0], b3[1], skia.Paint(AntiAlias=True, Color=col((255, 215, 120), 1 - u),
+                                                                 StrokeWidth=max(1.0, 2.4 * b3[2]), StrokeCap=skia.Paint.kRound_Cap))
+        elif kind == "swoosh":  # the arc a fast fist / foot cuts through the air
+            t_end = e["t_end"]
+            if t < e["t"] or t > t_end + 0.16:
+                return
+            pts = [pp for (tp, pp) in e["pts"] if tp <= t]
+            if len(pts) < 2:
+                return
+            fade = 1.0 if t <= t_end else 1.0 - (t - t_end) / 0.16
+            P2 = [self.P(x, y, 0) for (x, y) in pts]
+            for i in range(1, len(P2)):
+                w = i / (len(P2) - 1)
+                a3, b3 = P2[i - 1], P2[i]
+                c.drawLine(a3[0], a3[1], b3[0], b3[1], skia.Paint(AntiAlias=True, Color=col(e.get("rgb", (255, 255, 255)), 0.55 * w * fade),
+                                                                 StrokeWidth=max(1.0, 11.0 * w * b3[2]), StrokeCap=skia.Paint.kRound_Cap,
+                                                                 BlendMode=skia.BlendMode.kPlus))
         elif kind == "dust":
             u = age / 0.5
             if not 0 <= u <= 1:

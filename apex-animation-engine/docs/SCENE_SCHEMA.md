@@ -59,11 +59,26 @@ Standing characters pass in front of props (2.5D). A character lying down is sol
 | `get_up` | `target: char:` (optional) | Lying only. Push-up, knees, stand. With a helper it reaches for their hand (`hand_grab`) and is pulled up (`stood_up`) |
 | `offer_hand` | `target: char:` | Goes to the character, offers a hand (`hand_offered`) and pulls once it is taken |
 | `gesture` | `target: char:`, `gesture: fist_bump \| shoulder_pat \| wave` | Both characters' hands meet at a shared contact point |
-| `wait_for` | `until: event:<type>[@<character>]` | Synchronises one character with another's events |
+| `wait_for` | `until: event:<type>[@<who>]` or `next:<type>[@<who>]` | Synchronises one character with another's events. `event:` counts an event at any time, even before the wait began. `next:` counts only events after the wait begins, for example "the next strike" in a fight |
 
 `walk_to` / `run_to` accept a `char:` or `prop:` target instead of `target_x`.
 
 **Automatic events:** `pinned` / `load_off` (a prop resting on a lying character, detected from vertical contact impulses), `rope_taut` and `rope_snap`.
+
+## Combat actions (Milestone 1)
+
+| Action | Fields | What happens (the simulation decides the outcome at the moment of contact) |
+|---|---|---|
+| `strike` | `target: char:`, `move: jab \| cross \| hook \| uppercut \| front_kick \| side_kick \| roundhouse \| sweep`, `power` (0.3–2), `reaction` (optional: `flinch \| stagger \| knockdown`) | Closes to the move's range, which depends on the target height for kicks, then winds up, snaps, makes contact and recovers (`strike_start`, then `swing` at the snap). At contact the result is one of three outcomes. **whiff:** the target is out of reach, ducked under a head-height strike, or is already down (`whiff`, `evaded`). **blocked:** the target is guarding and facing the attacker, which sweeps go under (`blocked`, `block_hit`; the guard recoils and keeps guarding). **hit** (`hit`, `hurt`): the reaction comes from `power × move weight × strength`, or from `reaction`. A flinch snaps the head back, and a stagger knocks the target back with stepping feet. A **knockdown** is a ragdoll physics fall (`knockdown`, `body_fall`, `settled`, with `posture` face down or face up) |
+| `guard` | `duration` / `until` | The fighting stance, fists up |
+| `dodge` | `dodge: back \| duck` | `back` steps out of reach. `duck` drops under head height for about 0.5 s |
+
+**Reactions interrupt the target.** Its queued actions then resume, and a `wait_for` is kept unless the hit was the event it was waiting for. A knocked-down character automatically gets up (from its front or its back) before its next action that needs standing. Between combat moves an `idle` is drawn as the fighting stance.
+
+**QA checks:**
+- `strike_contact`: the fist or foot is on the struck body point at contact;
+- `fighters_do_not_overlap`;
+- `knockdowns_settle`.
 
 ## Gravity angles (GravityEffect)
 

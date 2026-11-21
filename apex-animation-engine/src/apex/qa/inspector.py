@@ -28,6 +28,8 @@ TOL = {
     "roll_rate_deg_s": 150.0, "min_shot_s": 0.5, "gravity_align_deg": 3.0, "indicator_deg": 0.5,
     "grip_drift": 1.5,  # wrist distance from the bar while hanging (units)
     "contact_hand": 22.0,  # hand distance from the button at a press_contact event
+    "strike_contact": 24.0,  # fist / foot distance from the struck body point at a hit or block
+    "fighter_gap": 28.0,  # minimum pelvis distance between two standing characters (bodies must not pass through)
     "obstacle_margin": 2.5,  # joints must stay this far outside solid beams (limb half-thickness)
     "swing_energy_gain": 0.02,
     "subject_frac": {"establishing": 0.07, "wide": 0.12, "tracking": 0.16, "medium": 0.18, "close": 0.3},  # min subject size / frame
@@ -98,7 +100,8 @@ class Inspector:
                 self.joints[cid].append(self.rt.rigs[cid].world_joints(pose))
         for fn in (self.check_hierarchy, self.check_bone_lengths, self.check_positions, self.check_teleport, self.check_foot_sliding,
                    self.check_gravity, self.check_geometry, self.check_camera, self.check_camera_motion, self.check_continuity,
-                   self.check_secondary, self.check_exit_conditions, self.check_interactions, self.check_composition):
+                   self.check_secondary, self.check_exit_conditions, self.check_interactions, self.check_composition,
+                   self.check_combat):
             rep.checks.extend(fn())
         rep.checks.extend(self.check_sync(cues))
         if check_determinism:
@@ -552,6 +555,49 @@ class Inspector:
                         bad.append(f"{sh.id}@{b:.2f}")
         out.append(Check("no_roll_during_fast_action", "PASS" if not bad else "FAIL", float(len(bad)), 0.0,
                          f"{n} rolling frames; rolling while the subject moved faster than {TOL['roll_while_moving_speed']:.0f} u/s: {bad[:6] or 'none'}"))
+        return out
+
+    def check_combat(self) -> List[Check]:
+        """Strikes land on the body they hit; fighters never pass through each other; every knockdown settles."""
+        ev = self.r.events
+        hits = [e for e in ev if e.type in ("hit", "blocked")]
+        if not hits and not any(e.type == "knockdown" for e in ev):
+            return []
+        out = []
+        worst, where = 0.0, ""
+        for e in hits:
+            an = self.r.animators[e.character]
+            seg = an.segments[an.segment_at(e.t)]
+            if seg.kind != "strike":
+                continue
+            limb = seg.data["limb"]
+            joint = ("hand_" if limb.startswith("hand") else "ankle_") + limb[-1]
+            j = self.rt.rigs[e.character].world_joints(an.pose_at(e.t))
+            tp = an._target_point(seg.data["other"], e.t, seg.data["height"], seg.facing)
+            err = math.dist(j[joint], tp)
+            if err > worst:
+                worst, where = err, f"{e.character} {seg.data['move']} at t={e.t:.2f}s"
+        out.append(Check("strike_contact", "PASS" if worst <= TOL["strike_contact"] else "FAIL", worst, TOL["strike_contact"],
+                         f"fist/foot distance from the struck body point at contact ({len(hits)} contacts; worst: {where})"))
+        cids = list(self.joints)
+        worst_gap, where = 1e9, ""
+        for a in range(len(cids)):
+            for b in range(a + 1, len(cids)):
+                for i, t in enumerate(self.times):
+                    ja, jb = self.joints[cids[a]][i], self.joints[cids[b]][i]
+                    if ja["head_center"][1] < 0.6 * self.rt.rigs[cids[a]].p.stand_height or jb["head_center"][1] < 0.6 * self.rt.rigs[cids[b]].p.stand_height:
+                        continue  # someone is down / crouched low: overlapping in depth is fine
+                    gap = abs(ja["pelvis"][0] - jb["pelvis"][0])
+                    if gap < worst_gap:
+                        worst_gap, where = gap, f"{cids[a]}/{cids[b]} at t={t:.2f}s"
+        if worst_gap < 1e9:
+            out.append(Check("fighters_do_not_overlap", "PASS" if worst_gap >= TOL["fighter_gap"] else "FAIL", worst_gap, TOL["fighter_gap"],
+                             f"minimum pelvis distance between standing characters ({where})"))
+        kd = [e for e in ev if e.type == "knockdown"]
+        settled = [e for e in ev if e.type == "settled"]
+        ok = all(any(s.character == k.character and s.t > k.t for s in settled) for k in kd)
+        out.append(Check("knockdowns_settle", "PASS" if ok or not kd else "WARN", float(len(kd)), None,
+                         f"{len(kd)} physics fall(s), {len(settled)} settled before the end"))
         return out
 
     def check_sync(self, cues) -> List[Check]:

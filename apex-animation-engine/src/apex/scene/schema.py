@@ -212,7 +212,10 @@ class EnvironmentSpec(Strict):
 ActionType = Literal["idle", "walk_to", "run_to", "turn", "press", "jump", "look_around", "wait_grounded", "look_at", "notice", "point",
                      "duck_slide", "jump_to", "grab_swing", "reach_exit",
                      # physical interaction (Rescue milestone)
-                     "push", "lift", "use_lever", "struggle", "crawl_out", "get_up", "offer_hand", "gesture", "wait_for"]
+                     "push", "lift", "use_lever", "struggle", "crawl_out", "get_up", "offer_hand", "gesture", "wait_for",
+                     # combat (Milestone 1)
+                     "strike", "guard", "dodge"]
+StrikeMove = Literal["jab", "cross", "hook", "uppercut", "front_kick", "side_kick", "roundhouse", "sweep"]
 
 
 class ActionSpec(Strict):
@@ -236,6 +239,10 @@ class ActionSpec(Strict):
     gesture: Optional[Literal["fist_bump", "shoulder_pat", "wave"]] = None
     distance: Optional[float] = None  # crawl_out: how far to crawl
     emotion: Optional[str] = None  # acting colour for clips (see motion/library.py EMOTIONS)
+    move: Optional[StrikeMove] = None  # strike: which technique
+    power: float = Field(1.0, gt=0, le=2.0)  # strike: how hard (with the move's own weight it picks the reaction)
+    reaction: Optional[Literal["auto", "flinch", "stagger", "knockdown"]] = None  # strike: force the target's reaction
+    dodge: Literal["back", "duck"] = "back"  # dodge: step back out of reach, or duck under a high strike
     note: str = ""
 
     @model_validator(mode="after")
@@ -244,7 +251,7 @@ class ActionSpec(Strict):
                 "look_at": ["target"], "notice": ["target"], "point": ["target"], "duck_slide": ["target_x"],
                 "jump_to": ["target_x", "height"], "grab_swing": ["target"], "reach_exit": ["target"],
                 "push": ["target"], "lift": ["target"], "use_lever": ["target", "tool", "fulcrum"], "offer_hand": ["target"],
-                "gesture": ["target", "gesture"], "wait_for": ["until"]}
+                "gesture": ["target", "gesture"], "wait_for": ["until"], "strike": ["target", "move"]}
         if self.type in ("walk_to", "run_to") and self.target_x is None and not (self.target or "").split(":", 1)[0] in ("char", "prop"):
             raise ValueError(f"action '{self.type}' requires 'target_x' (or a 'char:'/'prop:' target)")
         for f in need.get(self.type, []):
@@ -263,10 +270,11 @@ class ActionSpec(Strict):
                 raise ValueError(f"{f} must be 'prop:<id>'")
         if self.type in ("push", "lift", "use_lever") and not (self.target or "").startswith("prop:"):
             raise ValueError(f"{self.type}.target must be 'prop:<id>'")
-        if self.type in ("offer_hand", "gesture") and not (self.target or "").startswith("char:"):
+        if self.type in ("offer_hand", "gesture", "strike") and not (self.target or "").startswith("char:"):
             raise ValueError(f"{self.type}.target must be 'char:<id>'")
-        if self.until is not None and not self.until.startswith("event:"):
-            raise ValueError("until must be 'event:<type>' or 'event:<type>@<character>'")
+        if self.until is not None and not self.until.startswith(("event:", "next:")):
+            raise ValueError("until must be 'event:<type>[@<who>]' (any time, also before the action) or "
+                             "'next:<type>[@<who>]' (only after the action starts, e.g. the next strike)")
         if self.type == "grab_swing" and not (self.target or "").startswith("bar:"):
             raise ValueError("grab_swing.target must be 'bar:<id>'")
         if self.type == "reach_exit" and not (self.target or "").startswith("exit:"):

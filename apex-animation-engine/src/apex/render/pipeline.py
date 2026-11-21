@@ -76,9 +76,43 @@ def _effects_from_events(events, switches, env=None) -> List[dict]:
             dx, dy = exit_world(env, e.data["exit"])
             rgb = (90, 255, 160) if e.type == "door_unlocking" else (235, 252, 255)
             fx.append({"kind": "flash", "t": e.t, "x": dx, "y": dy, "r": 80, "grow": 320, "rgb": rgb, "a": 0.7, "life": 0.8})
+        elif e.type == "hit":  # a blow lands: impact star + flash, sized by the power
+            px, py = e.data["point"]
+            st = min(1.6, 0.55 + 0.6 * e.data.get("power", 1.0))
+            fx.append({"kind": "impact", "t": e.t, "x": px, "y": py, "strength": st, "dir": e.data.get("dir", 1.0), "life": 0.24,
+                       "seed": int(e.t * 1000) % 997})
+            fx.append({"kind": "flash", "t": e.t, "x": px, "y": py, "r": 30 * st, "grow": 140 * st, "rgb": (255, 245, 225), "a": 0.85, "life": 0.22})
+        elif e.type == "block_hit":  # stopped by the guard: sparks off the forearms
+            px, py = e.data["point"]
+            fx.append({"kind": "spark", "t": e.t, "x": px, "y": py, "strength": min(1.4, 0.6 + 0.5 * e.data.get("power", 1.0)),
+                       "life": 0.3, "seed": int(e.t * 1000) % 991})
+            fx.append({"kind": "flash", "t": e.t, "x": px, "y": py, "r": 18, "grow": 70, "rgb": (255, 210, 120), "a": 0.7, "life": 0.2})
+        elif e.type == "body_fall" and "point" in e.data:  # a body slams into the floor
+            px, _ = e.data["point"]
+            fx.append({"kind": "ring_floor", "t": e.t, "x": px, "z": 0, "r0": 12, "speed": 300, "life": 0.5, "rgb": (200, 230, 240)})
+            fx.append({"kind": "dust", "t": e.t, "x": px, "y": 0})
         elif e.type == "footstep" and e.data.get("speed", 0) > 300 and e.data.get("surface", "floor") == "floor":
             fx.append({"kind": "dust", "t": e.t, "x": e.data.get("x", 0), "y": 0})
     return fx
+
+
+def strike_swooshes(res) -> List[dict]:
+    """A swoosh arc along the striking fist / foot, from the snap to just after contact (sampled from the poses)."""
+    out = []
+    for cid, an in res.animators.items():
+        rig = an.rig
+        for seg in an.segments:
+            if seg.kind != "strike":
+                continue
+            d = seg.data
+            limb = d["limb"]
+            joint = ("wrist_" if limb.startswith("hand") else "ankle_") + limb[-1]
+            t0, t1 = seg.t0 + d["t_a"], min(seg.t1, seg.t0 + d["t_c"] + 0.05)
+            n = 10
+            pts = [(t0 + (t1 - t0) * k / (n - 1), rig.world_joints(an.pose_at(t0 + (t1 - t0) * k / (n - 1)))[joint]) for k in range(n)]
+            out.append({"kind": "swoosh", "t": t0, "t_end": t1, "pts": pts, "life": (t1 - t0) + 0.16,
+                        "rgb": tuple(int(c) for c in bytes.fromhex(an.style.glow_color.lstrip("#")))})
+    return out
 
 
 def red_flash(events, t: float) -> float:
@@ -155,6 +189,12 @@ def build_camera(rt: SceneRuntime, aspect: float) -> CameraDirector:
             shake.append((e.t, 4.0))
         elif e.type == "prop_impact":
             shake.append((e.t, 2.0))
+        elif e.type == "hit":
+            shake.append((e.t, 3.0 + 4.0 * min(1.6, e.data.get("power", 1.0))))
+        elif e.type == "block_hit":
+            shake.append((e.t, 2.0))
+        elif e.type == "body_fall" and e.character and "point" in e.data:
+            shake.append((e.t, 4.0))
     return CameraDirector(rt.scene.shots, aspect, bbox, vel, gravity=res.gravity.at, focus_bbox=focus, shake_events=shake,
                           gravity_angle=res.gravity.angle_unwrapped, resolve=lambda tg, t=0.0: _resolve_target(rt.env, tg, rt, t))
 
@@ -211,7 +251,7 @@ def render_scene(project: ProjectSpec, scene_id: str, out_path: str, samples: in
     for e in res.events:  # attach world x to footsteps for dust placement
         if e.type == "footstep":
             e.data.setdefault("x", rt.evaluate(e.t).poses[e.character].root[0] if e.character in res.animators else 0.0)
-    fx = _effects_from_events(res.events, switches, rt.env)
+    fx = _effects_from_events(res.events, switches, rt.env) + strike_swooshes(res)
     os.makedirs(os.path.dirname(os.path.abspath(out_path)) or ".", exist_ok=True)
     wav = os.path.splitext(out_path)[0] + ".wav"
     sd = SoundDirector(project.seed, {c.on_event: c.sound for sh in scene.shots for c in sh.sound_cues})
