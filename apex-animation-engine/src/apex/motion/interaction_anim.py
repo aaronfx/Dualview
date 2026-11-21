@@ -11,7 +11,7 @@ import math
 from typing import Optional, Tuple
 
 from ..core.mathx import Vec, clamp, lerp, smoothstep
-from ..rig.stickman import PI, Pose, base_pose, set_arm, set_lean
+from ..rig.stickman import PI, Pose, base_pose, blend_poses, set_arm, set_lean
 from .controller import Segment
 from .interaction import CRAWL_SPEED, GESTURE_CONTACT, LIE_H, PRESS_T
 
@@ -171,9 +171,18 @@ class InteractionAnimMixin:
             self._floor_hands(pose, F, (30.0, 22.0))
         self._ground_clamp(pose, F)
         if seg.data.get("jointed_fall"):
-            self._apply_ragdoll_pose(pose, seg.data.get("ragdoll_samples", []), t)
-            # Visual safety corrections for residual toe/knee penetration;
-            # limb dynamics still come from the auxiliary physics space.
+            candidate = pose.copy()
+            self._apply_ragdoll_pose(candidate, seg.data.get("ragdoll_samples", []), t)
+            # Keep the purposeful stumble/brace at onset and the defined
+            # prone silhouette at impact. Passive limb physics contributes
+            # during the uncontrolled middle of the fall, not the entire beat.
+            elapsed = max(0.0, t - seg.t0)
+            duration = max(0.2, seg.t1 - seg.t0)
+            enter = smoothstep(0.05, 0.19, elapsed)
+            leave = 1.0 - smoothstep(max(0.19, duration - 0.17),
+                                     max(0.25, duration - 0.02), elapsed)
+            pose = blend_poses(pose, candidate, 0.78 * enter * leave)
+            # Visible ankle/knee safety correction after the blended pose.
             self._ground_clamp(pose, F)
             self._knees_above_floor(pose, F, max_raise=16.0)
             self._ground_clamp(pose, F)
