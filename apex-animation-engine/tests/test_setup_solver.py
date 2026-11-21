@@ -165,3 +165,10 @@ def test_goals_must_name_engine_events_and_patch_replace_can_add():
     with pytest.raises(ValueError, match="not an engine event"):
         ProjectSpec.model_validate(_push_scene(goals=["run_to@a"]))  # an action name, not an event
     assert apply_patch({"a": {}}, [{"op": "replace", "path": "/a/until", "value": 1}]) == {"a": {"until": 1}}
+
+
+def test_interaction_example_in_the_prompt_plays_its_goals():
+    from apex.ai.director import INTERACTION_EXAMPLE, StoryDirector
+    proj = ProjectSpec.model_validate(json.loads(INTERACTION_EXAMPLE.read_text()))
+    StoryDirector._dry_run(proj)  # goals in order, nobody stuck, sounds exist
+    assert proj.scenes[0].goals and any(s.cut_on for s in proj.scenes[0].shots)

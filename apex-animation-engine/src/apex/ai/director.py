@@ -20,6 +20,8 @@ from .budget import BudgetError
 from .providers import Provider, provider_from_env
 
 EXAMPLE = Path(__file__).resolve().parents[3] / "examples" / "foundry_flip.json"
+# a small two-character physical-interaction example (not The Rescue): teaches structure, not the answer
+INTERACTION_EXAMPLE = Path(__file__).resolve().parents[3] / "examples" / "runaway_crate.json"
 
 ACTION_HELP = {
     "idle": "stand (duration)", "walk_to": "walk to target_x, or to a 'char:'/'prop:' target", "run_to": "run (same targets as walk_to)",
@@ -30,7 +32,8 @@ ACTION_HELP = {
     "push": "push a prop (target prop:, effort 0.5-1.6 of the character's strength); if it breaks loose and outruns the character, "
             "contact is lost and the character stumbles and FALLS PRONE (physics decides)",
     "lift": "try to lift the nearest end of a prop by hand (target prop:, effort, duration); too heavy simply does not rise",
-    "use_lever": "fetch a bar (tool prop:), place it over a fulcrum (fulcrum prop:) under the load (target prop:) and bear down; "
+    "use_lever": "fetch a bar (tool prop:), place it over a fulcrum (fulcrum prop:) under the load (target prop: = the prop "
+                 "lying ON the trapped character) and bear down; picking up and placing the bar are part of this action; "
                  "holds until `until` event",
     "struggle": "while lying prone: struggle (duration or until)", "crawl_out": "while prone: wait until the load is off, crawl out (emits freed)",
     "get_up": "while prone: get up; with target char: take that character's offered hand",
@@ -54,7 +57,8 @@ def system_prompt() -> str:
     return f"""You are the APEX Story Director. Convert the user's story into ONE JSON object that validates against the
 APEX scene schema v{SCHEMA_VERSION}. Output JSON only. The engine SIMULATES physics: you describe intentions and the
 physical setup; the simulation decides outcomes. Do not fake an action with `idle` + a note when an action exists for it.
-Action types (each action has `character`; durations in seconds):
+Action types: ONLY these (each action has `character`; durations in seconds). Anything else (e.g. "pick_up", "pull") is
+not an action; events such as pick_up are emitted BY actions and can only be waited for:
 {lines}
 Props (environment.props): kinds {", ".join(kinds)}; fields id, kind, position [x, y-centre], size [w, h], mass, angle (rad),
 friction (sliding), static_friction (at rest: heavy things break loose), collide_characters, solid (false = fixed set dressing
@@ -150,7 +154,10 @@ class StoryDirector:
         if self.provider is None:
             return TemplatePlanner().plan(story)
         example = EXAMPLE.read_text(encoding="utf-8") if EXAMPLE.exists() else ""
-        user = f"STORY:\n{story}\n\nEXAMPLE OF A VALID PROJECT (structure reference, do not copy its story):\n{example}"
+        inter = INTERACTION_EXAMPLE.read_text(encoding="utf-8") if INTERACTION_EXAMPLE.exists() else ""
+        user = (f"STORY:\n{story}\n\nEXAMPLE OF A VALID PROJECT (structure reference, do not copy its story):\n{example}"
+                + (f"\n\nEXAMPLE OF A TWO-CHARACTER PHYSICAL INTERACTION (structure reference: events, posture order, goals, "
+                   f"cut_on; do not copy its story):\n{inter}" if inter else ""))
         errors: List[str] = []
         status, note = "failed", ""
         prev: Optional[dict] = None  # the last plan that parsed as JSON (repairs are patches against it)
