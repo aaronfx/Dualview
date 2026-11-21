@@ -303,8 +303,15 @@ class CharacterController(InteractionMixin, CombatMixin, AcroMixin, ArcadeMixin)
                 self.queue.appendleft(a)
                 self.cur = ActionSpec(type="turn", character=self.cid, face=int(direction))
                 a = self.cur
+        point_at = None
         if a.type == "point":
-            tw = resolve(self.env, a.target)
+            kind_, _, ref_ = a.target.partition(":")
+            if kind_ == "prop":  # a moving thing: point where it is when the gesture starts
+                tw = point_at = self.world.state(ref_).pos
+            elif kind_ == "char" and ref_ in self.others:
+                tw = point_at = self.world.state(ref_).pos
+            else:
+                tw = resolve(self.env, a.target)
             ts, _ = self.frame.to_frame(tw)
             if (ts - self.s) * self.facing < -20.0:  # target behind: turn toward it first
                 self.queue.appendleft(a)
@@ -329,7 +336,7 @@ class CharacterController(InteractionMixin, CombatMixin, AcroMixin, ArcadeMixin)
             if a.type == "notice":
                 self.emit(Event(t + NOTICE_DOUBLE_TAKE, "notice", self.cid, {"target": a.target}))
         elif a.type == "point":
-            self._open("point", t, gaze=gaze, gaze_target=a.target)
+            self._open("point", t, gaze=gaze if point_at is None else point_at, gaze_target=a.target)
             self.emit(Event(t + 0.25, "point", self.cid, {"target": a.target}))
         elif a.type in ("walk_to", "run_to"):
             if self.seg.kind != "loco":

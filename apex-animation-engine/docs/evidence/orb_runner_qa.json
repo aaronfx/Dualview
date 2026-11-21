@@ -6,13 +6,13 @@
   "cinematic": "PASS"
  },
  "counts": {
-  "total": 58,
+  "total": 59,
   "by_status": {
-   "PASS": 57,
+   "PASS": 58,
    "SKIP": 1
   },
   "exit_conditions": 0,
-  "engine_and_video_checks": 58
+  "engine_and_video_checks": 59
  },
  "checks": [
   {
@@ -106,7 +106,7 @@
   {
    "name": "no_teleport_root[iko]",
    "status": "PASS",
-   "metric": 1157.808549166318,
+   "metric": 948.2308461928546,
    "threshold": 2200.0,
    "details": "",
    "gate": "technical"
@@ -202,7 +202,7 @@
   {
    "name": "min_shot_length",
    "status": "PASS",
-   "metric": 1.5,
+   "metric": 1.3900000000000006,
    "threshold": 0.5,
    "details": "5 shots; too short: []",
    "gate": "cinematic"
@@ -242,7 +242,7 @@
   {
    "name": "scarf_integrity[iko]",
    "status": "PASS",
-   "metric": 1.250000000000009,
+   "metric": 1.2500000000000089,
    "threshold": 1.35,
    "details": "max segment stretch; anchor error 0.000",
    "gate": "technical"
@@ -386,17 +386,25 @@
   {
    "name": "particle_budget",
    "status": "PASS",
-   "metric": 48.0,
+   "metric": 72.0,
    "threshold": 900.0,
    "details": "most particles alive at once",
    "gate": "technical"
+  },
+  {
+   "name": "causes_on_screen",
+   "status": "PASS",
+   "metric": 0.0,
+   "threshold": 0.0,
+   "details": "9 key events; off screen: none",
+   "gate": "cinematic"
   },
   {
    "name": "beat_cuts",
    "status": "PASS",
    "metric": 0.0,
    "threshold": 0.020833333333333332,
-   "details": "3 of 4 cuts snapped onto beats (bpm 120; 1 kept on a portal crossing); worst offset in seconds of film",
+   "details": "2 of 4 cuts snapped onto beats (bpm 120; 2 kept on a portal crossing); worst offset in seconds of film",
    "gate": "technical"
   },
   {
@@ -420,7 +428,7 @@
    "status": "PASS",
    "metric": 0.0,
    "threshold": 0.0,
-   "details": "17 cues, each placed at its engine event time (0 unbound cues allowed)",
+   "details": "16 cues, each placed at its engine event time (0 unbound cues allowed)",
    "gate": "technical"
   },
   {
@@ -428,7 +436,7 @@
    "status": "PASS",
    "metric": null,
    "threshold": null,
-   "details": "hash 437585eaaced vs 437585eaaced",
+   "details": "hash 43d0abc4e0a3 vs 43d0abc4e0a3",
    "gate": "technical"
   },
   {

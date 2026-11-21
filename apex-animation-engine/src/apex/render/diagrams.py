@@ -48,6 +48,8 @@ class Diagrams:
     # ------------------------------------------------------------ data
     def point(self, ref: str, t: float) -> Vec:
         kind, _, rid = ref.partition(":")
+        if kind == "creature":  # a creature is where its body is
+            kind, rid = "prop", f"{rid}.body"
         if kind == "point":
             x, y = (float(v) for v in rid.split(","))
             return (x, y)
@@ -60,6 +62,8 @@ class Diagrams:
     def velocity(self, ref: str, t: float) -> Vec:
         """From the simulation records (characters) or the prop track (props)."""
         kind, _, rid = ref.partition(":")
+        if kind == "creature":
+            kind, rid = "prop", f"{rid}.body"
         if kind == "char":  # how the body really moves: central difference of the simulated positions (240 Hz)
             an = self.r.animators[rid]
             T, X, Y = an.T, an.PX, an.PY
@@ -102,9 +106,11 @@ class Diagrams:
         p = self.point(d.target, t)
         kind, _, rid = d.target.partition(":")
         mass = None
+        if kind == "creature":
+            kind, rid = "prop", f"{rid}.body"
         if kind == "prop":
             mass = next(x.mass for x in self.rt.env.props if x.id == rid)
-        name = self.rt.project.character(rid).name if kind == "char" else rid
+        name = self.rt.project.character(rid).name if kind == "char" else rid.split(".")[0].upper()
         txt = (d.text or "{speed}").format(speed=f"{sp:.0f} {d.unit}/s", height=f"{p[1]:.0f} {d.unit}",
                                            mass=f"{mass:g} kg" if mass is not None else "", name=name)
         return txt, sp
@@ -139,9 +145,10 @@ class Diagrams:
                     p = e.data["point"]
                     out.append(Prim("arrow", [p, (p[0] + dv[0] * d.scale, p[1] + dv[1] * d.scale)], rgb,
                                     f"Δv {math.hypot(*dv):.0f} {d.unit}/s", a, math.hypot(*dv), dv, d.id, {"event": e.type, "t": e.t}))
-                elif e.type == "break":
-                    p = e.data["point"]
-                    out.append(Prim("text", [(p[0], p[1] + 70.0)], rgb, f"impulse {e.data['impulse']:.0f}", a, e.data["impulse"], None, d.id,
-                                    {"event": "break"}))
+                elif e.type in ("break", "creature_break"):
+                    p = e.data["point"] or self.point(d.target, e.t)
+                    out.append(Prim("text", [(p[0], p[1] + 70.0)], rgb,
+                                    f"impulse {e.data['impulse']:.0f}  (breaks at {e.data['threshold']:.0f})", a, e.data["impulse"], None,
+                                    d.id, {"event": e.type}))
             return out
         return []

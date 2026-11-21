@@ -56,7 +56,7 @@ class Check:
 # Two acceptance gates. Technical: physics consistency, valid geometry, no unintended clipping, stable replay, correct
 # event outcomes, a valid file. Cinematic: readable silhouettes and framing, camera direction, pacing. A film should
 # pass both; cinematic checks warn rather than fail, because a person decides what reads well.
-CINEMATIC = ("diagrams_in_frame", "subject_in_frame", "silhouettes_readable", "screen_separation", "composition_", "screen_direction_across_cuts",
+CINEMATIC = ("causes_on_screen", "diagrams_in_frame", "subject_in_frame", "silhouettes_readable", "screen_separation", "composition_", "screen_direction_across_cuts",
              "min_shot_length", "no_roll_during_fast_action", "camera_roll_rate", "camera_roll_follows_gravity_direction")
 
 
@@ -132,7 +132,8 @@ class Inspector:
                    self.check_gravity, self.check_geometry, self.check_camera, self.check_camera_motion, self.check_continuity,
                    self.check_secondary, self.check_exit_conditions, self.check_interactions, self.check_composition,
                    self.check_combat, self.check_acrobatics, self._props_through_bodies, self.check_arcade, self.check_particles,
-                   self.check_breakables, self.check_morphs, self.check_diagrams, self.check_creatures):
+                   self.check_breakables, self.check_morphs, self.check_diagrams, self.check_creatures,
+                   self.check_causes_on_screen):
             rep.checks.extend(fn())
         rep.checks.extend(self.check_time_fx())
         rep.checks.extend(self.check_beats(video))
@@ -322,6 +323,16 @@ class Inspector:
             framed = list(self.r.animators)
             if sh.camera.target and sh.kind != "insert":  # a following shot frames its target and the characters it includes
                 framed = [sh.camera.target] + [r.split(":", 1)[1] for r in (sh.camera.include or []) if r.startswith("char:")]
+            elif sh.camera.include and sh.kind != "insert":
+                # a shot with no character subject frames what it lists (a creature, a prop): those must be in view
+                framed = [r.split(":", 1)[1] for r in sh.camera.include if r.startswith("char:")]
+                for r in sh.camera.include:
+                    if not r.startswith("char:"):
+                        p = self.cam.resolve(r, t) if self.cam.resolve else None
+                        if p is not None:
+                            total += 1
+                            vis += self.cam.subject_visible(framed[0] if framed else next(iter(self.r.animators)), t,
+                                                            (p[0] - 20, p[1] - 20, p[0] + 20, p[1] + 20))
             for cid in framed:
                 if sh.kind == "insert":  # inserts frame an object (the switch), not the character
                     region = (sh.camera.center[0] - 15, sh.camera.center[1] - 30, sh.camera.center[0] + 15, sh.camera.center[1] + 10) \
@@ -1120,8 +1131,11 @@ class Inspector:
         dg = Diagrams(self.rt)
         kicks = {}
         for e in self.r.events:
-            if e.type.startswith(("orb_", "portal_")) or e.type in ("impact", "break", "takeoff", "morph", "hit", "throw"):
+            if e.type.startswith(("orb_", "portal_")) or e.type in ("impact", "break", "takeoff", "morph", "hit", "throw", "prop_impact",
+                                                                       "creature_break"):
                 kicks.setdefault(e.character, []).append(e.t)
+                if e.data.get("prop"):  # a throw releases (or a pick-up takes) a prop: its velocity jumps there too
+                    kicks.setdefault(e.data["prop"], []).append(e.t)
         worst, n, where, vis, tot = 0.0, 0, "none", 0, 0
         h = 1.0 / 48.0
         for t in self.times[::2]:
@@ -1186,6 +1200,34 @@ class Inspector:
                       f"{len(brk)} creature(s) torn apart, each by a blow at or above its threshold"),
                 Check("creature_follows_path", "PASS" if worst_p <= 40.0 else "WARN", worst_p, 40.0,
                       "largest lag behind the path while intact (units)")]
+
+    KEY_EVENTS = ("break", "creature_break", "morph", "morph_start", "throw", "portal_exit", "portal_enter", "orb_jump", "orb_boost",
+                  "orb_pad", "collect", "hit", "knockdown", "rope_snap", "pinned", "prop_hit")
+
+    def check_causes_on_screen(self) -> List[Check]:
+        """Spatial continuity (cinematic): every key cause and effect (a break, a creature torn apart, a shape change, a throw,
+        a portal crossing at both ends, an orb, a blow) happens where the camera is looking at that moment, so a cut never
+        hides the link between two connected places."""
+        off = []
+        n = 0
+        aspect = self.size[0] / self.size[1]
+        for e in self.r.events:
+            if e.type not in self.KEY_EVENTS:
+                continue
+            p = e.data.get("point")
+            if not isinstance(p, (tuple, list)) or len(p) != 2:
+                continue
+            n += 1
+            # a portal crossing is instantaneous: its entry is seen in the frame before, its exit in the frame after
+            te = e.t - 1.0 / self.fps if e.type == "portal_enter" else e.t + 1.0 / self.fps if e.type == "portal_exit" else e.t
+            c = self.cam.at(te)
+            r = math.radians(c.roll)
+            dx, dy = p[0] - c.cx, -(p[1] - c.cy)
+            sx, sy = dx * math.cos(r) - dy * math.sin(r), dx * math.sin(r) + dy * math.cos(r)
+            if abs(sx) > c.view_h * aspect / 2 * 0.96 or abs(sy) > c.view_h / 2 * 0.96:
+                off.append(f"{e.type}@{e.character} t={e.t:.2f}s")
+        return [] if n == 0 else [Check("causes_on_screen", "PASS" if not off else "WARN", float(len(off)), 0.0,
+                                        f"{n} key events; off screen: {', '.join(off[:6]) or 'none'}")]
 
     def check_particles(self) -> List[Check]:
         """Event particles (Milestone 4): deterministic (two independent builds give identical particles at every

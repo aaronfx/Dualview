@@ -331,7 +331,7 @@
       "bound_to_room": true
      },
      "start": 7.27,
-     "end": 8.82
+     "end": 8.89
     },
     {
      "id": "s05_drop",
@@ -351,7 +351,7 @@
       "bound_to_room": true
      },
      "fade_out": 0.8,
-     "start": 8.82,
+     "start": 8.89,
      "end": 14.5
     }
    ]

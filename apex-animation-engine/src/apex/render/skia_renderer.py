@@ -107,10 +107,14 @@ class SkiaRenderer:
         c.translate(self.W / 2 + cam.shx * sc, self.H / 2 + cam.shy * sc)
         c.rotate(cam.roll)
         self._room(c, fs, red_flash)
+        if self.env.decor:
+            self._decor(c, fs, front=False)
         self._exits(c, fs)
         self._shafts(c, fs)
         self._switches(c, fs)
         self._obstacles(c, back=True)
+        if self.env.decor:
+            self._decor(c, fs, front=True)
         if self.env.portals:
             self._portals(c, fs)
         if self.env.orbs:
@@ -263,12 +267,12 @@ class SkiaRenderer:
         sc = self.H / 720.0
         font = getattr(self, "_dfont", None)
         if font is None:
-            font = self._dfont = skia.Font(skia.Typeface("DejaVu Sans"), 15 * sc)
+            font = self._dfont = skia.Font(skia.Typeface("DejaVu Sans"), 21 * sc)
 
         def label(x, y, txt, rgb, a):
             w = font.measureText(txt)
             pad = 4 * sc
-            c.drawRoundRect(skia.Rect(x - w / 2 - pad, y - 13 * sc, x + w / 2 + pad, y + 5 * sc), 4 * sc, 4 * sc,
+            c.drawRoundRect(skia.Rect(x - w / 2 - pad, y - 18 * sc, x + w / 2 + pad, y + 6 * sc), 4 * sc, 4 * sc,
                             skia.Paint(AntiAlias=True, Color=col((8, 10, 16), 0.72 * a)))
             c.drawString(txt, x - w / 2, y, font, skia.Paint(AntiAlias=True, Color=col(rgb, a)))
 
@@ -317,9 +321,111 @@ class SkiaRenderer:
     def _particles(self, c: skia.Canvas, parts) -> None:
         for (x, y, r, a, rgb) in parts:
             sx, sy, k = self.P(x, y, 0.0)
-            rr = max(0.8, r * k)
-            self._glow(c, (sx, sy), rr * 3.0, rgb, 0.35 * a)
+            rr = max(1.0, 1.25 * r * k)
+            self._glow(c, (sx, sy), rr * 4.0, rgb, 0.5 * a)
             c.drawCircle(sx, sy, rr, skia.Paint(AntiAlias=True, Color=col(mix(rgb, WHITE, 0.5), a)))
+
+    # ------------------------------------------------------------ set dressing (Milestone 5)
+    def _quad(self, x0, y0, x1, y1, z):
+        return self.poly([(x0, y0, z), (x1, y0, z), (x1, y1, z), (x0, y1, z)])
+
+    def _decor(self, c: skia.Canvas, fs: FrameState, front: bool) -> None:
+        bk = self.back - 2.0
+        t = fs.t
+        for d in self.env.decor:
+            rgb = hex_rgb(d.color) if d.color else self.accent
+            z = d.z if d.z is not None else bk
+            if (d.kind == "bench") != front:
+                continue
+            rng = np.random.default_rng([d.seed, int(d.x * 10) & 0xffff])
+            x0, y0, x1, y1 = d.x - d.w / 2, d.y, d.x + d.w / 2, d.y + d.h
+            if d.kind == "window":
+                sky = self._quad(x0, y0, x1, y1, z)
+                a, b = self.P(d.x, y1, z), self.P(d.x, y0, z)
+                c.drawPath(sky, skia.Paint(AntiAlias=True, Shader=skia.GradientShader.MakeLinear(
+                    [skia.Point(0, a[1]), skia.Point(0, b[1])], [col((10, 12, 40)), col((48, 30, 86))])))
+                c.save()
+                c.clipPath(sky, doAntiAlias=True)
+                bx = x0
+                while bx < x1:  # a skyline: buildings with lit windows, deterministic per window
+                    bw = float(rng.uniform(0.07, 0.16) * d.w)
+                    bh = float(rng.uniform(0.25, 0.8) * d.h)
+                    shade = (16, 18, 34) if rng.random() < 0.5 else (22, 20, 44)
+                    c.drawPath(self._quad(bx, y0, bx + bw, y0 + bh, z), skia.Paint(AntiAlias=True, Color=col(shade)))
+                    for wy in np.arange(y0 + 8, y0 + bh - 6, 9.0):
+                        for wx in np.arange(bx + 4, bx + bw - 4, 7.0):
+                            if rng.random() < 0.32:
+                                p = self.P(wx, wy, z)
+                                c.drawRect(skia.Rect(p[0], p[1], p[0] + 2.2 * p[2], p[1] + 2.8 * p[2]),
+                                           skia.Paint(Color=col((255, 214, 140), 0.55 + 0.35 * rng.random())))
+                    bx += bw + float(rng.uniform(0.0, 0.03) * d.w)
+                c.restore()
+                for (xa, ya, xb, yb) in ((x0, y0, x1, y0), (x0, y1, x1, y1), (x0, y0, x0, y1), (x1, y0, x1, y1), (d.x, y0, d.x, y1)):
+                    self.line3(c, (xa, ya, z), (xb, yb, z), (90, 100, 130), 0.9, 5.0, glow=False)
+            elif d.kind == "panel":
+                c.drawPath(self._quad(x0, y0, x1, y1, z), skia.Paint(AntiAlias=True, Color=col(mix(hex_rgb(self.theme.back), WHITE, 0.07))))
+                c.drawPath(self._quad(x0, y0, x1, y1, z), skia.Paint(AntiAlias=True, Color=col(mix(rgb, (0, 0, 0), 0.4), 0.8),
+                                                                       Style=skia.Paint.kStroke_Style, StrokeWidth=2.0))
+                for k in range(max(1, int(d.w // 22))):
+                    on = (math.sin(t * (1.3 + 0.37 * k) + k * 2.1 + d.seed) > -0.2)
+                    p = self.P(x0 + 12 + k * 22, y1 - 12, z)
+                    self._glow(c, (p[0], p[1]), 6 * p[2], (120, 255, 160) if on else (255, 90, 90), 0.6)
+            elif d.kind == "screen":
+                c.drawPath(self._quad(x0 - 5, y0 - 5, x1 + 5, y1 + 5, z), skia.Paint(AntiAlias=True, Color=col((30, 32, 40))))
+                c.drawPath(self._quad(x0, y0, x1, y1, z), skia.Paint(AntiAlias=True, Color=col(mix(rgb, (0, 0, 0), 0.82))))
+                pts = [(x0 + 6 + (d.w - 12) * i / 40, y0 + d.h * (0.42 + 0.28 * math.sin(i * 0.45 + t * 2.0 + d.seed)
+                                                                    * math.exp(-((i - 20) / 14) ** 2))) for i in range(41)]
+                path = skia.Path()
+                for i, q in enumerate(pts):
+                    s3 = self.P(q[0], q[1], z)
+                    (path.lineTo if i else path.moveTo)(s3[0], s3[1])
+                c.drawPath(path, skia.Paint(AntiAlias=True, Color=col(rgb, 0.9), Style=skia.Paint.kStroke_Style, StrokeWidth=1.8))
+                if d.text:
+                    p = self.P(x0 + 6, y1 - 6, z)
+                    f = skia.Font(skia.Typeface("DejaVu Sans Mono"), max(6.0, 9.0 * p[2]))
+                    c.drawString(d.text, p[0], p[1] + 9 * p[2], f, skia.Paint(AntiAlias=True, Color=col(rgb, 0.9)))
+                ctr = self.P(d.x, d.y + d.h / 2, z)
+                self._glow(c, (ctr[0], ctr[1]), 0.7 * d.w * ctr[2], rgb, 0.12)
+            elif d.kind == "pipe":
+                xb, yb = (d.x2 if d.x2 is not None else d.x + d.w), (d.y2 if d.y2 is not None else d.y)
+                self.line3(c, (d.x, d.y, z), (xb, yb, z), (70, 76, 92), 1.0, 12.0, glow=False)
+                self.line3(c, (d.x, d.y + 3, z), (xb, yb + 3, z), (120, 128, 150), 0.6, 3.0, glow=False)
+                L = math.hypot(xb - d.x, yb - d.y)
+                for k in range(1, int(L // 140) + 1):
+                    u = k * 140 / L
+                    p = self.P(d.x + (xb - d.x) * u, d.y + (yb - d.y) * u, z)
+                    c.drawCircle(p[0], p[1], 9 * p[2], skia.Paint(AntiAlias=True, Color=col((95, 100, 120))))
+            elif d.kind == "lamp":
+                top = self.rh
+                p0, p1 = self.P(d.x, top - 6, 0.0), self.P(d.x, top - 40, 0.0)
+                c.drawLine(p0[0], p0[1], p1[0], p1[1], skia.Paint(AntiAlias=True, Color=col((80, 84, 96)), StrokeWidth=3 * p1[2]))
+                cone = skia.Path()
+                a = self.P(d.x - 22, top - 44, 0.0)
+                b = self.P(d.x + 22, top - 44, 0.0)
+                fl, fr = self.P(d.x - d.w, 0.0, 0.0), self.P(d.x + d.w, 0.0, 0.0)
+                cone.moveTo(a[0], a[1]); cone.lineTo(b[0], b[1]); cone.lineTo(fr[0], fr[1]); cone.lineTo(fl[0], fl[1]); cone.close()
+                warm = hex_rgb(d.color) if d.color else (255, 226, 170)
+                c.drawPath(cone, skia.Paint(AntiAlias=True, BlendMode=skia.BlendMode.kPlus, Shader=skia.GradientShader.MakeLinear(
+                    [skia.Point(0, a[1]), skia.Point(0, fl[1])], [col(warm, 0.22), col(warm, 0.02)])))
+                c.drawPath(self._quad(d.x - 24, top - 46, d.x + 24, top - 38, 0.0), skia.Paint(AntiAlias=True, Color=col((200, 205, 215))))
+                fp = self.P(d.x, 0.0, 0.0)
+                self._glow(c, (fp[0], fp[1]), d.w * fp[2], warm, 0.18, squash=0.25)
+            elif d.kind == "shelf":
+                c.drawPath(self._quad(x0, y0, x1, y0 + 6, z), skia.Paint(AntiAlias=True, Color=col((80, 70, 60))))
+                n = max(1, int(d.w // 26))
+                for k in range(n):
+                    jx = x0 + 13 + k * (d.w - 26) / max(1, n - 1) if n > 1 else d.x
+                    jh = float(rng.uniform(18, 34))
+                    jc = [(120, 255, 200), (255, 150, 220), (140, 200, 255), (255, 220, 120)][int(rng.integers(0, 4))]
+                    c.drawPath(self._quad(jx - 7, y0 + 6, jx + 7, y0 + 6 + jh, z), skia.Paint(AntiAlias=True, Color=col(jc, 0.35)))
+                    c.drawPath(self._quad(jx - 7, y0 + 6, jx + 7, y0 + 6 + jh * 0.55, z), skia.Paint(AntiAlias=True, Color=col(jc, 0.55)))
+            elif d.kind == "bench":
+                zf, zb = z - 40, z + 40
+                top = self.poly([(x0, y1, zf), (x1, y1, zf), (x1, y1, zb), (x0, y1, zb)])
+                c.drawPath(top, skia.Paint(AntiAlias=True, Color=col((70, 74, 86))))
+                c.drawPath(self._quad(x0, y1 - 8, x1, y1, zf), skia.Paint(AntiAlias=True, Color=col((46, 48, 58))))
+                for lx in (x0 + 10, x1 - 10):
+                    c.drawPath(self._quad(lx - 4, y0, lx + 4, y1 - 8, zf), skia.Paint(AntiAlias=True, Color=col((40, 42, 50))))
 
     # ------------------------------------------------------------ environment
     def _room(self, c: skia.Canvas, fs: FrameState, red: float) -> None:
@@ -334,6 +440,9 @@ class SkiaRenderer:
         for name, (pts, rgb) in planes.items():
             c.drawPath(self.poly(pts), skia.Paint(AntiAlias=True, Color=col(mix(rgb, (60, 10, 14), red * 0.5))))
         gcol = mix(self.accent, self.alert, clamp(red * 1.3, 0, 1))
+        ga = self.env.room.grid_alpha
+        if ga < 1.0:  # a quieter grid under set dressing
+            gcol = mix(hex_rgb(self.theme.back), gcol, ga)
         g = self.grid
         xs = np.arange(-hw, hw + 1, g)
         ys = np.arange(0, rh + 1, g)

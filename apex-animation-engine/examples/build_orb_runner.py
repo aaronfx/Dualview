@@ -107,7 +107,7 @@ def shots_from(ev, D):
          round(f("beat_wait_end@iko") - 0.25, 2),   # 1 the level -> IKO sets off
          round(f("portal_enter@iko"), 2),           # 2 pad, flip orb, star, block -> into the floor portal
          round(f("impact@iko", 2) + 0.45, 2),       # 3 out on the ledge, the boosted jump, onto the tower
-         round(f("throw@pell") + 0.2, 2),           # 4 PELL picks up the plus and throws it into the wall
+         round(f("portal_exit@plus"), 2),           # 4 PELL throws the plus into the wall: cut on its crossing
          D]                                          # 5 it drops out above the tower; IKO picks it up
     S = [
         dict(id="s01_level", kind="establishing", description="the grid level: pad, orbs, portals, the far tower; IKO waits for the bar",

@@ -191,7 +191,7 @@ class SceneRuntime:
                 self.beat_passes += 1
         if not physics_only and music.snap_cuts and horizon is None:
             w = build_warp(self.scene, res.events, res.duration, self.project.fps)
-            locks = [e.t for e in res.events if e.type == "portal_exit" and e.character in res.controllers]
+            locks = [e.t for e in res.events if e.type == "portal_exit"]  # characters and props: the picture cuts there
             shots, self.beat_log = snap_shots(self.scene, w, self.project.fps, locks)
             self.scene = self.scene.model_copy(update={"shots": shots})
         return res
@@ -247,7 +247,8 @@ class SceneRuntime:
                     continue
                 m = q[0]
                 after = morph_log[pid][-1]["t0"] if morph_log.get(pid) else -1.0
-                if (m.at is not None and tn >= m.at) or (m.on is not None and any(e.t > after and _matches(m.on, e) for e in events)):
+                if (m.at is not None and tn >= m.at) or (m.on is not None and any(
+                        e.t > after and e.t + m.delay <= tn and _matches(m.on, e) for e in events)):
                     q.pop(0)
                     rec = {"t0": tn, "duration": m.duration, "from": world.glyph_now[pid], "to": m.to, "t_swap": None}
                     morph_log.setdefault(pid, []).append(rec)

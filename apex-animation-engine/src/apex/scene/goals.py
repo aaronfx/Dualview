@@ -9,7 +9,7 @@ from __future__ import annotations
 import re
 from typing import Dict, List, Optional, Sequence, Tuple
 
-_GOAL = re.compile(r"^(?:event:|next:)?([a-z_]+)(?:@([A-Za-z0-9_\-]+))?(?:\[([^\]]*)\])?$")
+_GOAL = re.compile(r"^(?:event:|next:)?([a-z_]+)(?:@([A-Za-z0-9_\-.~]+))?(?:\[([^\]]*)\])?$")
 PRONE_ACTIONS = ("struggle", "crawl_out", "get_up")
 # every event type the engine emits (a goal or an event-timed cut naming anything else could never happen)
 KNOWN_EVENTS = frozenset("""action_impossible body_fall brace crawl_start door_close door_open door_unlocked door_unlocking

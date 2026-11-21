@@ -44,6 +44,7 @@ The engine is **independent of Creator Studio**. It has its own backend (FastAPI
 | Film-time effects: hit-stop and slow motion through a story/film time warp (audio and effects follow the film clock), motion smears and prop ghosts, impact punch-in and shake through the hold, flash, chromatic split, speed lines, vignette; depth lanes that move, and no body passing through another in the same lane | `render/timewarp.py`, `render/pipeline.py`, `render/skia_renderer.py`, `motion/acrobatics.py` | `docs/CINEMATIC_REPORT.md` |
 | Engine hardening: bounded-force character bodies (props never ghost through characters; pushing is limited by strength), a 14-chain transition matrix, technical and cinematic QA gates, a film regression benchmark | `physics/world.py`, `qa/transitions.py`, `qa/benchmark.py` | `docs/ENGINE_HARDENING.md` |
 | Milestone 4: grid level builder, orbs (jump, boost, pad, collect), momentum-preserving portals for characters and props, film-time beat grid (beat waits, cut snapping, beat-locked music, QA measured from the WAV), deterministic event particles | `scene/level.py`, `motion/arcade.py`, `scene/beats.py`, `render/particles.py` | `docs/MILESTONE4_REPORT.md` (test film: *Orb Runner*) |
+| Milestone 5: impulse-driven breakables, glyph morphs that conserve motion, a diagram layer whose numbers QA re-derives, composite glyph creatures on joints, set dressing (windows, screens, lamps, benches), a continuity check that every key cause and effect is on screen | `scene/schema.py`, `motion/creatures.py`, `render/diagrams.py`, `render/skia_renderer.py` | `docs/MILESTONE5_REPORT.md` (test film: *The Specimen*) |
 | AI spending controls: paid calls off by default, low-cost models only unless approved, no model escalation, call and spend caps, cost ledger | `ai/budget.py` (`apex ai-budget`) | `docs/AI_SPEND.md` |
 | Automated QA, 24–61 checks per scene | `qa/inspector.py` | `docs/evidence/*_qa.json` |
 | Schema-validated scene plans; AI director with validation and repair loop; offline template planner | `scene/schema.py`, `ai/` | `tests/test_ai_api.py` |
@@ -146,6 +147,6 @@ src/apex/
   api/       FastAPI app + storage
 examples/    project JSON files (milestone scenes); build_gravity_switch_1d.py / build_foundry_flip.py / build_rescue.py regenerate them
 scripts/     motion_test.py (original-vs-improved motion comparison), interaction_diagnostics.py
-tests/       pytest suite (231 tests)
+tests/       pytest suite (241 tests)
 docs/        architecture, schema, reference analysis, milestone status, roadmap, evidence
 ```

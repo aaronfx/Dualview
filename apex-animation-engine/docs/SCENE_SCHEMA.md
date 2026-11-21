@@ -153,6 +153,34 @@ QA checks:
 - `beat_cuts`, `beat_waits`, `music_on_beat`;
 - `particles_deterministic`, `particle_budget`.
 
+## Breakables, morphs, diagrams, creatures, set dressing (Milestone 5)
+
+**`PropSpec.breakable`**: `{impulse, scatter, grid}`.
+- The prop breaks when the contact impulse it takes in one step reaches `impulse`.
+- A glyph breaks into its strokes (pieces `"<glyph>#k"`); a box breaks into `grid`² blocks.
+- The pieces are props `<id>~k` and exist once it breaks.
+
+**`PropSpec.morphs`**: a list of `{to, at | on, delay, duration}`. A glyph prop changes into the glyph `to`. The mass, the centre of mass, its velocity and the angular momentum are kept. A character in the way makes it wait; a structure is cleared by the smallest nudge.
+
+**`SceneSpec.diagrams`**: a list of `{id, kind, target, to, t0, t1 | on, duration, text, scale, unit, color}`.
+- `kind`: `velocity`, `trajectory`, `label` (fields `{speed} {height} {mass} {name}`), `measure` or `impulse`.
+- Targets: `char:`, `prop:`, `creature:` or `point:x,y`.
+
+**`EnvironmentSpec.creatures`**: a list of `{id, body, size, position, mass, parts, path, height, stride, max_force, max_lift, breaks, morphs, z, depth}`.
+- Each part is `{glyph, size, at, pivot, role: leg|arm|tail|head|eye, mass, swing, phase}`.
+- The body becomes the prop `<id>.body` and the parts become `<id>.k`.
+
+**`EnvironmentSpec.decor`**: a list of `{kind: window|panel|screen|pipe|lamp|bench|shelf, x, y, w, h, x2, y2, z, color, text, seed}`. It is drawn only; nothing collides with it. **`RoomSpec.grid_alpha`** sets the strength of the neon grid.
+
+Events: `break`, `morph_start`, `morph`, `morph_blocked`, `creature_break`.
+
+QA checks:
+- `breaks_at_threshold`, `breaks_conserve_momentum`, `breaks_continuous`;
+- `morphs_conserve_motion`, `morphs_hold_centre`, `morphs_no_pop`;
+- `diagrams_truthful`, `diagrams_in_frame`;
+- `creature_joints_hold`, `creature_breaks_at_threshold`, `creature_follows_path`;
+- `causes_on_screen`.
+
 ## Gravity angles (GravityEffect)
 
 Each switch changes gravity in exactly one of two ways:

@@ -9,6 +9,7 @@
     "camera_config_valid": "PASS",
     "camera_roll_follows_gravity_direction": "PASS",
     "camera_roll_rate": "PASS",
+    "causes_on_screen": "PASS",
     "character_continuity[kai]": "PASS",
     "character_continuity[rho]": "PASS",
     "collision_events_valid": "PASS",
@@ -35,6 +36,8 @@
     "no_teleport_joints[rho]": "PASS",
     "no_teleport_root[kai]": "PASS",
     "no_teleport_root[rho]": "PASS",
+    "particle_budget": "PASS",
+    "particles_deterministic": "PASS",
     "scarf_inside_room[rho]": "PASS",
     "scarf_integrity[rho]": "PASS",
     "scene_geometry_stable": "PASS",
@@ -76,9 +79,9 @@
     7.337,
     7.771,
     9.729,
-    11.088,
-    12.588,
-    14.246
+    11.071,
+    12.571,
+    14.225
    ],
    "violations": []
   }
@@ -127,6 +130,8 @@
     "no_teleport_joints[pip]": "PASS",
     "no_teleport_root[pip]": "PASS",
     "obstacle_clearance": "PASS",
+    "particle_budget": "PASS",
+    "particles_deterministic": "PASS",
     "props_not_through_bodies": "PASS",
     "scene_geometry_stable": "PASS",
     "screen_direction_across_cuts": "PASS",
@@ -159,6 +164,7 @@
     "camera_config_valid": "PASS",
     "camera_roll_follows_gravity_direction": "PASS",
     "camera_roll_rate": "PASS",
+    "causes_on_screen": "PASS",
     "character_continuity[kai]": "PASS",
     "character_continuity[rho]": "PASS",
     "collision_events_valid": "PASS",
@@ -191,6 +197,8 @@
     "no_teleport_joints[rho]": "PASS",
     "no_teleport_root[kai]": "PASS",
     "no_teleport_root[rho]": "PASS",
+    "particle_budget": "PASS",
+    "particles_deterministic": "PASS",
     "props_not_through_bodies": "PASS",
     "scarf_inside_room[kai]": "PASS",
     "scarf_integrity[kai]": "PASS",
@@ -207,7 +215,7 @@
     "throw_momentum": "PASS",
     "time_warp_valid": "PASS"
    },
-   "events": 116,
+   "events": 112,
    "failed": [],
    "gates": {
     "cinematic": "PASS",
@@ -261,8 +269,8 @@
     27.95,
     28.671,
     28.933,
-    32.983,
-    36.483
+    33.013,
+    36.538
    ],
    "violations": []
   }
@@ -320,6 +328,8 @@
     "no_teleport_joints[axel]": "PASS",
     "no_teleport_root[axel]": "PASS",
     "obstacle_clearance": "PASS",
+    "particle_budget": "PASS",
+    "particles_deterministic": "PASS",
     "props_not_through_bodies": "PASS",
     "scarf_inside_room[axel]": "PASS",
     "scarf_integrity[axel]": "PASS",
@@ -356,6 +366,7 @@
     "camera_config_valid": "PASS",
     "camera_roll_follows_gravity_direction": "PASS",
     "camera_roll_rate": "PASS",
+    "causes_on_screen": "PASS",
     "character_continuity[iko]": "PASS",
     "character_continuity[pell]": "PASS",
     "collectibles_once": "PASS",
@@ -400,7 +411,7 @@
     "surface_penetration[iko]": "PASS",
     "surface_penetration[pell]": "PASS"
    },
-   "events": 26,
+   "events": 25,
    "failed": [],
    "gates": {
     "cinematic": "PASS",
@@ -510,6 +521,88 @@
    "violations": []
   }
  },
+ "specimen.json": {
+  "lab": {
+   "checks": {
+    "audio_event_sync": "SKIP",
+    "bone_lengths[oda]": "PASS",
+    "breaks_at_threshold": "PASS",
+    "breaks_conserve_momentum": "PASS",
+    "breaks_continuous": "PASS",
+    "camera_config_valid": "PASS",
+    "camera_roll_follows_gravity_direction": "PASS",
+    "camera_roll_rate": "PASS",
+    "causes_on_screen": "PASS",
+    "character_continuity[oda]": "PASS",
+    "collision_events_valid": "PASS",
+    "composition_required_objects": "PASS",
+    "composition_subject_size": "PASS",
+    "creature_breaks_at_threshold": "PASS",
+    "creature_follows_path": "PASS",
+    "creature_joints_hold": "PASS",
+    "deterministic_replay": "PASS",
+    "diagrams_in_frame": "PASS",
+    "diagrams_truthful": "PASS",
+    "dust_inside_room": "PASS",
+    "foot_sliding[oda]": "PASS",
+    "gravity_angle_report": "PASS",
+    "gravity_direction[oda]": "SKIP",
+    "gravity_indicator_matches_physics": "PASS",
+    "gravity_transitions_caused_by_switch": "PASS",
+    "held_props_outside_structures": "PASS",
+    "invalid_positions[oda]": "PASS",
+    "joint_hierarchy[oda]": "PASS",
+    "landings_on_supporting_surfaces": "PASS",
+    "min_shot_length": "PASS",
+    "morphs_conserve_motion": "PASS",
+    "morphs_hold_centre": "PASS",
+    "morphs_no_pop": "PASS",
+    "no_roll_during_fast_action": "PASS",
+    "no_teleport_joints[oda]": "PASS",
+    "no_teleport_root[oda]": "PASS",
+    "particle_budget": "PASS",
+    "particles_deterministic": "PASS",
+    "props_not_through_bodies": "PASS",
+    "scarf_inside_room[oda]": "PASS",
+    "scarf_integrity[oda]": "PASS",
+    "scene_geometry_stable": "PASS",
+    "screen_direction_across_cuts": "PASS",
+    "static_layout": "PASS",
+    "subject_in_frame": "PASS",
+    "surface_penetration[oda]": "PASS"
+   },
+   "events": 46,
+   "failed": [],
+   "gates": {
+    "cinematic": "PASS",
+    "technical": "PASS"
+   },
+   "goals": [
+    "break@vial",
+    "notice@oda",
+    "pick_up@oda",
+    "morph@bar",
+    "throw@oda",
+    "creature_break@spec",
+    "morph@spec.body",
+    "point@oda"
+   ],
+   "left": [],
+   "met": 8,
+   "missing": null,
+   "times": [
+    5.633,
+    6.183,
+    7.971,
+    8.575,
+    9.158,
+    9.529,
+    11.233,
+    13.879
+   ],
+   "violations": []
+  }
+ },
  "symbol_run.json": {
   "run": {
    "checks": {
@@ -521,6 +614,7 @@
     "camera_config_valid": "PASS",
     "camera_roll_follows_gravity_direction": "PASS",
     "camera_roll_rate": "PASS",
+    "causes_on_screen": "PASS",
     "character_continuity[kai]": "PASS",
     "character_continuity[rho]": "PASS",
     "collision_events_valid": "PASS",
@@ -551,6 +645,8 @@
     "no_teleport_joints[rho]": "PASS",
     "no_teleport_root[kai]": "PASS",
     "no_teleport_root[rho]": "PASS",
+    "particle_budget": "PASS",
+    "particles_deterministic": "PASS",
     "props_not_through_bodies": "PASS",
     "scarf_inside_room[kai]": "PASS",
     "scarf_integrity[kai]": "PASS",
@@ -565,7 +661,7 @@
     "surface_penetration[rho]": "PASS",
     "throw_momentum": "PASS"
    },
-   "events": 65,
+   "events": 64,
    "failed": [],
    "gates": {
     "cinematic": "PASS",
@@ -601,8 +697,8 @@
     12.892,
     17.096,
     17.096,
-    19.946,
-    23.85
+    19.962,
+    23.796
    ],
    "violations": []
   }
@@ -616,6 +712,7 @@
     "camera_config_valid": "PASS",
     "camera_roll_follows_gravity_direction": "PASS",
     "camera_roll_rate": "PASS",
+    "causes_on_screen": "PASS",
     "character_continuity[juno]": "PASS",
     "character_continuity[milo]": "PASS",
     "collision_events_valid": "PASS",

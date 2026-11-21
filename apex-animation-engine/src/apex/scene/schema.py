@@ -62,6 +62,7 @@ class RoomSpec(Strict):
     depth_front: float = -120.0
     entry_door: bool = True
     grid_spacing: float = 100.0
+    grid_alpha: float = Field(1.0, ge=0, le=1)  # strength of the neon grid (set dressing reads better over a quieter grid)
 
 
 class GravityEffect(Strict):
@@ -115,6 +116,7 @@ class MorphSpec(Strict):
     at: Optional[float] = Field(None, ge=0)
     on: Optional[str] = None
     duration: float = Field(0.5, gt=0, le=5)
+    delay: float = Field(0.0, ge=0, le=10)  # with `on`: start this long after the event
 
     @model_validator(mode="after")
     def _one(self) -> "MorphSpec":
@@ -267,6 +269,24 @@ class LevelSpec(Strict):
     expanded: bool = False  # set once the grid has been expanded into the environment (re-validation does not repeat it)
 
 
+class DecorSpec(Strict):
+    """Set dressing (Milestone 5): drawn, never collided with. On the back wall unless `z` is given.
+    `window` (a night skyline outside), `panel` (a wall panel with status lights), `screen` (a monitor with a live trace
+    and a `text` title), `pipe` (from (x, y) to (x2, y2)), `lamp` (a ceiling lamp at x with its light cone), `bench`
+    (a lab bench, front of the wall at depth z), `shelf` (a wall shelf with glassware)."""
+    kind: Literal["window", "panel", "screen", "pipe", "lamp", "bench", "shelf"]
+    x: float
+    y: float = 0.0
+    w: float = 120.0
+    h: float = 80.0
+    x2: Optional[float] = None
+    y2: Optional[float] = None
+    z: Optional[float] = None
+    color: Optional[str] = None
+    text: str = ""
+    seed: int = 0
+
+
 class CreaturePart(Strict):
     """A limb or feature of a composite creature: a glyph hung on the body at `at` (body frame) by its `pivot` point
     (its own frame; default: the top of a leg or arm, its centre otherwise)."""
@@ -312,6 +332,7 @@ class CreatureSpec(Strict):
     breaks: Optional[float] = Field(None, gt=0)
     z: float = 0.0
     depth: float = Field(30.0, gt=0)
+    morphs: List["MorphSpec"] = Field(default_factory=list)  # shape changes of the body glyph (e.g. once torn apart)
 
     @model_validator(mode="after")
     def _g(self) -> "CreatureSpec":
@@ -349,6 +370,7 @@ class EnvironmentSpec(Strict):
     portals: List[PortalSpec] = Field(default_factory=list)
     level: Optional[LevelSpec] = None  # a grid level, expanded into obstacles, orbs, portals and markers
     creatures: List[CreatureSpec] = Field(default_factory=list)  # composite creatures (Milestone 5)
+    decor: List[DecorSpec] = Field(default_factory=list)  # set dressing (Milestone 5)
 
     @model_validator(mode="after")
     def _creatures(self) -> "EnvironmentSpec":
@@ -359,7 +381,8 @@ class EnvironmentSpec(Strict):
                 continue
             bx, by = cr.position
             self.props.append(PropSpec(id=f"{cr.id}.body", kind="glyph", glyph=cr.body, position=(bx, by), size=cr.size, mass=cr.mass,
-                                       weight=cr.weight, color=cr.color, z=cr.z, depth=cr.depth, creature_of=cr.id))
+                                       weight=cr.weight, color=cr.color, z=cr.z, depth=cr.depth, creature_of=cr.id,
+                                       morphs=list(cr.morphs)))
             for k, pt in enumerate(cr.parts):
                 pos = (bx + pt.at[0] - pt.pivot[0], by + pt.at[1] - pt.pivot[1])
                 self.props.append(PropSpec(id=f"{cr.id}.{k}", kind="glyph", glyph=pt.glyph, position=pos, size=pt.size, mass=pt.mass,
@@ -647,8 +670,8 @@ class DiagramSpec(Strict):
         if self.kind == "measure" and not self.to:
             raise ValueError(f"diagram {self.id}: a measure needs 'to'")
         for ref in (self.target, self.to):
-            if ref is not None and ref.partition(":")[0] not in ("char", "prop", "point"):
-                raise ValueError(f"diagram {self.id}: targets are 'char:<id>', 'prop:<id>' or 'point:x,y'")
+            if ref is not None and ref.partition(":")[0] not in ("char", "prop", "point", "creature"):
+                raise ValueError(f"diagram {self.id}: targets are 'char:<id>', 'prop:<id>', 'creature:<id>' or 'point:x,y'")
         return self
 
 
@@ -755,7 +778,7 @@ class ProjectSpec(Strict):
                     if ((kind == "switch" and ref not in switches) or (kind == "exit" and ref not in exits) or (kind == "bar" and ref not in bars)
                             or (kind == "prop" and ref not in props) or (kind == "char" and ref not in placed)):
                         raise ValueError(f"scene {sc.id}: unknown target {ref_s}")
-            whos = placed | props | {r.id for r in envs[sc.environment].ropes}
+            whos = placed | props | {r.id for r in envs[sc.environment].ropes} | {c.id for c in envs[sc.environment].creatures}
             for g in sc.goals:
                 from .goals import parse_goal
                 from .goals import check_event

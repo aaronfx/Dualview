@@ -430,6 +430,11 @@ class PhysicsWorld:
     def _on_begin(self, arb: pymunk.Arbiter, space: pymunk.Space, data) -> None:
         sa, sb = arb.shapes
         ta, tb = self._tags.get(sa, "?"), self._tags.get(sb, "?")
+        for own, other in ((ta, tb), (tb, ta)):  # a contact the body rule ignores is not a contact (no event, no sound)
+            if own.endswith("~body"):
+                o = own[:-5]
+                if (o, other) in self.proxy_ignore or (o, other) in self.proxy_grace or other in self.in_flight or other in self.carried:
+                    return
         # orient so that `a` is the non-static participant
         n = arb.normal  # points from shape a to shape b
         if sa.body.body_type == pymunk.Body.STATIC:
@@ -492,8 +497,13 @@ class PhysicsWorld:
                 for hit in self.space.shape_query(probe):
                     other = hit.shape
                     t = self._tags.get(other, "")
-                    if other is None or other.body is body or other.sensor or t.endswith("~body") or t in self.inactive:
+                    if other is None or other.body is body or other.sensor or t in self.inactive:
                         continue
+                    if t.endswith("~body"):  # a character's physical body stands for that character...
+                        o = t[:-5]
+                        if (o, tag) in self.proxy_ignore or tag in self.carried or tag in self.in_flight:
+                            continue  # ...except for a prop it is holding or handling (the body rule ignores those)
+                        t = o
                     out.append(t)
         finally:
             body.position = p0
