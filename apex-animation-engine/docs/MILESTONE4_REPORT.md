@@ -1,5 +1,23 @@
 # Milestone 4: level builder, orbs, portals, beat sync, particles
 
+> **Owner's review:** the core engine is **accepted** (8.5/10). The *Orb Runner* presentation needs to **improve** (6.8/10, a prototype).
+>
+> Findings:
+> - The launch pad and jump orb sequence is the strongest moment.
+> - The portals work, but the spatial link between connected places needs to be clearer.
+> - Particles are understated.
+> - The environment is a basic neon-grid room.
+> - The ending is weak.
+> - The PELL → IKO hand-off through the portals is hard to follow across the camera change.
+> - IKO's peak joint speed (3,135 u/s against the 3,200 limit) has a narrow margin and should be watched.
+>
+> Requirements carried forward into Milestone 5:
+> 1. Stronger environmental art direction.
+> 2. Clearer spatial continuity between connected locations.
+> 3. More satisfying endings.
+>
+> Also carried forward: the gap between the interaction mechanics (now in place) and the asset and rendering systems needed for rich worlds (cities, laboratories, stylised oceans) stays explicit when the Environment Builder and AI Director are designed.
+
 This milestone builds on the engine hardening (`docs/ENGINE_HARDENING.md`). Everything below was measured on real runs. The test film is *Orb Runner*: a 720p draft, 14.5 s, at 120 bpm. No quality level is claimed; the film needs human review.
 
 | Film | QA | Gates |
