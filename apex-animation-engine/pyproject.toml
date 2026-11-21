@@ -28,5 +28,8 @@ apex = "apex.cli:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+apex = ["motion/clips/*.json", "audio/sfx/*.json", "audio/sfx/*.md", "audio/sfx/*/*"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]

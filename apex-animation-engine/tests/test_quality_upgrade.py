@@ -233,3 +233,48 @@ def test_theme_defaults_reproduce_the_lab_and_override_per_environment():
     assert hex_rgb(t.accent) == (70, 236, 255) and hex_rgb(t.alert) == (255, 50, 62)
     env = load("foundry_flip.json").environments[0]
     assert env.theme.accent != t.accent
+
+
+# ---------------------------------------------------------------- recorded sound-effect samples
+def test_sample_library_files_and_credits():
+    import os
+    from apex.audio.samples import SFX_DIR, SampleBank
+    bank = SampleBank(48000)
+    man = bank.manifest
+    for f in bank.files():
+        assert os.path.exists(os.path.join(SFX_DIR, f)), f
+    dirs = {f.split("/")[0] for f in bank.files()}
+    credited = {s["dir"] for s in man["sources"]}
+    assert dirs <= credited  # every folder in use is credited
+    assert all(s["license"] and s["url"].startswith("https://opengameart.org/") for s in man["sources"])
+    credits = open(os.path.join(SFX_DIR, "CREDITS.md"), encoding="utf-8").read()
+    assert all(f"`{d}/`" in credits for d in dirs)
+
+
+def test_samples_are_deterministic_and_varied():
+    import shutil
+    if not shutil.which("ffmpeg"):
+        pytest.skip("ffmpeg not installed")
+    from apex.audio.samples import SampleBank
+    bank = SampleBank(48000, seed=7)
+    assert bank.has("footstep") and bank.has("impact") and bank.has("land") and not bank.has("notice")
+    a, b = bank.render("footstep", 3), bank.render("footstep", 3)
+    assert np.array_equal(a, b)
+    others = [bank.render("footstep", i) for i in range(6)]
+    assert len({(len(x), round(float(np.abs(x).max()), 4)) for x in others}) > 1  # varied pitch / file / gain
+    assert bank.room_tone(48000) is not None and len(bank.room_tone(48000)) == 48000
+
+
+def test_sound_director_falls_back_to_synth_without_samples():
+    import tempfile
+    from apex.audio.sound_director import SoundDirector
+    from apex.motion.controller import Event
+    ev = [Event(0.3, "footstep", "a", {"surface": "floor", "speed": 200.0}),
+          Event(0.8, "impact", "a", {"normal_speed": 1300.0, "point": [0.0, 0.0], "surface": "floor"})]
+    assert SoundDirector(7, samples=False).samples is None
+    with tempfile.TemporaryDirectory() as d:
+        for flag in (False, True):
+            cues = SoundDirector(7, music=False, samples=flag).render(ev, 1.5, f"{d}/{flag}.wav")
+            assert [c.event_type for c in cues] == ["footstep", "impact"]
+            with wave.open(f"{d}/{flag}.wav") as w:
+                assert w.getnchannels() == 2 and abs(w.getnframes() / w.getframerate() - 1.5) < 1e-3

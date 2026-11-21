@@ -438,7 +438,7 @@ New in v2:
 
 ## Test results
 
-`pytest -v`: **115 passed**, 0 failed, in about 150 s (Python 3.13, Linux). That is 39 for 1A/1B, 27 for 1C (`tests/test_cinematic_1c.py`), 31 for 1D (`tests/test_escape_1d.py`) and 18 for the quality upgrade (`tests/test_quality_upgrade.py`). Full list in `docs/evidence/pytest_results.txt`.
+`pytest -v`: **118 passed**, 0 failed, in about 145 s (Python 3.13, Linux). That is 39 for 1A/1B, 27 for 1C (`tests/test_cinematic_1c.py`), 31 for 1D (`tests/test_escape_1d.py`) and 21 for the quality upgrade and sound samples (`tests/test_quality_upgrade.py`). Full list in `docs/evidence/pytest_results.txt`.
 
 ## Next step
 

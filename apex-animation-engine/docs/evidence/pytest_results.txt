@@ -1,4 +1,4 @@
-pytest -v (Python 3.13, Linux), quality-upgrade commit
+pytest -v (Python 3.13, Linux), quality upgrade + recorded sound samples
 
 tests/test_ai_api.py::test_director_validates_and_repairs PASSED
 tests/test_ai_api.py::test_director_gives_up_after_bounded_repairs PASSED
@@ -94,6 +94,9 @@ tests/test_quality_upgrade.py::test_generalization_story_runs_on_existing_action
 tests/test_quality_upgrade.py::test_generalization_scene_passes_qa PASSED
 tests/test_quality_upgrade.py::test_stance_widths_scale_with_leg_length PASSED
 tests/test_quality_upgrade.py::test_theme_defaults_reproduce_the_lab_and_override_per_environment PASSED
+tests/test_quality_upgrade.py::test_sample_library_files_and_credits PASSED
+tests/test_quality_upgrade.py::test_samples_are_deterministic_and_varied PASSED
+tests/test_quality_upgrade.py::test_sound_director_falls_back_to_synth_without_samples PASSED
 tests/test_render_audio_video.py::test_renderer_output_shape_and_repeatable_pixels PASSED
 tests/test_render_audio_video.py::test_sound_cues_are_bound_to_event_times PASSED
 tests/test_render_audio_video.py::test_end_to_end_small_render_produces_playable_mp4 PASSED
@@ -116,4 +119,4 @@ tests/test_runtime.py::test_motion_scene_jump_is_ballistic_and_lands PASSED
 tests/test_schema.py::test_examples_validate PASSED
 tests/test_schema.py::test_rejects_unknown_switch_and_gapped_shots_and_bad_actions PASSED
 
-================= 115 passed, 5 warnings in 148.00s (0:02:27) ==================
+================= 118 passed, 5 warnings in 142.89s (0:02:22) ==================

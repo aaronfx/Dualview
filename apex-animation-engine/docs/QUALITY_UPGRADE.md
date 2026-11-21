@@ -149,7 +149,8 @@ The 1C film's s5/s6 cut moved from 9.75 s to 10.4 s so that its roll also starts
 | Camera moves without motivation | Partly | QA rules for subject size, included objects and roll during fast action | The shot choice is still authored per scene. The rules check it but do not choose shots |
 | The character dissolves against bright light (doorway) | Yes | Dark under-stroke silhouette (D7) | The open-door bloom still blows out to white for about 0.5 s as the door opens (1D, 24.0 s) |
 | Fast limbs strobe at 24 fps | Partly | Motion trails (ghost limbs) plus 3-sample temporal blur | A velocity-buffer blur would be smoother |
-| Impacts look thin | Yes | Burst effect (streaks, debris, glow), layered impact sound, panned stereo, room reverb | The sound is synthesised. No licensed library was available offline |
+| Impacts look thin | Yes | Burst effect (streaks, debris, glow), layered impact sound, panned stereo, room reverb | — |
+| Synthetic-sounding audio | Yes, follow-up | 33 recorded CC0 samples (footsteps, body thuds, metal impacts, switch, gravity hum, doors, room tone) layered with the synthesiser; credits in `audio/sfx/CREDITS.md` | Levels were set by measurement, not by a listening pass. The music and the slide scrape are still synthesised |
 | Only one look; colours hard-coded | Yes | `EnvironmentSpec.theme` | The open-door light is not themed yet (it stays cyan) |
 | No reusable performance system | Yes | Motion library with key poses, interpolation, phases, contacts and `Performance` | Locomotion and the press/point/notice acting are still procedural (in code), not clips |
 | No way to judge quality beyond QA | Yes | `apex review`: objective metrics separate from the human rubric; AI text advisory only | No human scores have been recorded yet. That needs the owner and reviewers |
@@ -205,13 +206,13 @@ Method: I reviewed the timestamped contact sheets (every 0.5 s), stills at the k
 
 ### Overall
 
-The weakest sequence improved clearly, and the camera now preserves orientation through the hardest part of the film. The films are still recognisably a procedural engine's output: there is no facial acting, the walk cycles are uniform and the sound is synthesised. I would not present them as reaching the reference films' level until human reviewers score them.
+The weakest sequence improved clearly, and the camera now preserves orientation through the hardest part of the film. The films are still recognisably a procedural engine's output: there is no facial acting and the walk cycles are uniform. The sound effects now use recorded CC0 samples, but the music is still synthesised. I would not present them as reaching the reference films' level until human reviewers score them.
 
 ## 8. Test results
 
 | Check | Result |
 |---|---|
-| `pytest -v` | **115 passed**, 0 failed (about 150 s). It includes 18 new tests in `tests/test_quality_upgrade.py`: library clips and interpolation, performance parameters, contacts, the knee constraint, composition rules, `include` framing, the renderer registry, motion trails, stereo panning, the review packet, the generalization story and its QA, stance scaling and theme defaults. The two 1D camera tests were rewritten for the v3 staging |
+| `pytest -v` | **118 passed**, 0 failed (about 145 s). It includes 21 new tests in `tests/test_quality_upgrade.py`: library clips and interpolation, performance parameters, contacts, the knee constraint, composition rules, `include` framing, the renderer registry, motion trails, stereo panning, the review packet, the generalization story and its QA, stance scaling, theme defaults and the recorded-sample library (files, credits, determinism, synth fallback). The two 1D camera tests were rewritten for the v3 staging |
 | 1D v3 film (30 s, 1080p, stereo) | QA **63/63 PASS** (43 engine/video checks plus 20 shot exit conditions; the new composition checks are included). Full decode: 720/720 frames |
 | Foundry Flip (19.5 s, 1080p, stereo) | QA **51/51 PASS** (37 plus 14). Full decode: 468/468 frames |
 | 1A, 1B and 1C scenes | QA passes without video, after the 1C s5/s6 cut moved to 10.4 s |

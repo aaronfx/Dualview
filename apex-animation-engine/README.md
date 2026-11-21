@@ -105,7 +105,12 @@ sudo apt-get install -y ffmpeg libegl1
 | pytest (dev) | tests | MIT |
 | FFmpeg (external binary, not bundled) | H.264/AAC encoding and probing | LGPL-2.1+; builds with libx264 are GPL. It is invoked as a separate process and is not linked or redistributed. Check your build's licence before distributing binaries |
 
-All sounds are synthesized by the engine; no third-party audio assets are used.
+**Sound effects.** The engine layers its synthesised sounds with a curated set of 33 recorded samples in `src/apex/audio/sfx/`. They come from OpenGameArt packs by Kenney, rubberduck, thimras, artisticdude and qubodup.
+
+- All of them are CC0 (public domain) and safe for commercial videos.
+- The wet-towel pack also carries an MIT/zlib/BSD notice, which is kept in `sfx/licenses/`.
+
+Sources, authors and licences are in `src/apex/audio/sfx/CREDITS.md`, and the mapping from event to sound is in `manifest.json`. Without ffmpeg, or with `SoundDirector(samples=False)`, the engine falls back to synthesised sound only. The music is synthesised by the engine.
 
 ## Repository layout
 
@@ -124,6 +129,6 @@ src/apex/
   api/       FastAPI app + storage
 examples/    project JSON files (milestone scenes); build_gravity_switch_1d.py / build_foundry_flip.py regenerate the 1D and generalization scenes
 scripts/     motion_test.py (original-vs-improved motion comparison)
-tests/       pytest suite (115 tests)
+tests/       pytest suite (118 tests)
 docs/        architecture, schema, reference analysis, milestone status, roadmap, evidence
 ```

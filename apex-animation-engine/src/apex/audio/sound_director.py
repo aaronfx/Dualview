@@ -251,9 +251,16 @@ class Cue:
 
 
 class SoundDirector:
-    def __init__(self, seed: int = 7, bindings: Optional[Dict[str, Optional[str]]] = None, music: bool = True):
+    def __init__(self, seed: int = 7, bindings: Optional[Dict[str, Optional[str]]] = None, music: bool = True,
+                 samples: bool = True):
         self.synth = Synth(seed)
         self.music_on = music
+        # recorded, freely licensed samples (audio/sfx, see CREDITS.md) layered over the synthesiser when available
+        self.samples = None
+        if samples:
+            from .samples import SampleBank
+            bank = SampleBank(SR, seed)
+            self.samples = bank if bank.ok else None
         self.bindings = dict(DEFAULT_BINDINGS)
         if bindings:
             self.bindings.update(bindings)
@@ -286,7 +293,7 @@ class SoundDirector:
         if unknown:
             raise ValueError(f"unknown sound(s) {unknown}; available: {sorted(bank)}")
         ev_by_t = {(round(e.t, 6), e.type): e for e in events}
-        for cue in cues:
+        for ci, cue in enumerate(cues):
             e = ev_by_t.get((round(cue.t, 6), cue.event_type))
             if cue.sound == "footstep":
                 sig = sy.footstep(1.0, (e.data.get("surface", "floor") if e else "floor"))
@@ -294,6 +301,14 @@ class SoundDirector:
                 sig = bank[cue.sound](cue.gain)
             else:
                 sig = bank[cue.sound]()
+            name = "door_close" if cue.event_type == "door_close" else cue.sound
+            if self.samples is not None and self.samples.has(name):
+                rec = self.samples.render(name, ci, intensity=cue.gain if cue.sound in ("impact", "clang", "land") else 1.0)
+                if cue.sound in ("impact", "clang", "land"):
+                    rec = rec * cue.gain  # the synthesised impact already carries its strength
+                mix = self.samples.synth_mix(name)
+                m0 = max(len(rec), len(sig))
+                sig = np.pad(rec, (0, m0 - len(rec))) + mix * np.pad(sig, (0, m0 - len(sig)))
             i = int(round(cue.t * SR))
             if i >= n:
                 continue
@@ -327,6 +342,10 @@ class SoundDirector:
             bed = bed + sy.music(events, duration)
         L = L + bed
         Rch = Rch + bed
+        if self.samples is not None:  # recorded room tone, offset between channels for width
+            tl, tr = self.samples.room_tone(n, 0.0), self.samples.room_tone(n, 3.7)
+            if tl is not None:
+                L, Rch = L + tl, Rch + tr
         peak = max(np.max(np.abs(L)), np.max(np.abs(Rch))) or 1.0
         L = np.tanh(L / peak * 1.2) * 0.89 / math.tanh(1.2)
         Rch = np.tanh(Rch / peak * 1.2) * 0.89 / math.tanh(1.2)

@@ -47,4 +47,26 @@ img = r.render(frame_state, camera_state, red_flash, fx, fade=..., trails=...)  
   - the impact rebuilt as layers: thud, body, sub-bass sweep, crunch, debris ticks and ring;
   - the hum and the music bed on both channels.
 
-**Licensed audio:** no professionally licensed sound library was available to this offline build, and none was downloaded. Every sound is still synthesised by APEX itself (original, no third-party rights). The cue system maps event types to named sounds (`SoundDirector(bindings=...)`). Licensed samples could replace the synthesised ones later by adding a sample-player for those names; scenes would not change. That player has not been written yet.
+**Recorded samples (added after the first quality pass).** A curated library of 33 freely licensed recordings is layered with the synthesiser (`apex/audio/samples.py`, `audio/sfx/`, credits in `audio/sfx/CREDITS.md`). The recordings are:
+
+- metal footsteps;
+- body thuds on the floor and metal impacts;
+- the switch click;
+- a force-field hum and a low boom for the gravity shift;
+- air whooshes;
+- a key/lock sound and sci-fi door open/close;
+- a machine room-tone loop.
+
+All are CC0 packs from OpenGameArt, and the licence on each pack's page was checked.
+
+**How they are played:**
+
+- Each cue picks a file per layer, deterministically from the seed. It applies about ±6 % pitch and ±1.5 dB gain variation.
+- Harder impacts play lower.
+- `synth_mix` keeps some of the synthesised body under each sample.
+
+**Layer levels** were matched to the synthesised sounds by measuring each isolated sound (peak and RMS), not by ear. A human listening pass is still needed.
+
+**Result:** the footsteps changed from pitched tonal blips to broadband transients (checked on spectrograms). The integrated loudness of the 1D mix is −17.8 LUFS (−16.9 synth-only) with a −1.0 dBFS peak and no clipped samples.
+
+**Not covered by samples:** the music stingers (notice, startle, chime, resolve) and the slide scrape are still synthesised.
