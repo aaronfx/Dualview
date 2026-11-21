@@ -38,6 +38,8 @@ def test_fall_uses_dynamic_mode_and_contact_records(dynamic_rescue):
     assert fall.data.get("active_fall") is True
     impact = next(e for e in rt.result.events if e.type == "body_fall" and e.character == "milo")
     assert impact.data.get("simulated") is True
+    assert impact.data.get("floor_contact") is True, "fall must reach a physical floor contact"
+    assert impact.data.get("fallback_settle") is False, "no scripted pose-snap fallback permitted"
     assert fall.t0 < impact.t < 5.1
     records = [r for r in ctl.records if fall.t0 <= r.t <= fall.t1]
     assert len(records) > 20
