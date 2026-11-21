@@ -170,7 +170,46 @@ class InteractionAnimMixin:
             # visually impossible reach while still upright.
             self._floor_hands(pose, F, (30.0, 22.0))
         self._ground_clamp(pose, F)
+        if seg.data.get("jointed_fall"):
+            self._apply_ragdoll_pose(pose, seg.data.get("ragdoll_samples", []), t)
         return pose
+
+    def _apply_ragdoll_pose(self, pose: Pose, samples: list, t: float) -> None:
+        """Rebuild visible joints from saved limb-body angles, no renderer-side simulation."""
+        if not samples:
+            return
+        from bisect import bisect_left
+        index = bisect_left([sample["t"] for sample in samples], t)
+        lo, hi = samples[max(0, index - 1)], samples[min(index, len(samples) - 1)]
+        weight = clamp((t - lo["t"]) / max(1e-9, hi["t"] - lo["t"]), 0.0, 1.0)
+        angles = {
+            name: a + math.atan2(math.sin(hi["angles"][name] - a),
+                                 math.cos(hi["angles"][name] - a)) * weight
+            for name, a in lo["angles"].items()
+        }
+
+        def char_angle(a: float) -> float:
+            relative = math.atan2(math.sin(a - pose.body_angle), math.cos(a - pose.body_angle))
+            return relative if pose.facing >= 0 else math.pi - relative
+
+        def signed(a: float) -> float:
+            return math.atan2(math.sin(a), math.cos(a))
+
+        L = pose.local
+        L["spine"], L["chest"], L["neck"] = PI / 2, 0.0, 0.0
+        L["head"] = signed(char_angle(angles["head"]) - PI / 2)
+        pose.twist = pose.hip_twist = 0.0
+        for side in "nf":
+            upper = char_angle(angles[f"upper_arm_{side}"])
+            fore = char_angle(angles[f"forearm_{side}"])
+            thigh = char_angle(angles[f"thigh_{side}"])
+            shin = char_angle(angles[f"shin_{side}"])
+            L[f"upper_arm_{side}"] = signed(upper - PI / 2)
+            L[f"forearm_{side}"] = signed(fore - upper)
+            L[f"thigh_{side}"] = signed(thigh)
+            L[f"shin_{side}"] = signed(shin - thigh)
+            L[f"foot_{side}"] = PI / 2
+        pose.hands = {"n": "open", "f": "open"}
 
     def _prone_limbs(self, pose: Pose, F, tau: float, struggle: float, pinned: bool, chest_up: float = 1.0) -> None:
         L = pose.local
