@@ -389,6 +389,7 @@ class GlitchSpec(Strict):
     speed: float = Field(60.0, ge=0)
     start: float = 0.0
     direction: Literal[1, -1] = 1
+    stop: Optional[float] = None  # it halts at this x
     color: str = "#ff2a48"
 
 
@@ -798,6 +799,28 @@ class MusicSpec(Strict):
     gain: float = Field(1.0, ge=0, le=2)
 
 
+class ScoreCue(Strict):
+    """From this moment the score plays `mood` (at a time, or on an event in goal syntax), until the next cue."""
+    mood: Literal["calm", "tension", "action", "sad", "hope", "triumph", "silence"]
+    at: Optional[float] = Field(None, ge=0)
+    on: Optional[str] = None
+    delay: float = 0.0
+
+    @model_validator(mode="after")
+    def _when(self) -> "ScoreCue":
+        if (self.at is None) == (self.on is None):
+            raise ValueError("a score cue needs exactly one of 'at' or 'on'")
+        return self
+
+
+class ScoreSpec(Strict):
+    """The film score of a scene (cinematic upgrade): mood cues, synthesised in the scene's key. `level` is the
+    music's peak relative to the sound effects' peak."""
+    key: str = "D"
+    level: float = Field(0.55, ge=0, le=2)
+    cues: List[ScoreCue] = Field(default_factory=list)
+
+
 class SceneSpec(Strict):
     id: str
     title: str = ""
@@ -814,7 +837,8 @@ class SceneSpec(Strict):
     diagrams: List[DiagramSpec] = Field(default_factory=list)  # annotations from simulation data (Milestone 5)
     fail: Optional[FailSpec] = None  # Milestone 6: falling out of the level
     hud: Optional[HudSpec] = None  # Milestone 6: retry counter and messages
-    transition_in: Literal["cut", "fade", "rewind"] = "cut"  # how a film enters this scene from the previous one
+    transition_in: Literal["cut", "fade", "rewind", "warp"] = "cut"  # how a film enters this scene from the previous one
+    score: Optional[ScoreSpec] = None  # cinematic upgrade: music that follows the story's moods
     retry_of: Optional[str] = None  # Milestone 6: this scene is a retry of that scene (it restarts from the same state)
 
     @model_validator(mode="after")

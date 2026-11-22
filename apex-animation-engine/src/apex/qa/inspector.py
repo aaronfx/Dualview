@@ -184,16 +184,21 @@ class Inspector:
         room = self.rt.env.room
         hw, rh, m = room.width / 2, room.height, TOL["room_margin"]
         out = []
+        gone = {}
+        for e in self.r.events:  # through an exit door (and faded out beyond it) a character has left the level
+            if e.type == "exit_reached":
+                gone.setdefault(e.character, e.t)
         for cid, frames in self.joints.items():
             nan, outside, worst, where = 0, 0, 0.0, ""
             for fi, j in enumerate(frames):
+                gone_now = self.times[fi] >= gone.get(cid, math.inf)
                 for name, (x, y) in j.items():
                     if not (math.isfinite(x) and math.isfinite(y)):
                         nan += 1
                         continue
                     pen = max(-hw - x, x - hw, -y, y - rh)
-                    if pen > m and in_portal(self.rt.env, (x, y)) and self._door_open_at(self.times[fi]):
-                        pen = 0.0  # walking out through an open doorway
+                    if pen > m and (gone_now or (in_portal(self.rt.env, (x, y)) and self._door_open_at(self.times[fi]))):
+                        pen = 0.0  # walking out through an open doorway (or gone through it)
                     if pen > m:
                         outside += 1
                     if pen > worst:
@@ -425,8 +430,10 @@ class Inspector:
             st = sc.max_stretch()
             out.append(Check(f"scarf_integrity[{cid}]", "PASS" if st <= TOL["scarf_stretch"] and sc.anchor_err <= TOL["scarf_anchor"] else "FAIL",
                              st, TOL["scarf_stretch"], f"max segment stretch; anchor error {sc.anchor_err:.3f}"))
+            t_gone = next((e.t for e in self.r.events if e.type == "exit_reached" and e.character == cid), math.inf)
+            n_ok = int(max(0.0, t_gone - sc.t0) / sc.dt) if math.isfinite(t_gone) else None  # (not after it has left the level)
             inside = all((-room.width / 2 - 1e-6 <= p[0] <= room.width / 2 + 1e-6 and -1e-6 <= p[1] <= room.height + 1e-6)
-                         or in_portal(self.rt.env, (p[0], p[1])) for d in sc.data for frame in d[::12] for p in frame)
+                         or in_portal(self.rt.env, (p[0], p[1])) for d in sc.data for frame in d[:n_ok:12] for p in frame)
             out.append(Check(f"scarf_inside_room[{cid}]", "PASS" if inside else "FAIL"))
         if self.r.dust is not None:
             D = self.r.dust.data

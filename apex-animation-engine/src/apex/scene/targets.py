@@ -74,7 +74,7 @@ def exit_portal(env: EnvironmentSpec, exit_id: str, depth: float = 420.0) -> Tup
 
 def in_portal(env: EnvironmentSpec, p: Vec) -> bool:
     for ex in env.exits:
-        if ex.unlock_on:
+        if ex.unlock_on or not ex.sealed:  # a door that can open (an unsealed gate is open from the start)
             x0, y0, x1, y1 = exit_portal(env, ex.id)
             if x0 <= p[0] <= x1 and y0 <= p[1] <= y1:
                 return True

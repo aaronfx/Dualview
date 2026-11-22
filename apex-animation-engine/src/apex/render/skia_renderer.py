@@ -1118,6 +1118,9 @@ class SkiaRenderer:
         opening (the leaf slides back into the wall, white light behind) -> open."""
         for ex in self.env.exits:
             state, u = fs.doors.get(ex.id, ("sealed", 0.0))
+            if self.open:  # an open world: a free-standing gate, not a door in a wall
+                self._gate(c, ex, state, u, fs.t)
+                continue
             surf = ex.surface
             SP = lambda s_, h, z: self._SP(surf, s_, h, z)
             a, b, z0, z1 = self._door_geom(ex)
@@ -1171,6 +1174,47 @@ class SkiaRenderer:
                     j0 = surface_point(self.env, surf, side, 0.0)
                     j1 = (j0[0] - n[0] * 90, j0[1] - n[1] * 90)
                     self.line3(c, (j0[0], j0[1], 0), (j1[0], j1[1], 0), WHITE, 0.8 * openness, 2.5)
+
+    def _gate(self, c: skia.Canvas, ex, state: str, u: float, t: float) -> None:
+        """An exit in an open world: two stone pillars and a lintel across the path's depth, with an energy field
+        between them (red and barred while sealed, bright once unlocked, flaring as it opens)."""
+        x = self.hw if ex.surface == "wall_right" else -self.hw if ex.surface == "wall_left" else ex.s
+        y0, y1 = ex.s - ex.width / 2, ex.s + ex.width / 2
+        if ex.surface in ("floor", "ceiling"):
+            return
+        za, zb = self.near + 30.0, self.back - 30.0
+        live = state not in ("sealed",)
+        openness = {"opening": u, "open": 1.0, "exited": 1.0, "closing": 1.0 - u, "unlocking": 0.3 * u, "unlocked": 0.3}.get(state, 0.0)
+        rgb = mix(self.alert, (150, 245, 255), smoothstep(0.0, 1.0, u) if state == "unlocking" else (1.0 if live else 0.0))
+        pulse = 0.8 + 0.2 * math.sin(t * 5.0)
+        field = self.poly([(x, y0, za), (x, y1 + 30, za), (x, y1 + 30, zb), (x, y0, zb)])
+        mid = self.P(x, (y0 + y1) / 2, (za + zb) / 2)
+        self._glow(c, (mid[0], mid[1]), max(40.0, (220 + 200 * openness) * mid[2]), rgb, (0.18 + 0.3 * openness) * pulse)
+        pa, pb = self.P(x, y0, 0), self.P(x, y1, 0)
+        sh = skia.GradientShader.MakeLinear([skia.Point(pa[0], pa[1]), skia.Point(pb[0], pb[1])],
+                                            [col(rgb, (0.35 + 0.45 * openness) * pulse), col(mix(rgb, WHITE, 0.6), (0.15 + 0.35 * openness) * pulse)])
+        c.drawPath(field, skia.Paint(AntiAlias=True, Shader=sh, BlendMode=skia.BlendMode.kPlus))
+        for k in range(7):  # light rising through the field
+            zz = lerp(za, zb, (k + 0.5) / 7)
+            yy = y0 + ((t * 120 + k * 53) % (y1 - y0))
+            q0, q1 = self.P(x, yy, zz), self.P(x, yy + 40, zz)
+            c.drawLine(q0[0], q0[1], q1[0], q1[1], skia.Paint(AntiAlias=True, StrokeWidth=max(1.0, 3 * q0[2]), Color=col(WHITE, 0.4 * pulse)))
+        stone = (92, 84, 96) if self.world is None or self.world.kind != "city" else (70, 74, 92)
+        for z in (za, zb):  # pillars
+            self._face3(c, [(x - 22, y0 - 10, z), (x + 22, y0 - 10, z), (x + 22, y1 + 50, z), (x - 22, y1 + 50, z)], stone)
+            lp = self.P(x, y1 + 20, z - 0.5)
+            c.drawCircle(lp[0], lp[1], max(1.5, 6 * lp[2]), skia.Paint(AntiAlias=True, Color=col(rgb)))
+            self._glow(c, (lp[0], lp[1]), 30 * lp[2], rgb, 0.6)
+        l0, l1 = self.P(x, y1 + 50, za), self.P(x, y1 + 50, zb)  # the lintel
+        c.drawLine(l0[0], l0[1], l1[0], l1[1], skia.Paint(AntiAlias=True, StrokeWidth=max(2.0, 26 * l0[2]), Color=col(mix(stone, WHITE, 0.15))))
+        if state == "sealed" and ex.sealed:  # bars of light across it
+            for i in range(1, 5):
+                yy = lerp(y0, y1, i / 5)
+                q0, q1 = self.P(x, yy, za), self.P(x, yy, zb)
+                c.drawLine(q0[0], q0[1], q1[0], q1[1], skia.Paint(AntiAlias=True, StrokeWidth=max(1.5, 5 * q0[2]), Color=col(self.alert, 0.85)))
+
+    def _face3(self, c: skia.Canvas, pts, rgb) -> None:
+        c.drawPath(self.poly(pts), skia.Paint(AntiAlias=True, Color=col(rgb)))
 
     def _open_exits(self, fs: FrameState):
         return [ex for ex in self.env.exits if fs.doors.get(ex.id, ("sealed", 0))[0] in ("opening", "open", "exited", "closing")]

@@ -417,8 +417,9 @@ class SoundDirector:
                 cues.append(Cue(e.t, e.type, snd, gain))
         return cues
 
-    def render(self, events, duration: float, path: str, music=None) -> List[Cue]:
-        """`music`: a MusicSpec; the beat-locked groove replaces the adaptive score bed."""
+    def render(self, events, duration: float, path: str, music=None, score=None) -> List[Cue]:
+        """`music`: a MusicSpec; the beat-locked groove replaces the adaptive score bed. `score`: a ScoreSpec; the
+        film score (moods placed on events) replaces it too."""
         n = _n(duration)
         L = np.zeros(n)
         Rch = np.zeros(n)  # sound effects are panned by where they happen in the room
@@ -479,7 +480,12 @@ class SoundDirector:
                 if m > 0:
                     L[i:i + m] += hum[:m] * 0.25
                     Rch[i:i + m] += hum[:m] * 0.25
-        if music is not None:
+        if score is not None and score.cues:
+            from .score import Score, resolve_cues
+            fx_peak = max(np.max(np.abs(L)), np.max(np.abs(Rch)), 0.05)
+            ml, mr = Score(self.synth.rng.integers(1 << 30), score.key).render(resolve_cues(score, events, duration), duration)
+            L, Rch = L + ml * score.level * fx_peak, Rch + mr * score.level * fx_peak
+        elif music is not None:
             groove = sy.beat_track(music, duration)
             L, Rch = L + groove, Rch + groove  # on the effects bus level, so it survives the final normalisation
         elif self.music_on:

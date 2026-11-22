@@ -358,7 +358,8 @@ class SceneRuntime:
         frames.update(structures.top_frames(self.env))
         gravity = GravityField(initial=self.env.gravity)
         events: List[Event] = []
-        doors: Dict[str, Dict[str, Optional[float]]] = {ex.id: {"unlock_t": None, "open_t": None, "exit_t": None} for ex in self.env.exits}
+        doors: Dict[str, Dict[str, Optional[float]]] = {ex.id: {"unlock_t": None if ex.sealed else -DOOR_UNLOCK_S - 1.0,  # unsealed: open to all
+                                                                 "open_t": None, "exit_t": None} for ex in self.env.exits}
         unlock_by = {ex.unlock_on.split(":", 1)[1]: ex.id for ex in self.env.exits if ex.unlock_on and ex.unlock_on.startswith("switch:")}
         together = {ex.id: ex.unlock_on.split(":", 1)[1].split(",") for ex in self.env.exits
                     if ex.unlock_on and ex.unlock_on.startswith("together:")}
@@ -560,7 +561,7 @@ class SceneRuntime:
             if self.project.character(cid).style.has_scarf:
                 scarves[cid] = ScarfSim(an.pose_at, self.rigs[cid], gravity, (-hw, 0.0, hw, room.height), 0.0, end + 0.1,
                                         seed=self.project.seed,
-                                        portals=[exit_portal(self.env, ex.id) for ex in self.env.exits if ex.unlock_on])
+                                        portals=[exit_portal(self.env, ex.id) for ex in self.env.exits if ex.unlock_on or not ex.sealed])
         impulses = [(e.t, e.data["point"], 260.0 * min(1.5, e.data.get("normal_speed", 600) / 900)) for e in events
                     if e.type == "impact" and "point" in e.data]
         impulses += [(e.t, switch_world(self.env, next(sw for sw in self.env.switches if sw.id == e.data["switch"])), 180.0)

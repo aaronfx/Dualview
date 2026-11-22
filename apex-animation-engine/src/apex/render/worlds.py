@@ -159,7 +159,7 @@ class World:
 
     def _build_canyon(self) -> None:
         rng = self.rng
-        for z, hmin, hmax, rgb, step, mesa in ((15000, 1800, 5200, (120, 60, 110), 900, True), (7000, 1200, 3600, (110, 50, 60), 500, True),
+        for z, hmin, hmax, rgb, step, mesa in ((15000, 1800, 5200, (120, 60, 110), 900, True), (7000, 500, 2200, (110, 50, 60), 500, True),
                                                (3000, 200, 1500, (70, 30, 32), 260, False)):
             x0, x1 = self._span(z)
             hz = self.horizon - 0.1 * z
@@ -433,6 +433,8 @@ class World:
         if g is None or t < g.start:
             return
         xg = g.x0 + g.direction * g.speed * (t - g.start)
+        if g.stop is not None:
+            xg = min(xg, g.stop) if g.direction > 0 else max(xg, g.stop)
         rgb = _hex(g.color)
         r = self.r
         rr = np.random.default_rng(int(t * 30))

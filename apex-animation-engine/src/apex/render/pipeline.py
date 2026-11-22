@@ -377,7 +377,7 @@ def render_scene(project: ProjectSpec, scene_id: str, out_path: str, samples: in
     sd = SoundDirector(project.seed, {c.on_event: c.sound for sh in scene.shots for c in sh.sound_cues})
     n = int(round(warp.film_duration * project.fps))
     film_events = warp_events(res.events, warp)
-    cues = sd.render(film_events, n / project.fps, wav, music=scene.music)  # audio length == frame-quantised video length (no dropped frames)
+    cues = sd.render(film_events, n / project.fps, wav, music=scene.music, score=scene.score)  # audio length == frame-quantised video length (no dropped frames)
     say("audio", 1.0, f"{len(cues)} cues")
     writer = VideoWriter(out_path, W, H, project.fps, audio=wav)
     try:

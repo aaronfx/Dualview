@@ -4,6 +4,7 @@ Each scene is rendered and checked on its own (`render_scene`, with QA). The sce
 each one the way its `transition_in` says:
 - `cut`: straight on;
 - `fade`: a fade up from black (picture and sound);
+- `warp`: a jump to another world: the picture comes up out of a white flash;
 - `rewind`: the game resets. The last frame of the previous scene freezes and drains of colour, then the whole
   previous scene plays backwards at high speed with a glitch (colour split, noise, scan lines) and a tape-rewind sound
   (its own sound track reversed and pitched up). It is built from the frames that were rendered, so the rewind always
@@ -107,7 +108,10 @@ def _concat(parts: List[str], out: str, fps: int, size, fades: List[bool], crf: 
     for i, (p, fade) in enumerate(zip(parts, fades)):
         v = f"[{i}:v]scale={W}:{H},fps={fps},format=yuv420p,setsar=1"
         a = f"[{i}:a]aformat=sample_rates=48000:channel_layouts=stereo"
-        if fade:
+        if fade == "warp":
+            v += ",fade=t=in:st=0:d=0.7:color=white"
+            a += ",afade=t=in:st=0:d=0.3"
+        elif fade:
             v += f",fade=t=in:st=0:d={FADE_T}"
             a += f",afade=t=in:st=0:d={FADE_T}"
         g += [v + f"[v{i}]", a + f"[a{i}]"]
@@ -157,7 +161,7 @@ def render_film(project, out_path: str, samples: int = 1, preview_scale: float =
             parts.append(rw)
             fades.append(False)
         parts.append(seg)
-        fades.append(sc.transition_in == "fade" or (i == 0 and sc.transition_in != "cut"))
+        fades.append("warp" if sc.transition_in == "warp" else (sc.transition_in == "fade" or (i == 0 and sc.transition_in != "cut")))
     if progress:
         progress("film", 0.0, f"joining {len(parts)} parts")
     _concat(parts, out_path, project.fps, (W, H), fades)
