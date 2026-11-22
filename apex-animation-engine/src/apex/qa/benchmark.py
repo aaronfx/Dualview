@@ -54,7 +54,8 @@ def run_film(fname: str, determinism: bool = True) -> Dict[str, dict]:
         rt = SceneRuntime(project, sc.id)
         res = rt.simulate()
         goals = list(sc.goals or derive_goals(sc))
-        met, times, missing = progress(goals, res.events)
+        # derived goals are every character's waits in action-list order, not story order: check them unordered
+        met, times, missing = progress(goals, res.events, ordered=bool(sc.goals))
         warp = build_warp(rt.scene, res.events, res.duration, project.fps)
         rep = Inspector(rt, build_camera(rt, project.width / project.height), project.fps,
                         size=(project.width, project.height), warp=warp).run(check_determinism=determinism)

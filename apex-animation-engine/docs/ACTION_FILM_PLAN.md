@@ -46,6 +46,30 @@ The film is original. Its characters, story and look are APEX's own.
 - **Builder:** `examples/build_core_run.py` → `examples/core_run.json`.
 - **Render:** `apex film examples/core_run.json -o out/core_run/core_run.mp4`.
 
+## Director's Cut (after the first-draft review)
+
+The review found the first draft closer to a set of action sequences than a story. The Director's Cut rebuilds it around the stolen core: what each character wants, what stops them, what they do about it, and what changes. The five worlds, the cast and the engine systems are kept.
+
+### The story as built (`examples/build_core_run.py`)
+
+| # | Scene | What happens (simulated; cuts, slow motion and score are placed from the events) |
+|---|---|---|
+| 1 | The theft (city, night, rain) | A close-up of the core in its glass case. VEX punches through the glass and lifts the core out; the city's lights die in a wave from the plinth and the beacons pulse red. IKO and PELL turn; VEX shows them the core and laughs. They vault the empty plinth; VEX kicks a crate back at them (IKO ducks, PELL rolls). Over the gap and the vent; IKO's flying kick is launched from too far, VEX steps out of it and kicks him to the roof edge; IKO waves PELL's hand away and runs on |
+| 2 | The storm tower | VEX leaps the girders with the core; IKO climbs after him. On the girder IKO's jab, cross and side kick are taken on VEX's guard as he gives ground; IKO cheers too soon; VEX slips the roundhouse and sweeps him. IKO tries to get up alone and cannot; VEX looks down at him, laughs and leaves. PELL offers his hand; IKO, sitting up, takes it and is pulled up; PELL points the way |
+| 3 | The canyon (sunset) | VEX crosses the rope bridge and kicks out its stake: the bridge falls. IKO leaps for a jump orb, which flips him across (it bursts); PELL jumps short, catches the far edge and climbs up. A beam swings across the path; both go under it low. The drone shrugs off IKO's kick; PELL steps past IKO and his thrown X tears it apart; IKO rolls through the wreckage and they follow VEX into the portal |
+| 4 | The arena (the void) | VEX sets the core in a socket (the arena floods with energy) and takes up a staff. IKO's jab is blocked, the swing is slipped, the side kick lands, the cross is blocked; PELL rushes in too late as the staff knocks IKO down. IKO cannot rise. PELL's thrown X knocks the staff out of VEX's hands. IKO gets up, looks at PELL, ducks VEX's hook and the flying kick lands. VEX cannot rise. IKO takes the core out of the socket and they go |
+| 5 | The return of the light (summit, dawn) | IKO and PELL run up with the core; IKO sets it in the beacon; a ring of light goes out and the dark city below lights up again in a wave. IKO looks at PELL; a fist bump; the camera pulls back over the restored world: CORE RUN. VEX is not in this scene |
+
+### What the engine gained for it
+
+- `place`: set a carried prop down on a holder (a `pedestal` structure seats it) or at a point.
+- `placements[].carrying`: a scene starts with a prop in a character's hands (the core carried between scenes).
+- `strike` at a prop (`prop:<id>`): a punch or standing kick delivers a real blow (it breaks glass, sends a crate flying, can be shrugged off by a sturdy drone).
+- A thrown symbol that hits a held symbol knocks it out of the hands (`disarm`); a knockdown drops what is held.
+- `get_up` with `hesitate`: an attempt to rise that fails; a helped get-up now also works from the back.
+- Orbs with `once` (spent after one use).
+- World power: `backdrop.power` cues dim, flicker and relight the city's windows and signs (as a wave from an origin, with a ring of light), red warning beacons pulse while the power is out, `city_lights` puts a distant city below the summit, and `energy` props glow.
+
 ## Status (first draft rendered)
 
 The first draft is a 720p, 2:15 film with five scenes, built by `examples/build_core_run.py` (`out/core_run/` is not committed).
