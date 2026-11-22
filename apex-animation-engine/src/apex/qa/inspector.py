@@ -276,7 +276,10 @@ class Inspector:
             worst_ang, worst_mag, n = 0.0, 0.0, 0
             # an orb or a portal acts on the body at one physics step; that impulse is verified by its own check
             # (orb_impulses, portal_transfers), so only the steps that straddle it are left out here
-            kicks = [e.t for e in self.r.events if e.character == cid and e.type.startswith(("orb_", "portal_"))]
+            # a hand catching a ledge stops the fall through the arms (a constraint, checked by the ledge checks): left out too
+            kicks = [e.t for e in self.r.events if e.character == cid and (e.type.startswith(("orb_", "portal_"))
+                                                                            or e.type in ("ledge_catch", "ledge_grab", "graze"))]
+            worst_t = None
             for seg in ctrl.segments:
                 if seg.kind != "airborne":
                     continue
@@ -294,13 +297,16 @@ class Inspector:
                         continue
                     ang = abs(math.degrees(math.atan2(gv[0] * acc[1] - gv[1] * acc[0], float(np.dot(gv, acc)))))
                     mag = abs(np.linalg.norm(acc) / np.linalg.norm(gv) - 1)
+                    if mag > worst_mag:
+                        worst_t = T[i]
                     worst_ang, worst_mag, n = max(worst_ang, ang), max(worst_mag, mag), n + 1
             if n == 0:
                 out.append(Check(f"gravity_direction[{cid}]", "SKIP", details="no airborne phase"))
             else:
                 st = "PASS" if worst_ang <= TOL["gravity_angle_deg"] and worst_mag <= TOL["gravity_mag_rel"] else "FAIL"
                 out.append(Check(f"gravity_direction[{cid}]", st, worst_ang, TOL["gravity_angle_deg"],
-                                 f"airborne root acceleration vs gravity vector over {n} samples; worst magnitude error {worst_mag:.3%}"))
+                                 f"airborne root acceleration vs gravity vector over {n} samples; worst magnitude error {worst_mag:.3%}"
+                                 + (f" at t={worst_t:.2f}s" if worst_t is not None else "")))
         # collision events: every impact must be on a known static surface, with a normal opposing the approach
         bad = [e for e in self.r.events if e.type == "impact" and e.data.get("surface") not in self.r.frames]
         imp = [e for e in self.r.events if e.type == "impact"]
