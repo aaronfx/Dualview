@@ -797,6 +797,9 @@ class AcroMixin:
             return
         point = self.world.state(pid).pos
         self.world.make_dynamic(pid, velocity, spin)
+        # Keep the releasing character from rebounding off its own hand-held prop.
+        # Normal physical collision resumes as soon as they have separated.
+        self.world.proxy_grace.add((self.cid, pid))
         self.world.carried.discard(pid)
         self.carrying = None
         for span in reversed(self.carry_log):
