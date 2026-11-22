@@ -96,7 +96,7 @@ To refuse a full movie if scene/film QA fails:
 apex film examples/core_run.json -o out/core_run/final.mp4 --strict-qa --preset final
 ```
 
-**Current limitation:** `--only` uses previously rendered segments and metadata. Do not use it for final strict acceptance unless the cached segments were just verified against exactly the same project, engine revision and render settings. The safe final workflow is a full strict render without `--only`.
+Strict mode deliberately rejects `--only`: the final acceptance render must rebuild every scene, so stale cached segments cannot quietly be used.
 
 ## 6. Validation
 
