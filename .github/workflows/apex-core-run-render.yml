@@ -1,0 +1,70 @@
+name: APEX CORE RUN - 720p preview movie
+
+on:
+  push:
+    branches:
+      - gpt-core-run-directors-cut-engine
+    paths:
+      - .github/workflows/apex-core-run-render.yml
+      - apex-animation-engine/examples/build_core_run_directors_cut.py
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  produce-movie:
+    runs-on: ubuntu-latest
+    timeout-minutes: 85
+    defaults:
+      run:
+        working-directory: apex-animation-engine
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install renderer runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y libegl1 libgl1 libopengl0 ffmpeg
+          python -m pip install -e ".[dev]"
+      - name: Build and simulate movie
+        run: |
+          mkdir -p out/core_run
+          if [ -e examples/build_core_run_directors_cut.py ]; then
+            PYTHONPATH=src python examples/build_core_run_directors_cut.py examples/core_run_directors_cut.json
+            echo "PROJECT=examples/core_run_directors_cut.json" >> "$GITHUB_ENV"
+          else
+            PYTHONPATH=src python examples/build_core_run.py examples/core_run.json
+            echo "PROJECT=examples/core_run.json" >> "$GITHUB_ENV"
+          fi
+      - name: Render 720p movie and keep honest QA report
+        run: |
+          set +e
+          PYTHONPATH=src python -m apex.cli film "$PROJECT" -o out/core_run/CORE_RUN_720p.mp4 --preset draft --report out/core_run/report.json
+          code=$?
+          echo "apex film exit code: $code" | tee out/core_run/render_status.txt
+          exit 0
+      - name: Create compressed review movie and two delivery parts
+        run: |
+          if [ -s out/core_run/CORE_RUN_720p.mp4 ]; then
+            ffmpeg -hide_banner -loglevel error -y -i out/core_run/CORE_RUN_720p.mp4 -c:v libx264 -preset veryfast -crf 28 -c:a aac -b:a 96k -movflags +faststart out/core_run/CORE_RUN_review.mp4
+            ffmpeg -hide_banner -loglevel error -y -i out/core_run/CORE_RUN_review.mp4 -t 75 -c copy -movflags +faststart out/core_run/CORE_RUN_part1.mp4
+            ffmpeg -hide_banner -loglevel error -y -ss 75 -i out/core_run/CORE_RUN_review.mp4 -c copy -movflags +faststart out/core_run/CORE_RUN_part2.mp4
+            ffprobe -v error -show_entries format=duration,size -of json out/core_run/CORE_RUN_review.mp4 | tee out/core_run/probe.json
+          fi
+      - name: Upload produced preview and QA
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: CORE-RUN-movie-720p-preview
+          path: |
+            apex-animation-engine/out/core_run/CORE_RUN_review.mp4
+            apex-animation-engine/out/core_run/CORE_RUN_part1.mp4
+            apex-animation-engine/out/core_run/CORE_RUN_part2.mp4
+            apex-animation-engine/out/core_run/report.json
+            apex-animation-engine/out/core_run/probe.json
+            apex-animation-engine/out/core_run/render_status.txt
+          if-no-files-found: warn
+          retention-days: 14
