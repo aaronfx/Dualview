@@ -1,6 +1,9 @@
 name: APEX Director's Cut engine tests
 
 on:
+  push:
+    branches:
+      - gpt-core-run-directors-cut-engine
   pull_request:
     branches:
       - ccr-8f5558fb-f9agl2
