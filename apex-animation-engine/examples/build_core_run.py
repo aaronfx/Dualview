@@ -229,70 +229,99 @@ def scene_canyon():
             "actions": acts, "shots": [{"id": "wide", "start": 0, "end": 40.0, "camera": {"mode": "follow", "target": "iko", "view_height": 900}}]}
 
 
-# ------------------------------------------------------------------ 4. the arena (the void): the final fight
-def arena():
-    obs = [plat("floor", -1800, 1800, thick=60.0), plat("block", 260, 460, top=TOP + 150, thick=150.0)]
-    props = [glyph("staff", "-", 120.0, TOP + 8, size=118.0, mass=5.0, color="#ff4a5a"),
-             glyph("x", "x", -760.0, TOP + 25, size=50.0, mass=5.0, color="#ffd84a")]
-    return world("arena", "void", obs, props, width=3600, weather="data", amount=1.0)
+# ------------------------------------------------------------------ 4. the arena (the void): the final confrontation
+HOLD_X = 760.0
+
+
+def arena(power=()):
+    obs = [plat("floor", -1800, 1800, thick=60.0), holder("socket", HOLD_X, TOP)]
+    props = [core(-900, TOP + 400),
+             glyph("staff", "-", 330.0, TOP + 8, size=118.0, mass=5.0, color="#ff4a5a"),
+             dict(glyph("x", "x", -260.0, TOP + 25, size=50.0, mass=5.0, color="#ffd84a"), z=30.0)]
+    return world("arena", "void", obs, props, width=3600, weather="data", amount=1.0, exits=[gate()], power=list(power))
 
 
 def scene_arena():
     I, P, V = "iko", "pell", "vex"
     acts = [
-        A(I, "run_to", target_x=-320, lane=-10), A(I, "guard", duration=0.3),
-        A(I, "strike", target="char:vex", move="jab"), A(I, "strike", target="char:vex", move="cross"),
-        A(I, "wait_for", until="next:strike_start@vex"), A(I, "dodge", dodge="duck"),
-        A(I, "strike", target="char:vex", move="roundhouse", power=1.1),
-        act(I, "recover_relief_shake", 1.4, "tired"),  # out of breath, open
-        A(I, "wait_for", until="event:knockdown@iko"), A(I, "get_up"),
-        A(I, "run_to", target_x=-420), A(I, "turn", face=1),  # back off for a run-up
-        A(I, "wait_for", until="next:stood_up@vex"), act(I, "rise", 0.6, "determined", tempo=1.8),
-        A(I, "strike", target="char:vex", move="flying_kick", power=1.6, reaction="knockdown"),
-        A(I, "idle", duration=0.6), A(I, "offer_hand", target="char:vex"), A(I, "wait_for", until="event:fist_bump@vex"), act(I, "cheer", 1.6, "joyful"),
-        A(I, "idle", duration=4.0),
-        A(P, "run_to", target_x=-640, lane=20), act(P, "shock", 0.8, "scared"),
-        A(P, "wait_for", until="event:knockdown@iko"), act(P, "rise", 1.0, "determined", tempo=1.6),
-        A(P, "pick_up", target="prop:x"), A(P, "throw", target="char:vex", power=1.3),
-        act(P, "cheer", 1.0, "joyful"), A(P, "wait_for", until="event:knockdown@vex"), act(P, "laugh", 2.0, "joyful"),
-        A(P, "idle", duration=4.0),
+        # VEX: sets the core in the socket, takes up the staff and takes IKO apart - until PELL's throw takes the staff
+        A(V, "run_to", target_x=HOLD_X - 150, speed=340), A(V, "place", target="obstacle:socket"),
         A(V, "pick_up", target="prop:staff"), A(V, "turn", face=-1),
-        A(V, "guard", until="next:strike_start@iko"), A(V, "guard", duration=0.9),
-        A(V, "strike", target="char:iko", move="swing_weapon", power=1.0),
-        A(V, "guard", until="next:strike_start@iko"), A(V, "guard", duration=0.4),
+        A(V, "guard", until="next:strike_start@iko"), A(V, "guard", duration=0.45),  # IKO's jab: blocked
+        A(V, "strike", target="char:iko", move="swing_weapon", power=0.9, reaction="stagger"),  # IKO steps out of it
+        A(V, "wait_for", until="next:hurt@vex"),  # IKO's side kick lands
+        A(V, "turn", face=-1), A(V, "guard", until="next:strike_start@iko"), A(V, "guard", duration=0.35),
         A(V, "strike", target="char:iko", move="swing_weapon", power=1.5, reaction="knockdown"),
-        act(V, "laugh", 1.0, "joyful"),
-        A(V, "wait_for", until="event:knockdown@vex"), A(V, "get_up"),  # PELL's throw
-        A(V, "wait_for", until="next:knockdown@vex"), A(V, "get_up", target="char:iko"),  # IKO's flying kick
-        A(V, "gesture", target="char:iko", gesture="fist_bump"), A(V, "idle", duration=3.0)]
-    return {"id": "arena", "title": "The arena", "environment": "arena", "duration": 45.0, "transition_in": "warp",
+        act(V, "laugh", 0.8, "joyful"), A(V, "walk_to", target_x=-60, speed=80),  # stalks the fallen IKO
+        A(V, "wait_for", until="event:disarm@vex"), act(V, "shock", 0.8, "scared"),
+        A(V, "strike", target="char:iko", move="hook", power=1.0),  # bare-handed now: IKO ducks it
+        A(V, "wait_for", until="next:knockdown@vex"), A(V, "wait_for", until="next:settled@vex"),
+        A(V, "get_up", hesitate=True),  # beaten: he cannot rise
+        A(V, "wait_for", until="event:exit_reached@pell"),
+        # IKO: in fast, held off by the staff, down; up again, and the flying kick; takes back the core
+        A(I, "run_to", target_x=-80, speed=420, lane=-10), A(I, "wait_for", until="event:pick_up@vex"),
+        act(I, "rise", 0.5, "determined", tempo=1.6),
+        A(I, "strike", target="char:vex", move="jab"),
+        A(I, "wait_for", until="next:strike_start@vex"), A(I, "dodge", dodge="back"),
+        A(I, "strike", target="char:vex", move="side_kick", power=0.9, reaction="stagger"),
+        A(I, "wait_for", until="next:knockdown@iko", duration=0.5), A(I, "strike", target="char:vex", move="cross", power=1.0),
+        A(I, "wait_for", until="event:knockdown@iko"), A(I, "wait_for", until="event:settled@iko"),
+        A(I, "get_up", hesitate=True),
+        A(I, "wait_for", until="event:disarm@vex"), A(I, "get_up"),
+        A(I, "look_at", target="char:pell", duration=0.6), A(I, "turn", face=1),
+        A(I, "wait_for", until="next:strike_start@vex"), A(I, "dodge", dodge="duck"),
+        A(I, "strike", target="char:vex", move="flying_kick", power=1.1, reaction="knockdown", distance=100),
+        act(I, "recover_relief_shake", 0.9, "tired"),
+        A(I, "pick_up", target="prop:core"), A(I, "turn", face=-1), act(I, "cheer", 1.0, "joyful"),
+        A(I, "turn", face=1), A(I, "vault", target="obstacle:socket"),
+        A(I, "run_to", target_x=1650, speed=340), A(I, "reach_exit", target="exit:gate", speed=300),
+        # PELL: tries to help and is kicked back; finds the X; the throw that disarms VEX; draws his last attack
+        A(P, "run_to", target_x=-340, speed=330, lane=30), A(P, "wait_for", until="event:hurt@vex"),
+        A(P, "run_to", target_x=-120, speed=380),  # rushing in to help - too late
+        A(P, "wait_for", until="event:knockdown@iko"), act(P, "shock", 0.6, "scared"),
+        A(P, "pick_up", target="prop:x"), A(P, "wait_for", until="event:get_up_failed@iko"),
+        A(P, "throw", target="prop:staff", power=1.4),
+        A(P, "wait_for", until="event:stood_up@iko"), A(P, "guard", until="event:knockdown@vex"),
+        act(P, "cheer", 1.2, "joyful"), A(P, "wait_for", until="event:pick_up@iko[prop=core]"),
+        A(P, "run_to", target_x=HOLD_X - 130, speed=330), A(P, "vault", target="obstacle:socket"),
+        A(P, "run_to", target_x=1600, speed=330), A(P, "reach_exit", target="exit:gate", speed=280)]
+    return {"id": "arena", "title": "The arena", "environment": "arena", "duration": 50.0, "transition_in": "warp",
             "placements": [{"character": I, "x": -1500, "on": "obstacle:floor", "z": -10},
-                           {"character": P, "x": -1620, "on": "obstacle:floor", "z": 10},
-                           {"character": V, "x": 40, "on": "obstacle:floor", "facing": -1}],
-            "actions": acts, "shots": [{"id": "wide", "start": 0, "end": 45.0, "camera": {"mode": "follow", "target": "iko", "view_height": 900}}]}
+                           {"character": P, "x": -1640, "on": "obstacle:floor", "z": 10},
+                           {"character": V, "x": -900, "on": "obstacle:floor", "carrying": "prop:core"}],
+            "actions": acts, "shots": [{"id": "wide", "start": 0, "end": 50.0, "camera": {"mode": "follow", "target": "iko", "view_height": 900}}]}
 
 
-# ------------------------------------------------------------------ 5. the summit (dawn): together
-def summit():
-    return world("summit", "summit", [plat("S", -1800, 700, style="rock")], weather="motes", width=3600)
+# ------------------------------------------------------------------ 5. the summit (dawn): the return of the light
+REST_X = 420.0
+
+
+def summit(power=()):
+    obs = [plat("S", -1800, 900, style="rock"), holder("beacon", REST_X, TOP, h=64.0)]
+    return world("summit", "summit", obs, [core(-1100, TOP + 400)], weather="motes", width=3600, city_lights=True, power0=0.05,
+                 power=list(power))
 
 
 def scene_summit():
-    I, P, V = "iko", "pell", "vex"
-    acts = [A(I, "run_to", target_x=460, lane=-30, speed=330), act(I, "cheer", 1.6, "joyful"),
-            A(I, "gesture", target="char:pell", gesture="fist_bump"), act(I, "laugh", 2.0, "joyful"), A(I, "idle", duration=6.0),
-            A(P, "run_to", target_x=340, speed=300), A(P, "wait_for", until="event:act@iko[clip=cheer]"), A(P, "idle", duration=0.4),
-            A(P, "gesture", target="char:iko", gesture="fist_bump"), act(P, "laugh", 2.0, "joyful"), A(P, "idle", duration=6.0),
-            A(V, "run_to", target_x=180, speed=280, lane=30), act(V, "embarrassed", 1.6, "embarrassed"), act(V, "laugh", 2.2, "joyful"),
-            A(V, "idle", duration=6.0)]
-    return {"id": "summit", "title": "Dawn", "environment": "summit", "duration": 20.0, "transition_in": "warp",
-            "placements": [{"character": I, "x": -900, "on": "obstacle:S", "z": -10}, {"character": P, "x": -1040, "on": "obstacle:S", "z": 10},
-                           {"character": V, "x": -1220, "on": "obstacle:S", "z": 30}],
-            "hud": {"messages": [{"text": "CORE RUN", "at": 8.5, "duration": 7.0, "style": "title"}]},
-            "actions": acts, "shots": [{"id": "wide", "start": 0, "end": 20.0, "camera": {"mode": "follow", "target": "iko", "view_height": 900}}]}
+    I, P = "iko", "pell"
+    acts = [A(I, "run_to", target_x=REST_X - 160, speed=300, lane=-20), A(I, "place", target="obstacle:beacon"),
+            A(I, "turn", face=1), A(I, "look_at", target=f"point:{REST_X + 2000},{TOP - 400}", duration=1.6),
+            A(I, "turn", face=-1), A(I, "wait_for", until="event:act@pell[clip=cheer]"),
+            A(I, "gesture", target="char:pell", gesture="fist_bump"), act(I, "laugh", 1.6, "joyful"),
+            A(I, "turn", face=1), A(I, "idle", duration=6.0),
+            A(P, "run_to", target_x=REST_X - 330, speed=290, lane=20), A(P, "wait_for", until="event:place@iko"),
+            act(P, "shock", 0.6, "scared"), A(P, "turn", face=1), A(P, "look_at", target=f"point:{REST_X + 2000},{TOP - 400}", duration=1.2),
+            act(P, "cheer", 1.2, "joyful"), A(P, "wait_for", until="event:gesture_start@iko"),
+            A(P, "gesture", target="char:iko", gesture="fist_bump"), act(P, "laugh", 1.6, "joyful"),
+            A(P, "turn", face=1), A(P, "idle", duration=6.0)]
+    return {"id": "summit", "title": "Dawn", "environment": "summit", "duration": 30.0, "transition_in": "warp",
+            "placements": [{"character": I, "x": -900, "on": "obstacle:S", "z": -10, "carrying": "prop:core"},
+                           {"character": P, "x": -1040, "on": "obstacle:S", "z": 10}],
+            "hud": {"messages": [{"text": "CORE RUN", "at": 20.0, "duration": 6.0, "style": "title"}]},
+            "actions": acts, "shots": [{"id": "wide", "start": 0, "end": 30.0, "camera": {"mode": "follow", "target": "iko", "view_height": 900}}]}
 
 
-# ------------------------------------------------------------------ cameras, slow motion, score (from the events)
+# ------------------------------------------------------------------ cameras, slow motion, score, the lights (from the events)
 def event_times(proj, sid):
     from apex.scene.runtime import SceneRuntime
     from apex.scene.schema import ProjectSpec
@@ -301,15 +330,21 @@ def event_times(proj, sid):
     for e in r.events:
         ev.setdefault(f"{e.type}@{e.character}", []).append(e.t)
         ev.setdefault(e.type, []).append(e.t)
+        if e.data.get("prop"):
+            ev.setdefault(f"{e.type}@{e.character}:{e.data['prop']}", []).append(e.t)
     return ev
 
 
-ENDS = {"city": ("exit_reached@pell", 0, 0.6), "tower": ("exit_reached@pell", 0, 0.6), "canyon": ("exit_reached@pell", 0, 0.6),
-        "arena": ("fist_bump@vex", 0, 3.2), "summit": ("act@vex", -1, 6.0)}
+ENDS = {"city": ("exit_reached@iko", 0, 0.8), "tower": ("exit_reached@pell", 0, 0.5), "canyon": ("exit_reached@pell", 0, 0.5),
+        "arena": ("exit_reached@pell", 0, 0.5), "summit": ("fist_bump@iko", 0, 10.0)}
 
 
 def follow(target, vh, **kw):
     return cam("follow", target=target, view_height=vh, **kw)
+
+
+def still(center, vh, *inc, **kw):
+    return cam("static", center=list(center), view_height=vh, include=[f"char:{c}" for c in inc], **kw)
 
 
 def shots_for(sc, ev):
@@ -317,95 +352,126 @@ def shots_for(sc, ev):
     f = lambda k, i=0: ev[k][i]  # noqa: E731
     sid = sc["id"]
     if sid == "city":
-        S = [shot("a1_title", "establishing", "the neon city in the rain; two figures racing over the roofs; the title",
-                  cam("dolly", center=[-1300, Y + 380], center_end=[-1650, Y + 40], view_height=1500, view_height_end=620)),
-             shot("a2_throw", "medium", "VEX, waiting with a bar: he hurls it; IKO ducks",
-                  cam("static", target="iko", center=[-1180, Y], view_height=560, include=["char:iko", "char:vex"])),
-             shot("a3_brawl", "medium", "the rooftop brawl: jab, cross, VEX's roundhouse, IKO slips it",
-                  cam("static", target="iko", center=[-1000, Y], view_height=460, include=["char:iko", "char:vex"])),
-             shot("a4_leap", "tracking", "VEX flips across the gap; IKO flips after him",
+        S = [shot("a1_core", "close", "the core glowing in its glass case above the city; VEX's fist through the glass",
+                  still((CASE_X, TOP + 110), 360, "vex")),
+             shot("a2_dark", "establishing", "VEX lifts the core out: the city's lights die in a wave; a warning beacon pulses",
+                  still((CASE_X + 300, Y + 300), 1500, "vex", "iko", "pell")),
+             shot("a3_look", "medium", "IKO and PELL turn; VEX shows them the core and laughs",
+                  still((-1560, Y), 640, "iko", "pell", "vex")),
+             shot("a4_crate", "medium", "the chase: over the plinth; VEX kicks a crate back at them, IKO ducks, PELL rolls",
+                  still((-1050, Y + 20), 760, "iko", "pell", "vex")),
+             shot("a5_roofs", "tracking", "over the gap, the vent vaulted, flat out across the roofs",
                   follow("iko", 820, lead=0.45, stiffness=3.5, offset=[140, 40])),
-             shot("a5_vault", "tracking", "over the vent; VEX turns and hurls an X point blank: IKO staggers through the glass",
-                  cam("static", target="iko", center=[300, Y - 40], view_height=620, include=["char:iko", "char:vex"])),
-             shot("a6_chase", "wide", "the last gap, a landing roll, out through the gate",
-                  follow("iko", 1100, lead=0.5, stiffness=2.5, offset=[120, 120], include=["char:pell"]))]
-        t = [0.0, f("throw_start@vex") - 1.0, f("throw@vex") + 0.6, f("takeoff@vex") - 0.6, f("vault_start@iko") - 0.3,
-             f("break") + 1.4, D]
+             shot("a6_edge", "medium", "the flying kick launched too far; VEX steps out of it and kicks IKO to the edge; PELL waved on",
+                  still((1080, Y), 600, "iko", "vex", "pell")),
+             shot("a7_go", "wide", "the chase goes on, through the gate to the storm tower",
+                  follow("iko", 1100, lead=0.5, stiffness=2.5, offset=[120, 120]))]
+        t = [0.0, f("break") + 0.9, f("pick_up@vex") + 1.3, f("act@vex", 0) + 1.3, f("takeoff@iko", 0) - 0.2,
+             f("flip@iko") - 0.5, f("act@iko", -1) + 0.9, D]
         return cut(S, t)
     if sid == "tower":
-        S = [shot("b1_storm", "establishing", "out of the white: a tower of steel in a lightning storm",
-                  cam("dolly", center=[-1100, Y + 500], center_end=[-1250, Y + 120], view_height=1600, view_height_end=760)),
-             shot("b2_climb", "tracking", "up the girders after VEX",
+        S = [shot("b1_tower", "establishing", "out of the white: low on the storm tower, VEX leaping up the girders with the core",
+                  cam("dolly", center=[-1250, Y + 650], center_end=[-1100, Y + 160], view_height=1700, view_height_end=900)),
+             shot("b2_climb", "tracking", "IKO climbs after him, flips across the gap",
                   follow("iko", 700, lead=0.4, stiffness=3.0, offset=[100, 60])),
-             shot("b3_fight", "medium", "the girder fight: blocks, a hook slipped, the roundhouse",
-                  cam("static", target="iko", center=[1000, Y + 200], view_height=520, include=["char:iko", "char:vex"])),
-             shot("b4_crates", "medium", "VEX crashes through the crates; IKO celebrates too soon; the sweep",
-                  cam("static", target="iko", center=[1080, Y + 190], view_height=560, include=["char:iko", "char:vex"])),
-             shot("b5_hand", "medium", "VEX laughs and runs; PELL hauls IKO up; after him",
-                  follow("pell", 560, stiffness=2.5, offset=[60, 40], include=["char:iko"]))]
-        t = [0.0, 2.2, f("strike_start@iko") - 0.8, f("knockdown@vex") - 0.4, f("knockdown@iko") + 0.8, D]
+             shot("b3_fight", "medium", "the girder fight: IKO drives, VEX gives ground on his guard",
+                  still((760, UP + 110), 500, "iko", "vex")),
+             shot("b4_sweep", "medium", "IKO cheers too soon; the roundhouse dodged; the sweep",
+                  still((740, UP + 100), 440, "iko", "vex")),
+             shot("b5_down", "medium", "IKO cannot get up; VEX looks down at him, laughs, and goes",
+                  still((720, UP + 90), 480, "iko", "vex")),
+             shot("b6_hand", "medium", "PELL's hand; IKO takes it; PELL points the way",
+                  still((700, UP + 95), 460, "iko", "pell")),
+             shot("b7_go", "tracking", "after him together",
+                  follow("pell", 800, lead=0.4, stiffness=2.5, offset=[120, 60]))]
+        t = [0.0, 3.0, f("flip@iko") + 0.6, f("act@iko") - 0.3, f("knockdown@iko") + 1.0, f("hand_offered@pell") - 0.4,
+             f("point@pell") + 1.0, D]
         return cut(S, t)
     if sid == "canyon":
-        S = [shot("c1_canyon", "establishing", "out of the white: a canyon at sunset; VEX sprints for the rope bridge",
-                  cam("dolly", center=[-900, Y + 400], center_end=[-700, Y + 60], view_height=1500, view_height_end=900)),
-             shot("c2_collapse", "wide", "the bridge falls behind VEX; he laughs across the gap",
-                  cam("static", target="vex", center=[-240, Y], view_height=900, include=["char:iko", "char:vex"])),
-             shot("c3_pad", "tracking", "IKO hits the launch pad and soars over the gap",
+        S = [shot("c1_canyon", "establishing", "out of the white: the canyon at sunset; VEX over the rope bridge",
+                  cam("dolly", center=[-800, Y + 600], center_end=[-300, Y + 150], view_height=1800, view_height_end=1000)),
+             shot("c2_stake", "wide", "he kicks out the stake: the bridge falls into the canyon in front of IKO",
+                  still((-260, Y), 1000, "vex", "iko")),
+             shot("c3_orb", "tracking", "IKO leaps for the orb: it flips him across the gap",
                   follow("iko", 900, lead=0.5, stiffness=3.0, offset=[160, 120])),
-             shot("c4_throw", "medium", "a roll, the X grabbed and hurled: VEX's drone torn apart",
-                  cam("static", target="iko", center=[480, Y + 20], view_height=620, include=["char:iko", "char:vex"])),
-             shot("c5_away", "tracking", "PELL lands, cheers; all three race for the gate",
-                  follow("pell", 800, lead=0.4, stiffness=2.5, offset=[160, 60]))]
-        t = [0.0, f("collapse") - 1.0, f("orb_pad@iko") - 0.8, f("roll_start@iko") - 0.2, f("creature_break") + 1.6, D]
+             shot("c4_ledge", "tracking", "PELL jumps short, catches the edge, hauls himself up and slides under the swinging beam",
+                  follow("pell", 720, lead=0.4, stiffness=3.0, offset=[120, 60])),
+             shot("c5_drone", "medium", "the drone shrugs off IKO's kick; PELL's X tears it apart; IKO rolls through",
+                  still((960, Y + 20), 700, "iko", "pell")),
+             shot("c6_portal", "tracking", "into the portal after VEX",
+                  follow("iko", 1000, lead=0.4, stiffness=2.5, offset=[160, 60]))]
+        t = [0.0, f("collapse") - 1.2, f("takeoff@iko", 0) - 0.3, f("orb_jump@iko") + 1.4, f("strike_prop@iko") - 1.0,
+             f("creature_break") + 2.0, D]
         return cut(S, t)
     if sid == "arena":
-        S = [shot("d1_void", "establishing", "out of the white: a floating arena in the void; VEX takes up a staff",
-                  cam("dolly", center=[-500, Y + 420], center_end=[-300, Y + 60], view_height=1500, view_height_end=700)),
-             shot("d2_duel", "medium", "IKO against the staff: blocked, landed, ducked, dodged",
-                  cam("static", target="iko", center=[-130, Y], view_height=480, include=["char:iko", "char:vex"])),
-             shot("d3_down", "close", "the staff catches IKO; he goes down hard",
-                  cam("static", target="iko", center=[-60, Y - 20], view_height=420, include=["char:iko"])),
-             shot("d4_pell", "medium", "PELL finds his nerve: the X, hurled, and VEX goes down",
-                  cam("static", target="pell", center=[-330, Y], view_height=800, include=["char:pell", "char:vex"])),
-             shot("d5_kick", "tracking", "IKO up, a run-up, the flying kick",
-                  follow("iko", 620, lead=0.35, stiffness=4.0, offset=[120, 30])),
-             shot("d6_hand", "medium", "IKO offers VEX his hand; a fist bump",
-                  cam("static", target="iko", center=[90, Y + 10], view_height=440, include=["char:iko", "char:vex"]))]
-        t = [0.0, f("strike_start@iko") - 1.0, f("knockdown@iko") - 0.6, f("pick_up@pell") - 0.5, f("strike_start@iko", -1) - 1.5,
-             f("hand_offered@iko") - 0.6, D]
+        S = [shot("d1_void", "establishing", "out of the white: a floating arena; VEX carries the core to the socket",
+                  cam("dolly", center=[-300, Y + 600], center_end=[300, Y + 120], view_height=1800, view_height_end=1100)),
+             shot("d2_socket", "close", "the core set in the socket: energy floods the arena",
+                  still((HOLD_X, TOP + 110), 400, "vex")),
+             shot("d3_duel", "medium", "VEX takes up the staff: IKO's jab blocked, the swing slipped, the side kick lands",
+                  still((240, Y), 540, "iko", "vex")),
+             shot("d4_down", "medium", "PELL rushes in, too late: the staff knocks IKO down; he cannot get up",
+                  still((160, Y - 10), 520, "iko", "vex")),
+             shot("d5_throw", "medium", "PELL's throw takes the staff out of VEX's hands",
+                  still((20, Y + 10), 760, "pell", "vex")),
+             shot("d6_kick", "medium", "IKO up; a look at PELL; he ducks VEX's hook and the flying kick lands",
+                  still((240, Y + 10), 520, "iko", "vex")),
+             shot("d7_core", "medium", "VEX cannot rise; IKO takes the core back out of the socket",
+                  still((HOLD_X - 120, Y), 520, "iko")),
+             shot("d8_go", "tracking", "out together, the core in IKO's hands",
+                  follow("iko", 1000, lead=0.4, stiffness=2.5, offset=[160, 60]))]
+        t = [0.0, f("place@vex") - 0.8, f("pick_up@vex") - 0.2, f("hit@vex") - 2.2, f("throw_start@pell") - 0.4,
+             f("disarm@vex") + 1.2, f("get_up_failed@vex") - 0.8, f("pick_up@iko") + 1.6, D]
         return cut(S, t)
     if sid == "summit":
-        S = [shot("e1_run", "tracking", "out of the white: dawn above the clouds; the three run up onto the summit",
-                  follow("iko", 620, stiffness=2.0, offset=[200, 60], include=["char:pell"])),
-             shot("e2_bump", "medium", "IKO cheers; a fist bump with PELL; even VEX laughs",
-                  cam("static", target="iko", center=[340, Y + 40], view_height=520, include=["char:iko", "char:pell", "char:vex"])),
-             shot("e3_vista", "establishing", "the camera pulls away into the sunrise: CORE RUN",
-                  cam("dolly", center=[320, Y + 80], center_end=[100, Y + 560], view_height=560, view_height_end=1800), fade_out=2.2)]
-        return cut(S, [0.0, f("act@iko", 0) - 0.5, f("fist_bump@iko") + 1.6, D])
+        S = [shot("e1_run", "tracking", "out of the white: dawn; IKO and PELL run up with the core, worn out",
+                  follow("iko", 640, stiffness=2.0, offset=[200, 60], include=["char:pell"])),
+             shot("e2_place", "close", "IKO sets the core in the beacon",
+                  still((REST_X, TOP + 100), 400, "iko")),
+             shot("e3_light", "establishing", "a pulse of light: far below, the city lights up again",
+                  still((REST_X + 600, Y + 160), 1500, "iko", "pell")),
+             shot("e4_bump", "medium", "IKO looks at PELL; a fist bump, earned",
+                  still((140, Y + 40), 480, "iko", "pell")),
+             shot("e5_vista", "establishing", "the camera pulls back over the restored world: CORE RUN",
+                  cam("dolly", center=[180, Y + 60], center_end=[600, Y + 520], view_height=560, view_height_end=2000), fade_out=2.2)]
+        return cut(S, [0.0, f("place@iko") - 0.7, f("place@iko") + 0.8, f("gesture_start@iko") - 1.0, f("fist_bump@iko") + 2.2, D])
     raise KeyError(sid)
 
 
-SLOWMO = {"city": [{"at": "flip@iko", "before": 0.1, "after": 0.5, "rate": 0.4},
-                   {"at": "break@case", "before": 0.25, "after": 0.6, "rate": 0.35}],
-          "tower": [{"at": "knockdown@vex", "before": 0.15, "after": 0.7, "rate": 0.35},
-                    {"at": "knockdown@iko", "before": 0.15, "after": 0.5, "rate": 0.4}],
-          "canyon": [{"at": "orb_pad@iko", "before": 0.05, "after": 0.9, "rate": 0.45},
-                     {"at": "creature_break@drone", "before": 0.3, "after": 0.7, "rate": 0.35}],
+SLOWMO = {"city": [{"at": "break@case", "before": 0.2, "after": 0.6, "rate": 0.35},
+                   {"at": "whiff@iko", "before": 0.35, "after": 0.4, "rate": 0.4}],
+          "tower": [{"at": "knockdown@iko", "before": 0.15, "after": 0.6, "rate": 0.35}],
+          "canyon": [{"at": "orb_jump@iko", "before": 0.1, "after": 0.9, "rate": 0.4},
+                     {"at": "creature_break@drone", "before": 0.2, "after": 0.6, "rate": 0.4}],
           "arena": [{"at": "knockdown@iko", "before": 0.15, "after": 0.5, "rate": 0.35},
-                    {"at": "hit@pell", "before": 0.2, "after": 0.5, "rate": 0.4},
+                    {"at": "disarm@vex", "before": 0.25, "after": 0.6, "rate": 0.35},
                     {"at": "hit@iko[move=flying_kick]", "before": 0.35, "after": 0.7, "rate": 0.3}],
-          "summit": []}
-SCORE = {"city": [cue("tension", at=0.0), cue("action", on="throw_start@vex", delay=-0.3)],
-         "tower": [cue("action", at=0.0), cue("triumph", on="knockdown@vex", delay=0.3), cue("sad", on="knockdown@iko"),
-                   cue("action", on="hand_offered@pell")],
-         "canyon": [cue("action", at=0.0), cue("tension", on="collapse"), cue("action", on="orb_pad@iko", delay=-0.4),
+          "summit": [{"at": "place@iko", "before": 0.1, "after": 0.6, "rate": 0.5}]}
+SCORE = {"city": [cue("tension", at=0.0), cue("action", on="break@case", delay=0.4)],
+         "tower": [cue("action", at=0.0), cue("tension", on="act@iko[clip=cheer]"), cue("sad", on="knockdown@iko"),
+                   cue("hope", on="hand_grab@iko"), cue("action", on="point@pell")],
+         "canyon": [cue("action", at=0.0), cue("tension", on="collapse"), cue("action", on="orb_jump@iko", delay=-0.4),
                     cue("triumph", on="creature_break"), cue("action", on="creature_break", delay=2.5)],
-         "arena": [cue("tension", at=0.0), cue("action", on="strike_start@iko", delay=-0.6), cue("sad", on="knockdown@iko"),
-                   cue("hope", on="pick_up@pell"), cue("action", on="hit@pell"), cue("triumph", on="hand_offered@iko")],
-         "summit": [cue("triumph", at=0.0)]}
+         "arena": [cue("tension", at=0.0), cue("action", on="strike_start@iko", delay=-0.4), cue("sad", on="knockdown@iko"),
+                   cue("hope", on="throw_start@pell"), cue("action", on="disarm@vex"), cue("triumph", on="knockdown@vex")],
+         "summit": [cue("hope", at=0.0), cue("triumph", on="place@iko")]}
+
+
+def power_cues(sid, ev):
+    """The lights, from the events: the city goes dark as VEX lifts the core; the socket floods the arena; the beacon
+    relights the world."""
+    if sid == "city":
+        return [{"at": round(ev["pick_up@vex"][0], 2), "level": 0.06, "fade": 1.8, "origin": [CASE_X, TOP + 90], "speed": 1400.0}]
+    if sid == "arena":
+        return [{"at": round(ev["place@vex"][0], 2), "level": 1.0, "fade": 0.8, "origin": [HOLD_X, TOP + 90], "speed": 3000.0},
+                {"at": round(ev["pick_up@iko"][0], 2), "level": 0.2, "fade": 0.8, "origin": [HOLD_X, TOP + 90], "speed": 3000.0}]
+    if sid == "summit":
+        return [{"at": round(ev["place@iko"][0], 2), "level": 1.0, "fade": 1.4, "origin": [REST_X, TOP + 90], "speed": 2200.0}]
+    return []
 
 
 def finalize(proj):
+    envs = {e["id"]: e for e in proj["environments"]}
     for sc in proj["scenes"]:
         key, k, pad = ENDS[sc["id"]]
         ev = event_times(proj, sc["id"])
@@ -413,6 +479,9 @@ def finalize(proj):
         sc["shots"] = shots_for(sc, ev)
         sc["time_fx"] = {"hit_stop": True, "slowmo": SLOWMO[sc["id"]], "smears": True, "punch_in": True}
         sc["score"] = {"key": "E", "level": 0.6, "cues": SCORE[sc["id"]]}
+        envs[sc["environment"]]["backdrop"]["power"] = power_cues(sc["id"], ev)
+        if sc["id"] == "arena":
+            envs["arena"]["backdrop"]["power0"] = 0.4
     return proj
 
 
