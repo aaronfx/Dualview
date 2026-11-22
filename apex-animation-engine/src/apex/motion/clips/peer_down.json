@@ -1,0 +1,45 @@
+{
+ "name": "peer_down",
+ "duration": 1.0,
+ "description": "Looking down over an edge: careful lean, hands half out, head down.",
+ "keys": [
+  {
+   "t": 0,
+   "name": "start",
+   "interp": "smooth",
+   "pose": {
+    "lean": 0.05
+   }
+  },
+  {
+   "t": 0.5,
+   "name": "lean",
+   "interp": "ease",
+   "pose": {
+    "crouch": 0.12,
+    "lean": 0.42,
+    "head": 0.55,
+    "arm_n": 0.5,
+    "elbow_n": 0.7,
+    "arm_f": 0.3,
+    "elbow_f": 0.7,
+    "eye": 1.3
+   }
+  },
+  {
+   "t": 1.0,
+   "name": "hold",
+   "interp": "ease",
+   "pose": {
+    "crouch": 0.14,
+    "lean": 0.45,
+    "head": 0.6,
+    "arm_n": 0.5,
+    "elbow_n": 0.7,
+    "arm_f": 0.3,
+    "elbow_f": 0.7,
+    "eye": 1.3
+   }
+  }
+ ]
+}

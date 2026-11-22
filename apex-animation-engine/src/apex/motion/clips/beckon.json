@@ -1,0 +1,79 @@
+{
+ "name": "beckon",
+ "duration": 1.6,
+ "description": "Come on, hurry up: looks back over the shoulder and waves the other along, twice.",
+ "keys": [
+  {
+   "t": 0,
+   "name": "turn",
+   "interp": "smooth",
+   "pose": {
+    "look_back": 1.0,
+    "lean": 0.0,
+    "twist": -0.4,
+    "arm_f": 0.2,
+    "elbow_f": 0.4,
+    "head": -0.05
+   }
+  },
+  {
+   "t": 0.25,
+   "name": "arm_up",
+   "interp": "ease",
+   "pose": {
+    "arm_f": 1.7,
+    "elbow_f": 0.3,
+    "eye": 1.3
+   }
+  },
+  {
+   "t": 0.5,
+   "name": "pull1",
+   "interp": "snap",
+   "pose": {
+    "arm_f": 1.5,
+    "elbow_f": 1.9
+   }
+  },
+  {
+   "t": 0.75,
+   "name": "out2",
+   "interp": "ease",
+   "pose": {
+    "arm_f": 1.75,
+    "elbow_f": 0.25
+   }
+  },
+  {
+   "t": 1.0,
+   "name": "pull2",
+   "interp": "snap",
+   "pose": {
+    "arm_f": 1.5,
+    "elbow_f": 1.95
+   }
+  },
+  {
+   "t": 1.3,
+   "name": "impatient",
+   "interp": "ease",
+   "pose": {
+    "arm_f": 0.6,
+    "elbow_f": 0.6,
+    "lean": 0.05,
+    "head": 0.0
+   }
+  },
+  {
+   "t": 1.6,
+   "name": "end",
+   "interp": "smooth",
+   "pose": {
+    "look_back": 1.0,
+    "twist": -0.2,
+    "arm_f": -0.1,
+    "elbow_f": 0.35
+   }
+  }
+ ]
+}

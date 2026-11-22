@@ -1,0 +1,73 @@
+{
+ "name": "embarrassed",
+ "duration": 1.8,
+ "description": "Sheepish: eyes down, a hand rubbing the back of the neck, weight shifting.",
+ "keys": [
+  {
+   "t": 0,
+   "name": "start",
+   "interp": "smooth",
+   "pose": {
+    "head": 0.1,
+    "eye": 0.9
+   }
+  },
+  {
+   "t": 0.35,
+   "name": "rub1",
+   "interp": "ease",
+   "pose": {
+    "head": 0.35,
+    "lean": 0.06,
+    "arm_n": 2.55,
+    "elbow_n": 2.45,
+    "eye": 0.6,
+    "shift": 0.0
+   }
+  },
+  {
+   "t": 0.7,
+   "name": "rub2",
+   "interp": "ease",
+   "pose": {
+    "arm_n": 2.65,
+    "elbow_n": 2.25,
+    "shift": -0.02,
+    "head": 0.38
+   }
+  },
+  {
+   "t": 1.05,
+   "name": "rub3",
+   "interp": "ease",
+   "pose": {
+    "arm_n": 2.55,
+    "elbow_n": 2.45,
+    "shift": 0.0,
+    "head": 0.3
+   }
+  },
+  {
+   "t": 1.4,
+   "name": "glance",
+   "interp": "ease",
+   "pose": {
+    "head": 0.15,
+    "arm_n": 2.6,
+    "elbow_n": 2.3,
+    "eye": 0.8
+   }
+  },
+  {
+   "t": 1.8,
+   "name": "end",
+   "interp": "ease",
+   "pose": {
+    "head": 0.2,
+    "arm_n": 0.4,
+    "elbow_n": 0.8,
+    "eye": 0.85
+   }
+  }
+ ]
+}

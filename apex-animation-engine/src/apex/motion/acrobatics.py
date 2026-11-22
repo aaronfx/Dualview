@@ -103,7 +103,7 @@ class AcroMixin:
         hi = fy + (top if top is not None else self.stand_h + 40.0)
         best = None
         for b in self.blocks:
-            if b.y1 <= fy + 12.0 or b.y0 >= hi:
+            if b.y1 <= fy + 12.0 or b.y0 >= hi or b.owner in self.world.collapsed:
                 continue
             face = b.x0 if d > 0 else b.x1
             if (face - s0) * d > -4.0 and (s1 - face) * d > -10.0:
@@ -302,6 +302,8 @@ class AcroMixin:
                     cx, cy = ob.center
                     out.append(("box", (cx - ob.size[0] / 2, cy - ob.size[1] / 2), (cx + ob.size[0] / 2, cy + ob.size[1] / 2), 0.0, ob.id))
             self._solid_cache = out
+        if self.world.collapsed:  # a structure that gave way is no longer solid
+            return [s for s in self._solid_cache if s[4] not in self.world.collapsed]
         return self._solid_cache
 
     def _prop_in_structure(self, pid: str, c: Vec, ang: float, allow: float = 1.5) -> Optional[str]:
@@ -455,8 +457,22 @@ class AcroMixin:
             return False
         if F.lo - 3.0 <= self.s <= F.hi + 3.0:
             return False
+        nxt = self._continuing_top(F)
+        if nxt is not None:  # the next top carries on at the same height (a bridge onto a ledge): walk straight across
+            self.frame = nxt
+            return False
         self._step_off(t)
         return True
+
+    def _continuing_top(self, F):
+        """A top that continues this one at the same height where the body has just walked off its end, if any."""
+        p = F.to_world(self.s, 0.0)
+        for G in self.frames.values():
+            if G is F or G.owner is None or G.owner in self.world.collapsed or abs(G.normal[1] - 1.0) > 1e-6:
+                continue
+            if abs(G.origin[1] - F.origin[1]) <= 3.0 and G.lo - 4.0 <= p[0] <= G.hi + 4.0:
+                return G
+        return None
 
     def _step_off(self, t: float) -> None:
         from .controller import MASS, Event

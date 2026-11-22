@@ -36,6 +36,8 @@ NEUTRAL: Dict[str, float] = {
     "arm_n": 0.12, "elbow_n": 0.3, "arm_f": -0.1, "elbow_f": 0.35,
     "thigh_n": 0.0, "shin_n": 0.0, "thigh_f": 0.0, "shin_f": 0.0,
     "eye": 1.0, "squash": 1.0, "gaze": 0.0,
+    "fist": 0.0,  # hands: 0 open/relaxed, 1 clenched fists
+    "look_back": 0.0,  # > 0.5: the head turns to look behind (over the shoulder)
 }
 SPATIAL = {"crouch", "shift", "lean", "chest", "head", "twist", "hip_twist", "arm_n", "arm_f", "elbow_n", "elbow_f",
            "thigh_n", "shin_n", "thigh_f", "shin_f"}
@@ -49,6 +51,10 @@ EMOTIONS: Dict[str, Dict[str, float]] = {
     "tired": {"crouch": 0.04, "lean": 0.12, "head": 0.2, "arm_n": -0.1, "arm_f": 0.05, "eye": -0.25, "_tempo": 0.78, "_intensity": 0.9},
     "excited": {"chest": -0.1, "head": -0.08, "eye": 0.3, "_tempo": 1.2, "_intensity": 1.15},
     "curious": {"lean": 0.06, "head": -0.05, "eye": 0.15, "_tempo": 0.95},
+    "sad": {"crouch": 0.03, "lean": 0.1, "head": 0.3, "arm_n": -0.08, "arm_f": 0.04, "eye": -0.35, "_tempo": 0.72, "_intensity": 0.92},
+    "joyful": {"chest": -0.12, "head": -0.14, "eye": 0.35, "_tempo": 1.25, "_intensity": 1.2},
+    "embarrassed": {"crouch": 0.02, "head": 0.22, "eye": -0.15, "_tempo": 0.9},
+    "scared": {"crouch": 0.07, "lean": -0.06, "head": 0.1, "eye": 0.6, "arm_n": 0.4, "elbow_n": 0.8, "_tempo": 1.2},
 }
 
 

@@ -174,6 +174,40 @@ class AcroAnimMixin:
                 for k, v in keep.items():
                     L[k] = lerp_angle(v, L[k], grip)
                 pose.hands[side] = "fist" if mant < 0.5 or side == "f" else "open"
+        if d.get("pulled") and d.get("helper") and d["helper"] in self.others and not getattr(self, "_no_grip", False):
+            from .rescue import HOLD_T, grip_point
+            hold = 1.0 - smoothstep(HOLD_T, HOLD_T + 0.3, tau)
+            if hold > 0:
+                w = smoothstep(0.0, 0.12, tau)
+                G = grip_point(self.others[d["helper"]], self, t)
+                M = d.get("M", G)
+                keep = {k: L[k] for k in ("upper_arm_n", "forearm_n", "hand_n")}
+                self.rig.arm_ik(pose, "n", (lerp(M[0], G[0], w), lerp(M[1], G[1], w)), fingertip=True)
+                for k, v in keep.items():
+                    L[k] = lerp_angle(v, L[k], hold)
+                pose.hands["n"] = "fist"
+        if d.get("hanging"):  # hanging on (Milestone 6): one hand may slip; a rescuer's hand may come down to meet the other
+            st = d.get("slip_t")
+            rc = d.get("reach")
+            if st is not None and t >= st:
+                w = smoothstep(st, st + 0.18, t)
+                swing = math.sin(2 * PI * (t - st) / 0.8) * math.exp(-1.5 * (t - st))
+                keep = {k: L[k] for k in ("upper_arm_n", "forearm_n", "hand_n")}
+                set_arm(L, "n", 0.4 + 0.5 * swing, 0.5)
+                for k, v in keep.items():
+                    L[k] = lerp_angle(v, L[k], w)
+                pose.hands["n"] = "open"
+                pose.eye = 1.6
+            if rc is not None and t >= rc[0]:  # the free hand reaches up to meet the rescuer's
+                w = smoothstep(rc[0], rc[1], t)
+                keep = {k: L[k] for k in ("upper_arm_n", "forearm_n", "hand_n")}
+                self.rig.arm_ik(pose, "n", rc[2], fingertip=True)
+                for k, v in keep.items():
+                    L[k] = lerp_angle(v, L[k], w)
+                pose.hands["n"] = "fist" if w > 0.9 else "open"
+            self._gaze(pose, rc[2] if rc is not None and t >= rc[0] else (E[0] + f * 60.0, E[1] + 80.0), 0.9)
+            pose.eye = max(pose.eye, 1.4)
+            return pose
         self._ground_clamp(pose, F0)
         self._gaze(pose, E if tau < t4 else (E[0] + f * 200.0, E[1] + 60.0), 0.8)
         pose.eye = 1.05

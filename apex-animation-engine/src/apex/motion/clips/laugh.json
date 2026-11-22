@@ -1,0 +1,110 @@
+{
+ "name": "laugh",
+ "duration": 1.6,
+ "loop": true,
+ "description": "A belly laugh: leaning back, shoulders bouncing, a hand on the belly.",
+ "keys": [
+  {
+   "t": 0,
+   "name": "a",
+   "interp": "smooth",
+   "pose": {
+    "lean": -0.12,
+    "chest": -0.1,
+    "head": -0.3,
+    "crouch": 0.0,
+    "arm_n": 0.55,
+    "elbow_n": 1.9,
+    "arm_f": 0.2,
+    "elbow_f": 0.8,
+    "eye": 0.35,
+    "squash": 1.0
+   }
+  },
+  {
+   "t": 0.2,
+   "name": "b",
+   "interp": "smooth",
+   "pose": {
+    "crouch": 0.035,
+    "lean": -0.05,
+    "head": -0.18,
+    "squash": 0.975
+   }
+  },
+  {
+   "t": 0.4,
+   "name": "c",
+   "interp": "smooth",
+   "pose": {
+    "crouch": 0.0,
+    "lean": -0.14,
+    "head": -0.32,
+    "squash": 1.01
+   }
+  },
+  {
+   "t": 0.6,
+   "name": "d",
+   "interp": "smooth",
+   "pose": {
+    "crouch": 0.035,
+    "lean": -0.05,
+    "head": -0.18,
+    "squash": 0.975
+   }
+  },
+  {
+   "t": 0.8,
+   "name": "e",
+   "interp": "smooth",
+   "pose": {
+    "crouch": 0.0,
+    "lean": -0.14,
+    "head": -0.32,
+    "squash": 1.01,
+    "arm_f": 0.5,
+    "elbow_f": 1.1
+   }
+  },
+  {
+   "t": 1.0,
+   "name": "f",
+   "interp": "smooth",
+   "pose": {
+    "crouch": 0.03,
+    "lean": -0.06,
+    "head": -0.2,
+    "squash": 0.98
+   }
+  },
+  {
+   "t": 1.2,
+   "name": "g",
+   "interp": "smooth",
+   "pose": {
+    "crouch": 0.0,
+    "lean": -0.13,
+    "head": -0.3,
+    "squash": 1.01
+   }
+  },
+  {
+   "t": 1.6,
+   "name": "h",
+   "interp": "smooth",
+   "pose": {
+    "crouch": 0.0,
+    "lean": -0.12,
+    "chest": -0.1,
+    "head": -0.3,
+    "arm_n": 0.55,
+    "elbow_n": 1.9,
+    "arm_f": 0.2,
+    "elbow_f": 0.8,
+    "eye": 0.35,
+    "squash": 1.0
+   }
+  }
+ ]
+}

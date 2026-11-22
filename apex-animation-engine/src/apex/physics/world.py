@@ -67,6 +67,7 @@ class PhysicsWorld:
         self.space.on_collision(None, None, begin=self._on_begin, post_solve=self._post_solve)
         self.step_impulse: Dict[str, Tuple[float, Vec, float]] = {}  # tag -> (contact impulse this step, main point, largest)
         self.inactive: set = set()  # bodies out of play: pieces before their prop breaks, a prop after it has broken
+        self.collapsed: set = set()  # structures that have given way (Milestone 6)
         self._saved_filter: Dict[str, tuple] = {}
         # bounded-force character bodies (see add_proxy): contacts with props filtered by depth and by what the
         # character is doing with that prop (carrying it, pushing it, has just thrown it)
@@ -248,6 +249,15 @@ class PhysicsWorld:
         s.friction, s.collision_type, s.elasticity = friction, CT_STATIC, 0.0
         self.space.add(s)
         self._tags[s] = tag
+
+    def remove_static(self, tag: str) -> None:
+        """Take a structure out of the world (it collapsed): its shapes stop colliding."""
+        gone = [sh for sh, t in self._tags.items() if (t == tag or t.startswith(tag + ".")) and sh.body.body_type == pymunk.Body.STATIC]
+        for sh in gone:
+            self.space.remove(sh)
+            del self._tags[sh]
+        self._static_shapes = [s for s in self._static_shapes if not (s[0] == tag or s[0].startswith(tag + "."))]
+        self.collapsed.add(tag)
 
     def add_static_box(self, tag: str, center: Vec, size: Vec, friction: float = 0.9) -> None:
         """Axis-aligned static box (a beam spanning the room depth), recorded as its four edge segments."""

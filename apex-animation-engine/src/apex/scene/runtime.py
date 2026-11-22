@@ -75,6 +75,7 @@ class FrameState:
     depth: Dict[str, float] = field(default_factory=dict)  # character id -> depth lane at this instant
     orbs_taken: Dict[str, float] = field(default_factory=dict)  # collected orb id -> when (Milestone 4)
     orb_fired: Dict[str, float] = field(default_factory=dict)  # orb id -> seconds since it last fired
+    collapsed: set = field(default_factory=set)  # structures that have given way by now (Milestone 6)
 
 
 @dataclass
@@ -233,6 +234,23 @@ class SceneRuntime:
         breakables = {p.id: p for p in self.env.props if p.breakable is not None}
         for fid in frag_of:  # pieces are out of play until their prop breaks
             world.deactivate(fid)
+        collapsing = {ob.id: ob for ob in self.env.obstacles if ob.collapse is not None}
+        stood_on: Dict[str, float] = {}
+
+        def collapse(oid: str, tn: float) -> None:
+            ob = collapsing.pop(oid)
+            world.remove_static(oid)
+            for fid, par in frag_of.items():
+                if par == oid:
+                    st = world.state(fid)
+                    world.activate(fid, st.pos, st.angle, (0.0, 0.0), 0.0)
+            broken[oid] = tn
+            events.append(Event(tn, "collapse", oid, {"obstacle": oid, "point": tuple(ob.center),
+                                                      "pieces": [f for f, p in frag_of.items() if p == oid]}))
+            for c in ctrls.values():  # whoever stood on it loses their footing
+                if c.frame.owner == oid and c.mode in ("grounded", "landing"):
+                    c.mode = "grounded"
+                    c._step_off(tn)
         broken: Dict[str, float] = {}
         specs = {p.id: p for p in self.env.props}
         from .goals import matches as _matches
@@ -364,6 +382,10 @@ class SceneRuntime:
             ctrls[pl.character].strength = self.project.character(pl.character).strength
             ctrls[pl.character].strict = self.strict
             ctrls[pl.character].z = float(pl.z)
+            if pl.on:  # starts standing on a structure's top
+                c_ = ctrls[pl.character]
+                c_.frame = structures.obstacle_top(self.env, frames, pl.on.split(":", 1)[1], pl.x)
+                world.set_kinematic(pl.character, c_.frame.to_world(c_.s, c_.h), c_.frame.body_angle)
         shared = {"taken": {}}
         for c in ctrls.values():  # characters can see each other, the props and everything that has happened so far
             c.others, c.all_events = ctrls, events
@@ -397,8 +419,18 @@ class SceneRuntime:
                     sliding[pid] = False
                 world.set_friction(pid, sp.friction if sliding.get(pid) else sp.static_friction)
             for fid, par in frag_of.items():
-                if par not in broken:
+                if par not in broken and par in specs:  # (a collapsing structure's planks lie still in it)
                     park(fid)
+            for oid, ob in list(collapsing.items()):  # a structure gives way
+                cs = ob.collapse
+                if cs.under is not None:
+                    c = ctrls.get(cs.under)
+                    if c is not None and c.frame.owner == oid and c.mode == "grounded":
+                        stood_on.setdefault(oid, t)
+                    if oid in stood_on and t - stood_on[oid] >= cs.after:
+                        collapse(oid, t)
+                elif (cs.at is not None and t >= cs.at) or (cs.on is not None and any(_matches(cs.on, e) for e in events)):
+                    collapse(oid, t)
             for c in ctrls.values():
                 c.update(t, dt)
             for dv in drivers:
@@ -566,7 +598,8 @@ class SceneRuntime:
                 fired[e.data["orb"]] = t - e.t
         return FrameState(t, poses, props, r.gravity.at(t), r.gravity.state_label(t), glow, recent, scarves, dust, dprev, doors, ropes,
                           {cid: a.depth_at(t) for cid, a in r.animators.items()},
-                          {k: v for k, v in r.orbs_taken.items() if v <= t}, fired)
+                          {k: v for k, v in r.orbs_taken.items() if v <= t}, fired,
+                          {o.id for o in self.env.obstacles if o.id in r.broken and t >= r.broken[o.id]})
 
     def state_hash(self, times: List[float]) -> str:
         """Hash of character joints over the given times (determinism / regression checks)."""

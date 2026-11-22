@@ -98,6 +98,7 @@ class SkiaRenderer:
         pose a moment earlier (fast limbs leave a smear). `prop_ghosts`: earlier poses of fast props. `screen`: full-screen
         effects (flash, speed lines, vignette pulse)."""
         self._setup(cam)
+        self._collapsed = getattr(fs, "collapsed", set()) or set()
         if getattr(fs, "depth", None):
             self.depth = dict(fs.depth)  # depth lanes can change over time (e.g. rolling past in front of someone)
         c = self.surface.getCanvas()
@@ -557,6 +558,8 @@ class SkiaRenderer:
         nr, bk = self.near + 2, self.back
         cam = (self.cam.cx, self.cam.cy)
         for ob in self.env.obstacles:
+            if ob.id in getattr(self, "_collapsed", ()):
+                continue  # it gave way: its falling planks are drawn as props
             cx_, cy_ = ob.center
             if ob.kind == "bar":
                 self._rail(c, ob, back)

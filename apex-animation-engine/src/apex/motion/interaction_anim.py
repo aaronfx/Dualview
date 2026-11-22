@@ -10,7 +10,7 @@ from __future__ import annotations
 import math
 from typing import Optional, Tuple
 
-from ..core.mathx import Vec, clamp, lerp, smoothstep
+from ..core.mathx import Vec, clamp, lerp, lerp_angle, smoothstep
 from ..rig.stickman import PI, Pose, base_pose, set_arm, set_lean
 from .controller import Segment
 from .interaction import CRAWL_SPEED, GESTURE_CONTACT, LIE_H, PRESS_T
@@ -379,6 +379,55 @@ class InteractionAnimMixin:
         self._gaze(pose, self._dyn_gaze("char:" + seg.data["other"], t), 0.8)
         return pose
 
+    def _eval_rescue(self, seg: Segment, t: float) -> Pose:
+        """Kneel at the edge, reach down, catch the hanging character's hand, lean back and pull (Milestone 6)."""
+        d = seg.data
+        tau = t - seg.t0
+        k, r, p = d["times"]
+        kneel = smoothstep(0.0, k, tau)
+        pull = smoothstep(r, p, tau)
+        rise = smoothstep(r + 0.35 * (p - r), p + 0.3, tau)
+        crouch = 0.6 * self.stand_h * kneel * (1.0 - 0.8 * rise)
+        lean = 1.05 * kneel * (1.0 - pull) - 0.22 * pull * (1.0 - smoothstep(p, p + 0.4, tau))
+        pose, F, s = self._stand_pose(seg, t, crouch=crouch, lean=lean, head=0.45 * kneel * (1.0 - pull))
+        if "settle_steps" not in d and "plants" in d:  # two steps back with the pull (the body moves back as it pulls)
+            from .rescue import STEP_BACK, STEP_WIN
+            sh = d["dc"] * STEP_BACK * self.stand_h
+            a0 = seg.t0 + r + STEP_WIN[0] * (p - r)
+            mid = seg.t0 + r + 0.5 * (STEP_WIN[0] + STEP_WIN[1]) * (p - r)
+            b0 = seg.t0 + r + STEP_WIN[1] * (p - r)
+            back = 0 if (d["plants"][0] - d["plants"][1]) * d["dc"] > 0 else 1  # the foot nearer the move goes first
+            d["settle_steps"] = [(back, a0, mid, d["plants"][back], d["plants"][back] + sh),
+                                 (1 - back, mid, b0, d["plants"][1 - back], d["plants"][1 - back] + sh)]
+        self._stand_legs(pose, F, seg, t)
+        L = pose.local
+        set_arm(L, "f", -0.6 * kneel + 0.4 * pull, 1.2)  # the far arm braces back for balance
+        from .rescue import HOLD_T, grip_point
+        reach = smoothstep(k * 0.6, r, tau) * (1.0 - smoothstep(r + HOLD_T, r + HOLD_T + 0.3, tau))
+        if reach > 0:
+            if tau < r:
+                tgt = d["M"]
+            elif getattr(self, "_no_grip", False):
+                tgt = d["M"]
+            else:  # holding on: the two hands share one grip point as the other comes up
+                w = smoothstep(r, r + 0.12, tau)
+                G = grip_point(self, self.others[d["other"]], t)
+                tgt = (lerp(d["M"][0], G[0], w), lerp(d["M"][1], G[1], w))
+            keep = {k_: L[k_] for k_ in ("upper_arm_n", "forearm_n", "hand_n")}
+            self.rig.arm_ik(pose, "n", tgt, fingertip=True)
+            for k_, v in keep.items():
+                L[k_] = lerp_angle(v, L[k_], reach)
+            pose.hands["n"] = "fist" if tau >= r else "open"
+            if pull > 0.05:  # both hands on the pull
+                keep = {k_: L[k_] for k_ in ("upper_arm_f", "forearm_f", "hand_f")}
+                self.rig.arm_ik(pose, "f", (tgt[0], tgt[1] + 6.0))
+                for k_, v in keep.items():
+                    L[k_] = lerp_angle(v, L[k_], pull * reach)
+                pose.hands["f"] = "fist"
+        pose.eye = 1.2 + 0.5 * smoothstep(r - 0.15, r, tau) * (1 - pull)
+        self._gaze(pose, d["M"] if tau < p else (d["E"][0] - d["dc"] * 40.0, d["E"][1] + 100.0), 0.9)
+        return pose
+
     def _eval_gesture(self, seg: Segment, t: float) -> Pose:
         tau = t - seg.t0
         kind = seg.data["gesture"]
@@ -398,6 +447,16 @@ class InteractionAnimMixin:
             pat = 3.0 * math.sin(2 * PI * 3.0 * max(0.0, tau - GESTURE_CONTACT)) * out
             self.rig.arm_ik(pose, "n", (lerp(sh[0], g[0], out), lerp(sh[1] - 25, g[1] + 4 + pat, out)), fingertip=True)
             pose.hands["n"] = "open"
+        elif kind == "nudge":  # a playful elbow into the other's side: lean in, bump, rock back grinning
+            g = self._shoulder_of(other, t)
+            bump = math.sin(PI * clamp((tau - 0.25) / 0.5, 0.0, 1.0))
+            set_lean(pose.local, 0.06 + 0.22 * bump, chest=-0.05)
+            pose.hip_twist = 0.5 * bump
+            pose.twist = -0.4 * bump
+            self.rig.arm_ik(pose, "n", (lerp(sh[0], g[0] - 4 * math.copysign(1, g[0] - sh[0]), out * 0.8), lerp(sh[1] - 30, g[1] - 22, out)),
+                            fingertip=False)
+            pose.hands["n"] = "fist"
+            pose.eye = 1.25
         else:  # wave
             set_arm(pose.local, "n", 2.6 * out, 0.4 + 0.5 * math.sin(2 * PI * 2.5 * tau) * out)
             pose.hands["n"] = "open"

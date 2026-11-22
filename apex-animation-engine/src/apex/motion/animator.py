@@ -36,7 +36,7 @@ BLEND_IN = {"airborne": 0.16, "landing": 0.12, "loco": 0.18, "idle": 0.2, "press
             "slide": 0.1, "crouch": 0.14, "swing": 0.08, "push": 0.28, "fall": 0.06, "prone": 0.22, "crawl": 0.2, "getup": 0.12,
             "lift": 0.25, "lever": 0.22, "offer": 0.25, "gesture": 0.2,
             "strike": 0.07, "guard": 0.14, "dodge": 0.06, "hurt": 0.03, "ragdoll": 0.06, "supine": 0.3,
-            "roll": 0.08, "vault": 0.08, "climb": 0.1, "wall_run": 0.06, "pick_up": 0.18, "throw": 0.12}
+            "roll": 0.08, "vault": 0.08, "climb": 0.1, "wall_run": 0.06, "pick_up": 0.18, "throw": 0.12, "rescue": 0.2}
 
 # press action: hand target offsets relative to the button (ds toward the character, dh above), IK weight, body
 PRESS = {
@@ -194,7 +194,7 @@ class Animator(InteractionAnimMixin, CombatAnimMixin, AcroAnimMixin):
                 if seg.data.get("style") == "cautious":
                     from dataclasses import replace as _rep
                     gp = _rep(gp, stride_scale=gp.stride_scale * 0.78, cadence_scale=gp.cadence_scale * 0.9)
-                gait = Gait(ts, ss, vs, gp, direction, plants, lead_leg=lead, bounds=(F.lo, F.hi))
+                gait = Gait(ts, ss, vs, gp, direction, plants, lead_leg=lead, bounds=self._span(F))
                 seg.data["gait"] = gait
                 seg.data["plants_in"] = plants
                 for ff in gait.footfalls:
@@ -373,6 +373,21 @@ class Animator(InteractionAnimMixin, CombatAnimMixin, AcroAnimMixin):
     def depth_at(self, t: float) -> float:
         return float(np.interp(t, self.T, self.Z)) if len(self.T) else 0.0
 
+    def _span(self, F: GroundFrame) -> Tuple[float, float]:
+        """The extent of a top together with the tops that continue it at the same height (walked across seamlessly)."""
+        lo, hi = F.lo, F.hi
+        if not F.bounded:
+            return lo, hi
+        grown = True
+        while grown:
+            grown = False
+            for G in self.frames.values():
+                if G.owner is None or abs(G.normal[1] - 1.0) > 1e-6 or abs(G.origin[1] - F.origin[1]) > 3.0:
+                    continue
+                if G.lo - 4.0 <= hi and G.hi + 4.0 >= lo and (G.lo < lo - 1e-6 or G.hi > hi + 1e-6):
+                    lo, hi, grown = min(lo, G.lo), max(hi, G.hi), True
+        return lo, hi
+
     def segment_at(self, t: float) -> int:
         for i, s in enumerate(self.segments):
             if s.t0 <= t < s.t1:
@@ -545,6 +560,28 @@ class Animator(InteractionAnimMixin, CombatAnimMixin, AcroAnimMixin):
             set_arm(L, "n", 0.1, 0.4)
             set_arm(L, "f", -0.15, 0.4)
             pose.eye = 1.0 + 0.2 * lb
+        if seg.data.get("act"):  # acting (Milestone 6): a library clip performed with an emotion, held and breathing
+            clip = get_clip(seg.data["act"])
+            perf = Performance(tempo=seg.data.get("act_tempo", 1.0), intensity=seg.data.get("act_int", 1.0),
+                               emotion=seg.data.get("act_emotion", "neutral"))
+            Lc = clip.length(perf)
+            held = not clip.loop and tau > Lc
+            v = clip.sample(tau if clip.loop else min(tau, Lc), perf)
+            ctau = (tau if clip.loop else min(tau, Lc)) * perf.effective()[0]
+            if held:  # holding the last pose: it still breathes
+                v["crouch"] = v.get("crouch", 0.0) + 0.012 * math.sin(2 * PI * (tau - Lc) / 2.4)
+                v["lean"] = v.get("lean", NEUTRAL["lean"]) + 0.025 * math.sin(2 * PI * (tau - Lc) / 2.4)
+            tr = seg.data.get("act_tremble", 0.0)
+            if tr > 0:  # shaking: fast, small, uneven, mostly in the hands and the head
+                for c, ph in (("arm_n", 0.0), ("arm_f", 1.7), ("elbow_n", 0.6), ("elbow_f", 2.3), ("head", 1.1)):
+                    v[c] = v.get(c, NEUTRAL[c]) + tr * 0.05 * (math.sin(2 * PI * 8.7 * tau + ph) + 0.5 * math.sin(2 * PI * 13.1 * tau + 2 * ph))
+            w_in = smoothstep(0.0, 0.18, tau)
+            v = {c: NEUTRAL.get(c, 0.0) + (x - NEUTRAL.get(c, 0.0)) * w_in for c, x in v.items()}
+            self._apply(pose, F, s, v)
+            if v.get("fist", 0.0) > 0.5:
+                pose.hands = {"n": "fist", "f": "fist"}
+            if v.get("look_back", 0.0) > 0.5:
+                pose.head_facing = -1.0
         plants, lift, ang = self._settle_feet(seg, t)
         self._legs(pose, F, plants, lift, ang)
         if clip is not None and clip.contacts:  # hands on the knees etc. (declared clip contacts)

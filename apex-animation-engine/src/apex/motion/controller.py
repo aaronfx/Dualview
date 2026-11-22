@@ -20,6 +20,7 @@ from ..scene.targets import bar_world, exit_world, resolve, switch_world
 from .frames import GroundFrame
 from .acrobatics import ACRO, AcroMixin
 from .arcade import ArcadeMixin
+from .rescue import RescueMixin
 from .combat import COMBAT, CombatMixin
 from .interaction import INTERACTIONS, LIE_H, InteractionMixin
 from .library import get_clip, landing_clip
@@ -86,7 +87,7 @@ class StepRecord:
     z: float = 0.0  # depth lane (negative = nearer the camera)
 
 
-class CharacterController(InteractionMixin, CombatMixin, AcroMixin, ArcadeMixin):
+class CharacterController(InteractionMixin, CombatMixin, AcroMixin, ArcadeMixin, RescueMixin):
     def __init__(self, cid: str, rig: StickmanRig, world: PhysicsWorld, frames: Dict[str, GroundFrame], gravity: GravityField,
                  env: EnvironmentSpec, x: float, facing: int, actions: List[ActionSpec], emit: Callable[[Event], None],
                  doors: Optional[Dict[str, Dict[str, Any]]] = None):
@@ -140,6 +141,7 @@ class CharacterController(InteractionMixin, CombatMixin, AcroMixin, ArcadeMixin)
         self.z, self.z_target = 0.0, None
         self._acro_init()
         self._arcade_init()
+        self._rescue_init()
         world.add_capsule(cid, self.frame.to_world(self.s, self.h), self.cap_a, self.cap_b, CAPSULE_R, MASS, kinematic=True)
         # the bounded-force physical body (props collide with it from knee height up; low things are stepped over)
         world.add_proxy(cid, (0.0, -self.stand_h + KNEE_UP * self.stand_h), self.cap_b, BODY_R, BODY_CONTACT_MASS, self.strength)
@@ -319,7 +321,28 @@ class CharacterController(InteractionMixin, CombatMixin, AcroMixin, ArcadeMixin)
                 a = self.cur
         dyn = a.target if a.target and a.target.split(":", 1)[0] in ("prop", "char") else None
         gaze = None if dyn or not a.target else resolve(self.env, a.target)
-        if a.type == "wait_beat":
+        if a.type == "catch_ledge":  # armed: it acts while falling (see _try_catch); standing, it just waits
+            if self.seg.kind != "idle":
+                self._open("idle", t)
+            return
+        if a.type == "hang":  # only meaningful once hanging (a catch starts it)
+            self._next_action(t)
+            return
+        if a.type == "pull_up":
+            self._start_pull_up(t, a)
+            return
+        if a.type == "act":  # acting: a motion-library clip performed in place (see the animator's idle evaluator)
+            from .library import get_clip
+            clip = get_clip(a.clip)
+            perf_len = clip.length() / a.tempo
+            self._act_len = a.duration if a.duration is not None else perf_len
+            self._open("idle", t, act=a.clip, act_emotion=a.emotion or "neutral", act_int=a.intensity, act_tempo=a.tempo,
+                       act_tremble=a.tremble, act_len=self._act_len, gaze=resolve(self.env, a.target) if a.target and
+                       a.target.split(":", 1)[0] not in ("prop", "char") else None,
+                       gaze_ref=a.target if a.target and a.target.split(":", 1)[0] in ("prop", "char") else None,
+                       fight=False)
+            self.emit(Event(t, "act", self.cid, {"clip": a.clip, "emotion": a.emotion or "neutral"}))
+        elif a.type == "wait_beat":
             clock = getattr(self, "beat_clock", None)
             if clock is None:
                 self._fail(f"{self.cid}: wait_beat needs the scene's music (a beat grid)")
@@ -393,6 +416,19 @@ class CharacterController(InteractionMixin, CombatMixin, AcroMixin, ArcadeMixin)
         elif a.type in ("idle", "look_around", "look_at", "notice", "point"):
             if tau >= (a.duration or (1.3 if a.type == "point" else 1.0)):
                 self._next_action(t)
+        elif a.type == "act":
+            if tau >= self._act_len:
+                self._next_action(t)
+        elif a.type == "hang":
+            self._hang_tick(t, dt, a)
+            return
+        elif a.type == "pull_up":
+            self._pull_up_tick(t, dt, a)
+            if self.cur is not a:
+                self._place(t)
+                return
+        elif a.type == "catch_ledge":
+            pass  # armed
         elif a.type == "wait_beat":
             if t >= self.beat_end[0] - 1e-9:  # the next action starts on the beat (to the 240 Hz step)
                 self.emit(Event(t, "beat_wait_end", self.cid, {"beat": self.beat_end[1], "target": self.beat_end[0]}))
@@ -743,6 +779,8 @@ class CharacterController(InteractionMixin, CombatMixin, AcroMixin, ArcadeMixin)
 
     # ------------------------------------------------------------ airborne behaviour
     def _airborne(self, t: float, dt: float, g: Vec) -> None:
+        if self._try_catch(t):  # a ledge within reach while falling (an armed catch_ledge)
+            return
         st = self.world.state(self.cid)
         intent = self.air["intent"]
         look = 0.7

@@ -356,6 +356,8 @@ DEFAULT_BINDINGS = {
     "beat_wait_end": None,
     # breakables, morphs, creatures (Milestone 5)
     "break": "snap", "morph_start": "chime", "morph": None, "morph_blocked": None, "creature_break": "snap",
+    "collapse": "snap", "ledge_catch": "clank", "hang_slip": "slide", "pulled_up": "resolve", "act": None, "fail": "impact",
+    "exit_together": "chime",
 }
 
 

@@ -214,7 +214,7 @@ class InteractionMixin:
             other = self._pid(a.target)
             oc = self.others[other]
             side = 1.0 if self.s >= oc.s else -1.0
-            gap = a.distance if a.distance else {"fist_bump": 0.78, "shoulder_pat": 0.62, "wave": 1.4}[a.gesture] * self.stand_h
+            gap = a.distance if a.distance else {"fist_bump": 0.78, "shoulder_pat": 0.62, "wave": 1.4, "nudge": 0.5}[a.gesture] * self.stand_h
             dest = oc.s + side * gap
             if self._go(t, a, dest) or self._face(t, a, -side):
                 return

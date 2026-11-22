@@ -201,6 +201,24 @@ class ExitSpec(Strict):
     open_radius: float = Field(260.0, gt=0)
 
 
+class CollapseSpec(Strict):
+    """A structure that gives way (Milestone 6): a platform that breaks into `pieces` planks which fall. It goes when
+    the character `under` has stood on it for `after` seconds (weight), at time `at`, or on an event `on`. Whoever
+    stands on it then loses their footing; from that moment it is not a solid or a support for anyone."""
+    under: Optional[str] = None
+    after: float = Field(0.5, ge=0, le=30)
+    at: Optional[float] = Field(None, ge=0)
+    on: Optional[str] = None
+    pieces: int = Field(4, ge=1, le=16)
+    color: Optional[str] = None
+
+    @model_validator(mode="after")
+    def _one(self) -> "CollapseSpec":
+        if sum(x is not None for x in (self.under, self.at, self.on)) != 1:
+            raise ValueError("a collapse needs exactly one of 'under', 'at' or 'on'")
+        return self
+
+
 class ObstacleSpec(Strict):
     """Fixed structure spanning the room's depth. `beam`: a solid static collider (box cross-section `size`).
     `bar`: a thin grab rail (radius size[0]/2); it is a grip anchor for grab_swing, not a collider.
@@ -214,6 +232,7 @@ class ObstacleSpec(Strict):
     glyph: Optional[str] = None
     weight: Optional[float] = Field(None, gt=0)  # glyph stroke thickness
     color: Optional[str] = None
+    collapse: Optional[CollapseSpec] = None  # Milestone 6: a platform that gives way
 
     @model_validator(mode="after")
     def _glyph(self) -> "ObstacleSpec":
@@ -392,10 +411,23 @@ class EnvironmentSpec(Strict):
 
     @model_validator(mode="after")
     def _fragments(self) -> "EnvironmentSpec":
-        """Each breakable prop gets its pieces as props of their own (inactive until it breaks)."""
+        """Each breakable prop gets its pieces as props of their own (inactive until it breaks); so does each platform
+        that can collapse (its planks)."""
         import math
         have = {p.fragment_of for p in self.props if p.fragment_of}
         add = []
+        for ob in self.obstacles:
+            if ob.collapse is None or ob.id in have:
+                continue
+            if ob.kind != "platform":
+                raise ValueError(f"obstacle {ob.id}: only a platform can collapse")
+            n = ob.collapse.pieces
+            w = ob.size[0] / n
+            for k in range(n):
+                x = ob.center[0] - ob.size[0] / 2 + (k + 0.5) * w
+                add.append(PropSpec(id=f"{ob.id}~{k}", kind="crate", position=(x, ob.center[1]), size=(w - 2.0, ob.size[1]),
+                                    mass=max(2.0, 0.004 * w * ob.size[1]), friction=0.7, fragment_of=ob.id, collide_characters=False,
+                                    z=0.0, depth=120.0, color=ob.collapse.color or ob.color))
         for p in self.props:
             if p.breakable is None or p.id in have or p.fragment_of:
                 continue
@@ -467,7 +499,9 @@ ActionType = Literal["idle", "walk_to", "run_to", "turn", "press", "jump", "look
                      # acrobatics and symbols (Milestone 2)
                      "roll", "vault", "climb", "wall_kick", "pick_up", "throw",
                      # beat sync (Milestone 4)
-                     "wait_beat"]
+                     "wait_beat",
+                     # acting and rescue (Milestone 6)
+                     "act", "catch_ledge", "hang", "pull_up"]
 StrikeMove = Literal["jab", "cross", "hook", "uppercut", "front_kick", "side_kick", "roundhouse", "sweep", "flying_kick",
                      "swing_weapon"]
 
@@ -490,7 +524,7 @@ class ActionSpec(Strict):
     tool: Optional[str] = None  # use_lever: "prop:<bar id>"
     fulcrum: Optional[str] = None  # use_lever: "prop:<fulcrum id>"
     until: Optional[str] = None  # use_lever / struggle / wait_for: "event:<type>" or "event:<type>@<character>"
-    gesture: Optional[Literal["fist_bump", "shoulder_pat", "wave"]] = None
+    gesture: Optional[Literal["fist_bump", "shoulder_pat", "wave", "nudge"]] = None
     distance: Optional[float] = None  # crawl_out: how far to crawl; gesture: the gap between the two characters; roll: how far;
     # strike: the distance (pelvis to pelvis) to engage from (default 0.9 x the move's reach)
     emotion: Optional[str] = None  # acting colour for clips (see motion/library.py EMOTIONS)
@@ -502,6 +536,11 @@ class ActionSpec(Strict):
     flip: Optional[Literal["front", "back"]] = None  # jump_to / wall_kick: a somersault in the air
     lane: Optional[float] = Field(None, ge=-80, le=80)  # move to this depth lane during the action (negative = nearer the camera)
     beats: int = Field(1, ge=1, le=64)  # wait_beat: hold until this many beats from now have started (the next action starts on it)
+    clip: Optional[str] = None  # act: a motion-library clip (cheer, laugh, beckon, cower, shock, reach_out, despair, rise, ...)
+    intensity: float = Field(1.0, gt=0, le=2.5)  # act: exaggeration (scales the clip's deviation from neutral)
+    tempo: float = Field(1.0, gt=0.2, le=3.0)  # act: playback speed
+    tremble: float = Field(0.0, ge=0, le=1.5)  # act: shaking hands, arms and head (fear, exhaustion)
+    slip_at: Optional[float] = Field(None, ge=0)  # hang: the near hand slips off this long into the hang (`distance`: the drop)
     note: str = ""
 
     @model_validator(mode="after")
@@ -511,7 +550,8 @@ class ActionSpec(Strict):
                 "jump_to": ["target_x", "height"], "grab_swing": ["target"], "reach_exit": ["target"],
                 "push": ["target"], "lift": ["target"], "use_lever": ["target", "tool", "fulcrum"], "offer_hand": ["target"],
                 "gesture": ["target", "gesture"], "wait_for": ["until"], "strike": ["target", "move"],
-                "vault": ["target"], "climb": ["target"], "wall_kick": ["target_x"], "pick_up": ["target"], "throw": ["target"]}
+                "vault": ["target"], "climb": ["target"], "wall_kick": ["target_x"], "pick_up": ["target"], "throw": ["target"],
+                "act": ["clip"], "catch_ledge": ["target"], "pull_up": ["target"]}
         if self.type in ("walk_to", "run_to") and self.target_x is None and not (self.target or "").split(":", 1)[0] in ("char", "prop"):
             raise ValueError(f"action '{self.type}' requires 'target_x' (or a 'char:'/'prop:' target)")
         for f in need.get(self.type, []):
@@ -540,6 +580,17 @@ class ActionSpec(Strict):
             raise ValueError("throw.target must be 'char:<id>' or 'point:x,y'")
         if self.type in ("push", "lift", "use_lever") and not (self.target or "").startswith("prop:"):
             raise ValueError(f"{self.type}.target must be 'prop:<id>'")
+        if self.type == "act":
+            from ..motion.library import get_clip
+            try:
+                get_clip(self.clip)
+            except KeyError as e:
+                from ..motion.library import list_clips
+                raise ValueError(f"act: unknown clip {self.clip!r}; clips: {', '.join(list_clips())}") from e
+        if self.type == "catch_ledge" and not (self.target or "").startswith("obstacle:"):
+            raise ValueError("catch_ledge.target must be 'obstacle:<id>' (the top whose edge to catch)")
+        if self.type == "pull_up" and not (self.target or "").startswith("char:"):
+            raise ValueError("pull_up.target must be 'char:<id>' (the character hanging from the edge)")
         if self.type in ("offer_hand", "gesture", "strike") and not (self.target or "").startswith("char:"):
             raise ValueError(f"{self.type}.target must be 'char:<id>'")
         if self.until is not None and not self.until.startswith(("event:", "next:")):
@@ -556,6 +607,7 @@ class CharacterPlacement(Strict):
     character: str
     x: float = 0.0
     at: Optional[str] = None  # a level marker (digit): x comes from the level grid
+    on: Optional[str] = None  # start standing on this structure's top ("obstacle:<id>"), not on the floor
     facing: Literal[-1, 1] = 1
     z: float = Field(0.0, ge=-60, le=60)  # drawing depth lane (negative = nearer the camera); does not affect physics
 

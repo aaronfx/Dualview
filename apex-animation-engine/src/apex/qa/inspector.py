@@ -23,6 +23,7 @@ TOL = {
     "structure_depth": 6.0, "top_overhang": 10.0, "flip_land": 0.45, "throw_momentum": 0.25,
     "bone_ratio_min": 0.86, "bone_ratio_max": 1.13,  # allows authored squash/stretch and IK stretch (<=8%) only
     "foot_slide": 1.5,  # world units a planted ankle may drift
+    "hand_contact": 10.0,  # units: two hands that hold each other
     "diagram_err": 0.08,  # relative: a number on screen agrees with its independent re-derivation
     "portal_err": 1.0,  # units (or u/s): a portal transfer agrees with its mapping
     "orb_err": 0.03,  # relative: an orb's velocity change agrees with its spec
@@ -133,7 +134,7 @@ class Inspector:
                    self.check_secondary, self.check_exit_conditions, self.check_interactions, self.check_composition,
                    self.check_combat, self.check_acrobatics, self._props_through_bodies, self.check_arcade, self.check_particles,
                    self.check_breakables, self.check_morphs, self.check_diagrams, self.check_creatures,
-                   self.check_causes_on_screen):
+                   self.check_causes_on_screen, self.check_hands_meet):
             rep.checks.extend(fn())
         rep.checks.extend(self.check_time_fx())
         rep.checks.extend(self.check_beats(video))
@@ -717,6 +718,8 @@ class Inspector:
                 for name in ("pelvis", "neck_base", "head_center"):
                     x, y = js[i][name]
                     for b in blocks:
+                        if b.owner in self.r.broken and t >= self.r.broken[b.owner]:
+                            continue  # it had collapsed by then
                         if b.x0 < x < b.x1 and b.y0 < y < b.y1:
                             depth = min(x - b.x0, b.x1 - x, y - b.y0, b.y1 - y)
                             if depth > worst:
@@ -732,7 +735,8 @@ class Inspector:
                 if not F.bounded:
                     continue
                 s, _ = F.to_frame(iv.point)
-                off = max(0.0, F.lo - s, s - F.hi)
+                lo, hi = an._span(F)  # tops that continue each other at the same height are walked as one
+                off = max(0.0, lo - s, s - hi)
                 if off > worst:
                     worst, where = off, f"{cid} on '{F.tag}' at t={iv.t0:.2f}s"
         if any(f.bounded for f in self.r.frames.values()):
@@ -1228,6 +1232,28 @@ class Inspector:
                 off.append(f"{e.type}@{e.character} t={e.t:.2f}s")
         return [] if n == 0 else [Check("causes_on_screen", "PASS" if not off else "WARN", float(len(off)), 0.0,
                                         f"{n} key events; off screen: {', '.join(off[:6]) or 'none'}")]
+
+    def check_hands_meet(self) -> List[Check]:
+        """Character interaction (Milestone 6): at every hand grab the two hands really touch, and stay together while one
+        character pulls the other (measured on the rendered poses)."""
+        grabs = [e for e in self.r.events if e.type == "hand_grab" and e.data.get("with") in self.r.animators and e.character in self.r.animators]
+        if not grabs:
+            return []
+        worst, where = 0.0, ""
+        for e in grabs:
+            a, b = self.r.animators[e.character], self.r.animators[e.data["with"]]
+            hold = e.data.get("hold", 0.5)
+            for dt in (0.0, hold / 3, 2 * hold / 3, hold):
+                t = e.t + dt
+                if t > self.r.duration:
+                    break
+                ha = self.rt.rigs[e.character].world_joints(a.pose_at(t))["hand_n"]
+                hb = self.rt.rigs[e.data["with"]].world_joints(b.pose_at(t))["hand_n"]
+                d = math.dist(ha, hb)
+                if d > worst:
+                    worst, where = d, f"{e.character}-{e.data['with']} at t={t:.2f}s"
+        return [Check("hands_meet", "PASS" if worst <= TOL["hand_contact"] else "FAIL", worst, TOL["hand_contact"],
+                      f"{len(grabs)} hand grab(s): largest gap between the two hands while holding ({where})")]
 
     def check_particles(self) -> List[Check]:
         """Event particles (Milestone 4): deterministic (two independent builds give identical particles at every
