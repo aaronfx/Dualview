@@ -33,9 +33,9 @@ def city():
     env = base.city()
     # Replace the original cases with an actual rooftop theft at the beginning.
     env["props"] = [p for p in env["props"] if p["id"] not in ("case", "case2")]
-    env["props"].append(base.glass("case", -845, TOP, w=48, h=82))
-    env["props"].append(base.glyph("core", "0", -770, TOP + 18, size=34, mass=1.0, color="#ffe77a"))
-    env["props"] = [dict(p, position=[-1100, TOP + 8]) if p["id"] == "bar" else p for p in env["props"]]
+    env["props"].append(base.glass("case", -1150, TOP, w=48, h=82))
+    env["props"].append(base.glyph("core", "0", -1020, TOP + 18, size=34, mass=1.0, color="#ffe77a"))
+    env["props"] = [dict(p, position=[-1430, TOP + 8]) if p["id"] == "bar" else p for p in env["props"]]
     env["backdrop"]["seed"] = 55
     return env
 
@@ -97,10 +97,10 @@ def scene_city():
         # and escapes with it (the tracked ownership is not a visual-only trick).
         A(V, "pick_up", target="prop:bar"),
         A(V, "throw", target="prop:case", power=1.6),
-        A(V, "run_to", target_x=-780),
+        A(V, "run_to", target_x=-1020),
         A(V, "pick_up", target="prop:core"),
         A(V, "notice", target="char:iko", duration=0.35),
-        A(V, "run_to", target_x=-760),
+        A(V, "run_to", target_x=-960),
         A(V, "jump_to", target_x=-140, height=165, onto="obstacle:R2"),
         A(V, "run_to", target_x=25),
         A(V, "vault", target="obstacle:vent"),
@@ -136,7 +136,7 @@ def scene_city():
         "city", 43, [
             {"character": I, "x": -1870, "on": "obstacle:R1", "z": -15},
             {"character": P, "x": -1960, "on": "obstacle:R1", "z": 15},
-            {"character": V, "x": -1280, "on": "obstacle:R1", "facing": 1},
+            {"character": V, "x": -1620, "on": "obstacle:R1", "facing": 1},
         ], actions, entry="fade", owner_in="world", owner_out="vex",
         title="The Theft",
         world_power={"initial": 1.0, "cues": [
@@ -419,6 +419,7 @@ if __name__ == "__main__":
         json.dump(p.model_dump(mode="json"), fh, indent=2)
     print("Wrote", path, flush=True)
     print("Simulating all five worlds and checking story events.", flush=True)
+    sim_errors = []
     for sc in p.scenes:
         try:
             result = SceneRuntime(p, sc.id).simulate(physics_only=True)
@@ -429,7 +430,9 @@ if __name__ == "__main__":
             print(sc.id, "events:", evs[:45], flush=True)
         except Exception as exc:
             print(sc.id, "SIMULATION FAILURE:", type(exc).__name__, str(exc), flush=True)
-            raise
+            sim_errors.append(f"{sc.id}: {exc}")
+    if sim_errors:
+        raise RuntimeError("Unresolved scene physics: " + "; ".join(sim_errors))
     for ch in check_film(p):
         if ch.name in ("plot_prop_continuity", "narrative_event_chain"):
             print(ch.name, ch.status, ch.details, flush=True)
