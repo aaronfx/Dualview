@@ -15,6 +15,11 @@ on:
 permissions:
   contents: read
 
+# Push and PR updates on the same branch share one CI lane; obsolete runs cancel.
+concurrency:
+  group: apex-directors-cut-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
 jobs:
   animation-engine:
     runs-on: ubuntu-latest
