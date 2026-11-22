@@ -35,8 +35,11 @@ def test_strike_schema():
     from apex.scene.schema import ActionSpec
     with pytest.raises(ValueError):
         ActionSpec(type="strike", character="a", target="char:b")  # which move?
+    ActionSpec(type="strike", character="a", target="prop:x", move="jab")  # a blow at a thing (Director's Cut)
     with pytest.raises(ValueError):
-        ActionSpec(type="strike", character="a", target="prop:x", move="jab")  # strikes target characters
+        ActionSpec(type="strike", character="a", target="prop:x", move="flying_kick")  # not supported at a prop
+    with pytest.raises(ValueError):
+        ActionSpec(type="strike", character="a", target="exit:door", move="jab")  # characters or props only
     ActionSpec(type="dodge", character="a", dodge="duck")
     ActionSpec(type="wait_for", character="a", until="next:strike_start@b")
 
