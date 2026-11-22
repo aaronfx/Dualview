@@ -534,7 +534,7 @@ ActionType = Literal["idle", "walk_to", "run_to", "turn", "press", "jump", "look
                      # combat (Milestone 1)
                      "strike", "guard", "dodge",
                      # acrobatics and symbols (Milestone 2)
-                     "roll", "vault", "climb", "wall_kick", "pick_up", "throw",
+                     "roll", "vault", "climb", "wall_kick", "pick_up", "throw", "place_prop", "drop_prop",
                      # beat sync (Milestone 4)
                      "wait_beat",
                      # acting and rescue (Milestone 6)
@@ -568,6 +568,7 @@ class ActionSpec(Strict):
     move: Optional[StrikeMove] = None  # strike: which technique
     power: float = Field(1.0, gt=0, le=2.0)  # strike: how hard (with the move's own weight it picks the reaction)
     reaction: Optional[Literal["auto", "flinch", "stagger", "knockdown"]] = None  # strike: force the target's reaction
+    disarm: bool = False  # opt-in: a successful unblocked impact releases a carried weapon
     dodge: Literal["back", "duck"] = "back"  # dodge: step back out of reach, or duck under a high strike
     onto: Optional[str] = None  # jump_to: land on this structure's top ("obstacle:<id>"); default: the floor (from a top)
     flip: Optional[Literal["front", "back"]] = None  # jump_to / wall_kick: a somersault in the air
@@ -588,7 +589,7 @@ class ActionSpec(Strict):
                 "jump_to": ["target_x", "height"], "grab_swing": ["target"], "reach_exit": ["target"],
                 "push": ["target"], "lift": ["target"], "use_lever": ["target", "tool", "fulcrum"], "offer_hand": ["target"],
                 "gesture": ["target", "gesture"], "wait_for": ["until"], "strike": ["target", "move"],
-                "vault": ["target"], "climb": ["target"], "wall_kick": ["target_x"], "pick_up": ["target"], "throw": ["target"],
+                "vault": ["target"], "climb": ["target"], "wall_kick": ["target_x"], "pick_up": ["target"], "throw": ["target"], "place_prop": ["target"],
                 "act": ["clip"], "catch_ledge": ["target"], "pull_up": ["target"]}
         if self.type in ("walk_to", "run_to") and self.target_x is None and not (self.target or "").split(":", 1)[0] in ("char", "prop"):
             raise ValueError(f"action '{self.type}' requires 'target_x' (or a 'char:'/'prop:' target)")
@@ -614,6 +615,8 @@ class ActionSpec(Strict):
             raise ValueError("onto must be 'obstacle:<id>'")
         if self.type == "pick_up" and not (self.target or "").startswith("prop:"):
             raise ValueError("pick_up.target must be 'prop:<id>'")
+        if self.type == "place_prop" and not (self.target or "").startswith(("point:", "prop:")):
+            raise ValueError("place_prop.target must be point:x,y or prop:<id>")
         if self.type == "throw" and not (self.target or "").startswith(("char:", "point:", "prop:")):
             raise ValueError("throw.target must be 'char:<id>', 'prop:<id>' (where it is at the release) or 'point:x,y'")
         if self.type in ("push", "lift", "use_lever") and not (self.target or "").startswith("prop:"):
@@ -823,6 +826,24 @@ class ScoreSpec(Strict):
     cues: List[ScoreCue] = Field(default_factory=list)
 
 
+class StoryPropHandoff(Strict):
+    """Who owns a plot-critical physical prop at each boundary of a scene.
+
+    'world' means unheld; any other value is a character ID in this scene.
+    """
+    prop: str
+    owner_in: str = "world"
+    owner_out: str = "world"
+
+
+class RestorationSpec(Strict):
+    """A placed prop settling near a socket triggers restoration."""
+    prop: str
+    at: Vec2
+    radius: float = Field(45.0, gt=0)
+    max_speed: float = Field(130.0, gt=0)
+
+
 class SceneSpec(Strict):
     id: str
     title: str = ""
@@ -842,6 +863,8 @@ class SceneSpec(Strict):
     transition_in: Literal["cut", "fade", "rewind", "warp"] = "cut"  # how a film enters this scene from the previous one
     score: Optional[ScoreSpec] = None  # cinematic upgrade: music that follows the story's moods
     retry_of: Optional[str] = None  # Milestone 6: this scene is a retry of that scene (it restarts from the same state)
+    story_props: List[StoryPropHandoff] = Field(default_factory=list)
+    restoration: Optional[RestorationSpec] = None
 
     @model_validator(mode="after")
     def _shots(self) -> "SceneSpec":
@@ -899,6 +922,22 @@ class ProjectSpec(Strict):
             exits = {x.id for x in envs[sc.environment].exits}
             bars = {o.id for o in envs[sc.environment].obstacles if o.kind == "bar"}
             props = {p.id for p in envs[sc.environment].props}
+            if len({h.prop for h in sc.story_props}) != len(sc.story_props):
+                raise ValueError(f"scene {sc.id}: duplicate story prop declarations")
+            incoming = [h for h in sc.story_props if h.owner_in != "world"]
+            if len({h.owner_in for h in incoming}) != len(incoming):
+                raise ValueError(f"scene {sc.id}: one character cannot initially hold two story props")
+            for h in sc.story_props:
+                if h.prop not in props:
+                    raise ValueError(f"scene {sc.id}: missing story prop {h.prop!r} in environment")
+                for owner in (h.owner_in, h.owner_out):
+                    if owner != "world" and owner not in placed:
+                        raise ValueError(f"scene {sc.id}: unknown story prop owner {owner!r}")
+            if sc.restoration is not None:
+                if sc.restoration.prop not in props:
+                    raise ValueError(f"scene {sc.id}: restoration prop {sc.restoration.prop!r} not in environment")
+                if sc.restoration.prop not in {h.prop for h in sc.story_props}:
+                    raise ValueError(f"scene {sc.id}: restoration prop must be tracked in story_props")
             for r in envs[sc.environment].ropes:
                 for end in (r.a, r.b):
                     k, _, ref = end.partition(":")
