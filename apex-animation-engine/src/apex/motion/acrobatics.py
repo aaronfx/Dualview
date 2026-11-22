@@ -251,11 +251,11 @@ class AcroMixin:
         """Two standing bodies in the same depth lane cannot pass through each other: whatever moved this body
         (a walk, a lunge, a roll, a knockback), it stops at the other's body. Lanes at least BODY_PASS_Z apart pass by
         in depth (one in front of the other)."""
-        if abs(self.s - s_prev) < 1e-9 or not self._upright():
+        if abs(self.s - s_prev) < 1e-9 or not self._upright() or self._gone():
             return
         d = 1.0 if self.s > s_prev else -1.0
         for cid, oc in self.others.items():
-            if cid == self.cid or oc.frame is not self.frame or oc.lying or oc.mode not in ("grounded", "landing"):
+            if cid == self.cid or oc.frame is not self.frame or oc.lying or oc.mode not in ("grounded", "landing") or oc._gone():
                 continue
             if abs(oc.z - self.z) >= BODY_PASS_Z:
                 continue
@@ -345,8 +345,12 @@ class AcroMixin:
         return max(0.0, max(max((a[0] - x0) * d, (b[0] - x0) * d) for a, b in segs) + r)
 
     # ------------------------------------------------------------ bounded-force body vs dynamic props
+    def _gone(self) -> bool:
+        """Through an exit door: out of the level (no longer a body anyone or anything can touch)."""
+        return bool(self.exit) and bool(self.exit.get("crossed"))
+
     def _proxy_active(self) -> bool:
-        return self.mode in ("grounded", "landing") and self.posture == "stand" and self.ragdoll is None
+        return self.mode in ("grounded", "landing") and self.posture == "stand" and self.ragdoll is None and not self._gone()
 
     def _proxy_sync(self, t: float) -> None:
         """Before the physics step: the body is solid while standing, pushes with at most the character's strength,

@@ -481,8 +481,10 @@ class EnvironmentSpec(Strict):
                 for i in range(g):
                     for j in range(g):
                         loc = (-p.size[0] / 2 + (i + 0.5) * w, -p.size[1] / 2 + (j + 0.5) * h)
+                        small = max(w, h) < 45.0  # debris below knee height is kicked aside, not a wall
                         add.append(PropSpec(**dict(base, id=f"{p.id}~{i * g + j}", size=(w, h), mass=p.mass / (g * g), com=(0.0, 0.0),
-                                                   fragment_of=p.id, local=loc)))
+                                                   fragment_of=p.id, local=loc,
+                                                   collide_characters=False if small else p.collide_characters)))
         self.props.extend(add)
         return self
 
