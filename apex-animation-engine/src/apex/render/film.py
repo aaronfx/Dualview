@@ -127,9 +127,9 @@ def render_film(project, out_path: str, samples: int = 1, preview_scale: float =
                 strict_qa: bool = False) -> FilmResult:
     """Render every scene (or the ones in `only`, reusing earlier renders of the rest from `work_dir`) and join them."""
     from ..qa.film import check_film
-    from .pipeline import render_scene
     if strict_qa and not qa:
         raise ValueError("strict_qa requires QA to be enabled")
+    from .pipeline import render_scene
     t0 = time.time()
     work = work_dir or os.path.splitext(out_path)[0] + "_scenes"
     os.makedirs(work, exist_ok=True)
