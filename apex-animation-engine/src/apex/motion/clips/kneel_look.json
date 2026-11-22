@@ -1,0 +1,33 @@
+{
+ "name": "kneel_look",
+ "duration": 4.2,
+ "description": "On the knees: lifts the head, looks back over the shoulder (at a way out), holds, then turns to look ahead (at a friend).",
+ "phases": [["anticipation", 0, 0.6], ["action", 0.6, 3.4], ["settle", 3.4, 4.2]],
+ "keys": [
+  {"t": 0, "name": "slumped", "interp": "smooth",
+   "pose": {"crouch": 0.55, "lean": 0.88, "chest": 0.18, "head": 0.8, "arm_n": 0.9, "elbow_n": 0.3, "arm_f": 0.85, "elbow_f": 0.35,
+            "eye": 0.2, "squash": 0.96, "look_back": 0.0}},
+  {"t": 0.7, "name": "lift", "interp": "ease",
+   "pose": {"crouch": 0.55, "lean": 0.55, "chest": 0.05, "head": 0.1, "arm_n": 0.75, "elbow_n": 0.25, "arm_f": 0.7, "elbow_f": 0.3,
+            "eye": 0.7, "squash": 0.97, "look_back": 0.0}},
+  {"t": 1.0, "name": "look back", "interp": "ease",
+   "pose": {"crouch": 0.55, "lean": 0.5, "chest": 0.0, "head": -0.05, "arm_n": 0.72, "elbow_n": 0.25, "arm_f": 0.68, "elbow_f": 0.3,
+            "eye": 1.0, "squash": 0.97, "look_back": 1.0}},
+  {"t": 2.2, "name": "hold back", "interp": "ease",
+   "pose": {"crouch": 0.55, "lean": 0.5, "chest": 0.0, "head": 0.0, "arm_n": 0.72, "elbow_n": 0.25, "arm_f": 0.68, "elbow_f": 0.3,
+            "eye": 0.9, "squash": 0.97, "look_back": 1.0}},
+  {"t": 2.6, "name": "look ahead", "interp": "ease",
+   "pose": {"crouch": 0.55, "lean": 0.45, "chest": -0.05, "head": -0.15, "arm_n": 0.7, "elbow_n": 0.25, "arm_f": 0.66, "elbow_f": 0.3,
+            "eye": 1.1, "squash": 0.97, "look_back": 0.0}},
+  {"t": 3.6, "name": "hold ahead", "interp": "ease",
+   "pose": {"crouch": 0.55, "lean": 0.5, "chest": 0.0, "head": -0.1, "arm_n": 0.72, "elbow_n": 0.25, "arm_f": 0.68, "elbow_f": 0.3,
+            "eye": 1.0, "squash": 0.97, "look_back": 0.0}},
+  {"t": 4.2, "name": "gather", "interp": "ease",
+   "pose": {"crouch": 0.55, "lean": 0.7, "chest": 0.1, "head": 0.4, "arm_n": 0.85, "elbow_n": 0.3, "arm_f": 0.8, "elbow_f": 0.35,
+            "eye": 0.8, "squash": 0.96, "look_back": 0.0}}
+ ],
+ "contacts": [
+  {"effector": "hand_n", "on": "surface", "t0": 0.0, "t1": 9.0, "s": 0.42, "h": 0.02, "blend": 0.01},
+  {"effector": "hand_f", "on": "surface", "t0": 0.0, "t1": 9.0, "s": 0.34, "h": 0.02, "blend": 0.01}
+ ]
+}

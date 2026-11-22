@@ -181,6 +181,47 @@ QA checks:
 - `creature_joints_hold`, `creature_breaks_at_threshold`, `creature_follows_path`;
 - `causes_on_screen`.
 
+## Acting, collapses, rescues, retries and films (Milestone 6)
+
+**`act`** (an action): `{clip, duration, emotion, intensity, tempo, tremble}`.
+- Plays a motion-library clip as a performance, then holds its last pose (breathing) for the rest of `duration`.
+- Clips: `cheer`, `laugh`, `beckon` (over the shoulder), `wave_on` (facing the other), `cower`, `shock`, `reach_out`, `despair`, `kneel_look`, `rise`, `embarrassed`, `peer_down`, `lose_balance`, `recover_relief`, `recover_relief_shake`, `brace`.
+- `emotion`: `neutral`, `afraid`, `scared`, `determined`, `relieved`, `tired`, `sad`, `joyful`, `embarrassed`. `intensity` exaggerates the clip, `tempo` speeds it up and `tremble` shakes the hands, arms and head.
+- Each act emits `act` with `{clip, emotion}`, so a wait can name one: `"until": "event:act@iko[clip=rise]"`. Event waits accept the same `[key=value]` filters as goals.
+
+**`ObstacleSpec.collapse`**: `{under, after, at, on, pieces, color}` makes a platform give way.
+- It collapses at the first of: the character `under` having stood on it for `after` s, the time `at`, or the event `on`.
+- It breaks into `pieces` planks (props `<id>~k`) that fall. From that moment it is no solid and no support, and whoever stands on it steps off.
+
+**`CharacterPlacement.on`**: `"obstacle:<id>"` starts a character standing on a structure's top.
+
+**Ledges and rescues:**
+- **`catch_ledge`** `{target: obstacle:<id>}` is armed behind a walk or run. If the character falls, its hands catch the nearest corner of that top within reach (event `ledge_catch`).
+- **`hang`** `{slip_at, distance, duration, until}` holds on. `slip_at` makes the near hand slip (event `hang_slip`). With `duration`, the character scrambles up unaided.
+- **`pull_up`** `{target: char:<id>}`: the rescuer goes to the edge above the hanging character, kneels and reaches down. The two hands meet at one grip point (`hand_grab`), and the rescuer steps back as the other is pulled up and over (`pulled_up`).
+
+**`gesture: nudge`** is a shoulder nudge (event `nudge`).
+
+**`SceneSpec.fail`**: `{below, characters}`. Falling below the height `below` is a fail (event `fail`, once per character).
+
+**`SceneSpec.hud`**: `{retries, retries_max, label, messages}`.
+- A retry counter is drawn top right. It ticks down with a red flash at each `fail`.
+- `messages` is a list of `{text, at | on, delay, duration, style: alert|info|success|title}`.
+
+**`ExitSpec.unlock_on: "together:<id>,<id>"`**: the exit unlocks only when all of them stand within `open_radius` of it at once (event `exit_together`). After a character passes through an exit door, it has left the level.
+
+**`RoomSpec.void_below`** draws the room below that height as a bottomless void with falling data. The floor is still there physically, far below a level built on platforms. It is drawn only.
+
+**Films:**
+- `SceneSpec.transition_in` is `cut`, `fade` or `rewind`: how `apex film` enters the scene from the previous one. A rewind freezes the last frame, then plays the previous scene backwards at high speed with a glitch and a tape-rewind sound, made from its own rendered frames.
+- `SceneSpec.retry_of` marks a scene as a retry of another. It must restart from the same state.
+
+Events: `act`, `collapse`, `ledge_catch`, `hang_slip`, `pulled_up`, `nudge`, `fail`, `exit_together`.
+
+QA checks:
+- per scene: `hands_meet` (the two hands touch at every hand grab and stay together while holding). `door_state_machine` re-derives a together unlock from the rendered bodies;
+- per film (`apex film`): `retry_resets_consistent` (every body starts where it started in the attempt it repeats) and `retry_counter_consistent` (the counter carries from scene to scene, minus the fails, and a failed attempt is followed by a retry).
+
 ## Gravity angles (GravityEffect)
 
 Each switch changes gravity in exactly one of two ways:

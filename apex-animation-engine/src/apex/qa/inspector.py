@@ -236,10 +236,14 @@ class Inspector:
 
     def check_foot_sliding(self) -> List[Check]:
         out = []
+        gone = {}
+        for e in self.r.events:  # once through an exit door the character has left the level (it is not drawn)
+            if e.type == "exit_reached":
+                gone.setdefault(e.character, e.t)
         for cid, an in self.r.animators.items():
             worst, cnt, where = 0.0, 0, ""
             for iv in an.planted_intervals():
-                ts = np.arange(iv.t0, iv.t1, 1.0 / 96.0)
+                ts = np.arange(iv.t0, min(iv.t1, gone.get(cid, math.inf)), 1.0 / 96.0)
                 for t in ts:
                     pose = an.pose_at(float(t))
                     j = self.rt.rigs[cid].world_joints(pose)
@@ -736,8 +740,14 @@ class Inspector:
             out.append(Check("body_outside_structures", "PASS" if worst <= TOL["structure_depth"] else "FAIL", worst, TOL["structure_depth"],
                              f"deepest a body point goes inside a structure ({where or 'never'})"))
         worst, where = 0.0, ""
+        gone = {}
+        for e in ev:  # through an exit door (in the wall) a character has left the level
+            if e.type == "exit_reached":
+                gone.setdefault(e.character, e.t)
         for cid, an in self.r.animators.items():
             for iv in an.planted_intervals():
+                if iv.t0 >= gone.get(cid, math.inf):
+                    continue
                 seg = an.segments[an.segment_at((iv.t0 + iv.t1) / 2)]
                 F = self.r.frames[seg.frame]
                 if not F.bounded:
@@ -798,13 +808,14 @@ class Inspector:
         if flips:
             worst, where = 0.0, ""
             for e in flips:
-                land = next((x for x in ev if x.type in ("impact",) and x.character == e.character and x.t > e.t), None)
+                # it ends at the touchdown, or where the hands catch a ledge (the body must be upright to hang)
+                land = next((x for x in ev if x.type in ("impact", "ledge_catch") and x.character == e.character and x.t > e.t), None)
                 if land is None:
                     worst, where = math.pi, f"{e.character} flip at t={e.t:.2f}s never lands"
                     continue
                 c = self.r.controllers[e.character]
                 rec = max((r_ for r_ in c.records if r_.t < land.t - 1e-9), key=lambda r_: r_.t)  # just before touchdown
-                F = self.r.frames[land.data["surface"]]
+                F = self.r.frames[land.data["surface"] if land.type == "impact" else "floor"]
                 err = abs(math.atan2(math.sin(rec.angle - F.body_angle), math.cos(rec.angle - F.body_angle)))
                 if err > worst:
                     worst, where = err, f"{e.character} at t={land.t:.2f}s"

@@ -82,10 +82,10 @@ class InteractionMixin:
     def _event_seen(self, spec: Optional[str], t: float) -> bool:
         if not spec:
             return False
+        from ..scene.goals import matches
         kind, _, body = spec.partition(":")
-        etype, _, who = body.partition("@")
         t_from = self.cur_t0 - 1e-9 if kind == "next" else -1e9  # next: only events after the action started
-        return any(e.type == etype and t_from <= e.t <= t + 1e-9 and (not who or e.character == who) for e in self.all_events)
+        return any(t_from <= e.t <= t + 1e-9 and matches(body, e) for e in self.all_events)  # (with [key=value] filters)
 
     def _target_s(self, ref: str) -> float:
         kind, _, ref_id = ref.partition(":")

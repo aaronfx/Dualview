@@ -33,6 +33,7 @@ FILMS: Dict[str, str] = {
     "gravity_switch_1d.json": "gravity: slides, swings, doors",
     "orb_runner.json": "level grid, orbs, portals (characters and a prop), beat sync, particles (Milestone 4)",
     "specimen.json": "breakables, morphs, a composite creature torn apart, diagrams, set dressing (Milestone 5)",
+    "last_retry.json": "acting, collapses, ledge catches and rescues, retries, HUD, together exits (Milestone 6)",
 }
 DRIFT_WARN = 0.5  # s: a goal that moved more than this may need its cut re-placed (reported, not a failure)
 _GRADE = {"PASS": 0, "WARN": 1, "FAIL": 2}

@@ -455,6 +455,8 @@ class AcroMixin:
         if not F.bounded or self.mode != "grounded" or self.posture != "stand" or \
                 (self.cur is not None and self.cur.type in ("climb", "vault", "wall_kick")):
             return False
+        if self.exit is not None and self.exit.get("crossed"):  # through a door: out of the level, not off a ledge
+            return False
         if F.lo - 3.0 <= self.s <= F.hi + 3.0:
             return False
         nxt = self._continuing_top(F)

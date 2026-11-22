@@ -206,8 +206,9 @@ class ExitSpec(Strict):
 
 class CollapseSpec(Strict):
     """A structure that gives way (Milestone 6): a platform that breaks into `pieces` planks which fall. It goes when
-    the character `under` has stood on it for `after` seconds (weight), at time `at`, or on an event `on`. Whoever
-    stands on it then loses their footing; from that moment it is not a solid or a support for anyone."""
+    the character `under` has stood on it for `after` seconds (weight), at time `at`, or on an event `on`, whichever
+    comes first. Whoever stands on it then loses their footing; from that moment it is not a solid or a support for
+    anyone."""
     under: Optional[str] = None
     after: float = Field(0.5, ge=0, le=30)
     at: Optional[float] = Field(None, ge=0)
@@ -217,8 +218,8 @@ class CollapseSpec(Strict):
 
     @model_validator(mode="after")
     def _one(self) -> "CollapseSpec":
-        if sum(x is not None for x in (self.under, self.at, self.on)) != 1:
-            raise ValueError("a collapse needs exactly one of 'under', 'at' or 'on'")
+        if all(x is None for x in (self.under, self.at, self.on)):
+            raise ValueError("a collapse needs at least one of 'under', 'at' or 'on'")
         return self
 
 
@@ -544,6 +545,7 @@ class ActionSpec(Strict):
     tempo: float = Field(1.0, gt=0.2, le=3.0)  # act: playback speed
     tremble: float = Field(0.0, ge=0, le=1.5)  # act: shaking hands, arms and head (fear, exhaustion)
     slip_at: Optional[float] = Field(None, ge=0)  # hang: the near hand slips off this long into the hang (`distance`: the drop)
+    # hang with `duration`: after that long the character scrambles up over the edge unaided
     note: str = ""
 
     @model_validator(mode="after")

@@ -1,0 +1,1492 @@
+{
+ "schema_version": "0.1",
+ "id": "last_retry",
+ "title": "THE LAST RETRY",
+ "fps": 24,
+ "width": 1920,
+ "height": 1080,
+ "seed": 66,
+ "characters": [
+  {
+   "id": "iko",
+   "name": "IKO",
+   "strength": 48000,
+   "proportions": {
+    "spine": 29,
+    "chest": 27,
+    "head": 23,
+    "thigh": 45,
+    "shin": 43
+   },
+   "style": {
+    "body_color": "#ffd84a",
+    "far_color": "#b8962a",
+    "visor_color": "#7cf6ff",
+    "glow_color": "#ffe07a",
+    "scarf_color": "#ff5ab4",
+    "has_scarf": true,
+    "limb_width": 7.5,
+    "cadence_scale": 1.05
+   }
+  },
+  {
+   "id": "pell",
+   "name": "PELL",
+   "strength": 52000,
+   "proportions": {
+    "spine": 31,
+    "chest": 29,
+    "head": 24,
+    "thigh": 43,
+    "shin": 41
+   },
+   "style": {
+    "body_color": "#6fe3ff",
+    "far_color": "#3d93ad",
+    "visor_color": "#ffd166",
+    "glow_color": "#a8f0ff",
+    "has_scarf": false,
+    "limb_width": 8.0,
+    "cadence_scale": 0.95
+   }
+  }
+ ],
+ "environments": [
+  {
+   "id": "world",
+   "room": {
+    "width": 3200,
+    "height": 1500,
+    "depth_back": 600,
+    "grid_spacing": 100,
+    "grid_alpha": 0.35,
+    "entry_door": false,
+    "void_below": 460.0
+   },
+   "theme": {
+    "accent": "#4fd8ff",
+    "alert": "#ff4a5a",
+    "back": "#0d1324",
+    "floor": "#070a14",
+    "side": "#0b1020",
+    "ceiling": "#05070e",
+    "background": "#020308",
+    "dust": "#bfe8ff"
+   },
+   "dust": 40,
+   "obstacles": [
+    {
+     "id": "A",
+     "kind": "platform",
+     "center": [
+      -1050.0,
+      580.0
+     ],
+     "size": [
+      1100.0,
+      40.0
+     ],
+     "color": "#2a6f8f"
+    },
+    {
+     "id": "C",
+     "kind": "platform",
+     "center": [
+      850.0,
+      580.0
+     ],
+     "size": [
+      1500.0,
+      40.0
+     ],
+     "color": "#2a6f8f"
+    },
+    {
+     "id": "bridge",
+     "kind": "platform",
+     "center": [
+      -200.0,
+      591.0
+     ],
+     "size": [
+      600.0,
+      18.0
+     ],
+     "color": "#3a8fb0",
+     "collapse": {
+      "under": "pell",
+      "after": 5.8,
+      "pieces": 6
+     }
+    }
+   ],
+   "exits": [
+    {
+     "id": "exit",
+     "surface": "wall_right",
+     "s": 700.0,
+     "width": 190,
+     "unlock_on": "together:iko,pell",
+     "open_radius": 280
+    },
+    {
+     "id": "quit",
+     "surface": "wall_left",
+     "s": 700.0,
+     "width": 190,
+     "sealed": false,
+     "open_radius": 40
+    }
+   ],
+   "decor": [
+    {
+     "kind": "screen",
+     "x": -1250,
+     "y": 930.0,
+     "w": 260,
+     "h": 130,
+     "color": "#4fd8ff",
+     "text": "LEVEL 7",
+     "seed": 2
+    },
+    {
+     "kind": "panel",
+     "x": -900,
+     "y": 860.0,
+     "w": 220,
+     "h": 170,
+     "color": "#4fd8ff",
+     "seed": 4
+    },
+    {
+     "kind": "screen",
+     "x": 700,
+     "y": 960.0,
+     "w": 240,
+     "h": 120,
+     "color": "#ff5ab4",
+     "text": "EXIT >>",
+     "seed": 6
+    },
+    {
+     "kind": "panel",
+     "x": 1150,
+     "y": 850.0,
+     "w": 260,
+     "h": 170,
+     "color": "#7cff9a",
+     "seed": 8
+    }
+   ]
+  },
+  {
+   "id": "checkpoint",
+   "room": {
+    "width": 3200,
+    "height": 1500,
+    "depth_back": 600,
+    "grid_spacing": 100,
+    "grid_alpha": 0.35,
+    "entry_door": false,
+    "void_below": 460.0
+   },
+   "theme": {
+    "accent": "#4fd8ff",
+    "alert": "#ff4a5a",
+    "back": "#0d1324",
+    "floor": "#070a14",
+    "side": "#0b1020",
+    "ceiling": "#05070e",
+    "background": "#020308",
+    "dust": "#bfe8ff"
+   },
+   "dust": 40,
+   "obstacles": [
+    {
+     "id": "A",
+     "kind": "platform",
+     "center": [
+      -1050.0,
+      580.0
+     ],
+     "size": [
+      1100.0,
+      40.0
+     ],
+     "color": "#2a6f8f"
+    },
+    {
+     "id": "C",
+     "kind": "platform",
+     "center": [
+      850.0,
+      580.0
+     ],
+     "size": [
+      1500.0,
+      40.0
+     ],
+     "color": "#2a6f8f"
+    },
+    {
+     "id": "pillar",
+     "kind": "platform",
+     "center": [
+      -200.0,
+      370.0
+     ],
+     "size": [
+      100.0,
+      300.0
+     ],
+     "color": "#3a7f9f",
+     "collapse": {
+      "under": "iko",
+      "after": 0.35,
+      "on": "orb_jump@iko",
+      "pieces": 5
+     }
+    }
+   ],
+   "exits": [
+    {
+     "id": "exit",
+     "surface": "wall_right",
+     "s": 700.0,
+     "width": 190,
+     "unlock_on": "together:iko,pell",
+     "open_radius": 280
+    },
+    {
+     "id": "quit",
+     "surface": "wall_left",
+     "s": 700.0,
+     "width": 190,
+     "sealed": false,
+     "open_radius": 40
+    }
+   ],
+   "decor": [
+    {
+     "kind": "screen",
+     "x": -1250,
+     "y": 930.0,
+     "w": 260,
+     "h": 130,
+     "color": "#4fd8ff",
+     "text": "LEVEL 7",
+     "seed": 2
+    },
+    {
+     "kind": "panel",
+     "x": -900,
+     "y": 860.0,
+     "w": 220,
+     "h": 170,
+     "color": "#4fd8ff",
+     "seed": 4
+    },
+    {
+     "kind": "screen",
+     "x": 700,
+     "y": 960.0,
+     "w": 240,
+     "h": 120,
+     "color": "#ff5ab4",
+     "text": "EXIT >>",
+     "seed": 6
+    },
+    {
+     "kind": "panel",
+     "x": 1150,
+     "y": 850.0,
+     "w": 260,
+     "h": 170,
+     "color": "#7cff9a",
+     "seed": 8
+    }
+   ],
+   "portals": [
+    {
+     "id": "P",
+     "center": [
+      -1400.0,
+      675.0
+     ],
+     "link": "Q",
+     "angle": 0.0,
+     "height": 150.0,
+     "color": "#ff5ab4"
+    },
+    {
+     "id": "Q",
+     "center": [
+      -800.0,
+      1100.0
+     ],
+     "link": "P",
+     "angle": 0.0,
+     "height": 150.0,
+     "color": "#ff5ab4"
+    }
+   ],
+   "orbs": [
+    {
+     "id": "o1",
+     "kind": "jump",
+     "center": [
+      -470.0,
+      685.0
+     ],
+     "radius": 30.0,
+     "power": 231.0
+    }
+   ]
+  }
+ ],
+ "scenes": [
+  {
+   "id": "opening",
+   "title": "The run",
+   "environment": "world",
+   "duration": 34.75,
+   "transition_in": "fade",
+   "placements": [
+    {
+     "character": "iko",
+     "x": -1440,
+     "on": "obstacle:A",
+     "z": -10
+    },
+    {
+     "character": "pell",
+     "x": -1510,
+     "on": "obstacle:A",
+     "z": 10
+    }
+   ],
+   "hud": {
+    "retries": 3,
+    "messages": [
+     {
+      "text": "THE LAST RETRY",
+      "at": 0.7,
+      "duration": 3.0,
+      "style": "title"
+     },
+     {
+      "text": "ONLY 3 RETRIES REMAIN",
+      "on": "event:ledge_catch@pell",
+      "delay": 0.4,
+      "duration": 3.0,
+      "style": "alert"
+     }
+    ]
+   },
+   "actions": [
+    {
+     "character": "iko",
+     "type": "idle",
+     "duration": 3.6
+    },
+    {
+     "character": "iko",
+     "type": "run_to",
+     "target_x": -1150,
+     "lane": -30
+    },
+    {
+     "character": "iko",
+     "type": "jump_to",
+     "target_x": -950,
+     "height": 120,
+     "flip": "front",
+     "onto": "obstacle:A"
+    },
+    {
+     "character": "iko",
+     "type": "act",
+     "clip": "laugh",
+     "duration": 1.6,
+     "emotion": "joyful"
+    },
+    {
+     "character": "iko",
+     "type": "act",
+     "clip": "beckon",
+     "duration": 1.6,
+     "emotion": "joyful"
+    },
+    {
+     "character": "iko",
+     "type": "run_to",
+     "target_x": -600
+    },
+    {
+     "character": "iko",
+     "type": "turn",
+     "face": -1
+    },
+    {
+     "character": "iko",
+     "type": "wait_for",
+     "until": "event:act@pell[clip=peer_down]"
+    },
+    {
+     "character": "iko",
+     "type": "act",
+     "clip": "wave_on",
+     "duration": 1.6,
+     "emotion": "joyful"
+    },
+    {
+     "character": "iko",
+     "type": "walk_to",
+     "target_x": -700,
+     "lane": -40
+    },
+    {
+     "character": "iko",
+     "type": "point",
+     "target": "point:-200,640",
+     "duration": 1.2
+    },
+    {
+     "character": "iko",
+     "type": "wait_for",
+     "until": "event:ledge_catch@pell"
+    },
+    {
+     "character": "iko",
+     "type": "act",
+     "clip": "shock",
+     "duration": 1.0,
+     "emotion": "scared"
+    },
+    {
+     "character": "iko",
+     "type": "run_to",
+     "target_x": -540,
+     "lane": 0
+    },
+    {
+     "character": "iko",
+     "type": "act",
+     "clip": "reach_out",
+     "duration": 2.6,
+     "emotion": "scared",
+     "tremble": 0.4
+    },
+    {
+     "character": "iko",
+     "type": "wait_for",
+     "until": "event:climbed@pell"
+    },
+    {
+     "character": "iko",
+     "type": "act",
+     "clip": "recover_relief",
+     "duration": 2.0,
+     "emotion": "sad"
+    },
+    {
+     "character": "iko",
+     "type": "idle",
+     "duration": 6.0
+    },
+    {
+     "character": "pell",
+     "type": "idle",
+     "duration": 5.0
+    },
+    {
+     "character": "pell",
+     "type": "walk_to",
+     "target_x": -1250,
+     "speed": 105
+    },
+    {
+     "character": "pell",
+     "type": "act",
+     "clip": "lose_balance",
+     "duration": 1.1,
+     "emotion": "scared"
+    },
+    {
+     "character": "pell",
+     "type": "walk_to",
+     "target_x": -760,
+     "speed": 115
+    },
+    {
+     "character": "pell",
+     "type": "act",
+     "clip": "peer_down",
+     "duration": 1.6,
+     "emotion": "scared"
+    },
+    {
+     "character": "pell",
+     "type": "wait_for",
+     "until": "event:point@iko"
+    },
+    {
+     "character": "pell",
+     "type": "walk_to",
+     "target_x": 300,
+     "style": "cautious"
+    },
+    {
+     "character": "pell",
+     "type": "catch_ledge",
+     "target": "obstacle:C"
+    },
+    {
+     "character": "pell",
+     "type": "hang",
+     "slip_at": 1.4,
+     "distance": 12,
+     "duration": 4.2
+    },
+    {
+     "character": "pell",
+     "type": "act",
+     "clip": "recover_relief_shake",
+     "duration": 1.8,
+     "emotion": "scared"
+    },
+    {
+     "character": "pell",
+     "type": "turn",
+     "face": -1
+    },
+    {
+     "character": "pell",
+     "type": "act",
+     "clip": "cower",
+     "duration": 2.0,
+     "emotion": "scared",
+     "tremble": 0.5
+    },
+    {
+     "character": "pell",
+     "type": "idle",
+     "duration": 6.0
+    }
+   ],
+   "shots": [
+    {
+     "id": "o1_level",
+     "kind": "establishing",
+     "description": "the level: floating platforms over a void; the title",
+     "camera": {
+      "mode": "dolly",
+      "center": [
+       -350,
+       830.0
+      ],
+      "center_end": [
+       -1050,
+       730.0
+      ],
+      "view_height": 1250,
+      "view_height_end": 760
+     },
+     "start": 0.0,
+     "end": 3.51
+    },
+    {
+     "id": "o2_run",
+     "kind": "tracking",
+     "description": "IKO dashes off, flips, lands and laughs",
+     "camera": {
+      "mode": "follow",
+      "target": "iko",
+      "view_height": 560,
+      "offset": [
+       60,
+       40
+      ],
+      "lead": 0.3,
+      "stiffness": 4.0
+     },
+     "start": 3.51,
+     "end": 7.22
+    },
+    {
+     "id": "o3_pell",
+     "kind": "medium",
+     "description": "PELL trails behind and stumbles; IKO beckons him on",
+     "camera": {
+      "mode": "follow",
+      "target": "pell",
+      "view_height": 560,
+      "offset": [
+       120,
+       40
+      ],
+      "include": [
+       "char:iko"
+      ],
+      "stiffness": 3.0
+     },
+     "start": 7.22,
+     "end": 12.55
+    },
+    {
+     "id": "o4_bridge",
+     "kind": "medium",
+     "description": "at the bridge: PELL peers into the void; IKO waves him on first",
+     "camera": {
+      "mode": "static",
+      "target": "pell",
+      "center": [
+       -640,
+       710.0
+      ],
+      "view_height": 520,
+      "include": [
+       "char:iko",
+       "char:pell"
+      ]
+     },
+     "start": 12.55,
+     "end": 17.84
+    },
+    {
+     "id": "o5_cross",
+     "kind": "tracking",
+     "description": "PELL inches across the bridge",
+     "camera": {
+      "mode": "follow",
+      "target": "pell",
+      "view_height": 540,
+      "offset": [
+       40,
+       20
+      ],
+      "stiffness": 3.0,
+      "include": [
+       "obstacle:C"
+      ]
+     },
+     "start": 17.84,
+     "end": 24.12
+    },
+    {
+     "id": "o6_collapse",
+     "kind": "wide",
+     "description": "the bridge gives way; PELL catches the far ledge and hangs; IKO reaches across in vain",
+     "camera": {
+      "mode": "static",
+      "target": "pell",
+      "center": [
+       -230,
+       650.0
+      ],
+      "view_height": 820,
+      "include": [
+       "char:iko",
+       "char:pell"
+      ]
+     },
+     "start": 24.12,
+     "end": 29.93
+    },
+    {
+     "id": "o7_after",
+     "kind": "medium",
+     "description": "PELL scrambles up alone; across the gap, IKO's relief, PELL's fear",
+     "camera": {
+      "mode": "static",
+      "target": "iko",
+      "center": [
+       -200,
+       710.0
+      ],
+      "view_height": 760,
+      "include": [
+       "char:iko",
+       "char:pell"
+      ]
+     },
+     "fade_out": 0.0,
+     "start": 29.93,
+     "end": 34.75
+    }
+   ],
+   "time_fx": {
+    "hit_stop": false,
+    "slowmo": [
+     {
+      "at": "collapse@bridge",
+      "before": 0.1,
+      "after": 0.7,
+      "rate": 0.4
+     },
+     {
+      "at": "ledge_catch@pell",
+      "before": 0.05,
+      "after": 0.4,
+      "rate": 0.45
+     }
+    ],
+    "smears": true,
+    "punch_in": false
+   }
+  },
+  {
+   "id": "try1",
+   "title": "Attempt 1",
+   "environment": "checkpoint",
+   "duration": 12.34,
+   "transition_in": "cut",
+   "placements": [
+    {
+     "character": "iko",
+     "x": -540.0,
+     "on": "obstacle:A",
+     "facing": 1,
+     "z": -10
+    },
+    {
+     "character": "pell",
+     "x": 136.0,
+     "on": "obstacle:C",
+     "facing": -1,
+     "z": 10
+    }
+   ],
+   "fail": {
+    "below": 370.0,
+    "characters": [
+     "iko"
+    ]
+   },
+   "hud": {
+    "retries": 3
+   },
+   "actions": [
+    {
+     "character": "iko",
+     "type": "act",
+     "clip": "peer_down",
+     "duration": 1.6,
+     "emotion": "scared"
+    },
+    {
+     "character": "iko",
+     "type": "look_at",
+     "target": "char:pell",
+     "duration": 2.4
+    },
+    {
+     "character": "iko",
+     "type": "walk_to",
+     "target_x": -900
+    },
+    {
+     "character": "iko",
+     "type": "turn",
+     "face": 1
+    },
+    {
+     "character": "iko",
+     "type": "act",
+     "clip": "rise",
+     "duration": 1.2,
+     "emotion": "determined",
+     "tempo": 1.6
+    },
+    {
+     "character": "iko",
+     "type": "run_to",
+     "target_x": -515
+    },
+    {
+     "character": "iko",
+     "type": "jump_to",
+     "target_x": 40,
+     "height": 260
+    },
+    {
+     "character": "iko",
+     "type": "idle",
+     "duration": 3.0
+    },
+    {
+     "character": "pell",
+     "type": "look_at",
+     "target": "char:iko",
+     "duration": 1.8
+    },
+    {
+     "character": "pell",
+     "type": "act",
+     "clip": "wave_on",
+     "duration": 1.6,
+     "emotion": "scared"
+    },
+    {
+     "character": "pell",
+     "type": "wait_for",
+     "until": "event:takeoff@iko"
+    },
+    {
+     "character": "pell",
+     "type": "act",
+     "clip": "shock",
+     "duration": 1.0,
+     "emotion": "scared"
+    },
+    {
+     "character": "pell",
+     "type": "wait_for",
+     "until": "event:fail@iko"
+    },
+    {
+     "character": "pell",
+     "type": "act",
+     "clip": "cower",
+     "duration": 2.0,
+     "emotion": "scared",
+     "tremble": 0.6
+    }
+   ],
+   "shots": [
+    {
+     "id": "t1_plan",
+     "kind": "wide",
+     "description": "the checkpoint: IKO at the edge, PELL across the gap",
+     "camera": {
+      "mode": "static",
+      "target": "iko",
+      "center": [
+       -330,
+       710.0
+      ],
+      "view_height": 820,
+      "include": [
+       "char:iko",
+       "char:pell"
+      ]
+     },
+     "start": 0.0,
+     "end": 9.65
+    },
+    {
+     "id": "t1_jump",
+     "kind": "tracking",
+     "description": "the jump, and the fall",
+     "camera": {
+      "mode": "follow",
+      "target": "iko",
+      "view_height": 720,
+      "offset": [
+       0,
+       0
+      ],
+      "lead": 0.2,
+      "stiffness": 5.0
+     },
+     "start": 9.65,
+     "end": 12.34
+    }
+   ],
+   "time_fx": {
+    "hit_stop": false,
+    "slowmo": [
+     {
+      "at": "fail@iko",
+      "before": 0.4,
+      "after": 0.3,
+      "rate": 0.4
+     }
+    ],
+    "smears": true,
+    "punch_in": false
+   }
+  },
+  {
+   "id": "try2",
+   "title": "Attempt 2",
+   "environment": "checkpoint",
+   "duration": 7.66,
+   "transition_in": "rewind",
+   "retry_of": "try1",
+   "placements": [
+    {
+     "character": "iko",
+     "x": -540.0,
+     "on": "obstacle:A",
+     "facing": 1,
+     "z": -10
+    },
+    {
+     "character": "pell",
+     "x": 136.0,
+     "on": "obstacle:C",
+     "facing": -1,
+     "z": 10
+    }
+   ],
+   "fail": {
+    "below": 370.0,
+    "characters": [
+     "iko"
+    ]
+   },
+   "hud": {
+    "retries": 2
+   },
+   "actions": [
+    {
+     "character": "iko",
+     "type": "wait_for",
+     "until": "event:point@pell"
+    },
+    {
+     "character": "iko",
+     "type": "look_at",
+     "target": "point:-200,520",
+     "duration": 1.0
+    },
+    {
+     "character": "iko",
+     "type": "act",
+     "clip": "rise",
+     "duration": 1.0,
+     "emotion": "determined",
+     "tempo": 1.8
+    },
+    {
+     "character": "iko",
+     "type": "jump_to",
+     "target_x": -200,
+     "height": 90,
+     "onto": "obstacle:pillar"
+    },
+    {
+     "character": "iko",
+     "type": "idle",
+     "duration": 3.0
+    },
+    {
+     "character": "pell",
+     "type": "look_at",
+     "target": "char:iko",
+     "duration": 1.8
+    },
+    {
+     "character": "pell",
+     "type": "point",
+     "target": "point:-200,520",
+     "duration": 1.4
+    },
+    {
+     "character": "pell",
+     "type": "wait_for",
+     "until": "event:takeoff@iko"
+    },
+    {
+     "character": "pell",
+     "type": "act",
+     "clip": "shock",
+     "duration": 1.0,
+     "emotion": "scared"
+    },
+    {
+     "character": "pell",
+     "type": "wait_for",
+     "until": "event:fail@iko"
+    },
+    {
+     "character": "pell",
+     "type": "act",
+     "clip": "cower",
+     "duration": 2.0,
+     "emotion": "scared",
+     "tremble": 0.6
+    }
+   ],
+   "shots": [
+    {
+     "id": "t2_plan",
+     "kind": "wide",
+     "description": "the checkpoint: IKO at the edge, PELL across the gap",
+     "camera": {
+      "mode": "static",
+      "target": "iko",
+      "center": [
+       -330,
+       710.0
+      ],
+      "view_height": 820,
+      "include": [
+       "char:iko",
+       "char:pell"
+      ]
+     },
+     "start": 0.0,
+     "end": 3.81
+    },
+    {
+     "id": "t2_jump",
+     "kind": "tracking",
+     "description": "the jump, and the fall",
+     "camera": {
+      "mode": "follow",
+      "target": "iko",
+      "view_height": 720,
+      "offset": [
+       0,
+       0
+      ],
+      "lead": 0.2,
+      "stiffness": 5.0
+     },
+     "start": 3.81,
+     "end": 7.66
+    }
+   ],
+   "time_fx": {
+    "hit_stop": false,
+    "slowmo": [
+     {
+      "at": "collapse@pillar",
+      "before": 0.1,
+      "after": 0.6,
+      "rate": 0.4
+     }
+    ],
+    "smears": true,
+    "punch_in": false
+   }
+  },
+  {
+   "id": "last",
+   "title": "The last retry",
+   "environment": "checkpoint",
+   "duration": 43.52,
+   "transition_in": "rewind",
+   "retry_of": "try1",
+   "placements": [
+    {
+     "character": "iko",
+     "x": -540.0,
+     "on": "obstacle:A",
+     "facing": 1,
+     "z": -10
+    },
+    {
+     "character": "pell",
+     "x": 136.0,
+     "on": "obstacle:C",
+     "facing": -1,
+     "z": 10
+    }
+   ],
+   "fail": {
+    "below": 370.0,
+    "characters": [
+     "iko"
+    ]
+   },
+   "hud": {
+    "retries": 1,
+    "messages": [
+     {
+      "text": "LAST RETRY",
+      "at": 0.4,
+      "duration": 2.2,
+      "style": "alert"
+     },
+     {
+      "text": "LEVEL COMPLETE \u2014 TOGETHER",
+      "on": "event:exit_reached@pell",
+      "delay": 0.3,
+      "duration": 6.0,
+      "style": "success"
+     }
+    ]
+   },
+   "actions": [
+    {
+     "character": "iko",
+     "type": "act",
+     "clip": "despair",
+     "duration": 3.2,
+     "emotion": "sad",
+     "tremble": 0.8
+    },
+    {
+     "character": "iko",
+     "type": "act",
+     "clip": "kneel_look",
+     "duration": 4.2,
+     "emotion": "sad",
+     "tremble": 0.4
+    },
+    {
+     "character": "iko",
+     "type": "act",
+     "clip": "rise",
+     "duration": 2.2,
+     "emotion": "determined"
+    },
+    {
+     "character": "iko",
+     "type": "look_at",
+     "target": "point:-470,685",
+     "duration": 1.1
+    },
+    {
+     "character": "iko",
+     "type": "look_at",
+     "target": "point:-1400,675",
+     "duration": 1.2
+    },
+    {
+     "character": "iko",
+     "type": "turn",
+     "face": -1
+    },
+    {
+     "character": "iko",
+     "type": "run_to",
+     "target_x": -1540
+    },
+    {
+     "character": "iko",
+     "type": "catch_ledge",
+     "target": "obstacle:C"
+    },
+    {
+     "character": "iko",
+     "type": "hang"
+    },
+    {
+     "character": "iko",
+     "type": "act",
+     "clip": "recover_relief",
+     "duration": 1.8,
+     "emotion": "relieved"
+    },
+    {
+     "character": "iko",
+     "type": "walk_to",
+     "target_x": 1440,
+     "speed": 150,
+     "lane": -30
+    },
+    {
+     "character": "iko",
+     "type": "turn",
+     "face": -1
+    },
+    {
+     "character": "iko",
+     "type": "wait_for",
+     "until": "event:exit_together"
+    },
+    {
+     "character": "iko",
+     "type": "idle",
+     "duration": 1.2
+    },
+    {
+     "character": "iko",
+     "type": "act",
+     "clip": "embarrassed",
+     "duration": 2.4,
+     "emotion": "embarrassed"
+    },
+    {
+     "character": "iko",
+     "type": "wait_for",
+     "until": "event:nudge@pell"
+    },
+    {
+     "character": "iko",
+     "type": "idle",
+     "duration": 0.4
+    },
+    {
+     "character": "iko",
+     "type": "act",
+     "clip": "laugh",
+     "duration": 2.2,
+     "emotion": "joyful"
+    },
+    {
+     "character": "iko",
+     "type": "turn",
+     "face": 1
+    },
+    {
+     "character": "iko",
+     "type": "reach_exit",
+     "target": "exit:exit"
+    },
+    {
+     "character": "pell",
+     "type": "look_at",
+     "target": "char:iko",
+     "duration": 1.0
+    },
+    {
+     "character": "pell",
+     "type": "wait_for",
+     "until": "event:act@iko[clip=rise]"
+    },
+    {
+     "character": "pell",
+     "type": "act",
+     "clip": "wave_on",
+     "duration": 1.6,
+     "emotion": "scared"
+    },
+    {
+     "character": "pell",
+     "type": "wait_for",
+     "until": "event:portal_exit@iko"
+    },
+    {
+     "character": "pell",
+     "type": "act",
+     "clip": "shock",
+     "duration": 0.9,
+     "emotion": "scared"
+    },
+    {
+     "character": "pell",
+     "type": "pull_up",
+     "target": "char:iko"
+    },
+    {
+     "character": "pell",
+     "type": "act",
+     "clip": "recover_relief",
+     "duration": 1.6,
+     "emotion": "relieved"
+    },
+    {
+     "character": "pell",
+     "type": "walk_to",
+     "target_x": 1330,
+     "speed": 140
+    },
+    {
+     "character": "pell",
+     "type": "wait_for",
+     "until": "event:act@iko[clip=embarrassed]"
+    },
+    {
+     "character": "pell",
+     "type": "idle",
+     "duration": 1.2
+    },
+    {
+     "character": "pell",
+     "type": "gesture",
+     "target": "char:iko",
+     "gesture": "nudge"
+    },
+    {
+     "character": "pell",
+     "type": "act",
+     "clip": "laugh",
+     "duration": 2.2,
+     "emotion": "joyful"
+    },
+    {
+     "character": "pell",
+     "type": "wait_for",
+     "until": "event:exit_reached@iko"
+    },
+    {
+     "character": "pell",
+     "type": "reach_exit",
+     "target": "exit:exit"
+    }
+   ],
+   "shots": [
+    {
+     "id": "l1_knees",
+     "kind": "medium",
+     "description": "IKO drops to his knees and trembles",
+     "camera": {
+      "mode": "static",
+      "target": "iko",
+      "center": [
+       -560,
+       690.0
+      ],
+      "view_height": 420
+     },
+     "start": 0.0,
+     "end": 3.9
+    },
+    {
+     "id": "l2_wayout",
+     "kind": "wide",
+     "description": "he looks back at the way out, then across at PELL",
+     "camera": {
+      "mode": "static",
+      "target": "iko",
+      "center": [
+       -1060,
+       730.0
+      ],
+      "view_height": 760,
+      "include": [
+       "char:iko",
+       "exit:quit"
+      ]
+     },
+     "start": 3.9,
+     "end": 5.8
+    },
+    {
+     "id": "l3_pell",
+     "kind": "medium",
+     "description": "PELL, alone across the gap, waiting",
+     "camera": {
+      "mode": "static",
+      "target": "pell",
+      "center": [
+       150,
+       710.0
+      ],
+      "view_height": 420
+     },
+     "start": 5.8,
+     "end": 7.1
+    },
+    {
+     "id": "l4_rise",
+     "kind": "medium",
+     "description": "IKO stands up; he looks at the orb, the portal: a plan",
+     "camera": {
+      "mode": "static",
+      "target": "iko",
+      "center": [
+       -760,
+       770.0
+      ],
+      "view_height": 620,
+      "include": [
+       "char:iko",
+       "point:-470,685"
+      ]
+     },
+     "start": 7.1,
+     "end": 12.06
+    },
+    {
+     "id": "l5_stunt",
+     "kind": "wide",
+     "description": "into the portal, out above the gap, the orb, over the falling pillar, and the far ledge, just",
+     "camera": {
+      "mode": "follow",
+      "target": "iko",
+      "view_height": 900,
+      "lead": 0.35,
+      "stiffness": 3.0,
+      "bound_to_room": true
+     },
+     "start": 12.06,
+     "end": 16.67
+    },
+    {
+     "id": "l6_grab",
+     "kind": "medium",
+     "description": "PELL grabs his hand and pulls him up",
+     "camera": {
+      "mode": "static",
+      "target": "iko",
+      "center": [
+       140,
+       650.0
+      ],
+      "view_height": 480,
+      "include": [
+       "char:iko",
+       "char:pell"
+      ]
+     },
+     "start": 16.67,
+     "end": 20.75
+    },
+    {
+     "id": "l7_walk",
+     "kind": "tracking",
+     "description": "together, to the exit",
+     "camera": {
+      "mode": "follow",
+      "target": "pell",
+      "view_height": 620,
+      "offset": [
+       80,
+       30
+      ],
+      "stiffness": 2.5,
+      "include": [
+       "char:iko"
+      ],
+      "bound_to_room": true
+     },
+     "start": 20.75,
+     "end": 28.0
+    },
+    {
+     "id": "l8_exit",
+     "kind": "medium",
+     "description": "the exit opens for both; IKO, embarrassed; a nudge; they laugh and walk through",
+     "camera": {
+      "mode": "static",
+      "target": "pell",
+      "center": [
+       1290,
+       720.0
+      ],
+      "view_height": 520,
+      "include": [
+       "char:iko",
+       "char:pell",
+       "exit:exit"
+      ]
+     },
+     "fade_out": 1.6,
+     "start": 28.0,
+     "end": 43.52
+    }
+   ],
+   "time_fx": {
+    "hit_stop": false,
+    "slowmo": [
+     {
+      "at": "orb_jump@iko",
+      "before": 0.1,
+      "after": 0.5,
+      "rate": 0.45
+     },
+     {
+      "at": "ledge_catch@iko",
+      "before": 0.35,
+      "after": 0.55,
+      "rate": 0.3
+     },
+     {
+      "at": "hand_grab@pell",
+      "before": 0.1,
+      "after": 0.5,
+      "rate": 0.4
+     }
+    ],
+    "smears": true,
+    "punch_in": false
+   }
+  }
+ ]
+}

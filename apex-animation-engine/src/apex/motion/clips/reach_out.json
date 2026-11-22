@@ -1,7 +1,7 @@
 {
  "name": "reach_out",
  "duration": 0.8,
- "description": "A desperate reach: leans out, one arm stretched toward the other, the other arm back for balance.",
+ "description": "A desperate reach: leans out over the edge, one arm stretched forward and down toward the other, the other arm back for balance.",
  "keys": [
   {
    "t": 0,
@@ -16,10 +16,10 @@
    "name": "lunge",
    "interp": "snap",
    "pose": {
-    "crouch": 0.15,
-    "lean": 0.55,
-    "head": -0.25,
-    "arm_n": 1.45,
+    "crouch": 0.22,
+    "lean": 0.7,
+    "head": -0.05,
+    "arm_n": 1.15,
     "elbow_n": 0.05,
     "arm_f": -0.8,
     "elbow_f": 0.4,
@@ -31,10 +31,10 @@
    "name": "hold",
    "interp": "ease",
    "pose": {
-    "crouch": 0.18,
-    "lean": 0.62,
-    "head": -0.2,
-    "arm_n": 1.35,
+    "crouch": 0.25,
+    "lean": 0.75,
+    "head": 0.0,
+    "arm_n": 1.05,
     "elbow_n": 0.05,
     "arm_f": -0.9,
     "elbow_f": 0.4,

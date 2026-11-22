@@ -130,6 +130,9 @@ class RescueMixin:
         x, y = H["P2"]
         self.s, self.h = x, y - H["fy"] - dip - drop
         self.world.set_kinematic(self.cid, self.frame.to_world(self.s, self.h), self.frame.body_angle)
+        if H["release_t"] is None and a.duration is not None and tau >= a.duration:
+            H["release_t"] = t  # scrambles up unaided
+            self.emit(Event(t, "climb_start", self.cid, {"point": H["E"], "unaided": True}))
         if H["release_t"] is not None and t >= H["release_t"]:
             self._pulled_up(t)
 

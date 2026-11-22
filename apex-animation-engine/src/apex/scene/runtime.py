@@ -426,13 +426,14 @@ class SceneRuntime:
                     park(fid)
             for oid, ob in list(collapsing.items()):  # a structure gives way
                 cs = ob.collapse
+                go = False
                 if cs.under is not None:
                     c = ctrls.get(cs.under)
                     if c is not None and c.frame.owner == oid and c.mode == "grounded":
                         stood_on.setdefault(oid, t)
-                    if oid in stood_on and t - stood_on[oid] >= cs.after:
-                        collapse(oid, t)
-                elif (cs.at is not None and t >= cs.at) or (cs.on is not None and any(_matches(cs.on, e) for e in events)):
+                    go = oid in stood_on and t - stood_on[oid] >= cs.after
+                go = go or (cs.at is not None and t >= cs.at) or (cs.on is not None and any(_matches(cs.on, e) for e in events))
+                if go and oid in collapsing:  # the first of its triggers
                     collapse(oid, t)
             for c in ctrls.values():
                 c.update(t, dt)
