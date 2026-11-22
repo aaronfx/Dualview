@@ -127,6 +127,8 @@ def scene_city():
         act(P, "shock", 0.5, "scared"),
         A(P, "run_to", target_x=-755),
         A(P, "jump_to", target_x=-290, height=145, onto="obstacle:R2"),
+        A(P, "run_to", target_x=40),
+        A(P, "vault", target="obstacle:vent"),
         A(P, "run_to", target_x=565),
         A(P, "jump_to", target_x=1000, height=150, onto="obstacle:R3"),
         A(P, "run_to", target_x=1650),
@@ -194,7 +196,7 @@ def scene_tower():
 def scene_canyon():
     I, P, V = "iko", "pell", "vex"
     actions = [
-        A(V, "run_to", target_x=750, speed=380, lane=40),
+        A(V, "run_to", target_x=1420, speed=380, lane=40),
         A(V, "turn", face=-1),
         act(V, "laugh", 0.6, "joyful"),
         A(V, "wait_for", until="event:creature_break@drone"),
@@ -428,6 +430,10 @@ if __name__ == "__main__":
             evs = [(round(e.t, 2), e.type, e.character, e.data.get("prop"))
                    for e in result.events if e.type in interesting]
             print(sc.id, "events:", evs[:45], flush=True)
+            for cid, ctl in result.controllers.items():
+                print("  character", cid, "state", ctl.mode, "pos", round(ctl.s, 1),
+                      "action", None if ctl.cur is None else ctl.cur.type,
+                      "remaining", len(ctl.queue), flush=True)
         except Exception as exc:
             print(sc.id, "SIMULATION FAILURE:", type(exc).__name__, str(exc), flush=True)
             sim_errors.append(f"{sc.id}: {exc}")
