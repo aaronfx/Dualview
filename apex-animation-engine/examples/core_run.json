@@ -206,7 +206,7 @@
    ],
    "backdrop": {
     "kind": "city",
-    "seed": 28,
+    "seed": 49,
     "weather": "rain",
     "weather_amount": 1.3,
     "power": [
@@ -318,7 +318,7 @@
    ],
    "backdrop": {
     "kind": "tower",
-    "seed": 93,
+    "seed": 65,
     "weather": "rain",
     "weather_amount": 1.6,
     "lightning": true,
@@ -481,7 +481,7 @@
    ],
    "backdrop": {
     "kind": "canyon",
-    "seed": 36,
+    "seed": 18,
     "weather": "embers",
     "weather_amount": 0.9,
     "power": []
@@ -538,7 +538,7 @@
      "mass": 5.0,
      "color": "#ff4a5a",
      "z": 0.0,
-     "breaks": 1500.0,
+     "breaks": 1000.0,
      "stride": 60.0,
      "parts": [
       {
@@ -704,12 +704,12 @@
    ],
    "backdrop": {
     "kind": "void",
-    "seed": 38,
+    "seed": 65,
     "weather": "data",
     "weather_amount": 1.0,
     "power": [
      {
-      "at": 5.81,
+      "at": 5.0,
       "level": 1.0,
       "fade": 0.8,
       "origin": [
@@ -719,7 +719,7 @@
       "speed": 3000.0
      },
      {
-      "at": 38.31,
+      "at": 36.67,
       "level": 0.2,
       "fade": 0.8,
       "origin": [
@@ -814,7 +814,7 @@
    ],
    "backdrop": {
     "kind": "summit",
-    "seed": 24,
+    "seed": 87,
     "weather": "motes",
     "weather_amount": 1.0,
     "city_lights": true,
@@ -840,7 +840,7 @@
    "id": "city",
    "title": "The theft",
    "environment": "city",
-   "duration": 27.5,
+   "duration": 26.59,
    "transition_in": "fade",
    "placements": [
     {
@@ -902,14 +902,15 @@
      "character": "vex",
      "type": "look_at",
      "target": "char:iko",
-     "duration": 0.7
+     "duration": 0.56
     },
     {
      "character": "vex",
      "type": "act",
      "clip": "laugh",
-     "duration": 0.8,
-     "emotion": "joyful"
+     "duration": 0.64,
+     "emotion": "joyful",
+     "tempo": 1.25
     },
     {
      "character": "vex",
@@ -920,7 +921,7 @@
      "character": "vex",
      "type": "run_to",
      "target_x": -790,
-     "speed": 340
+     "speed": 425.0
     },
     {
      "character": "vex",
@@ -936,8 +937,9 @@
      "character": "vex",
      "type": "act",
      "clip": "laugh",
-     "duration": 0.7,
-     "emotion": "joyful"
+     "duration": 0.56,
+     "emotion": "joyful",
+     "tempo": 1.25
     },
     {
      "character": "vex",
@@ -960,7 +962,8 @@
     {
      "character": "vex",
      "type": "run_to",
-     "target_x": 10
+     "target_x": 10,
+     "speed": 537.5
     },
     {
      "character": "vex",
@@ -983,7 +986,8 @@
     {
      "character": "vex",
      "type": "run_to",
-     "target_x": 1180
+     "target_x": 1180,
+     "speed": 537.5
     },
     {
      "character": "vex",
@@ -1013,8 +1017,9 @@
      "character": "vex",
      "type": "act",
      "clip": "laugh",
-     "duration": 0.8,
-     "emotion": "joyful"
+     "duration": 0.64,
+     "emotion": "joyful",
+     "tempo": 1.25
     },
     {
      "character": "vex",
@@ -1025,7 +1030,7 @@
      "character": "vex",
      "type": "run_to",
      "target_x": 1700,
-     "speed": 360
+     "speed": 450.0
     },
     {
      "character": "vex",
@@ -1042,8 +1047,9 @@
      "character": "iko",
      "type": "act",
      "clip": "shock",
-     "duration": 0.7,
-     "emotion": "scared"
+     "duration": 0.56,
+     "emotion": "scared",
+     "tempo": 1.25
     },
     {
      "character": "iko",
@@ -1054,15 +1060,15 @@
      "character": "iko",
      "type": "act",
      "clip": "rise",
-     "duration": 0.5,
+     "duration": 0.4,
      "emotion": "determined",
-     "tempo": 1.6
+     "tempo": 2.0
     },
     {
      "character": "iko",
      "type": "run_to",
      "target_x": -1440.0,
-     "speed": 380,
+     "speed": 475.0,
      "lane": -20
     },
     {
@@ -1087,7 +1093,8 @@
     {
      "character": "iko",
      "type": "run_to",
-     "target_x": 30
+     "target_x": 30,
+     "speed": 537.5
     },
     {
      "character": "iko",
@@ -1124,8 +1131,9 @@
      "character": "iko",
      "type": "act",
      "clip": "lose_balance",
-     "duration": 0.9,
-     "emotion": "scared"
+     "duration": 0.72,
+     "emotion": "scared",
+     "tempo": 1.25
     },
     {
      "character": "iko",
@@ -1136,8 +1144,9 @@
      "character": "iko",
      "type": "act",
      "clip": "wave_on",
-     "duration": 0.9,
-     "emotion": "determined"
+     "duration": 0.72,
+     "emotion": "determined",
+     "tempo": 1.25
     },
     {
      "character": "iko",
@@ -1148,7 +1157,7 @@
      "character": "iko",
      "type": "run_to",
      "target_x": 1700,
-     "speed": 380
+     "speed": 475.0
     },
     {
      "character": "iko",
@@ -1165,8 +1174,9 @@
      "character": "pell",
      "type": "act",
      "clip": "shock",
-     "duration": 1.1,
-     "emotion": "scared"
+     "duration": 0.88,
+     "emotion": "scared",
+     "tempo": 1.25
     },
     {
      "character": "pell",
@@ -1177,7 +1187,7 @@
      "character": "pell",
      "type": "run_to",
      "target_x": -1450.0,
-     "speed": 280,
+     "speed": 350.0,
      "lane": 24
     },
     {
@@ -1194,7 +1204,7 @@
      "character": "pell",
      "type": "run_to",
      "target_x": -1120,
-     "speed": 330
+     "speed": 412.5
     },
     {
      "character": "pell",
@@ -1213,8 +1223,9 @@
      "character": "pell",
      "type": "act",
      "clip": "land_hard",
-     "duration": 0.5,
-     "emotion": "scared"
+     "duration": 0.4,
+     "emotion": "scared",
+     "tempo": 1.25
     },
     {
      "character": "pell",
@@ -1225,7 +1236,8 @@
      "character": "pell",
      "type": "run_to",
      "target_x": -40,
-     "lane": 30
+     "lane": 30,
+     "speed": 537.5
     },
     {
      "character": "pell",
@@ -1235,7 +1247,8 @@
     {
      "character": "pell",
      "type": "run_to",
-     "target_x": 580
+     "target_x": 580,
+     "speed": 537.5
     },
     {
      "character": "pell",
@@ -1263,7 +1276,7 @@
      "character": "pell",
      "type": "run_to",
      "target_x": 1650,
-     "speed": 330
+     "speed": 412.5
     },
     {
      "character": "pell",
@@ -1329,7 +1342,7 @@
       ]
      },
      "start": 5.79,
-     "end": 7.2
+     "end": 7.06
     },
     {
      "id": "a4_crate",
@@ -1348,8 +1361,8 @@
        "char:vex"
       ]
      },
-     "start": 7.2,
-     "end": 11.5
+     "start": 7.06,
+     "end": 11.15
     },
     {
      "id": "a5_roofs",
@@ -1366,8 +1379,8 @@
        40
       ]
      },
-     "start": 11.5,
-     "end": 16.21
+     "start": 11.15,
+     "end": 15.75
     },
     {
      "id": "a6_edge",
@@ -1383,8 +1396,8 @@
        30
       ]
      },
-     "start": 16.21,
-     "end": 23.02
+     "start": 15.75,
+     "end": 22.56
     },
     {
      "id": "a7_go",
@@ -1401,8 +1414,8 @@
        120
       ]
      },
-     "start": 23.02,
-     "end": 27.5
+     "start": 22.56,
+     "end": 26.59
     }
    ],
    "time_fx": {
@@ -1445,7 +1458,7 @@
    "id": "tower",
    "title": "The tower",
    "environment": "tower",
-   "duration": 30.31,
+   "duration": 29.43,
    "transition_in": "warp",
    "placements": [
     {
@@ -1499,7 +1512,7 @@
      "character": "vex",
      "type": "run_to",
      "target_x": 930,
-     "speed": 300
+     "speed": 375.0
     },
     {
      "character": "vex",
@@ -1534,15 +1547,17 @@
      "character": "vex",
      "type": "act",
      "clip": "peer_down",
-     "duration": 1.2,
-     "emotion": "joyful"
+     "duration": 0.96,
+     "emotion": "joyful",
+     "tempo": 1.25
     },
     {
      "character": "vex",
      "type": "act",
      "clip": "laugh",
-     "duration": 0.9,
-     "emotion": "joyful"
+     "duration": 0.72,
+     "emotion": "joyful",
+     "tempo": 1.25
     },
     {
      "character": "vex",
@@ -1553,7 +1568,7 @@
      "character": "vex",
      "type": "run_to",
      "target_x": 1700,
-     "speed": 360
+     "speed": 450.0
     },
     {
      "character": "vex",
@@ -1565,7 +1580,7 @@
      "character": "iko",
      "type": "run_to",
      "target_x": -560,
-     "speed": 400,
+     "speed": 500.0,
      "lane": -20
     },
     {
@@ -1610,8 +1625,9 @@
      "character": "iko",
      "type": "act",
      "clip": "cheer",
-     "duration": 0.85,
-     "emotion": "joyful"
+     "duration": 0.68,
+     "emotion": "joyful",
+     "tempo": 1.0
     },
     {
      "character": "iko",
@@ -1649,7 +1665,7 @@
      "character": "iko",
      "type": "look_at",
      "target": "exit:gate",
-     "duration": 0.8
+     "duration": 0.64
     },
     {
      "character": "iko",
@@ -1660,15 +1676,15 @@
      "character": "iko",
      "type": "act",
      "clip": "rise",
-     "duration": 0.5,
+     "duration": 0.4,
      "emotion": "determined",
-     "tempo": 1.6
+     "tempo": 2.0
     },
     {
      "character": "iko",
      "type": "run_to",
      "target_x": 1700,
-     "speed": 380
+     "speed": 475.0
     },
     {
      "character": "iko",
@@ -1680,7 +1696,7 @@
      "character": "pell",
      "type": "run_to",
      "target_x": -570,
-     "speed": 340,
+     "speed": 425.0,
      "lane": 26
     },
     {
@@ -1692,7 +1708,7 @@
      "character": "pell",
      "type": "run_to",
      "target_x": 300,
-     "speed": 340
+     "speed": 425.0
     },
     {
      "character": "pell",
@@ -1703,8 +1719,9 @@
      "character": "pell",
      "type": "act",
      "clip": "shock",
-     "duration": 0.6,
-     "emotion": "scared"
+     "duration": 0.48,
+     "emotion": "scared",
+     "tempo": 1.25
     },
     {
      "character": "pell",
@@ -1733,7 +1750,7 @@
      "character": "pell",
      "type": "run_to",
      "target_x": 1650,
-     "speed": 340
+     "speed": 425.0
     },
     {
      "character": "pell",
@@ -1779,7 +1796,7 @@
       ]
      },
      "start": 3.0,
-     "end": 8.14
+     "end": 7.76
     },
     {
      "id": "b3_fight",
@@ -1797,8 +1814,8 @@
        "char:vex"
       ]
      },
-     "start": 8.14,
-     "end": 11.98
+     "start": 7.76,
+     "end": 11.6
     },
     {
      "id": "b4_sweep",
@@ -1816,8 +1833,8 @@
        "char:vex"
       ]
      },
-     "start": 11.98,
-     "end": 16.71
+     "start": 11.6,
+     "end": 16.16
     },
     {
      "id": "b5_down",
@@ -1833,8 +1850,8 @@
        40
       ]
      },
-     "start": 16.71,
-     "end": 20.84
+     "start": 16.16,
+     "end": 20.28
     },
     {
      "id": "b6_hand",
@@ -1853,8 +1870,8 @@
        "char:pell"
       ]
      },
-     "start": 20.84,
-     "end": 26.34
+     "start": 20.28,
+     "end": 25.79
     },
     {
      "id": "b7_go",
@@ -1874,8 +1891,8 @@
        "char:pell"
       ]
      },
-     "start": 26.34,
-     "end": 30.31
+     "start": 25.79,
+     "end": 29.43
     }
    ],
    "time_fx": {
@@ -1927,7 +1944,7 @@
    "id": "canyon",
    "title": "The canyon",
    "environment": "canyon",
-   "duration": 24.05,
+   "duration": 24.65,
    "transition_in": "warp",
    "placements": [
     {
@@ -1954,7 +1971,7 @@
      "character": "vex",
      "type": "run_to",
      "target_x": 90,
-     "speed": 360
+     "speed": 450.0
     },
     {
      "character": "vex",
@@ -1972,8 +1989,9 @@
      "character": "vex",
      "type": "act",
      "clip": "laugh",
-     "duration": 0.8,
-     "emotion": "joyful"
+     "duration": 0.64,
+     "emotion": "joyful",
+     "tempo": 1.25
     },
     {
      "character": "vex",
@@ -2008,12 +2026,6 @@
     },
     {
      "character": "vex",
-     "type": "run_to",
-     "target_x": 1750,
-     "speed": 380
-    },
-    {
-     "character": "vex",
      "type": "reach_exit",
      "target": "exit:gate",
      "speed": 340
@@ -2022,7 +2034,7 @@
      "character": "iko",
      "type": "run_to",
      "target_x": -860,
-     "speed": 400,
+     "speed": 500.0,
      "lane": -20
     },
     {
@@ -2034,16 +2046,25 @@
      "character": "iko",
      "type": "act",
      "clip": "shock",
-     "duration": 0.6,
-     "emotion": "scared"
+     "duration": 0.48,
+     "emotion": "scared",
+     "tempo": 1.25
+    },
+    {
+     "character": "iko",
+     "type": "act",
+     "clip": "peer_down",
+     "duration": 0.88,
+     "emotion": "scared",
+     "tempo": 1.25
     },
     {
      "character": "iko",
      "type": "act",
      "clip": "rise",
-     "duration": 0.5,
+     "duration": 0.4,
      "emotion": "determined",
-     "tempo": 1.6
+     "tempo": 2.0
     },
     {
      "character": "iko",
@@ -2062,7 +2083,7 @@
      "character": "iko",
      "type": "run_to",
      "target_x": 90.0,
-     "speed": 400
+     "speed": 500.0
     },
     {
      "character": "iko",
@@ -2073,14 +2094,14 @@
      "character": "iko",
      "type": "run_to",
      "target_x": 820,
-     "speed": 420
+     "speed": 525.0
     },
     {
      "character": "iko",
      "type": "strike",
      "target": "prop:drone.body",
-     "move": "front_kick",
-     "power": 0.35
+     "move": "cross",
+     "power": 0.3
     },
     {
      "character": "iko",
@@ -2106,7 +2127,7 @@
      "character": "iko",
      "type": "run_to",
      "target_x": 1700,
-     "speed": 400
+     "speed": 500.0
     },
     {
      "character": "iko",
@@ -2118,7 +2139,7 @@
      "character": "pell",
      "type": "run_to",
      "target_x": -980,
-     "speed": 340,
+     "speed": 425.0,
      "lane": 20
     },
     {
@@ -2162,7 +2183,7 @@
      "character": "pell",
      "type": "run_to",
      "target_x": 700,
-     "speed": 340
+     "speed": 425.0
     },
     {
      "character": "pell",
@@ -2172,9 +2193,14 @@
     {
      "character": "pell",
      "type": "run_to",
-     "target_x": 900,
-     "speed": 300,
+     "target_x": 660,
+     "speed": 375.0,
      "lane": 30
+    },
+    {
+     "character": "pell",
+     "type": "wait_for",
+     "until": "event:dodge@iko"
     },
     {
      "character": "pell",
@@ -2186,14 +2212,15 @@
      "character": "pell",
      "type": "act",
      "clip": "cheer",
-     "duration": 0.9,
-     "emotion": "joyful"
+     "duration": 0.72,
+     "emotion": "joyful",
+     "tempo": 1.25
     },
     {
      "character": "pell",
      "type": "run_to",
      "target_x": 1650,
-     "speed": 360
+     "speed": 450.0
     },
     {
      "character": "pell",
@@ -2221,7 +2248,7 @@
       "view_height_end": 1000
      },
      "start": 0.0,
-     "end": 3.36
+     "end": 2.68
     },
     {
      "id": "c2_stake",
@@ -2239,8 +2266,8 @@
        "char:iko"
       ]
      },
-     "start": 3.36,
-     "end": 6.75
+     "start": 2.68,
+     "end": 6.74
     },
     {
      "id": "c3_orb",
@@ -2257,8 +2284,8 @@
        120
       ]
      },
-     "start": 6.75,
-     "end": 8.83
+     "start": 6.74,
+     "end": 8.81
     },
     {
      "id": "c4_ledge",
@@ -2275,8 +2302,8 @@
        60
       ]
      },
-     "start": 8.83,
-     "end": 15.99
+     "start": 8.81,
+     "end": 15.61
     },
     {
      "id": "c5_drone",
@@ -2294,8 +2321,8 @@
        "char:pell"
       ]
      },
-     "start": 15.99,
-     "end": 20.57
+     "start": 15.61,
+     "end": 21.33
     },
     {
      "id": "c6_portal",
@@ -2312,8 +2339,8 @@
        60
       ]
      },
-     "start": 20.57,
-     "end": 24.05
+     "start": 21.33,
+     "end": 24.65
     }
    ],
    "time_fx": {
@@ -2371,7 +2398,7 @@
    "id": "arena",
    "title": "The arena",
    "environment": "arena",
-   "duration": 46.24,
+   "duration": 44.01,
    "transition_in": "warp",
    "placements": [
     {
@@ -2398,7 +2425,7 @@
      "character": "vex",
      "type": "run_to",
      "target_x": 610.0,
-     "speed": 340
+     "speed": 425.0
     },
     {
      "character": "vex",
@@ -2465,8 +2492,9 @@
      "character": "vex",
      "type": "act",
      "clip": "laugh",
-     "duration": 0.8,
-     "emotion": "joyful"
+     "duration": 0.64,
+     "emotion": "joyful",
+     "tempo": 1.25
     },
     {
      "character": "vex",
@@ -2483,8 +2511,9 @@
      "character": "vex",
      "type": "act",
      "clip": "shock",
-     "duration": 0.8,
-     "emotion": "scared"
+     "duration": 0.64,
+     "emotion": "scared",
+     "tempo": 1.25
     },
     {
      "character": "vex",
@@ -2495,7 +2524,7 @@
      "character": "vex",
      "type": "look_at",
      "target": "char:iko",
-     "duration": 0.9
+     "duration": 0.72
     },
     {
      "character": "vex",
@@ -2528,7 +2557,7 @@
      "character": "iko",
      "type": "run_to",
      "target_x": -420,
-     "speed": 420,
+     "speed": 525.0,
      "lane": -10
     },
     {
@@ -2540,9 +2569,9 @@
      "character": "iko",
      "type": "act",
      "clip": "rise",
-     "duration": 0.5,
+     "duration": 0.4,
      "emotion": "determined",
-     "tempo": 1.6
+     "tempo": 2.0
     },
     {
      "character": "iko",
@@ -2609,7 +2638,7 @@
      "character": "iko",
      "type": "look_at",
      "target": "char:pell",
-     "duration": 0.6
+     "duration": 0.48
     },
     {
      "character": "iko",
@@ -2639,14 +2668,15 @@
      "character": "iko",
      "type": "act",
      "clip": "recover_relief_shake",
-     "duration": 0.9,
-     "emotion": "tired"
+     "duration": 0.72,
+     "emotion": "tired",
+     "tempo": 1.25
     },
     {
      "character": "iko",
      "type": "run_to",
      "target_x": 590.0,
-     "speed": 360,
+     "speed": 450.0,
      "lane": -45
     },
     {
@@ -2663,8 +2693,9 @@
      "character": "iko",
      "type": "act",
      "clip": "cheer",
-     "duration": 1.0,
-     "emotion": "joyful"
+     "duration": 0.8,
+     "emotion": "joyful",
+     "tempo": 1.25
     },
     {
      "character": "iko",
@@ -2680,7 +2711,7 @@
      "character": "iko",
      "type": "run_to",
      "target_x": 1650,
-     "speed": 340
+     "speed": 425.0
     },
     {
      "character": "iko",
@@ -2692,7 +2723,7 @@
      "character": "pell",
      "type": "run_to",
      "target_x": -340,
-     "speed": 330,
+     "speed": 412.5,
      "lane": 24
     },
     {
@@ -2704,7 +2735,7 @@
      "character": "pell",
      "type": "run_to",
      "target_x": -120,
-     "speed": 380
+     "speed": 475.0
     },
     {
      "character": "pell",
@@ -2715,8 +2746,9 @@
      "character": "pell",
      "type": "act",
      "clip": "shock",
-     "duration": 0.6,
-     "emotion": "scared"
+     "duration": 0.48,
+     "emotion": "scared",
+     "tempo": 1.25
     },
     {
      "character": "pell",
@@ -2748,8 +2780,9 @@
      "character": "pell",
      "type": "act",
      "clip": "cheer",
-     "duration": 1.2,
-     "emotion": "joyful"
+     "duration": 0.96,
+     "emotion": "joyful",
+     "tempo": 1.25
     },
     {
      "character": "pell",
@@ -2760,7 +2793,7 @@
      "character": "pell",
      "type": "run_to",
      "target_x": 630.0,
-     "speed": 330,
+     "speed": 412.5,
      "lane": 40
     },
     {
@@ -2772,7 +2805,7 @@
      "character": "pell",
      "type": "run_to",
      "target_x": 1600,
-     "speed": 330
+     "speed": 412.5
     },
     {
      "character": "pell",
@@ -2800,7 +2833,7 @@
       "view_height_end": 1100
      },
      "start": 0.0,
-     "end": 5.01
+     "end": 4.2
     },
     {
      "id": "d2_socket",
@@ -2815,8 +2848,8 @@
       "view_height": 400,
       "include": []
      },
-     "start": 5.01,
-     "end": 7.41
+     "start": 4.2,
+     "end": 6.6
     },
     {
      "id": "d2b_standoff",
@@ -2835,8 +2868,8 @@
        "char:vex"
       ]
      },
-     "start": 7.41,
-     "end": 11.62
+     "start": 6.6,
+     "end": 10.81
     },
     {
      "id": "d3_duel",
@@ -2855,8 +2888,8 @@
        "char:vex"
       ]
      },
-     "start": 11.62,
-     "end": 19.45
+     "start": 10.81,
+     "end": 18.53
     },
     {
      "id": "d4_down",
@@ -2875,8 +2908,8 @@
        "char:vex"
       ]
      },
-     "start": 19.45,
-     "end": 26.73
+     "start": 18.53,
+     "end": 25.81
     },
     {
      "id": "d5_throw",
@@ -2895,8 +2928,8 @@
        "char:pell"
       ]
      },
-     "start": 26.73,
-     "end": 28.71
+     "start": 25.81,
+     "end": 27.8
     },
     {
      "id": "d6_kick",
@@ -2915,8 +2948,8 @@
        "char:vex"
       ]
      },
-     "start": 28.71,
-     "end": 35.74
+     "start": 27.8,
+     "end": 34.65
     },
     {
      "id": "d7_core",
@@ -2932,8 +2965,8 @@
        30
       ]
      },
-     "start": 35.74,
-     "end": 39.91
+     "start": 34.65,
+     "end": 38.27
     },
     {
      "id": "d8_go",
@@ -2950,8 +2983,8 @@
        60
       ]
      },
-     "start": 39.91,
-     "end": 46.24
+     "start": 38.27,
+     "end": 44.01
     }
    ],
    "time_fx": {

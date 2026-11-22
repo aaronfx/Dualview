@@ -146,7 +146,7 @@ def scene_tower():
         A(I, "run_to", target_x=-560, speed=400, lane=-20), A(I, "climb", target="obstacle:G2"),
         A(I, "run_to", target_x=300, speed=400), A(I, "jump_to", target_x=720, height=150, flip="front", onto="obstacle:G3"),
         A(I, "strike", target="char:vex", move="jab"), A(I, "strike", target="char:vex", move="cross"),
-        A(I, "strike", target="char:vex", move="side_kick", power=1.1), act(I, "cheer", 0.85, "joyful"),
+        A(I, "strike", target="char:vex", move="side_kick", power=1.1), act(I, "cheer", 0.85, "joyful", tempo=0.8),
         A(I, "strike", target="char:vex", move="roundhouse", power=1.2),
         A(I, "wait_for", until="event:knockdown@iko"), A(I, "wait_for", until="event:settled@iko"),
         A(I, "get_up", hesitate=True),  # he tries alone and cannot
@@ -178,7 +178,7 @@ def canyon():
                 collapse={"on": "event:strike_prop@vex", "pieces": 6, "color": "#9a6a44"}),
            ]
     drone = {"id": "drone", "body": "0", "size": [80.0, 54.0], "position": [1350.0, TOP + 100], "mass": 5.0, "color": "#ff4a5a",
-             "z": 0.0, "breaks": 1500.0, "stride": 60.0,
+             "z": 0.0, "breaks": 1000.0, "stride": 60.0,
              "parts": [{"glyph": "!", "size": [16.0, 60.0], "at": [-22.0, -16.0], "role": "leg", "phase": 0.0},
                        {"glyph": "!", "size": [16.0, 60.0], "at": [22.0, -16.0], "role": "leg", "phase": 3.14159},
                        {"glyph": "0", "size": [14.0, 14.0], "at": [-26.0, 8.0], "role": "eye", "mass": 0.2, "color": "#ffffff"}],
@@ -204,13 +204,14 @@ def scene_canyon():
         A(V, "strike", target="prop:anchor", move="front_kick", power=1.0), act(V, "laugh", 0.8, "joyful"), A(V, "turn", face=1),
         A(V, "run_to", target_x=LOG_X - 260, speed=380), A(V, "duck_slide", target_x=LOG_X + 290),
         A(V, "run_to", target_x=1100, speed=380, lane=40), A(V, "jump_to", target_x=1600, height=200, flip="back", onto="obstacle:C"),
-        A(V, "run_to", target_x=1750, speed=380), A(V, "reach_exit", target="exit:gate", speed=340),
+        A(V, "reach_exit", target="exit:gate", speed=340),
         # IKO: the bridge falls in front of him; the launch pad, over the gap and the swinging beam; the drone
         A(I, "run_to", target_x=-860, speed=400, lane=-20), A(I, "wait_for", until="event:collapse@bridge"), act(I, "shock", 0.6, "scared"),
+        act(I, "peer_down", 1.1, "scared"),  # the drop, then he commits
         act(I, "rise", 0.5, "determined", tempo=1.6), A(I, "run_to", target_x=-540, speed=420),
         A(I, "jump_to", target_x=120, height=170, onto="obstacle:C"),  # the jump orb over the gap
         A(I, "run_to", target_x=LOG_X - 330, speed=400), A(I, "roll", distance=600), A(I, "run_to", target_x=820, speed=420),
-        A(I, "strike", target="prop:drone.body", move="front_kick", power=0.35),  # it shrugs off the kick
+        A(I, "strike", target="prop:drone.body", move="cross", power=0.3),  # it shrugs off the punch
         A(I, "dodge", dodge="back"), A(I, "guard", until="event:throw@pell"),
         A(I, "wait_for", until="event:creature_break@drone"), A(I, "roll", distance=200),
         A(I, "run_to", target_x=1700, speed=400), A(I, "reach_exit", target="exit:gate", speed=320),
@@ -219,7 +220,8 @@ def scene_canyon():
         A(P, "run_to", target_x=-570, speed=420), A(P, "jump", height=200),  # too short: he catches the far edge
         A(P, "catch_ledge", target="obstacle:C"), A(P, "hang", duration=1.4),
         A(P, "run_to", target_x=LOG_X - 260, speed=360), A(P, "duck_slide", target_x=LOG_X + 290), A(P, "run_to", target_x=700, speed=340),
-        A(P, "pick_up", target="prop:x"), A(P, "run_to", target_x=900, speed=300, lane=30),
+        A(P, "pick_up", target="prop:x"), A(P, "run_to", target_x=660, speed=300, lane=30),
+        A(P, "wait_for", until="event:dodge@iko"),  # IKO's kick bounced off it: now PELL
         A(P, "throw", target="prop:drone.body", power=1.9),
         act(P, "cheer", 0.9, "joyful"),
         A(P, "run_to", target_x=1650, speed=360), A(P, "reach_exit", target="exit:gate", speed=300)]
@@ -502,10 +504,28 @@ def finalize(proj):
     return proj
 
 
+PACE = 1.25  # the chase and the fights run hot: everyone moves faster and the acting beats are short and sharp
+
+
+def paced(sc, pace=PACE):
+    """Speed a scene up: runs faster (to a sprint's limit), looks, laughs and reactions shorter and quicker."""
+    acts = sc["actions"]
+    for i, a in enumerate(acts):
+        nxt = next((b for b in acts[i + 1:] if b["character"] == a["character"]), None)
+        if a["type"] == "run_to" and not (nxt and nxt["type"] in ("jump", "jump_to", "duck_slide")):  # a leap or slide run-up stays
+            a["speed"] = round(min(560.0, a.get("speed", 430.0) * pace), 1)
+        elif a["type"] in ("act", "look_at", "idle") and a.get("duration"):
+            a["duration"] = round(max(0.3, a["duration"] / pace), 2)
+            if a["type"] == "act":
+                a["tempo"] = round(a.get("tempo", 1.0) * pace, 2)
+    return sc
+
+
 def project(scenes=None):
     return {"schema_version": "0.1", "id": "core_run", "title": "CORE RUN", "fps": 24, "width": 1920, "height": 1080, "seed": 77,
             "characters": CHARACTERS, "environments": [city(), tower(), canyon(), arena(), summit()],
-            "scenes": scenes or [scene_city(), scene_tower(), scene_canyon(), scene_arena(), scene_summit()]}
+            "scenes": scenes or [paced(scene_city()), paced(scene_tower()), paced(scene_canyon()), paced(scene_arena()),
+                                 scene_summit()]}
 
 
 if __name__ == "__main__":

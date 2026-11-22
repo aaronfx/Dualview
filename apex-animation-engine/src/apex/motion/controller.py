@@ -197,13 +197,33 @@ class CharacterController(InteractionMixin, CombatMixin, AcroMixin, ArcadeMixin,
                 self._grounded(t, dt)
         elif self.mode == "airborne":
             self._airborne(t, dt, g)
+            self._carry_free()
         elif self.mode == "landing":
             self._landing(t, dt)
+            self._carry_tick()
         elif self.mode == "swing":
             self._swing(t, dt, g)
+            self._carry_free()
         elif self.mode == "falling":
             self._falling(t, dt)
+            self._carry_free()
         # "ragdoll": the bodies are stepped by the physics world; see after_step
+
+    def _carry_free(self) -> None:
+        """In the air (a jump, a flip, a fall) what is carried stays in the hands: held where it is on the ground, but
+        relative to the body as it flies and turns."""
+        pid = getattr(self, "carrying", None)
+        if pid is None or self.props[pid].kind != "glyph":
+            return
+        st = self.world.state(self.cid)
+        f = self.facing
+        ca, sa = math.cos(st.angle), math.sin(st.angle)
+        lx, ly = f * 20.0, 16.0  # as _hold_pose: ahead of the pelvis at chest height
+        grip = (st.pos[0] + lx * ca - ly * sa, st.pos[1] + lx * sa + ly * ca)
+        wa = st.angle + (0.35 if f > 0 else math.pi - 0.35)
+        gl = self._grip_local(pid)
+        cw, sw = math.cos(wa), math.sin(wa)
+        self.world.set_kinematic(pid, (grip[0] - (gl[0] * cw - gl[1] * sw), grip[1] - (gl[0] * sw + gl[1] * cw)), wa)
 
     def after_step(self, t: float, contacts: List[ContactEvent]) -> None:
         self._proxy_react(t)

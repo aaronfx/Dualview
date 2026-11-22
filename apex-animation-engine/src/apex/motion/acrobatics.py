@@ -1043,6 +1043,8 @@ class AcroMixin:
         for cid, oc in self.others.items():
             if cid == self.cid or cid in T["done"] or oc.mode not in ("grounded", "landing") or oc.lying:
                 continue
+            if abs(oc.z - self.z) >= BODY_PASS_Z:  # it flies along the thrower's lane: a body in another lane is passed by
+                continue
             cs = self.world.state(cid)
             ca, sa = math.cos(cs.angle), math.sin(cs.angle)
             ends = [(cs.pos[0] - sa * y, cs.pos[1] + ca * y) for y in (oc.cap_a[1], oc.cap_b[1])]
