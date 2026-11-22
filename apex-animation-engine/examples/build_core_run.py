@@ -152,7 +152,7 @@ def canyon():
            plat("bridge", GAP[0], GAP[1], thick=18.0, style="bridge", color="#9a6a44",
                 collapse={"at": 4.2, "pieces": 6, "color": "#9a6a44"})]
     drone = {"id": "drone", "body": "0", "size": [80.0, 54.0], "position": [1150.0, TOP + 100], "mass": 5.0, "color": "#ff4a5a",
-             "z": 0.0, "breaks": 1500.0, "stride": 60.0,
+             "z": 0.0, "breaks": 700.0, "stride": 60.0,
              "parts": [{"glyph": "!", "size": [16.0, 60.0], "at": [-22.0, -16.0], "role": "leg", "phase": 0.0},
                        {"glyph": "!", "size": [16.0, 60.0], "at": [22.0, -16.0], "role": "leg", "phase": 3.14159},
                        {"glyph": "0", "size": [14.0, 14.0], "at": [-26.0, 8.0], "role": "eye", "mass": 0.2, "color": "#ffffff"}],
@@ -169,7 +169,7 @@ def scene_canyon():
     acts = [
         A(I, "run_to", target_x=-860, lane=-20), A(I, "wait_for", until="event:collapse@bridge"), act(I, "shock", 0.7, "scared"),
         A(I, "run_to", target_x=300, speed=390, lane=0),  # over the launch pad and across the gap
-        A(I, "roll", distance=120), A(I, "pick_up", target="prop:x"), A(I, "throw", target="prop:drone.body", power=1.4),
+        A(I, "roll", distance=120), A(I, "pick_up", target="prop:x"), A(I, "throw", target="prop:drone.body", power=1.9),
         act(I, "cheer", 1.0, "joyful"),
         A(I, "run_to", target_x=1650, speed=360, lane=-35), A(I, "reach_exit", target="exit:gate", speed=320),
         A(P, "run_to", target_x=-960, lane=20), A(P, "wait_for", until="event:roll_end@iko"),

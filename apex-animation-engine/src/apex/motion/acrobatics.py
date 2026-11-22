@@ -400,6 +400,10 @@ class AcroMixin:
                 handled.add(ref.split(":", 1)[1])
         if self.inter.get("bar"):
             handled.update(k for k in (self.inter.get("bar"), self.inter.get("ful")) if k)
+        nxt = self.queue[0] if self.queue else None  # rolling or running in to pick something up: it is already in hand's reach
+        if nxt is not None and nxt.type == "pick_up" and (nxt.target or "").startswith("prop:") and self.cur is not None and \
+                self.cur.type in ("roll", "walk_to", "run_to"):
+            handled.add(nxt.target.split(":", 1)[1])
         for pid in handled:
             ign.add((self.cid, pid))
         grace = frozenset(p for (o, p) in self.world.proxy_grace if o == self.cid)
