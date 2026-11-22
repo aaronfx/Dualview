@@ -841,7 +841,7 @@ class RestorationSpec(Strict):
     prop: str
     at: Vec2
     radius: float = Field(45.0, gt=0)
-    max_speed: float = Field(130.0, gt=0)
+    max_speed: float = Field(12.0, gt=0)  # must actually settle, not merely pass the socket
 
 
 class WorldPowerCue(Strict):
