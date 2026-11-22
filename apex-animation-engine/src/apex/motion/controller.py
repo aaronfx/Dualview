@@ -209,6 +209,9 @@ class CharacterController(InteractionMixin, CombatMixin, AcroMixin, ArcadeMixin,
             self._carry_free()
         # "ragdoll": the bodies are stepped by the physics world; see after_step
 
+    def _carry_tick_gone(self) -> bool:
+        return bool(getattr(self, "exit", None)) and bool(self.exit.get("crossed"))
+
     def _carry_free(self) -> None:
         """In the air (a jump, a flip, a fall) what is carried stays in the hands: held where it is on the ground, but
         relative to the body as it flies and turns."""
@@ -585,6 +588,9 @@ class CharacterController(InteractionMixin, CombatMixin, AcroMixin, ArcadeMixin,
         if not ex["crossed"] and (self.s - ex["plane"]) * d > 0:
             ex["crossed"] = True
             self.emit(Event(t, "exit_reached", self.cid, {"exit": ex["id"]}))
+            if getattr(self, "carrying", None) is not None:  # what he carries goes through the door with him
+                self.world.deactivate(self.carrying)
+                self.emit(Event(t, "carried_out", self.cid, {"prop": self.carrying, "exit": ex["id"]}))
         if pause > 0 and is_open and ex.get("paused") is None and remaining < 0.4:
             ex["paused"] = t
             self.v = 0.0

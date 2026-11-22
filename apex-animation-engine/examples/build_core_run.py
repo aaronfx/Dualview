@@ -182,12 +182,12 @@ def canyon():
              "parts": [{"glyph": "!", "size": [16.0, 60.0], "at": [-22.0, -16.0], "role": "leg", "phase": 0.0},
                        {"glyph": "!", "size": [16.0, 60.0], "at": [22.0, -16.0], "role": "leg", "phase": 3.14159},
                        {"glyph": "0", "size": [14.0, 14.0], "at": [-26.0, 8.0], "role": "eye", "mass": 0.2, "color": "#ffffff"}],
-             "path": [[12.0, 1350.0], [15.0, 980.0]]}
+             "path": [[12.2, 1350.0], [13.9, 1040.0]]}  # it marches in behind VEX and plants itself in the path
     props = [core(-1100, TOP + 400),
              glyph("anchor", "!", -20.0, TOP + 35, size=70.0, mass=2.5, color="#c08a5a"),  # the bridge's stake
              dict(id="log", kind="crate", position=[LOG_X - 137.6, TOP + 144.3], size=[76.0, 34.0], mass=3.0, z=0.0, depth=60.0,
                   color="#5a4a3a", collide_characters=False),  # held out to one side at the start: it swings across the path
-             glyph("x", "x", 760.0, TOP + 20, size=40.0, mass=5.0, color="#ffd84a")]
+             dict(glyph("x", "x", 760.0, TOP + 20, size=40.0, mass=5.0, color="#ffd84a"), z=0.0)]
     w = world("canyon", "canyon", obs, props, weather="embers", amount=0.9, exits=[gate()])
     w["ropes"] = [{"id": "chain", "a": "prop:log", "a_local": [0.0, 17.0], "b": f"world:{LOG_X},{TOP + 420}", "length": 293.0,
                    "color": "#8a8a8a"}]
@@ -212,7 +212,9 @@ def scene_canyon():
         A(I, "jump_to", target_x=120, height=170, onto="obstacle:C"),  # the jump orb over the gap
         A(I, "run_to", target_x=LOG_X - 330, speed=400), A(I, "roll", distance=600), A(I, "run_to", target_x=820, speed=420),
         A(I, "strike", target="prop:drone.body", move="cross", power=0.3),  # it shrugs off the punch
-        A(I, "dodge", dodge="back"), A(I, "guard", until="event:throw@pell"),
+        A(I, "dodge", dodge="back"), A(I, "strike", target="prop:drone.body", move="jab", power=0.3),  # again: nothing
+        A(I, "dodge", dodge="back"), A(I, "wait_for", until="event:throw_start@pell"),
+        A(I, "dodge", dodge="duck"),  # PELL's X goes over his head
         A(I, "wait_for", until="event:creature_break@drone"), A(I, "roll", distance=200),
         A(I, "run_to", target_x=1700, speed=400), A(I, "reach_exit", target="exit:gate", speed=320),
         # PELL: the swing bar over the gap, a slide under the beam; the X that tears the drone apart
@@ -220,10 +222,9 @@ def scene_canyon():
         A(P, "run_to", target_x=-570, speed=420), A(P, "jump", height=200),  # too short: he catches the far edge
         A(P, "catch_ledge", target="obstacle:C"), A(P, "hang", duration=1.4),
         A(P, "run_to", target_x=LOG_X - 260, speed=360), A(P, "duck_slide", target_x=LOG_X + 290), A(P, "run_to", target_x=700, speed=340),
-        A(P, "pick_up", target="prop:x"), A(P, "run_to", target_x=660, speed=300, lane=30),
-        A(P, "wait_for", until="event:dodge@iko"),  # IKO's kick bounced off it: now PELL
+        A(P, "pick_up", target="prop:x"), A(P, "wait_for", until="next:dodge@iko"),  # IKO is beaten back again: now PELL
         A(P, "throw", target="prop:drone.body", power=1.9),
-        act(P, "cheer", 0.9, "joyful"),
+        act(P, "cheer", 0.9, "joyful", tempo=0.8),
         A(P, "run_to", target_x=1650, speed=360), A(P, "reach_exit", target="exit:gate", speed=300)]
     return {"id": "canyon", "title": "The canyon", "environment": "canyon", "duration": 40.0, "transition_in": "warp",
             "placements": [{"character": I, "x": -1750, "on": "obstacle:A", "z": -10}, {"character": P, "x": -1880, "on": "obstacle:A", "z": 10},
@@ -400,12 +401,14 @@ def shots_for(sc, ev):
                   follow("iko", 900, lead=0.5, stiffness=3.0, offset=[160, 120])),
              shot("c4_ledge", "tracking", "PELL jumps short, catches the edge, hauls himself up and slides under the swinging beam",
                   follow("pell", 720, lead=0.4, stiffness=3.0, offset=[120, 60])),
-             shot("c5_drone", "medium", "the drone shrugs off IKO's kick; PELL's X tears it apart; IKO rolls through",
-                  still((960, Y + 20), 700, "iko", "pell")),
+             shot("c5_drone", "medium", "the drone plants itself in the path; IKO's punches bounce off it",
+                  follow("iko", 620, stiffness=2.5, offset=[90, 30])),
+             shot("c5b_throw", "medium", "PELL grabs the X: IKO ducks, it flies over him and tears the drone apart; IKO rolls through",
+                  still((850, Y + 20), 760, "iko", "pell")),
              shot("c6_portal", "tracking", "into the portal after VEX",
                   follow("iko", 1000, lead=0.4, stiffness=2.5, offset=[160, 60]))]
         t = [0.0, f("collapse") - 1.2, f("takeoff@iko", 0) - 0.3, f("orb_jump@iko") + 1.4, f("strike_prop@iko") - 1.0,
-             f("creature_break") + 2.0, D]
+             f("dodge@iko", 1) - 0.3, f("creature_break") + 2.0, D]
         return cut(S, t)
     if sid == "arena":
         S = [shot("d1_void", "establishing", "out of the white: a floating arena; VEX carries the core to the socket",

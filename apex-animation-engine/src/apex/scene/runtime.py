@@ -100,6 +100,7 @@ class SimulationResult:
     broken: Dict[str, float] = field(default_factory=dict)  # breakable prop id -> when it broke (Milestone 5)
     fragment_parent: Dict[str, str] = field(default_factory=dict)  # piece id -> the prop it came from
     creatures: list = field(default_factory=list)  # creature drivers (Milestone 5)
+    carried_out: Dict[str, float] = field(default_factory=dict)  # prop id -> when its carrier took it out through an exit
 
     def glyph_at(self, pid: str, t: float, base: Optional[str]):
         """(the glyph a prop physically is at t, (from, to, u) while it is visibly morphing or None)."""
@@ -119,6 +120,8 @@ class SimulationResult:
         par = self.fragment_parent.get(pid)
         if par is not None:
             return par in self.broken and t >= self.broken[par]
+        if pid in self.carried_out and t >= self.carried_out[pid]:
+            return False  # gone through an exit in someone's hands
         return not (pid in self.broken and t >= self.broken[pid])
 
 
@@ -540,6 +543,7 @@ class SceneRuntime:
             events.sort(key=lambda e: (e.t, e.type))
             self.result = SimulationResult(end, frames, gravity, {}, ctrls, events, times, prop_tracks, world.static_segments(),
                                            {}, None, doors, snapped, rope_peak, prop_cuts, dict(shared["taken"]), morph_log, broken, frag_of, drivers)
+            self.result.carried_out = {e.data['prop']: e.t for e in events if e.type == 'carried_out'}
             return self.result
         animators = {}
         for cid, c in ctrls.items():
@@ -575,6 +579,7 @@ class SceneRuntime:
         dust = DustField(self.env.dust, room, gravity, impulses, end + 0.1, seed=self.project.seed) if self.env.dust else None
         self.result = SimulationResult(end, frames, gravity, animators, ctrls, events, times, prop_tracks, world.static_segments(),
                                        scarves, dust, doors, snapped, rope_peak, prop_cuts, dict(shared["taken"]), morph_log, broken, frag_of, drivers)
+        self.result.carried_out = {e.data['prop']: e.t for e in events if e.type == 'carried_out'}
         return self.result
 
     # ------------------------------------------------------------ evaluation

@@ -206,7 +206,7 @@
    ],
    "backdrop": {
     "kind": "city",
-    "seed": 49,
+    "seed": 45,
     "weather": "rain",
     "weather_amount": 1.3,
     "power": [
@@ -318,7 +318,7 @@
    ],
    "backdrop": {
     "kind": "tower",
-    "seed": 65,
+    "seed": 67,
     "weather": "rain",
     "weather_amount": 1.6,
     "lightning": true,
@@ -481,7 +481,7 @@
    ],
    "backdrop": {
     "kind": "canyon",
-    "seed": 18,
+    "seed": 20,
     "weather": "embers",
     "weather_amount": 0.9,
     "power": []
@@ -584,12 +584,12 @@
      ],
      "path": [
       [
-       12.0,
+       12.2,
        1350.0
       ],
       [
-       15.0,
-       980.0
+       13.9,
+       1040.0
       ]
      ]
     }
@@ -704,7 +704,7 @@
    ],
    "backdrop": {
     "kind": "void",
-    "seed": 65,
+    "seed": 5,
     "weather": "data",
     "weather_amount": 1.0,
     "power": [
@@ -814,7 +814,7 @@
    ],
    "backdrop": {
     "kind": "summit",
-    "seed": 87,
+    "seed": 38,
     "weather": "motes",
     "weather_amount": 1.0,
     "city_lights": true,
@@ -1944,7 +1944,7 @@
    "id": "canyon",
    "title": "The canyon",
    "environment": "canyon",
-   "duration": 24.65,
+   "duration": 24.36,
    "transition_in": "warp",
    "placements": [
     {
@@ -2110,8 +2110,25 @@
     },
     {
      "character": "iko",
-     "type": "guard",
-     "until": "event:throw@pell"
+     "type": "strike",
+     "target": "prop:drone.body",
+     "move": "jab",
+     "power": 0.3
+    },
+    {
+     "character": "iko",
+     "type": "dodge",
+     "dodge": "back"
+    },
+    {
+     "character": "iko",
+     "type": "wait_for",
+     "until": "event:throw_start@pell"
+    },
+    {
+     "character": "iko",
+     "type": "dodge",
+     "dodge": "duck"
     },
     {
      "character": "iko",
@@ -2192,15 +2209,8 @@
     },
     {
      "character": "pell",
-     "type": "run_to",
-     "target_x": 660,
-     "speed": 375.0,
-     "lane": 30
-    },
-    {
-     "character": "pell",
      "type": "wait_for",
-     "until": "event:dodge@iko"
+     "until": "next:dodge@iko"
     },
     {
      "character": "pell",
@@ -2214,7 +2224,7 @@
      "clip": "cheer",
      "duration": 0.72,
      "emotion": "joyful",
-     "tempo": 1.25
+     "tempo": 1.0
     },
     {
      "character": "pell",
@@ -2303,26 +2313,43 @@
       ]
      },
      "start": 8.81,
-     "end": 15.61
+     "end": 15.91
     },
     {
      "id": "c5_drone",
      "kind": "medium",
-     "description": "the drone shrugs off IKO's kick; PELL's X tears it apart; IKO rolls through",
+     "description": "the drone plants itself in the path; IKO's punches bounce off it",
+     "camera": {
+      "mode": "follow",
+      "target": "iko",
+      "view_height": 620,
+      "stiffness": 2.5,
+      "offset": [
+       90,
+       30
+      ]
+     },
+     "start": 15.91,
+     "end": 18.4
+    },
+    {
+     "id": "c5b_throw",
+     "kind": "medium",
+     "description": "PELL grabs the X: IKO ducks, it flies over him and tears the drone apart; IKO rolls through",
      "camera": {
       "mode": "static",
       "center": [
-       960,
+       850,
        730.0
       ],
-      "view_height": 700,
+      "view_height": 760,
       "include": [
        "char:iko",
        "char:pell"
       ]
      },
-     "start": 15.61,
-     "end": 21.33
+     "start": 18.4,
+     "end": 21.27
     },
     {
      "id": "c6_portal",
@@ -2339,8 +2366,8 @@
        60
       ]
      },
-     "start": 21.33,
-     "end": 24.65
+     "start": 21.27,
+     "end": 24.36
     }
    ],
    "time_fx": {
