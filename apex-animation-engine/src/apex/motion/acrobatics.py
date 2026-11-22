@@ -24,7 +24,7 @@ from ..scene import structures
 from ..scene.schema import ActionSpec
 from .interaction import _smooth
 
-ACRO = ("roll", "vault", "climb", "wall_kick", "pick_up", "throw")
+ACRO = ("roll", "vault", "climb", "wall_kick", "pick_up", "throw", "place_prop", "drop_prop")
 VAULT_MAX = 0.95  # x stand height: higher than this, climb
 CARRY_MASS_G = 0.9  # a character lifts at most 0.9 x strength (force) overhead
 PICK_T, THROW_T, THROW_RELEASE = 0.7, 0.62, 0.3
@@ -785,6 +785,86 @@ class AcroMixin:
         A["flip_u"] = clamp(tau / T, 0.0, 1.0)
 
     # ------------------------------------------------------------ pick up, carry, throw
+    # Story-critical props use the same physical carry state as glyph weapons.
+    # Placing a prop is a bounded hand movement followed by a *dynamic* release,
+    # not a teleport into a socket. A restoration event can verify where it settles.
+    def _release_carried(self, t: float, velocity=(0.0, 0.0), spin: float = 0.0,
+                         kind: str = "prop_dropped", by: Optional[str] = None) -> None:
+        from .controller import Event
+        pid = self.carrying
+        if pid is None:
+            self._fail(f"{self.cid}: cannot release a prop without carrying one")
+            return
+        point = self.world.state(pid).pos
+        self.world.make_dynamic(pid, velocity, spin)
+        # Keep the releasing character from rebounding off its own hand-held prop.
+        # Normal physical collision resumes as soon as they have separated.
+        self.world.proxy_grace.add((self.cid, pid))
+        self.world.carried.discard(pid)
+        self.carrying = None
+        for span in reversed(self.carry_log):
+            if span[0] == pid and math.isinf(span[2]):
+                span[2] = t
+                break
+        data = {"prop": pid, "point": point, "velocity": velocity}
+        if by is not None:
+            data["by"] = by
+        self.emit(Event(t, kind, self.cid, data))
+
+    def _start_drop_prop(self, t: float, a: ActionSpec) -> None:
+        if self.carrying is None:
+            self._fail(f"{self.cid}: drop_prop needs a carried prop")
+        else:
+            st = self.world.state(self.cid)
+            self._release_carried(t, st.vel, st.angvel)
+        self._next_action(t)
+
+    def _drop_prop_tick(self, t: float, dt: float, a: ActionSpec) -> None:
+        pass  # drop_prop finishes when it starts
+
+    def _start_place_prop(self, t: float, a: ActionSpec) -> None:
+        from .controller import Event
+        pid = self.carrying
+        if pid is None:
+            self._fail(f"{self.cid}: place_prop needs a carried prop")
+            self._next_action(t)
+            return
+        if a.target == f"prop:{pid}":
+            self._fail(f"{self.cid}: cannot place {pid} onto itself")
+            self._next_action(t)
+            return
+        target = self._throw_aim(a.target)
+        ts, _ = self.frame.to_frame(target)
+        if abs(ts - self.s) > 0.65 * self.arm_reach:
+            direction = 1.0 if ts >= self.s else -1.0
+            if self._go(t, a, ts - direction * 0.32 * self.arm_reach):
+                return
+        st = self.world.state(pid)
+        if math.dist(st.pos, target) > self.arm_reach + 45.0:
+            self._fail(f"{self.cid}: placement {a.target} is beyond physical hand reach")
+            self._next_action(t)
+            return
+        self.inter = {"t0": t, "pid": pid, "start": st.pos, "angle": st.angle, "target": tuple(target)}
+        self._open("pick_up", t, prop=pid, T=max(0.4, a.duration or 0.6), placing=True)
+
+    def _place_prop_tick(self, t: float, dt: float, a: ActionSpec) -> None:
+        from .controller import Event
+        I = self.inter
+        dur = max(0.4, a.duration or 0.6)
+        u = clamp((t - I["t0"]) / dur, 0.0, 1.0)
+        k = _smooth(u)
+        p0, p1 = I["start"], I["target"]
+        at = (p0[0] + (p1[0] - p0[0]) * k, p0[1] + (p1[1] - p0[1]) * k)
+        if not self._pose_prop(I["pid"], at, I["angle"], t):
+            self._fail(f"{self.cid}: placement blocked by a structure")
+            self._next_action(t)
+            return
+        if u >= 1.0:
+            self._release_carried(t, (0.0, 0.0), 0.0, kind="prop_placed")
+            # The event is evidence of release, not proof of insertion into a fixture.
+            # The restoration socket independently checks the simulated settling.
+            self._next_action(t)
+
     def _start_pick_up(self, t: float, a: ActionSpec) -> None:
         from .controller import Event
         pid = self._pid(a.target)
@@ -906,7 +986,7 @@ class AcroMixin:
                 T = abs(D) / abs(vx)
                 vy = (tgt[1] - st.pos[1] + 0.5 * g * T * T) / T
                 self.world.make_dynamic(pid, (vx, vy), -self.facing * 9.0)
-                self.thrown = {"prop": pid, "t": t, "target": a.target, "done": set(), "power": a.power}
+                self.thrown = {"prop": pid, "t": t, "target": a.target, "done": set(), "power": a.power, "disarm": a.disarm}
                 self.seg.data["release_t"] = t
                 self.emit(Event(t, "throw", self.cid, {"prop": pid, "target": a.target, "point": st.pos, "speed": math.hypot(vx, vy)}))
         if tau >= THROW_T:
@@ -970,6 +1050,9 @@ class AcroMixin:
                     "impulse": round(J, 1), "normal": (round(n[0], 4), round(n[1], 4)), "prop_mass": m_p, "body_mass": m_b,
                     "v_before": (round(v_before[0], 1), round(v_before[1], 1)), "v_after": (round(v_after[0], 1), round(v_after[1], 1)),
                     "body_dv": round(J / m_b, 1)}
+            if not guarded and T.get("disarm") and oc.carrying is not None:
+                oc._release_carried(t, (direction * 160.0, 125.0), -direction * 5.0,
+                                    kind="disarmed", by=self.cid)
             if guarded:
                 self.emit(Event(t, "blocked", self.cid, data))
                 oc._receive(t, self.cid, "throw", "block", eff, direction, part, point)

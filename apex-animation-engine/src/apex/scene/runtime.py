@@ -397,6 +397,24 @@ class SceneRuntime:
             c.arcade = shared
             if clock is not None:
                 c.beat_clock = clock
+        # Explicit film handoff: a prop held at the previous scene's exit is
+        # already in this character's hands at frame zero of the new world.
+        # It is not silently picked up in the middle of a shot.
+        for h in self.scene.story_props:
+            if h.owner_in == "world":
+                continue
+            c = ctrls[h.owner_in]
+            pid = h.prop
+            if c.carrying is not None:
+                raise ValueError(f"scene {self.scene.id}: {c.cid} already holds {c.carrying}")
+            pos, angle = c._hold_pose(pid)
+            if c._prop_in_structure(pid, pos, angle) is not None:
+                raise ValueError(f"scene {self.scene.id}: {pid} starts inside a structure")
+            world.set_kinematic(pid, pos, angle)
+            world.carried.add(pid)
+            c.carrying = pid
+            c.carry_log.append([pid, 0.0, math.inf])
+            events.append(Event(0.0, "carry_in", c.cid, {"prop": pid, "point": pos}))
         from ..motion.arcade import portal_maps
         pmaps = portal_maps(self.env)
         roped = {r.a.split(":", 1)[1] for r in self.env.ropes} | {r.b.split(":", 1)[1] for r in self.env.ropes if r.b.startswith("prop:")}
@@ -412,6 +430,8 @@ class SceneRuntime:
         prop_speed_prev: Dict[str, float] = {}
         stick = {p.id: p for p in self.env.props if p.static_friction is not None}
         sliding: Dict[str, bool] = {}
+        restoration = self.scene.restoration
+        restored, settled_steps = False, 0
         for i in range(n):
             t = i * dt
             world.set_gravity(gravity.at(t))
@@ -453,6 +473,19 @@ class SceneRuntime:
                         shatter(pid, t + dt, j, pt)
             for c in ctrls.values():
                 c.after_step(t + dt, contacts)
+            if restoration is not None and not restored:
+                pid = restoration.prop
+                st = world.state(pid)
+                # Only a real placement/release can energize the fixture.
+                released = any(e.type == "prop_placed" and e.data.get("prop") == pid for e in events)
+                near = math.dist(st.pos, restoration.at) <= restoration.radius
+                slow = math.hypot(*st.vel) <= restoration.max_speed
+                free = not world.is_kinematic(pid) and pid not in world.carried
+                settled_steps = settled_steps + 1 if released and free and near and slow else 0
+                if settled_steps >= max(8, int(round(0.12 / dt))):  # rest near the socket for >= 0.12 s
+                    restored = True
+                    events.append(Event(t + dt, "core_restored", pid,
+                                        {"prop": pid, "point": st.pos, "socket": restoration.at}))
             for ex_id, who in together.items():  # an exit that opens only for everyone at once
                 d = doors[ex_id]
                 if d["unlock_t"] is None:

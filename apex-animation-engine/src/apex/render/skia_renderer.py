@@ -98,7 +98,8 @@ class SkiaRenderer:
     def render(self, fs: FrameState, cam: CameraState, red_flash: float = 0.0, fx: Optional[List[dict]] = None, fade: float = 0.0,
                trails: Optional[Dict[str, List[Tuple[Pose, float]]]] = None, fx_t: Optional[float] = None,
                smears: Optional[Dict[str, Pose]] = None, prop_ghosts: Optional[Dict[str, List[Tuple[float, float, float, float]]]] = None,
-               screen: Optional[Dict[str, float]] = None, particles=None, diagrams=None, hud=None) -> np.ndarray:
+               screen: Optional[Dict[str, float]] = None, particles=None, diagrams=None, hud=None,
+               world_power: float = 1.0) -> np.ndarray:
         """`fx_t`: the clock effects run on (film time: they keep animating through a hit-stop). `smears`: each character's
         pose a moment earlier (fast limbs leave a smear). `prop_ghosts`: earlier poses of fast props. `screen`: full-screen
         effects (flash, speed lines, vignette pulse)."""
@@ -112,12 +113,20 @@ class SkiaRenderer:
         W_ = self.world
         if W_ is not None:
             W_.sky(c, tw)
+            if world_power < 0.999:
+                # Dim the distant world after power loss, not the characters.
+                # A restored core can bring back the skyline without a scene cut.
+                c.drawRect(skia.Rect(0, 0, self.W, self.H),
+                           skia.Paint(Color=col((0, 0, 0), 0.75 * (1.0 - world_power))))
         c.save()
         sc = self.H / 1080.0
         c.translate(self.W / 2 + cam.shx * sc, self.H / 2 + cam.shy * sc)
         c.rotate(cam.roll)
         if W_ is not None:
             W_.backdrop(c, tw)
+            if world_power < 0.999:
+                c.drawRect(skia.Rect(-1e5, -1e5, 1e5, 1e5),
+                           skia.Paint(Color=col((0, 0, 0), 0.58 * (1.0 - world_power))))
             W_.weather(c, tw, front=False)
         elif not self.open:
             self._room(c, fs, red_flash)

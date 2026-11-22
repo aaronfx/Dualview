@@ -604,6 +604,8 @@ class InteractionMixin:
 
     def _carry_tick(self) -> None:
         if self.carrying is not None:
+            if self.cur is not None and self.cur.type == "place_prop":
+                return  # place_prop moves the held prop along its own hand path
             if self.cur is not None and self.cur.type == "strike" and self.cur.move == "swing_weapon":
                 return  # the swing poses the prop itself
             if self.props[self.carrying].kind == "glyph":

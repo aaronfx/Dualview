@@ -236,6 +236,9 @@ class CombatMixin:
             reaction = "knockdown" if a.reaction in (None, "auto") else reaction
         data["reaction"] = reaction
         self.emit(self._ev(t, "hit", data))
+        if a.disarm and oc.carrying is not None:
+            oc._release_carried(t, (direction * (120.0 + 50.0 * eff), 105.0), -direction * 5.0,
+                                kind="disarmed", by=self.cid)
         oc._receive(t, self.cid, I["move"], reaction, eff, direction, part, point, m["push"])
 
     # ------------------------------------------------------------ receiving

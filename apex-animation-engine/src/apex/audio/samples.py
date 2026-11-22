@@ -46,6 +46,14 @@ class SampleBank:
         path = os.path.join(root, "manifest.json")
         self.manifest = json.load(open(path, encoding="utf-8")) if os.path.exists(path) else {"sounds": {}}
         self.ok = shutil.which("ffmpeg") is not None and bool(self.manifest["sounds"])
+        # The source repository may ship the manifest without the licensed WAV
+        # packs (for example when rendering on a clean GitHub Actions runner).
+        # Never attempt ffmpeg on a missing file: fall back to deterministic
+        # synthesized audio rather than failing the entire film render.
+        if self.ok:
+            missing = [f for f in self.files() if not os.path.isfile(os.path.join(self.root, f))]
+            if missing:
+                self.ok = False
 
     def _spec(self, name: str) -> Optional[dict]:
         spec = self.manifest["sounds"].get(name)
