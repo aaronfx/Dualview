@@ -103,3 +103,41 @@ def test_narrative_goal_requires_a_simulated_event():
     a = _scene("a", "iko", "iko", [{"character": "iko", "type": "idle", "duration": 0.5}], 1.0)
     proj = _project([a], film_goals=[{"scene": "a", "event": "core_restored@core"}])
     assert _check(check_film(proj), "narrative_event_chain").status == "FAIL"
+
+
+def test_placing_core_is_physical_and_restoration_requires_settling():
+    sc = _scene("restore", "iko", "world", [
+        {"character": "iko", "type": "place_prop", "target": "point:25,12", "duration": 0.6},
+    ], duration=4.0, restoration={"prop": "core", "at": [25, 12], "radius": 18, "max_speed": 12})
+    proj = _project([sc], film_goals=[{"scene": "restore", "event": "core_restored@core"}])
+    res = SceneRuntime(proj, "restore").simulate(physics_only=True)
+    kinds = [e.type for e in res.events]
+    assert "carry_in" in kinds
+    assert "prop_placed" in kinds
+    assert "core_restored" in kinds
+    assert kinds.index("prop_placed") < kinds.index("core_restored")
+    assert _check(check_film(proj), "plot_prop_continuity").status == "PASS"
+    assert _check(check_film(proj), "narrative_event_chain").status == "PASS"
+
+
+def test_opt_in_strike_can_physically_disarm_a_weapon_carrier():
+    sc = {
+        "id": "fight", "environment": "lab", "duration": 2.0,
+        "placements": [
+            {"character": "iko", "x": 0, "facing": 1},
+            {"character": "vex", "x": 95, "facing": -1},
+        ],
+        "actions": [
+            {"character": "iko", "type": "strike", "target": "char:vex",
+             "move": "cross", "disarm": True},
+            {"character": "vex", "type": "idle", "duration": 1.5},
+        ],
+        "shots": [{"id": "fight_wide", "start": 0, "end": 2.0}],
+        "story_props": [{"prop": "core", "owner_in": "vex", "owner_out": "world"}],
+    }
+    proj = _project([sc], actors=("iko", "vex"),
+                    film_goals=[{"scene": "fight", "event": "disarmed@vex"}])
+    res = SceneRuntime(proj, "fight").simulate(physics_only=True)
+    assert any(e.type == "hit" and e.data.get("target") == "vex" for e in res.events)
+    assert any(e.type == "disarmed" and e.character == "vex" for e in res.events)
+    assert res.controllers["vex"].carrying is None
