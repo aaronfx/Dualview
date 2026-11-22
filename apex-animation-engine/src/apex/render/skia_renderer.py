@@ -848,6 +848,17 @@ class SkiaRenderer:
         if kind == "glyph":
             self._glyph_prop(c, pr)
             return
+        sp = next((p for p in self.env.props if p.id == pr.id), None)
+        if sp is None and "~" in pr.id:  # a piece of a broken prop looks like what it came from
+            sp = next((p for p in self.env.props if p.id == pr.id.split("~", 1)[0]), None)
+        if sp is not None and sp.material == "glass":
+            tint = hex_rgb(sp.color) if sp.color else (170, 240, 255)
+            self._box3d(c, pr, mix(tint, (255, 255, 255), 0.3), tint, (255, 255, 255), alpha=0.22)
+            hx, hy = pr.size[0] / 2, pr.size[1] / 2
+            for a, b in (((-hx, -hy), (-hx, hy)), ((hx, -hy), (hx, hy)), ((-hx, hy), (hx, hy))):
+                self._prop_line(c, pr, a, b, mix(tint, (255, 255, 255), 0.6), 2.0, 0.85)
+            self._prop_line(c, pr, (-hx * 0.55, hy * 0.7), (-hx * 0.2, -hy * 0.3), (255, 255, 255), 1.5, 0.6)  # a glint
+            return
         hx, hy = pr.size[0] / 2, pr.size[1] / 2
         if kind == "container":  # ribbed steel container with corner posts and a pull handle
             self._box3d(c, pr, (78, 92, 104), (52, 60, 70), self.accent)

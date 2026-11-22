@@ -200,7 +200,8 @@
       "impulse": 260.0,
       "scatter": 160.0
      },
-     "color": "#9ff4ff"
+     "color": "#bff8ff",
+     "material": "glass"
     },
     {
      "id": "crate",
@@ -225,7 +226,7 @@
    ],
    "backdrop": {
     "kind": "city",
-    "seed": 72,
+    "seed": 37,
     "weather": "rain",
     "weather_amount": 1.3,
     "power": [
@@ -337,7 +338,7 @@
    ],
    "backdrop": {
     "kind": "tower",
-    "seed": 4,
+    "seed": 63,
     "weather": "rain",
     "weather_amount": 1.6,
     "lightning": true,
@@ -465,8 +466,8 @@
      "id": "log",
      "kind": "crate",
      "position": [
-      232.0,
-      779.0
+      282.4,
+      744.3
      ],
      "size": [
       76.0,
@@ -500,7 +501,7 @@
    ],
    "backdrop": {
     "kind": "canyon",
-    "seed": 52,
+    "seed": 67,
     "weather": "embers",
     "weather_amount": 0.9,
     "power": []
@@ -687,7 +688,7 @@
      "kind": "glyph",
      "glyph": "-",
      "position": [
-      330.0,
+      -40.0,
       608.0
      ],
      "size": [
@@ -723,7 +724,7 @@
    ],
    "backdrop": {
     "kind": "void",
-    "seed": 54,
+    "seed": 41,
     "weather": "data",
     "weather_amount": 1.0,
     "power": [
@@ -738,7 +739,7 @@
       "speed": 3000.0
      },
      {
-      "at": 33.03,
+      "at": 37.21,
       "level": 0.2,
       "fade": 0.8,
       "origin": [
@@ -833,7 +834,7 @@
    ],
    "backdrop": {
     "kind": "summit",
-    "seed": 41,
+    "seed": 56,
     "weather": "motes",
     "weather_amount": 1.0,
     "city_lights": true,
@@ -859,7 +860,7 @@
    "id": "city",
    "title": "The theft",
    "environment": "city",
-   "duration": 29.06,
+   "duration": 29.45,
    "transition_in": "fade",
    "placements": [
     {
@@ -888,8 +889,8 @@
     "messages": [
      {
       "text": "CORE RUN",
-      "at": 0.6,
-      "duration": 2.6,
+      "at": 4.9,
+      "duration": 2.8,
       "style": "title"
      }
     ]
@@ -921,13 +922,13 @@
      "character": "vex",
      "type": "look_at",
      "target": "char:iko",
-     "duration": 1.0
+     "duration": 0.7
     },
     {
      "character": "vex",
      "type": "act",
      "clip": "laugh",
-     "duration": 0.9,
+     "duration": 0.8,
      "emotion": "joyful"
     },
     {
@@ -1206,10 +1207,20 @@
     },
     {
      "character": "pell",
+     "type": "wait_for",
+     "until": "event:act@iko[clip=rise]"
+    },
+    {
+     "character": "pell",
      "type": "run_to",
      "target_x": -1450.0,
-     "speed": 330,
+     "speed": 280,
      "lane": 24
+    },
+    {
+     "character": "pell",
+     "type": "wait_for",
+     "until": "event:vault@iko"
     },
     {
      "character": "pell",
@@ -1262,6 +1273,11 @@
      "character": "pell",
      "type": "run_to",
      "target_x": 580
+    },
+    {
+     "character": "pell",
+     "type": "wait_for",
+     "until": "event:act@iko[clip=lose_balance]"
     },
     {
      "character": "pell",
@@ -1350,7 +1366,7 @@
       ]
      },
      "start": 6.01,
-     "end": 7.71
+     "end": 7.41
     },
     {
      "id": "a4_crate",
@@ -1369,8 +1385,8 @@
        "char:vex"
       ]
      },
-     "start": 7.71,
-     "end": 13.66
+     "start": 7.41,
+     "end": 13.22
     },
     {
      "id": "a5_roofs",
@@ -1387,8 +1403,8 @@
        40
       ]
      },
-     "start": 13.66,
-     "end": 18.61
+     "start": 13.22,
+     "end": 18.18
     },
     {
      "id": "a6_edge",
@@ -1407,8 +1423,8 @@
        "char:pell"
       ]
      },
-     "start": 18.61,
-     "end": 24.57
+     "start": 18.18,
+     "end": 24.98
     },
     {
      "id": "a7_go",
@@ -1425,8 +1441,8 @@
        120
       ]
      },
-     "start": 24.57,
-     "end": 29.06
+     "start": 24.98,
+     "end": 29.45
     }
    ],
    "time_fx": {
@@ -1469,7 +1485,7 @@
    "id": "tower",
    "title": "The tower",
    "environment": "tower",
-   "duration": 28.72,
+   "duration": 27.75,
    "transition_in": "warp",
    "placements": [
     {
@@ -1518,6 +1534,12 @@
      "target_x": 760,
      "height": 150,
      "onto": "obstacle:G3"
+    },
+    {
+     "character": "vex",
+     "type": "run_to",
+     "target_x": 930,
+     "speed": 300
     },
     {
      "character": "vex",
@@ -1600,8 +1622,8 @@
     {
      "character": "iko",
      "type": "jump_to",
-     "target_x": 640,
-     "height": 140,
+     "target_x": 720,
+     "height": 150,
      "flip": "front",
      "onto": "obstacle:G3"
     },
@@ -1816,7 +1838,7 @@
       ]
      },
      "start": 8.14,
-     "end": 11.57
+     "end": 11.98
     },
     {
      "id": "b4_sweep",
@@ -1834,64 +1856,66 @@
        "char:vex"
       ]
      },
-     "start": 11.57,
-     "end": 16.05
+     "start": 11.98,
+     "end": 16.46
     },
     {
      "id": "b5_down",
      "kind": "medium",
      "description": "IKO cannot get up; VEX looks down at him, laughs, and goes",
      "camera": {
-      "mode": "static",
-      "center": [
-       720,
-       880.0
-      ],
+      "mode": "follow",
+      "target": "iko",
       "view_height": 480,
-      "include": [
-       "char:iko",
-       "char:vex"
+      "stiffness": 2.0,
+      "offset": [
+       60,
+       40
       ]
      },
-     "start": 16.05,
-     "end": 20.65
+     "start": 16.46,
+     "end": 18.43
     },
     {
      "id": "b6_hand",
      "kind": "medium",
-     "description": "PELL's hand; IKO takes it; PELL points the way",
+     "description": "PELL reaches him; his hand; IKO takes it; PELL points the way",
      "camera": {
-      "mode": "static",
-      "center": [
-       700,
-       885.0
+      "mode": "follow",
+      "target": "iko",
+      "view_height": 520,
+      "stiffness": 2.0,
+      "offset": [
+       -40,
+       40
       ],
-      "view_height": 460,
       "include": [
-       "char:iko",
        "char:pell"
       ]
      },
-     "start": 20.65,
-     "end": 23.85
+     "start": 18.43,
+     "end": 23.23
     },
     {
      "id": "b7_go",
      "kind": "tracking",
-     "description": "after him together",
+     "description": "after VEX together",
      "camera": {
       "mode": "follow",
-      "target": "pell",
+      "target": "iko",
       "view_height": 800,
       "lead": 0.4,
       "stiffness": 2.5,
       "offset": [
        120,
        60
+      ],
+      "include": [
+       "char:pell"
       ]
      },
-     "start": 23.85,
-     "end": 28.72
+     "start": 23.23,
+     "end": 27.75
     }
    ],
    "time_fx": {
@@ -2077,13 +2101,13 @@
     {
      "character": "iko",
      "type": "run_to",
-     "target_x": 120.0,
+     "target_x": 90.0,
      "speed": 400
     },
     {
      "character": "iko",
      "type": "roll",
-     "distance": 560
+     "distance": 600
     },
     {
      "character": "iko",
@@ -2292,7 +2316,7 @@
       ]
      },
      "start": 8.83,
-     "end": 15.92
+     "end": 15.99
     },
     {
      "id": "c5_drone",
@@ -2310,7 +2334,7 @@
        "char:pell"
       ]
      },
-     "start": 15.92,
+     "start": 15.99,
      "end": 20.57
     },
     {
@@ -2387,7 +2411,7 @@
    "id": "arena",
    "title": "The arena",
    "environment": "arena",
-   "duration": 41.81,
+   "duration": 45.42,
    "transition_in": "warp",
    "placements": [
     {
@@ -2487,7 +2511,7 @@
     {
      "character": "vex",
      "type": "walk_to",
-     "target_x": -60,
+     "target_x": -37.5,
      "speed": 80
     },
     {
@@ -2501,6 +2525,17 @@
      "clip": "shock",
      "duration": 0.8,
      "emotion": "scared"
+    },
+    {
+     "character": "vex",
+     "type": "wait_for",
+     "until": "event:stood_up@iko"
+    },
+    {
+     "character": "vex",
+     "type": "look_at",
+     "target": "char:iko",
+     "duration": 0.9
     },
     {
      "character": "vex",
@@ -2532,7 +2567,7 @@
     {
      "character": "iko",
      "type": "run_to",
-     "target_x": -80,
+     "target_x": -420,
      "speed": 420,
      "lane": -10
     },
@@ -2646,6 +2681,12 @@
      "clip": "recover_relief_shake",
      "duration": 0.9,
      "emotion": "tired"
+    },
+    {
+     "character": "iko",
+     "type": "run_to",
+     "target_x": 590.0,
+     "speed": 360
     },
     {
      "character": "iko",
@@ -2810,88 +2851,110 @@
        710.0
       ],
       "view_height": 400,
+      "include": []
+     },
+     "start": 5.01,
+     "end": 7.41
+    },
+    {
+     "id": "d2b_standoff",
+     "kind": "wide",
+     "description": "VEX walks back to the staff; IKO and PELL face him; the core glows behind him",
+     "camera": {
+      "mode": "static",
+      "center": [
+       160,
+       830.0
+      ],
+      "view_height": 1100,
       "include": [
+       "char:iko",
+       "char:pell",
        "char:vex"
       ]
      },
-     "start": 5.01,
-     "end": 8.98
+     "start": 7.41,
+     "end": 11.62
     },
     {
      "id": "d3_duel",
      "kind": "medium",
      "description": "VEX takes up the staff: IKO's jab blocked, the swing slipped, the side kick lands",
      "camera": {
-      "mode": "static",
-      "center": [
-       240,
-       710.0
+      "mode": "follow",
+      "target": "iko",
+      "view_height": 560,
+      "stiffness": 2.5,
+      "offset": [
+       90,
+       20
       ],
-      "view_height": 540,
       "include": [
-       "char:iko",
        "char:vex"
       ]
      },
-     "start": 8.98,
-     "end": 17.03
+     "start": 11.62,
+     "end": 19.45
     },
     {
      "id": "d4_down",
      "kind": "medium",
-     "description": "PELL rushes in, too late: the staff knocks IKO down; he cannot get up",
+     "description": "PELL rushes in, too late: the staff knocks IKO down; he cannot get up; VEX stalks him",
      "camera": {
-      "mode": "static",
-      "center": [
-       160,
-       700.0
+      "mode": "follow",
+      "target": "iko",
+      "view_height": 600,
+      "stiffness": 2.0,
+      "offset": [
+       60,
+       20
       ],
-      "view_height": 520,
       "include": [
-       "char:iko",
        "char:vex"
       ]
      },
-     "start": 17.03,
-     "end": 23.25
+     "start": 19.45,
+     "end": 26.73
     },
     {
      "id": "d5_throw",
      "kind": "medium",
      "description": "PELL's throw takes the staff out of VEX's hands",
      "camera": {
-      "mode": "static",
-      "center": [
-       20,
-       720.0
+      "mode": "follow",
+      "target": "vex",
+      "view_height": 820,
+      "stiffness": 2.0,
+      "offset": [
+       -160,
+       40
       ],
-      "view_height": 760,
       "include": [
-       "char:pell",
-       "char:vex"
+       "char:pell"
       ]
      },
-     "start": 23.25,
-     "end": 25.4
+     "start": 26.73,
+     "end": 28.71
     },
     {
      "id": "d6_kick",
      "kind": "medium",
      "description": "IKO up; a look at PELL; he ducks VEX's hook and the flying kick lands",
      "camera": {
-      "mode": "static",
-      "center": [
-       240,
-       720.0
+      "mode": "follow",
+      "target": "iko",
+      "view_height": 560,
+      "stiffness": 3.0,
+      "offset": [
+       80,
+       20
       ],
-      "view_height": 520,
       "include": [
-       "char:iko",
        "char:vex"
       ]
      },
-     "start": 25.4,
-     "end": 31.88
+     "start": 28.71,
+     "end": 36.21
     },
     {
      "id": "d7_core",
@@ -2908,8 +2971,8 @@
        "char:iko"
       ]
      },
-     "start": 31.88,
-     "end": 34.63
+     "start": 36.21,
+     "end": 38.81
     },
     {
      "id": "d8_go",
@@ -2926,8 +2989,8 @@
        60
       ]
      },
-     "start": 34.63,
-     "end": 41.81
+     "start": 38.81,
+     "end": 45.42
     }
    ],
    "time_fx": {

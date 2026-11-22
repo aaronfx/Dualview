@@ -143,6 +143,7 @@ class PropSpec(Strict):
     weight: Optional[float] = Field(None, gt=0)  # glyph stroke thickness (default 15% of the smaller side)
     color: Optional[str] = None  # glyph colour (default: the theme accent)
     energy: bool = False  # a glowing energy core: drawn with a pulsing light around it
+    material: Optional[Literal["glass"]] = None  # glass: drawn see-through with bright edges (its pieces too)
     position: Vec2
     size: Vec2 = (40.0, 40.0)
     mass: float = Field(8.0, gt=0)

@@ -237,7 +237,7 @@ class CombatMixin:
                 return
             J = IMPULSE_PROP * eff
             tan = self.frame.tangent
-            loft = 0.15 if m["height"] == "legs" else 0.45  # a kick under it lifts it into the air
+            loft = 0.15 if m["height"] == "legs" else 0.7 if m["limb"].startswith("foot") else 0.45  # a kick lifts it into the air
             self.world.blow(pid, (tan[0] * direction * J, tan[1] * direction * J + loft * J), point)
             data["impulse"] = round(J, 1)
             self.emit(self._ev(t, "strike_prop", data))
