@@ -1,0 +1,49 @@
+name: APEX CORE RUN - fast 360p playable preview
+
+on:
+  push:
+    branches:
+      - gpt-core-run-directors-cut-engine
+    paths:
+      - .github/workflows/apex-core-run-quick-preview.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fast-preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: apex-animation-engine
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Set up Skia and APEX
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y libegl1 libgl1 libopengl0 ffmpeg
+          python -m pip install -e ".[dev]"
+      - name: Generate physical Director's Cut movie project
+        run: PYTHONPATH=src python examples/build_core_run_directors_cut.py examples/core_run_directors_cut.json
+      - name: Render faster 360p full-length preview
+        run: |
+          mkdir -p out/core_run
+          PYTHONPATH=src python -m apex.cli film examples/core_run_directors_cut.json -o out/core_run/CORE_RUN_fast_360p.mp4 --scale 0.333333 --no-qa --report out/core_run/report_360p.json
+          ffmpeg -hide_banner -loglevel error -y -i out/core_run/CORE_RUN_fast_360p.mp4 -c:v libx264 -preset veryfast -crf 26 -c:a aac -b:a 96k -movflags +faststart out/core_run/CORE_RUN_360p_share.mp4
+          ffprobe -v error -show_entries format=duration,size -of json out/core_run/CORE_RUN_360p_share.mp4 > out/core_run/probe_360p.json
+      - name: Share actual movie output
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: CORE-RUN-full-film-fast-preview
+          path: |
+            apex-animation-engine/out/core_run/CORE_RUN_360p_share.mp4
+            apex-animation-engine/out/core_run/report_360p.json
+            apex-animation-engine/out/core_run/probe_360p.json
+          if-no-files-found: warn
+          retention-days: 14
