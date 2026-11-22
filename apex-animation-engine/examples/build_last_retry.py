@@ -423,7 +423,10 @@ def shots_for(sc, ev):
                   cam("static", target="iko", center=[-560, Y + 60], view_height=900, include=["char:iko", "char:pell"])),
              shot(f"t{n}_jump", "tracking", "the jump, and the fall",
                   cam("follow", target="iko", view_height=700, offset=[0, 0], lead=0.2, stiffness=5.0))]
-        first = f("act@pell", 0) + (1.6 if n == "1" else 0.0) if n == "1" else f("point@pell") + 1.2
+        first = f("act@pell", 0) + 1.6 if n == "1" else f("point@pell") + 1.2
+        if f("takeoff@iko") - 0.5 - first < 1.5:  # no room for the plan shot: straight from PELL to the jump
+            S = [S[0], S[2]]
+            return cut(S, [0.0, max(first, f("takeoff@iko") - 0.9), D])
         return cut(S, [0.0, first, f("takeoff@iko") - 0.5, D])
     if sid == "last":
         S = [shot("l1_knees", "close", "IKO drops to his knees and trembles",

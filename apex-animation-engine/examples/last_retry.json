@@ -1597,27 +1597,7 @@
       "view_height": 420
      },
      "start": 0.0,
-     "end": 3.25
-    },
-    {
-     "id": "t2_plan",
-     "kind": "wide",
-     "description": "IKO at the edge sizing up the gap; the corruption creeping up behind",
-     "camera": {
-      "mode": "static",
-      "target": "iko",
-      "center": [
-       -560,
-       770.0
-      ],
-      "view_height": 900,
-      "include": [
-       "char:iko",
-       "char:pell"
-      ]
-     },
-     "start": 3.25,
-     "end": 3.81
+     "end": 3.41
     },
     {
      "id": "t2_jump",
@@ -1634,7 +1614,7 @@
       "lead": 0.2,
       "stiffness": 5.0
      },
-     "start": 3.81,
+     "start": 3.41,
      "end": 7.69
     }
    ],
