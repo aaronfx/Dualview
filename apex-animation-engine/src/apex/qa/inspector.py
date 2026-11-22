@@ -671,9 +671,12 @@ class Inspector:
         worst_gap, where = 1e9, ""
         from ..motion.acrobatics import BODY_PASS_Z
         rolls = 0
+        gone = self._gone_times()
         for a in range(len(cids)):
             for b in range(a + 1, len(cids)):
                 for i, t in enumerate(self.times):
+                    if t >= min(gone.get(cids[a], math.inf), gone.get(cids[b], math.inf)):
+                        continue  # one of them has gone through an exit door
                     if abs(self.r.animators[cids[a]].depth_at(t) - self.r.animators[cids[b]].depth_at(t)) >= BODY_PASS_Z:
                         rolls += 1
                         continue  # in different depth lanes: one passes in front of the other (body_clearance proves it)
@@ -980,6 +983,14 @@ class Inspector:
             return [c for c in core if not c[0].endswith("_" + side)]
         return core
 
+    def _gone_times(self) -> Dict[str, float]:
+        """When each character went through an exit door (it has left the level)."""
+        out: Dict[str, float] = {}
+        for e in self.r.events:
+            if e.type == "exit_reached":
+                out.setdefault(e.character, e.t)
+        return out
+
     def _body_clearance(self) -> Check:
         """Geometry-aware, no exemptions: the bodies (torso, head, thighs, shins as capsules with a depth extent) of two
         characters never intersect. Two bodies intersect only if they overlap in the picture plane AND their depth lanes
@@ -989,9 +1000,12 @@ class Inspector:
                 ("hip_f", "knee_f", 5.0), ("knee_f", "ankle_f", 4.5))
         cids = list(self.joints)
         worst, where, n = 0.0, "", 0
+        gone = self._gone_times()
         for a in range(len(cids)):
             for b in range(a + 1, len(cids)):
                 for i, t in enumerate(self.times):
+                    if t >= min(gone.get(cids[a], math.inf), gone.get(cids[b], math.inf)):
+                        continue  # one of them has gone through an exit door
                     dz = abs(self.r.animators[cids[a]].depth_at(t) - self.r.animators[cids[b]].depth_at(t))
                     zpen = BODY_PASS_Z - dz
                     if zpen <= 0.0:

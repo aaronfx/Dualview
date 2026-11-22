@@ -123,18 +123,18 @@ def scene_tower():
         act(I, "cheer", 1.4, "joyful"), A(I, "turn", face=-1), act(I, "laugh", 2.4, "joyful"),  # too soon
         A(I, "wait_for", until="event:knockdown@iko"), A(I, "get_up", target="char:pell"),
         A(I, "run_to", target_x=1700), A(I, "reach_exit", target="exit:gate", speed=300),
-        A(P, "run_to", target_x=-570, lane=36), A(P, "climb", target="obstacle:G2"), act(P, "lose_balance", 0.8, "scared"),
+        A(P, "idle", duration=0.8, lane=36), A(P, "run_to", target_x=-570), A(P, "climb", target="obstacle:G2"),
         A(P, "run_to", target_x=300), A(P, "jump_to", target_x=760, height=120, onto="obstacle:G3"),
         A(P, "wait_for", until="event:knockdown@iko"), act(P, "shock", 0.7, "scared"),
         A(P, "offer_hand", target="char:iko"),
         A(P, "run_to", target_x=1650), A(P, "reach_exit", target="exit:gate", speed=280),
-        A(V, "run_to", target_x=-570), A(V, "climb", target="obstacle:G2"),
-        A(V, "run_to", target_x=300), A(V, "jump_to", target_x=1000, height=150, flip="back", onto="obstacle:G3"),
+        A(V, "run_to", target_x=-570, lane=32), A(V, "climb", target="obstacle:G2"),
+        A(V, "run_to", target_x=300, lane=0), A(V, "jump_to", target_x=1000, height=150, flip="back", onto="obstacle:G3"),
         A(V, "turn", face=-1), A(V, "guard", until="next:strike_start@iko"), A(V, "guard", duration=0.7),
         A(V, "strike", target="char:iko", move="hook", power=0.9),
         A(V, "guard", until="next:strike_start@iko"),
         A(V, "wait_for", until="event:knockdown@vex"), A(V, "get_up"),  # up out of the wreckage, behind IKO's back
-        A(V, "strike", target="char:iko", move="sweep", power=1.4, reaction="knockdown"),
+        A(V, "strike", target="char:iko", move="hook", power=1.4, reaction="knockdown"),
         act(V, "laugh", 1.0, "joyful"), A(V, "turn", face=1),
         A(V, "run_to", target_x=1700), A(V, "reach_exit", target="exit:gate", speed=320)]
     return {"id": "tower", "title": "The tower", "environment": "tower", "duration": 40.0, "transition_in": "warp",
@@ -157,7 +157,7 @@ def canyon():
                        {"glyph": "!", "size": [16.0, 60.0], "at": [22.0, -16.0], "role": "leg", "phase": 3.14159},
                        {"glyph": "0", "size": [14.0, 14.0], "at": [-26.0, 8.0], "role": "eye", "mass": 0.2, "color": "#ffffff"}],
              "path": [[7.0, 1150.0], [11.0, 520.0]]}
-    props = [glyph("x", "x", 340.0, TOP + 25, size=50.0, mass=5.0, color="#ffd84a")]
+    props = [glyph("x", "x", 340.0, TOP + 20, size=40.0, mass=5.0, color="#ffd84a")]
     w = world("canyon", "canyon", obs, props, weather="embers", amount=0.9, exits=[gate()])
     w["orbs"] = [{"id": "pad", "kind": "pad", "center": [-600.0, TOP + 6], "radius": 34.0, "power": 560.0}]
     w["creatures"] = [drone]
@@ -168,15 +168,15 @@ def scene_canyon():
     I, P, V = "iko", "pell", "vex"
     acts = [
         A(I, "run_to", target_x=-860, lane=-20), A(I, "wait_for", until="event:collapse@bridge"), act(I, "shock", 0.7, "scared"),
-        A(I, "run_to", target_x=300, speed=390),  # over the launch pad and across the gap
-        A(I, "roll", distance=200), A(I, "pick_up", target="prop:x"), A(I, "throw", target="point:690,700", power=1.4),
+        A(I, "run_to", target_x=300, speed=390, lane=0),  # over the launch pad and across the gap
+        A(I, "roll", distance=120), A(I, "pick_up", target="prop:x"), A(I, "throw", target="prop:drone.body", power=1.4),
         act(I, "cheer", 1.0, "joyful"),
-        A(I, "run_to", target_x=1650, speed=360), A(I, "reach_exit", target="exit:gate", speed=320),
+        A(I, "run_to", target_x=1650, speed=360, lane=-35), A(I, "reach_exit", target="exit:gate", speed=320),
         A(P, "run_to", target_x=-960, lane=20), A(P, "wait_for", until="event:roll_end@iko"),
-        A(P, "run_to", target_x=120, speed=380),
+        A(P, "run_to", target_x=110, speed=380),
         A(P, "wait_for", until="event:creature_break@drone"), act(P, "cheer", 1.2, "joyful"),
         A(P, "run_to", target_x=1600, speed=340), A(P, "reach_exit", target="exit:gate", speed=300),
-        A(V, "run_to", target_x=620, speed=380), A(V, "turn", face=-1), act(V, "laugh", 1.6, "joyful"),
+        A(V, "run_to", target_x=760, speed=380, lane=40), A(V, "turn", face=-1), act(V, "laugh", 1.6, "joyful"),
         A(V, "wait_for", until="event:creature_break@drone"), act(V, "shock", 0.8, "scared"), A(V, "turn", face=1),
         A(V, "run_to", target_x=1700, speed=380), A(V, "reach_exit", target="exit:gate", speed=340)]
     return {"id": "canyon", "title": "The canyon", "environment": "canyon", "duration": 40.0, "transition_in": "warp",
@@ -205,7 +205,7 @@ def scene_arena():
         A(I, "run_to", target_x=-420), A(I, "turn", face=1),  # back off for a run-up
         A(I, "wait_for", until="next:stood_up@vex"), act(I, "rise", 0.6, "determined", tempo=1.8),
         A(I, "strike", target="char:vex", move="flying_kick", power=1.6, reaction="knockdown"),
-        A(I, "offer_hand", target="char:vex"), A(I, "wait_for", until="event:fist_bump@vex"), act(I, "cheer", 1.6, "joyful"),
+        A(I, "idle", duration=0.6), A(I, "offer_hand", target="char:vex"), A(I, "wait_for", until="event:fist_bump@vex"), act(I, "cheer", 1.6, "joyful"),
         A(I, "idle", duration=4.0),
         A(P, "run_to", target_x=-640, lane=20), act(P, "shock", 0.8, "scared"),
         A(P, "wait_for", until="event:knockdown@iko"), act(P, "rise", 1.0, "determined", tempo=1.6),
@@ -308,7 +308,7 @@ def shots_for(sc, ev):
                   cam("static", target="vex", center=[-240, Y], view_height=900, include=["char:iko", "char:vex"])),
              shot("c3_pad", "tracking", "IKO hits the launch pad and soars over the gap",
                   follow("iko", 900, lead=0.5, stiffness=3.0, offset=[160, 120])),
-             shot("c4_throw", "medium", "a roll, the X grabbed and hurled: VEX knocked flat into his own drone",
+             shot("c4_throw", "medium", "a roll, the X grabbed and hurled: VEX's drone torn apart",
                   cam("static", target="iko", center=[480, Y + 20], view_height=620, include=["char:iko", "char:vex"])),
              shot("c5_away", "tracking", "PELL lands, cheers; all three race for the gate",
                   follow("pell", 800, lead=0.4, stiffness=2.5, offset=[160, 60]))]

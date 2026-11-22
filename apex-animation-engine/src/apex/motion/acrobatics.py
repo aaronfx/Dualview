@@ -862,6 +862,8 @@ class AcroMixin:
         if kind == "char":
             oc = self.others[rid]
             return oc.frame.to_world(oc.s, oc.h + 0.55 * oc.rig.p.spine + 10.0)
+        if kind == "prop":  # a prop (e.g. a creature's body): where it is at the release
+            return tuple(self.world.state(rid).pos)
         from ..scene.targets import resolve
         return resolve(self.env, ref)
 

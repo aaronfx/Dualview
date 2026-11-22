@@ -614,8 +614,8 @@ class ActionSpec(Strict):
             raise ValueError("onto must be 'obstacle:<id>'")
         if self.type == "pick_up" and not (self.target or "").startswith("prop:"):
             raise ValueError("pick_up.target must be 'prop:<id>'")
-        if self.type == "throw" and not (self.target or "").startswith(("char:", "point:")):
-            raise ValueError("throw.target must be 'char:<id>' or 'point:x,y'")
+        if self.type == "throw" and not (self.target or "").startswith(("char:", "point:", "prop:")):
+            raise ValueError("throw.target must be 'char:<id>', 'prop:<id>' (where it is at the release) or 'point:x,y'")
         if self.type in ("push", "lift", "use_lever") and not (self.target or "").startswith("prop:"):
             raise ValueError(f"{self.type}.target must be 'prop:<id>'")
         if self.type == "act":
