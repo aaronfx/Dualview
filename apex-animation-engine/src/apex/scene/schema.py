@@ -63,6 +63,8 @@ class RoomSpec(Strict):
     entry_door: bool = True
     grid_spacing: float = 100.0
     grid_alpha: float = Field(1.0, ge=0, le=1)  # strength of the neon grid (set dressing reads better over a quieter grid)
+    style: Literal["box", "open"] = "box"  # "open": no cutaway room is drawn; the environment's backdrop is the world
+    # (the room's bounds still hold physically: its walls are the edges of the playable area)
     void_below: Optional[float] = None  # Milestone 6: drawn as a bottomless void below this height (the floor is still
     # there physically, far below a level built on platforms; a scene's `fail` zone catches a fall before it is reached)
 
@@ -237,6 +239,8 @@ class ObstacleSpec(Strict):
     weight: Optional[float] = Field(None, gt=0)  # glyph stroke thickness
     color: Optional[str] = None
     collapse: Optional[CollapseSpec] = None  # Milestone 6: a platform that gives way
+    style: Optional[Literal["slab", "roof", "rock", "girder", "bridge", "pillar"]] = None  # how it is drawn: a roof is the
+    # top of a building (its facade is drawn down into the depths), rock a cliff, a bridge planks on ropes
 
     @model_validator(mode="after")
     def _glyph(self) -> "ObstacleSpec":
@@ -378,6 +382,31 @@ class ThemeSpec(Strict):
     dust: str = "#bef5ff"
 
 
+class GlitchSpec(Strict):
+    """A corruption front (drawn only): a wall of red static that advances along x from `x0` at `speed` u/s from
+    time `start`. Structures it reaches are expected to give way (the builder gives them collapse times)."""
+    x0: float
+    speed: float = Field(60.0, ge=0)
+    start: float = 0.0
+    direction: Literal[1, -1] = 1
+    color: str = "#ff2a48"
+
+
+class BackdropSpec(Strict):
+    """The world around an open environment (cinematic upgrade): sky, distant layers drawn at depth (so they move
+    with real parallax), weather and fog. Drawn only; nothing in it collides."""
+    kind: Literal["city", "canyon", "tower", "void", "summit"]
+    seed: int = 1
+    sky: Optional[List[str]] = None  # top -> horizon colours (2 or 3); defaults per kind
+    sun: Optional[Vec2] = None  # a sun or moon at this (x, y) on the far sky (default per kind; [] none)
+    weather: Literal["none", "rain", "embers", "snow", "motes", "data"] = "none"
+    weather_amount: float = Field(1.0, ge=0, le=3)
+    fog: Optional[str] = None  # haze colour toward the bottom of the frame
+    horizon: Optional[float] = None  # world height of the far horizon line (default: below the level)
+    lightning: bool = False
+    glitch: Optional[GlitchSpec] = None
+
+
 class EnvironmentSpec(Strict):
     id: str
     room: RoomSpec = Field(default_factory=RoomSpec)
@@ -394,6 +423,7 @@ class EnvironmentSpec(Strict):
     level: Optional[LevelSpec] = None  # a grid level, expanded into obstacles, orbs, portals and markers
     creatures: List[CreatureSpec] = Field(default_factory=list)  # composite creatures (Milestone 5)
     decor: List[DecorSpec] = Field(default_factory=list)  # set dressing (Milestone 5)
+    backdrop: Optional[BackdropSpec] = None  # the world around an open room (cinematic upgrade)
 
     @model_validator(mode="after")
     def _creatures(self) -> "EnvironmentSpec":

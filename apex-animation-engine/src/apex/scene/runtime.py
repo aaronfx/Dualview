@@ -389,6 +389,7 @@ class SceneRuntime:
                 c_ = ctrls[pl.character]
                 c_.frame = structures.obstacle_top(self.env, frames, pl.on.split(":", 1)[1], pl.x)
                 world.set_kinematic(pl.character, c_.frame.to_world(c_.s, c_.h), c_.frame.body_angle)
+                c_.seg.frame = c_.frame.tag  # the opening segment stands on it too (with no action, nothing reopens it)
         shared = {"taken": {}}
         for c in ctrls.values():  # characters can see each other, the props and everything that has happened so far
             c.others, c.all_events = ctrls, events

@@ -58,6 +58,11 @@ class SkiaRenderer:
         self.theme = env.theme  # per-environment art direction
         self.accent, self.alert = hex_rgb(self.theme.accent), hex_rgb(self.theme.alert)
         self.bg, self.dust_rgb = hex_rgb(self.theme.background), hex_rgb(self.theme.dust)
+        self.open = r.style == "open"
+        self.world = None
+        if self.open and env.backdrop is not None:
+            from .worlds import World
+            self.world = World(self, env)
 
     @staticmethod
     def indicator_rotation(g) -> float:
@@ -103,15 +108,24 @@ class SkiaRenderer:
             self.depth = dict(fs.depth)  # depth lanes can change over time (e.g. rolling past in front of someone)
         c = self.surface.getCanvas()
         c.clear(col(self.bg))
+        tw = fs.t if fx_t is None else fx_t  # the world's own motion runs on the film clock
+        W_ = self.world
+        if W_ is not None:
+            W_.sky(c, tw)
         c.save()
         sc = self.H / 1080.0
         c.translate(self.W / 2 + cam.shx * sc, self.H / 2 + cam.shy * sc)
         c.rotate(cam.roll)
-        self._room(c, fs, red_flash)
+        if W_ is not None:
+            W_.backdrop(c, tw)
+            W_.weather(c, tw, front=False)
+        elif not self.open:
+            self._room(c, fs, red_flash)
         if self.env.decor:
             self._decor(c, fs, front=False)
         self._exits(c, fs)
-        self._shafts(c, fs)
+        if not self.open:
+            self._shafts(c, fs)
         self._switches(c, fs)
         self._obstacles(c, back=True)
         if self.env.decor:
@@ -123,7 +137,7 @@ class SkiaRenderer:
         self._dust(c, fs, front=False)
         vis = {cid: self._exit_fade(pose, fs) for cid, pose in fs.poses.items()}
         for cid, pose in fs.poses.items():
-            if vis[cid] > 0.99:
+            if vis[cid] > 0.99 and not self.open:
                 self._back_shadow(c, cid, pose, fs)
         lying = [self.rigs[cid].world_joints(pose) for cid, pose in fs.poses.items() if pose.state in ("fall", "prone", "crawl", "getup")]
         front = []
@@ -134,9 +148,12 @@ class SkiaRenderer:
                 self._prop(c, pr)
         for rp in fs.ropes:
             self._rope(c, rp)
+        if W_ is not None:
+            W_.glitch(c, tw)
         for cid, pose in fs.poses.items():
             if vis[cid] > 0.99:
-                self._reflection(c, cid, pose)
+                if not self.open:
+                    self._reflection(c, cid, pose)
                 self._contact_shadow(c, cid, pose)
         for e in fx or []:
             self._effect(c, e, fs.t if fx_t is None else fx_t)
@@ -168,7 +185,10 @@ class SkiaRenderer:
         if diagrams:
             self._diagrams(c, diagrams)
         self._dust(c, fs, front=True)
-        self._cutaway(c, red_flash, fs)
+        if W_ is not None:
+            W_.weather(c, tw, front=True)
+        if not self.open:
+            self._cutaway(c, red_flash, fs)
         c.restore()
         self._post(c, red_flash)
         if screen:
@@ -632,6 +652,8 @@ class SkiaRenderer:
                 continue
             if ob.kind == "glyph":
                 self._glyph_structure(c, ob, back)
+                continue
+            if self.world is not None and self.world.structure(c, ob, back):
                 continue
             hx, hy = ob.size[0] / 2, ob.size[1] / 2
             x0, x1, y0, y1 = cx_ - hx, cx_ + hx, cy_ - hy, cy_ + hy
@@ -1242,6 +1264,13 @@ class SkiaRenderer:
     def _contact_shadow(self, c: skia.Canvas, cid: str, pose: Pose) -> None:
         px, py = pose.root
         dz = self.depth.get(cid, 0.0)  # the shadow lies at the character's own depth lane (a depth cue)
+        if self.open:  # in an open world: on the top below the character, if it is close
+            top = self.world.contact_shadow_y(px, py) if self.world is not None else None
+            if top is not None:
+                d = py - top
+                p = self.P(px, top, 4 + dz)
+                self._shadow(c, p, 70 * p[2], 0.6 * (1 - d / 260), squash=0.22)
+            return
         for d, at, horiz in ((py, (px, 0.0), True), (self.rh - py, (px, self.rh), True), (self.hw - px, (self.hw - 0.5, py), False),
                              (px + self.hw, (-self.hw + 0.5, py), False)):
             if 0 <= d < 260:
@@ -1474,8 +1503,9 @@ class SkiaRenderer:
                 2.4, 0, 0, 0, -0.65, 0, 2.4, 0, 0, -0.65, 0, 0, 2.4, 0, -0.65, 0, 0, 0, 1, 0]))
             sc.drawImageRect(img, skia.Rect(0, 0, self.W / 4, self.H / 4), skia.SamplingOptions(skia.FilterMode.kLinear), p)
             small = self.small.makeImageSnapshot()
+            gain = self.world.bloom if self.world is not None else 0.55  # bright worlds bloom less (no blown-out skies)
             c.drawImageRect(small, skia.Rect(0, 0, self.W, self.H), skia.SamplingOptions(skia.FilterMode.kLinear),
-                            skia.Paint(BlendMode=skia.BlendMode.kPlus, Color=col((255, 255, 255), 0.55)))
+                            skia.Paint(BlendMode=skia.BlendMode.kPlus, Color=col((255, 255, 255), gain)))
         if red > 0.01:
             c.drawRect(skia.Rect(0, 0, self.W, self.H), skia.Paint(Color=col((255, 30, 45), 0.26 * red), BlendMode=skia.BlendMode.kScreen))
         sh = skia.GradientShader.MakeRadial(skia.Point(self.W / 2, self.H / 2), self.H * 1.05, [col((0, 0, 0), 0.0), col((0, 0, 0), 0.0), col((0, 0, 0), 0.6)], [0.0, 0.33, 1.0])
