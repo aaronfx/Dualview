@@ -881,6 +881,16 @@ class SceneSpec(Strict):
         return self
 
 
+class FilmGoalSpec(Strict):
+    """A narrative event that must occur in a specified film scene.
+
+    Goals are ordered in project order; they are independently checked against
+    the simulated event log, not inferred from the director's shot descriptions.
+    """
+    scene: str
+    event: str
+
+
 class ProjectSpec(Strict):
     schema_version: str = SCHEMA_VERSION
     id: str
@@ -892,6 +902,7 @@ class ProjectSpec(Strict):
     characters: List[CharacterSpec]
     environments: List[EnvironmentSpec]
     scenes: List[SceneSpec]
+    film_goals: List[FilmGoalSpec] = Field(default_factory=list)
 
     @field_validator("schema_version")
     @classmethod
@@ -906,6 +917,20 @@ class ProjectSpec(Strict):
         envs = {e.id: e for e in self.environments}
         if len(chars) != len(self.characters):
             raise ValueError("duplicate character ids")
+        scene_ids = [sc.id for sc in self.scenes]
+        if len(set(scene_ids)) != len(scene_ids):
+            raise ValueError("duplicate scene IDs")
+        from .goals import check_event, parse_goal
+        previous_goal_index = -1
+        for goal in self.film_goals:
+            if goal.scene not in scene_ids:
+                raise ValueError(f"film goal names unknown scene {goal.scene!r}")
+            etype, _, _ = parse_goal(goal.event)
+            check_event(etype, f"film goal {goal.event!r}")
+            index = scene_ids.index(goal.scene)
+            if index < previous_goal_index:
+                raise ValueError("film goals must follow scene order")
+            previous_goal_index = index
         for sc in self.scenes:
             if sc.environment not in envs:
                 raise ValueError(f"scene {sc.id}: unknown environment {sc.environment}")
