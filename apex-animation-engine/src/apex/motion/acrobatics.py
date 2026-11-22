@@ -594,9 +594,9 @@ class AcroMixin:
             return
         T = 0.55 + abs(far - near) / 700.0
         land = far + d * 0.55 * self.stand_h
-        plant = (near + d * min(14.0, abs(far - near) / 3.0), y1)
+        plant = (near + d * min(14.0, abs(far - near) / 3.0), y1 + 7.0)  # the palm on the top, not in it
         self.inter = {"t0": t, "s0": self.s, "s1": land, "top": y1 - fy, "T": T, "d": d, "plant": plant, "said": False}
-        self._open("vault", t, s0=self.s, s1=land, plant=plant, top=y1, T=T, d=d, target=a.target)
+        self._open("vault", t, s0=self.s, s1=land, plant=plant, top=y1, T=T, d=d, target=a.target, span=(min(x0, x1), max(x0, x1)))
         from .controller import Event
         self.emit(Event(t, "vault_start", self.cid, {"target": a.target}))
 
@@ -798,21 +798,26 @@ class AcroMixin:
             self._fail(f"{self.cid}: already carrying '{self.carrying}'")
             self._next_action(t)
             return
-        ps = self.frame.to_frame(self.world.state(pid).pos)[0]
+        ps, ph = self.frame.to_frame(self.world.state(pid).pos)
         side = 1.0 if self.s >= ps else -1.0
-        stand = ps + side * 0.42 * self.stand_h
+        high = ph > 0.45 * self.stand_h  # (height above the surface stood on) on a holder: stand back from what it sits on, reach out
+        stand = ps + side * (0.74 if high else 0.42) * self.stand_h
         if self._go(t, a, stand) or self._face(t, a, -side):
             return
         st = self.world.state(pid)
         self.inter = {"t0": t, "pid": pid, "rest": (st.pos, st.angle), "grabbed": False}
-        self._open("pick_up", t, prop=pid, T=PICK_T)
+        dip = 0.42 * clamp(1.0 - self.frame.to_frame(st.pos)[1] / (0.8 * self.stand_h), 0.08, 1.0)
+        self._open("pick_up", t, prop=pid, T=PICK_T, dip=dip)
 
     def _pick_up_tick(self, t: float, dt: float, a: ActionSpec) -> None:
         from .controller import Event
         I = self.inter
         u = clamp((t - I["t0"]) / PICK_T, 0.0, 1.0)
         pid = I["pid"]
-        self.h = self.stand_h - 0.42 * self.stand_h * math.sin(math.pi * min(1.0, u / 0.9))
+        # crouch only as low as the prop is: something on a holder at waist height is taken almost standing
+        rest_h = self.frame.to_frame(I["rest"][0])[1]  # height above the surface stood on
+        dip = 0.42 * clamp(1.0 - rest_h / (0.8 * self.stand_h), 0.08, 1.0)
+        self.h = self.stand_h - dip * self.stand_h * math.sin(math.pi * min(1.0, u / 0.9))
         if u >= 0.45:
             if not I["grabbed"]:
                 I["grabbed"] = True
@@ -838,7 +843,7 @@ class AcroMixin:
             x, y = (float(v) for v in rid.split(","))
             return (x, y + half)
         ob = next(o for o in self.env.obstacles if o.id == rid)
-        return (ob.center[0], ob.center[1] + 0.5 * ob.size[1] + half + 6.0)  # seated just clear of its top
+        return (ob.center[0], ob.center[1] + 0.5 * ob.size[1] + half + 12.0)  # seated just clear of its top (a hand can take it without touching the holder)
 
     def _start_place(self, t: float, a: ActionSpec) -> None:
         if self.carrying is None:
@@ -859,14 +864,17 @@ class AcroMixin:
         pid = self.carrying
         st = self.world.state(pid)
         self.inter = {"t0": t, "pid": pid, "from": (st.pos, st.angle), "rest": rest, "placed": False}
-        self._open("pick_up", t, prop=pid, T=PICK_T, place=True)
+        dip = 0.3 * clamp(1.0 - self.frame.to_frame(rest)[1] / (0.8 * self.stand_h), 0.08, 1.0)
+        self._open("pick_up", t, prop=pid, T=PICK_T, place=True, dip=dip)
 
     def _place_tick(self, t: float, dt: float, a: ActionSpec) -> None:
         from .controller import Event
         I = self.inter
         u = clamp((t - I["t0"]) / PICK_T, 0.0, 1.0)
         pid = I["pid"]
-        self.h = self.stand_h - 0.3 * self.stand_h * math.sin(math.pi * min(1.0, u / 0.9))
+        rest_h = self.frame.to_frame(I["rest"])[1]
+        dip = 0.3 * clamp(1.0 - rest_h / (0.8 * self.stand_h), 0.08, 1.0)
+        self.h = self.stand_h - dip * self.stand_h * math.sin(math.pi * min(1.0, u / 0.9))
         if not I["placed"]:
             k = _smooth(min(1.0, u / 0.55))
             (fx, fy), fa = I["from"]
@@ -1021,11 +1029,12 @@ class AcroMixin:
             n = (vrel[0] / max(1e-6, speed), vrel[1] / max(1e-6, speed))
             vn = -math.hypot(*vrel)
             J = -(1.0 + e) * vn * m_p * m_h / (m_p + m_h)
-            self.world.apply_impulse_at(pid, (-n[0] * J * 0.6, -n[1] * J * 0.6), point)
-            fly = (hs.vel[0] + n[0] * J / m_h, hs.vel[1] + abs(n[1]) * J / m_h * 0.4 + 220.0)
+            self.world.make_dynamic(pid, (0.0, 60.0), 6.0 if st.vel[0] < 0 else -6.0)  # its energy spent on the weapon: it drops
+            # knocked up and out of the hands, out in front of the body that held it (not back into it)
+            fly = (oc.facing * (160.0 + 0.25 * abs(n[0]) * J / m_h), 480.0 + abs(n[1]) * J / m_h * 0.3)
             direction = 1.0 if st.vel[0] >= 0 else -1.0
             eff = clamp(J / IMPULSE_REF, 0.15, 1.9)
-            oc._release_carry(t, fly, -direction * 11.0, why="disarm", data={"by": self.cid, "with": pid, "impulse": round(J, 1)})
+            oc._release_carry(t, fly, -oc.facing * 11.0, why="disarm", data={"by": self.cid, "with": pid, "impulse": round(J, 1)})
             self.emit(Event(t, "prop_hit", pid, {"prop": pid, "target": hp, "point": point, "normal_speed": -vn, "blocked": False,
                                                  "impulse": round(J, 1)}))
             if oc.mode in ("grounded", "landing") and not oc.lying:

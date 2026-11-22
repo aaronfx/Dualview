@@ -68,8 +68,7 @@ def city(power=()):
     props = [core(CASE_X, top + 23, solid=False),
              dict(id="case", kind="canister", position=[CASE_X, top + 32], size=[52.0, 64.0], mass=2.0, z=0.0, depth=40.0,
                   friction=0.5, breakable={"impulse": 260.0, "scatter": 160.0}, color="#bff8ff", material="glass"),
-             dict(id="crate", kind="crate", position=[-860.0, TOP + 25], size=[50.0, 50.0], mass=3.0, z=0.0, depth=40.0,
-                  breakable={"impulse": 3200.0, "grid": 2}, color="#8a6a3a")]
+]
     return world("city", "city", obs, props, weather="rain", amount=1.3, exits=[gate()], power=list(power))
 
 
@@ -79,12 +78,11 @@ def scene_city():
         # VEX: the theft, a look back at them with the core, away over the roofs; a crate kicked into their path
         A(V, "walk_to", target_x=CASE_X + 70), A(V, "strike", target="prop:case", move="cross", power=1.2),
         A(V, "pick_up", target="prop:core"), A(V, "turn", face=-1), A(V, "look_at", target="char:iko", duration=0.7),
-        act(V, "laugh", 0.8, "joyful"), A(V, "turn", face=1), A(V, "run_to", target_x=-775, speed=330, lane=46),
-        A(V, "walk_to", target_x=-790, lane=0), A(V, "turn", face=-1),
-        A(V, "strike", target="prop:crate", move="front_kick", power=1.3),
+        act(V, "laugh", 0.8, "joyful"), A(V, "turn", face=1), A(V, "run_to", target_x=-790, speed=340),
+        A(V, "turn", face=-1), A(V, "wait_for", until="event:act@iko[clip=rise]"), act(V, "laugh", 0.7, "joyful"),  # come and get it
         A(V, "turn", face=1), A(V, "run_to", target_x=-760, speed=360),
-        A(V, "jump_to", target_x=-260, height=140, flip="front", onto="obstacle:R2"),
-        A(V, "run_to", target_x=40), A(V, "vault", target="obstacle:vent"), A(V, "run_to", target_x=580),
+        A(V, "jump_to", target_x=-260, height=105, onto="obstacle:R2"),
+        A(V, "run_to", target_x=10), A(V, "vault", target="obstacle:vent"), A(V, "run_to", target_x=580, lane=40),
         A(V, "jump_to", target_x=1000, height=150, onto="obstacle:R3"), A(V, "run_to", target_x=1180),
         A(V, "turn", face=-1), A(V, "wait_for", until="next:strike_start@iko"), A(V, "dodge", dodge="back"),
         A(V, "strike", target="char:iko", move="front_kick", power=1.0, reaction="stagger", distance=56),
@@ -94,9 +92,7 @@ def scene_city():
         A(I, "wait_for", until="event:break@case"), act(I, "shock", 0.7, "scared"),
         A(I, "wait_for", until="event:act@vex[clip=laugh]"), act(I, "rise", 0.5, "determined", tempo=1.6),
         A(I, "run_to", target_x=CASE_X - 140, speed=380, lane=-20), A(I, "vault", target="obstacle:plinth"),
-        A(I, "run_to", target_x=-1060, speed=380),
-        A(I, "wait_for", until="event:strike_prop@vex[move=front_kick]"), A(I, "dodge", dodge="duck"),
-        A(I, "run_to", target_x=-760, speed=400), A(I, "jump_to", target_x=-380, height=130, onto="obstacle:R2"),
+        A(I, "run_to", target_x=-760, speed=400, lane=-45), A(I, "jump_to", target_x=-380, height=130, onto="obstacle:R2"),
         A(I, "run_to", target_x=30), A(I, "vault", target="obstacle:vent"),
         A(I, "run_to", target_x=600), A(I, "jump_to", target_x=1000, height=150, flip="front", onto="obstacle:R3"),
         A(I, "strike", target="char:vex", move="flying_kick", power=1.3, distance=175),  # too far: reckless
@@ -109,9 +105,9 @@ def scene_city():
         A(P, "run_to", target_x=CASE_X - 150, speed=280, lane=24), A(P, "wait_for", until="event:vault@iko"),
         A(P, "vault", target="obstacle:plinth"),
         A(P, "run_to", target_x=-1120, speed=330),
-        A(P, "wait_for", until="event:strike_prop@vex[move=front_kick]"), A(P, "roll", distance=150),
-        A(P, "run_to", target_x=-760, speed=340), A(P, "jump_to", target_x=-360, height=110, onto="obstacle:R2"),
-        A(P, "run_to", target_x=-40, lane=30), A(P, "jump_to", target_x=260, height=140, onto="obstacle:R2"),
+        A(P, "run_to", target_x=-760, speed=340), A(P, "jump_to", target_x=-400, height=110, onto="obstacle:R2"),
+        act(P, "land_hard", 0.5, "scared"), A(P, "roll", distance=130),  # comes down hard: a roll to shed it
+        A(P, "run_to", target_x=-40, lane=30), A(P, "vault", target="obstacle:vent"),
         A(P, "run_to", target_x=580), A(P, "wait_for", until="event:act@iko[clip=lose_balance]"),
         A(P, "jump_to", target_x=920, height=130, onto="obstacle:R3"),
         A(P, "offer_hand", target="char:iko"), A(P, "wait_for", until="event:act@iko[clip=wave_on]"),
@@ -242,7 +238,7 @@ def arena(power=()):
     obs = [plat("floor", -1800, 1800, thick=60.0), holder("socket", HOLD_X, TOP)]
     props = [core(-900, TOP + 400),
              glyph("staff", "-", -40.0, TOP + 8, size=118.0, mass=5.0, color="#ff4a5a"),
-             dict(glyph("x", "x", -260.0, TOP + 25, size=50.0, mass=5.0, color="#ffd84a"), z=30.0)]
+             dict(glyph("x", "x", -260.0, TOP + 25, size=50.0, mass=5.0, color="#ffd84a"), z=50.0)]
     return world("arena", "void", obs, props, width=3600, weather="data", amount=1.0, exits=[gate()], power=list(power))
 
 
@@ -276,20 +272,20 @@ def scene_arena():
         A(I, "wait_for", until="event:disarm@vex"), A(I, "get_up"),
         A(I, "look_at", target="char:pell", duration=0.6), A(I, "turn", face=1),
         A(I, "wait_for", until="next:strike_start@vex"), A(I, "dodge", dodge="duck"),
-        A(I, "strike", target="char:vex", move="flying_kick", power=1.1, reaction="knockdown", distance=100),
-        act(I, "recover_relief_shake", 0.9, "tired"), A(I, "run_to", target_x=HOLD_X - 170, speed=360),
+        A(I, "strike", target="char:vex", move="flying_kick", power=1.1, reaction="knockdown", distance=150),
+        act(I, "recover_relief_shake", 0.9, "tired"), A(I, "run_to", target_x=HOLD_X - 170, speed=360, lane=-45),
         A(I, "pick_up", target="prop:core"), A(I, "turn", face=-1), act(I, "cheer", 1.0, "joyful"),
         A(I, "turn", face=1), A(I, "vault", target="obstacle:socket"),
         A(I, "run_to", target_x=1650, speed=340), A(I, "reach_exit", target="exit:gate", speed=300),
         # PELL: tries to help and is kicked back; finds the X; the throw that disarms VEX; draws his last attack
-        A(P, "run_to", target_x=-340, speed=330, lane=30), A(P, "wait_for", until="event:hurt@vex"),
+        A(P, "run_to", target_x=-340, speed=330, lane=24), A(P, "wait_for", until="event:hurt@vex"),
         A(P, "run_to", target_x=-120, speed=380),  # rushing in to help - too late
         A(P, "wait_for", until="event:knockdown@iko"), act(P, "shock", 0.6, "scared"),
         A(P, "pick_up", target="prop:x"), A(P, "wait_for", until="event:get_up_failed@iko"),
         A(P, "throw", target="prop:staff", power=1.4),
         A(P, "wait_for", until="event:stood_up@iko"), A(P, "guard", until="event:knockdown@vex"),
         act(P, "cheer", 1.2, "joyful"), A(P, "wait_for", until="event:pick_up@iko[prop=core]"),
-        A(P, "run_to", target_x=HOLD_X - 130, speed=330), A(P, "vault", target="obstacle:socket"),
+        A(P, "run_to", target_x=HOLD_X - 130, speed=330, lane=40), A(P, "vault", target="obstacle:socket"),
         A(P, "run_to", target_x=1600, speed=330), A(P, "reach_exit", target="exit:gate", speed=280)]
     return {"id": "arena", "title": "The arena", "environment": "arena", "duration": 50.0, "transition_in": "warp",
             "placements": [{"character": I, "x": -1500, "on": "obstacle:floor", "z": -10},
@@ -364,12 +360,12 @@ def shots_for(sc, ev):
                   still((CASE_X + 300, Y + 300), 1500, "vex", "iko", "pell")),
              shot("a3_look", "medium", "IKO and PELL turn; VEX shows them the core and laughs",
                   still((-1560, Y), 640, "iko", "pell", "vex")),
-             shot("a4_crate", "medium", "the chase: over the plinth; VEX kicks a crate back at them, IKO ducks, PELL rolls",
-                  still((-1050, Y + 20), 760, "iko", "pell", "vex")),
+             shot("a4_crate", "medium", "the chase: over the empty plinth; VEX waits at the edge to taunt them with the core",
+                  follow("iko", 760, stiffness=2.5, offset=[160, 40], include=["char:vex"])),
              shot("a5_roofs", "tracking", "over the gap, the vent vaulted, flat out across the roofs",
                   follow("iko", 820, lead=0.45, stiffness=3.5, offset=[140, 40])),
              shot("a6_edge", "medium", "the flying kick launched too far; VEX steps out of it and kicks IKO to the edge; PELL waved on",
-                  still((1080, Y), 600, "iko", "vex", "pell")),
+                  follow("iko", 620, stiffness=2.5, offset=[60, 30])),
              shot("a7_go", "wide", "the chase goes on, through the gate to the storm tower",
                   follow("iko", 1100, lead=0.5, stiffness=2.5, offset=[120, 120]))]
         t = [0.0, f("break") + 0.9, f("pick_up@vex") + 1.3, f("act@vex", 0) + 1.3, f("takeoff@iko", 0) - 0.2,
@@ -425,7 +421,7 @@ def shots_for(sc, ev):
              shot("d6_kick", "medium", "IKO up; a look at PELL; he ducks VEX's hook and the flying kick lands",
                   follow("iko", 560, stiffness=3.0, offset=[80, 20], include=["char:vex"])),
              shot("d7_core", "medium", "VEX cannot rise; IKO takes the core back out of the socket",
-                  still((HOLD_X - 120, Y), 520, "iko")),
+                  follow("iko", 560, stiffness=2.5, offset=[60, 30])),
              shot("d8_go", "tracking", "out together, the core in IKO's hands",
                   follow("iko", 1000, lead=0.4, stiffness=2.5, offset=[160, 60]))]
         t = [0.0, f("place@vex") - 0.8, f("place@vex") + 1.6, f("pick_up@vex") - 0.2, f("hit@vex") - 2.2, f("throw_start@pell") - 0.4,
@@ -455,7 +451,7 @@ SLOWMO = {"city": [{"at": "break@case", "before": 0.2, "after": 0.6, "rate": 0.3
                     {"at": "disarm@vex", "before": 0.25, "after": 0.6, "rate": 0.35},
                     {"at": "hit@iko[move=flying_kick]", "before": 0.35, "after": 0.7, "rate": 0.3}],
           "summit": [{"at": "place@iko", "before": 0.1, "after": 0.6, "rate": 0.5}]}
-SCORE = {"city": [cue("tension", at=0.0), cue("action", on="break@case", delay=0.4)],
+SCORE = {"city": [cue("tension", at=0.0), cue("action", on="break@case", delay=0.4)],  # noqa: E501
          "tower": [cue("action", at=0.0), cue("tension", on="act@iko[clip=cheer]"), cue("sad", on="knockdown@iko"),
                    cue("hope", on="hand_grab@iko"), cue("action", on="point@pell")],
          "canyon": [cue("action", at=0.0), cue("tension", on="collapse"), cue("action", on="orb_jump@iko", delay=-0.4),

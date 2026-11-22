@@ -134,9 +134,38 @@ class AcroAnimMixin:
                 L[k] = lerp_angle(v, L[k], hw)
             pose.hands["n"] = "open"
         self._ground_clamp(pose, F)
+        self._vault_clear(pose, d)
         self._gaze(pose, (d["plant"][0] + d["d"] * 120.0, d["plant"][1] - 40.0), 0.6)
         pose.eye = 1.1
         return pose
+
+    def _vault_clear(self, pose: Pose, d) -> None:
+        """Over the top, a trailing foot never drags through the structure: a foot (ankle or toe) that would be inside it
+        is lifted to clear its top, the knee bending to do it."""
+        if not d.get("span"):
+            return
+        x0, x1 = d["span"][0] - 6.0, d["span"][1] + 6.0
+        top = d["top"]
+        clear = top + self.p.ankle_height + 10.0
+        for side in "nf":
+            j = self.rig.world_joints(pose)
+            lo = min(j[f"ankle_{side}"][1], j[f"toe_{side}"][1], j[f"knee_{side}"][1] - self.p.ankle_height)
+            xs = (j[f"ankle_{side}"][0], j[f"toe_{side}"][0], j[f"knee_{side}"][0])
+            if lo < clear and any(x0 < x < x1 for x in xs):
+                ax, ay = j[f"ankle_{side}"]
+                self.rig.leg_ik(pose, side, (ax, ay + (clear - lo)), None)
+        for side in "nf":  # and a hand (the free one swinging over) rests on the top or above it, never in it
+            j = self.rig.world_joints(pose)
+            hx, hy = j[f"hand_{side}"]
+            if x0 < hx < x1 and hy < top + 12.0:
+                self.rig.arm_ik(pose, side, (hx, top + 12.0))
+        for _ in range(2):  # a knee bent over the top stays above it too (lifting the ankle lifts the knee)
+            for side in "nf":
+                j = self.rig.world_joints(pose)
+                kx, ky = j[f"knee_{side}"]
+                if x0 < kx < x1 and ky < top + 10.0:
+                    ax, ay = j[f"ankle_{side}"]
+                    self.rig.leg_ik(pose, side, (ax, ay + (top + 10.0 - ky)), None)
 
     # ------------------------------------------------------------ ledge climb
     def _eval_climb(self, seg: Segment, t: float) -> Pose:
@@ -250,7 +279,9 @@ class AcroAnimMixin:
     def _eval_pick_up(self, seg: Segment, t: float) -> Pose:
         tau = t - seg.t0
         down = math.sin(PI * clamp(tau / (seg.data["T"] * 0.9), 0.0, 1.0))
-        pose, F, s = self._stand_pose(seg, t, crouch=0.42 * self.stand_h * down, lean=0.15 + 0.5 * down, head=0.25 * down)
+        k = seg.data.get("dip", 0.42) / 0.42  # as deep as the simulation crouched (less for a prop up on a holder)
+        pose, F, s = self._stand_pose(seg, t, crouch=0.42 * k * self.stand_h * down, lean=(0.15 + 0.5 * down) * k,
+                                      head=0.25 * down)
         self._stand_legs(pose, F, seg, t)
         pid = seg.data["prop"]
         if tau > 0.18 and self.prop_at:

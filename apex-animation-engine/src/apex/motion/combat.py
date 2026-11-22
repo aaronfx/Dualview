@@ -416,7 +416,7 @@ class CombatMixin:
         helper = I.get("helper")
         SIT = 0.55  # up over the feet before the hands join (a sitting body is too low for a standing helper's hand)
         if fail:
-            u = 0.4 * (_smooth(tau / 0.8) if tau < 0.8 else 1.0 - _smooth((tau - 0.8) / 0.7))
+            u = 0.4 * (_smooth(tau / 1.1) if tau < 1.1 else 1.0 - _smooth((tau - 1.1) / 0.9))
         elif helper:  # sits up, reaches for the offered hand, and is pulled up by it
             from .interaction import HELP_WAIT, OFFER_REACH_T
             if I["phase"] == "up" and tau >= SIT * T + 0.25:  # sat up, and the arm has come up to the offered hand
@@ -454,7 +454,7 @@ class CombatMixin:
         self.h = interp(h_keys)
         self.s = I["s0"] + self.facing * interp(fwd_keys)
         self._place(t)
-        if fail and tau >= 1.5:
+        if fail and tau >= 2.0:
             self.body_tilt, self.h = -math.pi / 2, LIE_H
             self.emit(self._ev(t, "get_up_failed", {"from": "back"}))
             self._open("supine", t)
