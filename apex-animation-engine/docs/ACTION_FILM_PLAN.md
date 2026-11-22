@@ -45,3 +45,20 @@ The film is original. Its characters, story and look are APEX's own.
 
 - **Builder:** `examples/build_core_run.py` → `examples/core_run.json`.
 - **Render:** `apex film examples/core_run.json -o out/core_run/core_run.mp4`.
+
+## Status (first draft rendered)
+
+The first draft is a 720p, 2:15 film with five scenes, built by `examples/build_core_run.py` (`out/core_run/` is not committed).
+- **QA gates:**
+  - tower, canyon and summit pass the technical gate;
+  - the cinematic gate passes or warns in every scene.
+- **Still failing the technical gate**, all to fix before the final 1080p render:
+  - **City:**
+    - `obstacle_clearance`: a toe clips the vent during a vault (t≈16.4 s);
+    - `body_clearance`: IKO and VEX at the point-blank throw (t≈19.9 s);
+    - `throw_momentum`: the bar hitting IKO at 3.0 s (31 % against 25 %).
+  - **Arena:**
+    - `bone_lengths[vex]`: two frames at t≈7.2 s, upper arms compressed while VEX is hurt holding the staff;
+    - `strike_contact`: the flying kick, 49 units against 24;
+    - `props_not_through_bodies`: IKO stands on the spent X at the end.
+- **Fragile choreography:** small changes cascade through the physics (lanes, throw origins, timing). Change one thing at a time and re-run `ends.py`-style checks (every scene must still reach its closing event) before running QA.
