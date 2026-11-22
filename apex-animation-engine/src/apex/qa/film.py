@@ -95,6 +95,12 @@ def check_film(project) -> List[Check]:
             if h.owner_in != "world" and h.owner_out == "world":
                 if not any(e.type in ("throw", "prop_placed", "prop_dropped", "disarmed") for e in entries):
                     errors.append(f"{sc.id}/{h.prop}: no physical release event")
+            if h.owner_in not in ("world", h.owner_out) and h.owner_out != "world":
+                if not any(e.type in ("throw", "prop_placed", "prop_dropped", "disarmed")
+                           and e.character == h.owner_in for e in entries):
+                    errors.append(f"{sc.id}/{h.prop}: {h.owner_in} never released it")
+                if not any(e.type == "pick_up" and e.character == h.owner_out for e in entries):
+                    errors.append(f"{sc.id}/{h.prop}: {h.owner_out} never acquired it")
             tracks.setdefault(h.prop, []).append((index, sc, h, res))
             details.append(f"{sc.id}:{h.prop} {a}->{b}")
         if sc.restoration is not None:
