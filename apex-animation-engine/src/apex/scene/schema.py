@@ -844,6 +844,18 @@ class RestorationSpec(Strict):
     max_speed: float = Field(130.0, gt=0)
 
 
+class WorldPowerCue(Strict):
+    """A world-lighting change caused by an observed simulation event."""
+    on: str  # event goal syntax, e.g. "core_restored@core"
+    level: float = Field(ge=0, le=1)
+    fade: float = Field(0.7, ge=0.05, le=10.0)
+
+
+class WorldPowerSpec(Strict):
+    initial: float = Field(1.0, ge=0, le=1)
+    cues: List[WorldPowerCue] = Field(default_factory=list)
+
+
 class SceneSpec(Strict):
     id: str
     title: str = ""
@@ -865,6 +877,7 @@ class SceneSpec(Strict):
     retry_of: Optional[str] = None  # Milestone 6: this scene is a retry of that scene (it restarts from the same state)
     story_props: List[StoryPropHandoff] = Field(default_factory=list)
     restoration: Optional[RestorationSpec] = None
+    world_power: Optional[WorldPowerSpec] = None  # simulated events drive visual power changes
 
     @model_validator(mode="after")
     def _shots(self) -> "SceneSpec":
@@ -958,6 +971,10 @@ class ProjectSpec(Strict):
                 for owner in (h.owner_in, h.owner_out):
                     if owner != "world" and owner not in placed:
                         raise ValueError(f"scene {sc.id}: unknown story prop owner {owner!r}")
+            if sc.world_power is not None:
+                for cue in sc.world_power.cues:
+                    etype, _, _ = parse_goal(cue.on)
+                    check_event(etype, f"scene {sc.id}: world power cue")
             if sc.restoration is not None:
                 if sc.restoration.prop not in props:
                     raise ValueError(f"scene {sc.id}: restoration prop {sc.restoration.prop!r} not in environment")
