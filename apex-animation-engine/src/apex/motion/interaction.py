@@ -204,6 +204,9 @@ class InteractionMixin:
             oc = self.others[other]
             side = 1.0 if self.s >= oc.s else -1.0
             dest = oc.s + side * 0.95 * self.stand_h * 0.85
+            if oc.posture == "supine":  # on his back he rises facing his feet: the hand is offered there, past them
+                side = float(oc.facing)
+                dest = oc.s + side * (0.95 * self.stand_h * 0.85 + 0.53 * oc.p_leg)
             if self._go(t, a, dest) or self._face(t, a, -side):
                 return
             I.update(other=other, phase="offer")

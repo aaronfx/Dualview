@@ -166,7 +166,7 @@
      "glyph": "0",
      "position": [
       -1300.0,
-      674.0
+      679.0
      ],
      "size": [
       34.0,
@@ -226,7 +226,7 @@
    ],
    "backdrop": {
     "kind": "city",
-    "seed": 37,
+    "seed": 23,
     "weather": "rain",
     "weather_amount": 1.3,
     "power": [
@@ -338,7 +338,7 @@
    ],
    "backdrop": {
     "kind": "tower",
-    "seed": 63,
+    "seed": 9,
     "weather": "rain",
     "weather_amount": 1.6,
     "lightning": true,
@@ -501,7 +501,7 @@
    ],
    "backdrop": {
     "kind": "canyon",
-    "seed": 67,
+    "seed": 26,
     "weather": "embers",
     "weather_amount": 0.9,
     "power": []
@@ -724,7 +724,7 @@
    ],
    "backdrop": {
     "kind": "void",
-    "seed": 41,
+    "seed": 23,
     "weather": "data",
     "weather_amount": 1.0,
     "power": [
@@ -834,7 +834,7 @@
    ],
    "backdrop": {
     "kind": "summit",
-    "seed": 56,
+    "seed": 61,
     "weather": "motes",
     "weather_amount": 1.0,
     "city_lights": true,
@@ -1485,7 +1485,7 @@
    "id": "tower",
    "title": "The tower",
    "environment": "tower",
-   "duration": 27.75,
+   "duration": 29.81,
    "transition_in": "warp",
    "placements": [
     {
@@ -1650,7 +1650,7 @@
      "character": "iko",
      "type": "act",
      "clip": "cheer",
-     "duration": 0.6,
+     "duration": 0.85,
      "emotion": "joyful"
     },
     {
@@ -1857,7 +1857,7 @@
       ]
      },
      "start": 11.98,
-     "end": 16.46
+     "end": 16.71
     },
     {
      "id": "b5_down",
@@ -1873,8 +1873,8 @@
        40
       ]
      },
-     "start": 16.46,
-     "end": 18.43
+     "start": 16.71,
+     "end": 20.34
     },
     {
      "id": "b6_hand",
@@ -1893,8 +1893,8 @@
        "char:pell"
       ]
      },
-     "start": 18.43,
-     "end": 23.23
+     "start": 20.34,
+     "end": 25.84
     },
     {
      "id": "b7_go",
@@ -1914,8 +1914,8 @@
        "char:pell"
       ]
      },
-     "start": 23.23,
-     "end": 27.75
+     "start": 25.84,
+     "end": 29.81
     }
    ],
    "time_fx": {

@@ -185,6 +185,9 @@ class CombatMixin:
             if st is not None:  # pushed back by a blocked strike
                 u = clamp((t - st[0]) / HURT_T["block"], 0.0, 1.0)
                 self.s = st[3] + st[1] * st[2] * (1.0 - (1.0 - u) ** 2.4)
+                if u >= 1.0:
+                    I["stun"] = None
+                    self._open("guard", t)  # set again, feet under the body where the recoil left it
             if (a.until and self._event_seen(a.until, t)) or (a.duration and tau >= a.duration) or (not a.until and not a.duration and tau >= 1.0):
                 self._next_action(t)
         elif a.type == "dodge":
@@ -285,7 +288,10 @@ class CombatMixin:
         if reaction == "block":
             self.emit(self._ev(t, "block_hit", {"by": by, "move": move, "point": point, "power": eff}))
             if self.cur is not None and self.cur.type == "guard":  # absorbed by the guard: recoil, keep guarding
-                self.inter["stun"] = (t, direction, 8.0 + 22.0 * eff, self.s)
+                dist = 8.0 + 22.0 * eff
+                self.inter["stun"] = (t, direction, dist, self.s)
+                # the recoil is a block reaction whose feet step back with the body; the guard resumes after it
+                self._open("hurt", t, react="block", dir=direction, dist=dist, part="body", dur=HURT_T["block"], s0=self.s, guard=True)
                 self.seg.data.setdefault("blocks", []).append(t)
                 return
             self._hurt(t, "block", direction, 8.0 + 22.0 * eff)
@@ -408,18 +414,18 @@ class CombatMixin:
         u = clamp(tau / T, 0.0, 1.0)
         fail = a.hesitate and not I.get("helper")  # tries alone and cannot: sits up, a hand planted, and slumps back
         helper = I.get("helper")
-        SIT = 0.36
+        SIT = 0.55  # up over the feet before the hands join (a sitting body is too low for a standing helper's hand)
         if fail:
             u = 0.4 * (_smooth(tau / 0.8) if tau < 0.8 else 1.0 - _smooth((tau - 0.8) / 0.7))
         elif helper:  # sits up, reaches for the offered hand, and is pulled up by it
             from .interaction import HELP_WAIT, OFFER_REACH_T
-            if I["phase"] == "up" and tau >= SIT * T:
+            if I["phase"] == "up" and tau >= SIT * T + 0.25:  # sat up, and the arm has come up to the offered hand
                 hc = self.others[helper]
                 if (getattr(hc, "inter", {}).get("phase") in ("offer", "pull") and hc.cur is not None and hc.cur.type == "offer_hand"
                         and t - hc.cur_t0 >= OFFER_REACH_T):
                     I.update(phase="pulled", tp=t)
                     self.seg.data["grab_t"] = t
-                    self.emit(self._ev(t, "hand_grab", {"with": helper}))
+                    self.emit(self._ev(t, "hand_grab", {"with": helper, "hold": 0.6}))
                 else:
                     I["wait"] = I.get("wait", 0.0) + dt
                     if I["wait"] > HELP_WAIT or not self._help_coming(helper):
@@ -427,7 +433,7 @@ class CombatMixin:
                         I.update(phase="pulled", tp=t, helper=None)
                         helper = None
             if I["phase"] == "pulled":
-                u = clamp(SIT + (t - I["tp"]) / 1.0 * (1.0 - SIT), 0.0, 1.0)
+                u = clamp(SIT + (t - I["tp"]) / 0.85 * (1.0 - SIT), 0.0, 1.0)
             else:
                 u = min(u, SIT)
         pl = self.p_leg

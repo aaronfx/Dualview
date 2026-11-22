@@ -65,7 +65,7 @@ def city(power=()):
            holder("plinth", CASE_X, TOP),
            dict(id="vent", kind="beam", center=[120.0, TOP - 50 + 30], size=[70.0, 60.0])]
     top = TOP + 56
-    props = [core(CASE_X, top + 18, solid=False),
+    props = [core(CASE_X, top + 23, solid=False),
              dict(id="case", kind="canister", position=[CASE_X, top + 32], size=[52.0, 64.0], mass=2.0, z=0.0, depth=40.0,
                   friction=0.5, breakable={"impulse": 260.0, "scatter": 160.0}, color="#bff8ff", material="glass"),
              dict(id="crate", kind="crate", position=[-860.0, TOP + 25], size=[50.0, 50.0], mass=3.0, z=0.0, depth=40.0,
@@ -150,7 +150,7 @@ def scene_tower():
         A(I, "run_to", target_x=-560, speed=400, lane=-20), A(I, "climb", target="obstacle:G2"),
         A(I, "run_to", target_x=300, speed=400), A(I, "jump_to", target_x=720, height=150, flip="front", onto="obstacle:G3"),
         A(I, "strike", target="char:vex", move="jab"), A(I, "strike", target="char:vex", move="cross"),
-        A(I, "strike", target="char:vex", move="side_kick", power=1.1), act(I, "cheer", 0.6, "joyful"),
+        A(I, "strike", target="char:vex", move="side_kick", power=1.1), act(I, "cheer", 0.85, "joyful"),
         A(I, "strike", target="char:vex", move="roundhouse", power=1.2),
         A(I, "wait_for", until="event:knockdown@iko"), A(I, "wait_for", until="event:settled@iko"),
         A(I, "get_up", hesitate=True),  # he tries alone and cannot

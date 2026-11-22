@@ -52,8 +52,8 @@ class CombatAnimMixin:
             d = p.spine + p.chest + p.neck + 0.5 * p.head - 4.0
         elif height == "body":
             d = 0.8 * p.spine
-        else:  # legs: the ankles, just above the floor (what a sweep takes out)
-            return rx - toward * 9.0, p.ankle_height + 8.0
+        else:  # legs: the ankles, just above the floor under him (what a sweep takes out), wherever that floor is
+            return rx - toward * 9.0, ry - (p.thigh + p.shin) + p.ankle_height + 8.0
         return rx + up[0] * d - toward * 9.0, ry + up[1] * d
 
     def _guard_arms(self, pose: Pose, w: float = 1.0, bob: float = 0.0) -> None:

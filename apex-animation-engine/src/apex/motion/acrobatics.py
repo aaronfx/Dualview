@@ -838,7 +838,7 @@ class AcroMixin:
             x, y = (float(v) for v in rid.split(","))
             return (x, y + half)
         ob = next(o for o in self.env.obstacles if o.id == rid)
-        return (ob.center[0], ob.center[1] + 0.5 * ob.size[1] + half + 1.0)
+        return (ob.center[0], ob.center[1] + 0.5 * ob.size[1] + half + 6.0)  # seated just clear of its top
 
     def _start_place(self, t: float, a: ActionSpec) -> None:
         if self.carrying is None:

@@ -54,9 +54,10 @@ class InteractionAnimMixin:
         """Shared hand-grab point between this character and `other` (both hands IK to it: they really touch)."""
         o = self.others[other]
         a, b = self.root_at(t), o.root_at(t)
-        F = self.frames["floor"]
         h = 0.5 * (self.stand_h + o.stand_h) * 0.95
-        return ((a[0] + b[0]) / 2, F.to_world(0.0, h)[1])
+        # above the surface they are on (a girder, a roof - not the world floor): the feet of whoever stands highest
+        feet = max(a[1] - self.stand_h, b[1] - o.stand_h)
+        return ((a[0] + b[0]) / 2, feet + h)
 
     def _held_grip(self, other: str, g: Vec, t: float, t_grab: float) -> Vec:
         """Once two hands have taken hold, both go to one grip point between the real shoulders (so they stay together
