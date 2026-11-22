@@ -265,6 +265,7 @@ class OrbSpec(Strict):
     radius: float = Field(20.0, gt=2, le=120)
     power: Optional[float] = Field(None, gt=0)  # jump/pad: apex height (default 130/170); boost: speed added (default 320)
     flip: Optional[Literal["front", "back"]] = None  # jump orb: the mid-air jump is a somersault
+    once: bool = False  # spent after one use (it bursts): a jump, boost or pad that does not re-arm
     color: Optional[str] = None
 
 

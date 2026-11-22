@@ -178,7 +178,7 @@ class ArcadeMixin:
         feet = self.frame.to_world(self.s, 0.0) if self.mode in ("grounded", "landing") else None
         from .controller import BODY_R
         for orb in self.env.orbs:
-            if orb.kind == "collect" and orb.id in self.arcade["taken"]:
+            if (orb.kind == "collect" or orb.once) and orb.id in self.arcade["taken"]:
                 continue
             if orb.kind == "pad":
                 if feet is None:
@@ -208,6 +208,8 @@ class ArcadeMixin:
                 continue  # a mid-air orb does nothing to a body on the ground
             if orb.kind == "pad" and self.mode not in ("grounded", "landing"):
                 continue
+            if orb.once:  # spent: it bursts as it is used
+                self.arcade["taken"][orb.id] = t
             if orb.kind == "boost":
                 d_ = 1.0 if (v0[0] if abs(v0[0]) > 1.0 else self.facing) > 0 else -1.0
                 v1 = (v0[0] + d_ * power, v0[1])

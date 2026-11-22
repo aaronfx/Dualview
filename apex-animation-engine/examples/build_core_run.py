@@ -167,23 +167,31 @@ def scene_tower():
             "actions": acts, "shots": [{"id": "wide", "start": 0, "end": 40.0, "camera": {"mode": "follow", "target": "iko", "view_height": 900}}]}
 
 
-# ------------------------------------------------------------------ 3. the canyon (sunset): the bridge, the pad, the drone
+# ------------------------------------------------------------------ 3. the canyon (sunset): the bridge, two crossings, the drone, the portal
 GAP = (-480.0, -40.0)
+LOG_X = 420.0
 
 
 def canyon():
     obs = [plat("A", -2000, GAP[0], style="rock"), plat("C", GAP[1], 2000, style="rock"),
            plat("bridge", GAP[0], GAP[1], thick=18.0, style="bridge", color="#9a6a44",
-                collapse={"at": 4.2, "pieces": 6, "color": "#9a6a44"})]
-    drone = {"id": "drone", "body": "0", "size": [80.0, 54.0], "position": [1150.0, TOP + 100], "mass": 5.0, "color": "#ff4a5a",
-             "z": 0.0, "breaks": 700.0, "stride": 60.0,
+                collapse={"on": "event:strike_prop@vex", "pieces": 6, "color": "#9a6a44"}),
+           ]
+    drone = {"id": "drone", "body": "0", "size": [80.0, 54.0], "position": [1350.0, TOP + 100], "mass": 5.0, "color": "#ff4a5a",
+             "z": 0.0, "breaks": 1500.0, "stride": 60.0,
              "parts": [{"glyph": "!", "size": [16.0, 60.0], "at": [-22.0, -16.0], "role": "leg", "phase": 0.0},
                        {"glyph": "!", "size": [16.0, 60.0], "at": [22.0, -16.0], "role": "leg", "phase": 3.14159},
                        {"glyph": "0", "size": [14.0, 14.0], "at": [-26.0, 8.0], "role": "eye", "mass": 0.2, "color": "#ffffff"}],
-             "path": [[7.0, 1150.0], [11.0, 520.0]]}
-    props = [glyph("x", "x", 340.0, TOP + 20, size=40.0, mass=5.0, color="#ffd84a")]
+             "path": [[12.0, 1350.0], [15.0, 980.0]]}
+    props = [core(-1100, TOP + 400),
+             glyph("anchor", "!", -20.0, TOP + 35, size=70.0, mass=2.5, color="#c08a5a"),  # the bridge's stake
+             dict(id="log", kind="crate", position=[LOG_X - 188.0, TOP + 179], size=[76.0, 34.0], mass=3.0, z=0.0, depth=60.0,
+                  color="#5a4a3a", collide_characters=False),  # held out to one side at the start: it swings across the path
+             glyph("x", "x", 760.0, TOP + 20, size=40.0, mass=5.0, color="#ffd84a")]
     w = world("canyon", "canyon", obs, props, weather="embers", amount=0.9, exits=[gate()])
-    w["orbs"] = [{"id": "pad", "kind": "pad", "center": [-600.0, TOP + 6], "radius": 34.0, "power": 560.0}]
+    w["ropes"] = [{"id": "chain", "a": "prop:log", "a_local": [0.0, 17.0], "b": f"world:{LOG_X},{TOP + 420}", "length": 293.0,
+                   "color": "#8a8a8a"}]
+    w["orbs"] = [{"id": "orb", "kind": "jump", "center": [-230.0, TOP + 290], "radius": 34.0, "power": 520.0, "flip": "front", "once": True}]
     w["creatures"] = [drone]
     return w
 
@@ -191,21 +199,33 @@ def canyon():
 def scene_canyon():
     I, P, V = "iko", "pell", "vex"
     acts = [
-        A(I, "run_to", target_x=-860, lane=-20), A(I, "wait_for", until="event:collapse@bridge"), act(I, "shock", 0.7, "scared"),
-        A(I, "run_to", target_x=300, speed=390, lane=0),  # over the launch pad and across the gap
-        A(I, "roll", distance=120), A(I, "pick_up", target="prop:x"), A(I, "throw", target="prop:drone.body", power=1.9),
-        act(I, "cheer", 1.0, "joyful"),
-        A(I, "run_to", target_x=1650, speed=360, lane=-35), A(I, "reach_exit", target="exit:gate", speed=320),
-        A(P, "run_to", target_x=-960, lane=20), A(P, "wait_for", until="event:roll_end@iko"),
-        A(P, "run_to", target_x=110, speed=380),
-        A(P, "wait_for", until="event:creature_break@drone"), act(P, "cheer", 1.2, "joyful"),
-        A(P, "run_to", target_x=1600, speed=340), A(P, "reach_exit", target="exit:gate", speed=300),
-        A(V, "run_to", target_x=760, speed=380, lane=40), A(V, "turn", face=-1), act(V, "laugh", 1.6, "joyful"),
-        A(V, "wait_for", until="event:creature_break@drone"), act(V, "shock", 0.8, "scared"), A(V, "turn", face=1),
-        A(V, "run_to", target_x=1700, speed=380), A(V, "reach_exit", target="exit:gate", speed=340)]
+        # VEX: over the bridge, kicks out its stake; sets the hanging beam swinging across the path; through the portal
+        A(V, "run_to", target_x=90, speed=360), A(V, "turn", face=-1),
+        A(V, "strike", target="prop:anchor", move="front_kick", power=1.0), act(V, "laugh", 0.8, "joyful"), A(V, "turn", face=1),
+        A(V, "run_to", target_x=LOG_X - 260, speed=380), A(V, "duck_slide", target_x=LOG_X + 290),
+        A(V, "run_to", target_x=1100, speed=380, lane=40), A(V, "jump_to", target_x=1600, height=200, flip="back", onto="obstacle:C"),
+        A(V, "run_to", target_x=1750, speed=380), A(V, "reach_exit", target="exit:gate", speed=340),
+        # IKO: the bridge falls in front of him; the launch pad, over the gap and the swinging beam; the drone
+        A(I, "run_to", target_x=-860, speed=400, lane=-20), A(I, "wait_for", until="event:collapse@bridge"), act(I, "shock", 0.6, "scared"),
+        act(I, "rise", 0.5, "determined", tempo=1.6), A(I, "run_to", target_x=-540, speed=420),
+        A(I, "jump_to", target_x=120, height=170, onto="obstacle:C"),  # the jump orb over the gap
+        A(I, "run_to", target_x=LOG_X - 300, speed=400), A(I, "roll", distance=560), A(I, "run_to", target_x=820, speed=420),
+        A(I, "strike", target="prop:drone.body", move="front_kick", power=0.35),  # it shrugs off the kick
+        A(I, "dodge", dodge="back"), A(I, "guard", until="event:throw@pell"),
+        A(I, "wait_for", until="event:creature_break@drone"), A(I, "roll", distance=200),
+        A(I, "run_to", target_x=1700, speed=400), A(I, "reach_exit", target="exit:gate", speed=320),
+        # PELL: the swing bar over the gap, a slide under the beam; the X that tears the drone apart
+        A(P, "run_to", target_x=-980, speed=340, lane=20), A(P, "wait_for", until="event:orb_jump@iko"),
+        A(P, "run_to", target_x=-570, speed=420), A(P, "jump", height=200),  # too short: he catches the far edge
+        A(P, "catch_ledge", target="obstacle:C"), A(P, "hang", duration=1.4),
+        A(P, "run_to", target_x=LOG_X - 260, speed=360), A(P, "duck_slide", target_x=LOG_X + 290), A(P, "run_to", target_x=700, speed=340),
+        A(P, "pick_up", target="prop:x"), A(P, "run_to", target_x=900, speed=300, lane=30),
+        A(P, "throw", target="prop:drone.body", power=1.9),
+        act(P, "cheer", 0.9, "joyful"),
+        A(P, "run_to", target_x=1650, speed=360), A(P, "reach_exit", target="exit:gate", speed=300)]
     return {"id": "canyon", "title": "The canyon", "environment": "canyon", "duration": 40.0, "transition_in": "warp",
             "placements": [{"character": I, "x": -1750, "on": "obstacle:A", "z": -10}, {"character": P, "x": -1880, "on": "obstacle:A", "z": 10},
-                           {"character": V, "x": -1100, "on": "obstacle:A"}],
+                           {"character": V, "x": -620, "on": "obstacle:A", "carrying": "prop:core"}],
             "actions": acts, "shots": [{"id": "wide", "start": 0, "end": 40.0, "camera": {"mode": "follow", "target": "iko", "view_height": 900}}]}
 
 
