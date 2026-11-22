@@ -37,7 +37,11 @@ def _snap(u: float) -> float:
 class CombatAnimMixin:
     # ------------------------------------------------------------ helpers
     def _target_point(self, other: str, t: float, height: str, toward: float) -> Vec:
-        """A point on the other character's body at time t (head / body / legs), on the side facing the attacker."""
+        """A point on the other character's body at time t (head / body / legs), on the side facing the attacker
+        (or, for a strike at a thing, the near side of that prop)."""
+        if other.startswith("prop:"):
+            x, y, _ = self.prop_at(other.split(":", 1)[1], t)
+            return x - toward * 14.0, y
         an = self.others[other]
         import numpy as np
         rx, ry = an.root_at(t)
@@ -280,7 +284,20 @@ class CombatAnimMixin:
                 pose.hands["n"] = "open"
             else:
                 set_arm(L, "n", 1.1 * smoothstep(-0.9, -0.3, tilt), 0.7)
-        else:  # rocking forward over the feet: arms forward for balance, then up toward guard as he steadies
+        if seg.data.get("helper") and tilt >= -0.75:  # reach up for the helping hand, then hold it as he is pulled up
+            helper, grab_t = seg.data["helper"], seg.data.get("grab_t")
+            g = self._link_point(helper, t)
+            if grab_t is None or t < grab_t:
+                sh = self.rig.world_joints(pose)["shoulder_n"]
+                reach = smoothstep(-0.75, -0.3, tilt)
+                tgt = (lerp(sh[0], g[0], reach), lerp(sh[1] + 10, g[1], reach))
+            else:
+                tgt = self._held_grip(helper, g, t, grab_t)
+            self.rig.arm_ik(pose, "n", tgt, fingertip=True)
+            pose.hands["n"] = "fist"
+            if tilt >= -0.2:
+                set_arm(L, "f", 0.6, 0.9)
+        elif tilt >= -0.2:  # rocking forward over the feet: arms forward for balance, then up toward guard as he steadies
             w = smoothstep(0.1, 0.45, tilt)
             g = up
             set_arm(L, "n", lerp(1.2, 1.3, g), lerp(0.5 + 0.9 * w, 1.9, g))

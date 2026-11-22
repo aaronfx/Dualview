@@ -646,8 +646,12 @@ class ActionSpec(Strict):
             raise ValueError("catch_ledge.target must be 'obstacle:<id>' (the top whose edge to catch)")
         if self.type == "pull_up" and not (self.target or "").startswith("char:"):
             raise ValueError("pull_up.target must be 'char:<id>' (the character hanging from the edge)")
-        if self.type in ("offer_hand", "gesture", "strike") and not (self.target or "").startswith("char:"):
+        if self.type in ("offer_hand", "gesture") and not (self.target or "").startswith("char:"):
             raise ValueError(f"{self.type}.target must be 'char:<id>'")
+        if self.type == "strike" and not (self.target or "").startswith(("char:", "prop:")):
+            raise ValueError("strike.target must be 'char:<id>' or 'prop:<id>' (a blow at a thing: smash it, kick it away)")
+        if self.type == "strike" and self.target.startswith("prop:") and self.move in ("swing_weapon", "flying_kick", "sweep"):
+            raise ValueError(f"strike at a prop: '{self.move}' is not supported (use a punch or a standing kick)")
         if self.until is not None and not self.until.startswith(("event:", "next:")):
             raise ValueError("until must be 'event:<type>[@<who>]' (any time, also before the action) or "
                              "'next:<type>[@<who>]' (only after the action starts, e.g. the next strike)")

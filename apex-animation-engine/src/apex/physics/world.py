@@ -65,6 +65,7 @@ class PhysicsWorld:
         self.events: List[ContactEvent] = []
         self._pending: List[ContactEvent] = []
         self.space.on_collision(None, None, begin=self._on_begin, post_solve=self._post_solve)
+        self._blows: List[Tuple[str, float, Vec]] = []
         self.step_impulse: Dict[str, Tuple[float, Vec, float]] = {}  # tag -> (contact impulse this step, main point, largest)
         self.inactive: set = set()  # bodies out of play: pieces before their prop breaks, a prop after it has broken
         self.collapsed: set = set()  # structures that have given way (Milestone 6)
@@ -568,9 +569,19 @@ class PhysicsWorld:
         self.space.reindex_shapes_for_body(body)
         return I0, moment
 
+    def blow(self, tag: str, impulse: Vec, point: Vec) -> None:
+        """A blow delivered by a character's strike (not a contact the solver sees): it moves the body and counts toward
+        breaking it in the next step."""
+        self.apply_impulse_at(tag, impulse, point)
+        self._blows.append((tag, math.hypot(*impulse), point))
+
     def step(self, dt: float) -> List[ContactEvent]:
         self._pending = []
         self.step_impulse = {}
+        for tag, j, p in getattr(self, "_blows", []):
+            j0, p0, jm = self.step_impulse.get(tag, (0.0, p, 0.0))
+            self.step_impulse[tag] = (j0 + j, p if j > jm else p0, max(jm, j))
+        self._blows = []
         self.space.step(dt)
         self.t += dt
         ev = [e for e in self._pending]

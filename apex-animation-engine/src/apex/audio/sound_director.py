@@ -344,7 +344,7 @@ DEFAULT_BINDINGS = {
     "stood_up": "resolve", "pinned": None, "load_off": None, "freed": None, "get_up_start": None, "hand_offered": None,
     "push_end": None, "push_fail": None, "lift_ok": None, "wave": None,
     # combat
-    "swing": "whoosh", "hit": "impact", "block_hit": "clang", "dodge": "whoosh", "strike_start": None, "hurt": None,
+    "swing": "whoosh", "hit": "impact", "strike_prop": "impact", "disarm": "clang", "place": "clang", "block_hit": "clang", "dodge": "whoosh", "strike_start": None, "hurt": None,
     "blocked": None, "whiff": None, "evaded": None, "knockdown": None, "settled": None,
     # acrobatics and symbols
     "flip": "whoosh", "roll_start": "slide", "roll_end": None, "vault": "tap", "vault_start": None, "ledge_grab": "clank",

@@ -50,6 +50,7 @@ MOVES: Dict[str, Dict[str, Any]] = {
                          weapon=True),
 }
 AIR_T = (0.7, 0.70)  # flying kick: takeoff at 0.7 x t_a, landing at this time (s)
+IMPULSE_PROP = 1200.0  # a power-1 blow on a thing (kg u/s): a punch shatters glass, a kick sends a crate flying
 HURT_T = {"flinch": 0.38, "stagger": 0.75, "block": 0.32}
 DUCK_T, DODGE_BACK_T = 0.55, 0.38
 
@@ -97,7 +98,26 @@ class CombatMixin:
             raise ValueError(f"{self.cid}: '{a.type}' is not possible while lying down (use get_up first)")
         self.inter = {"t0": t}
         I = self.inter
-        if a.type == "strike":
+        if a.type == "strike" and (a.target or "").startswith("prop:"):  # a blow at a thing (smash a glass case)
+            pid = a.target.split(":", 1)[1]
+            ps = self.frame.to_frame(self.world.state(pid).pos)[0]
+            sp = self.props[pid]
+            d = ps - self.s
+            direction = 1.0 if d >= 0 else -1.0
+            want = 0.5 * sp.size[0] + 0.75 * self._strike_reach(a.move)
+            if abs(abs(d) - want) > 10.0:
+                if self._go(t, a, ps - direction * want):
+                    return
+            if self._face(t, a, direction):
+                return
+            m = MOVES[a.move]
+            other = "prop:" + pid
+            I.update(other=other, move=a.move, dir=direction, s0=self.s, resolved=False, prop=pid)
+            self._open("strike", t, move=a.move, other=other, dir=direction, t_a=m["t_a"], t_c=m["t_c"], dur=m["dur"],
+                       limb=m["limb"], height=m["height"], weapon=None)
+            self.emit(self._ev(t, "strike_start", {"move": a.move, "target": other}))
+            self.emit(self._ev(t + m["t_a"], "swing", {"move": a.move, "target": other}))
+        elif a.type == "strike":
             other = self._pid(a.target)
             oc = self.others[other]
             d = oc.s - self.s
@@ -201,6 +221,27 @@ class CombatMixin:
 
     def _resolve_strike(self, t: float, a: ActionSpec, m: Dict[str, Any]) -> None:
         I = self.inter
+        if I.get("prop"):  # the fist / foot meets the thing: a blow along the strike, through the contact point
+            pid = I["prop"]
+            st = self.world.state(pid)
+            sp = self.props[pid]
+            direction = I["dir"]
+            ps = self.frame.to_frame(st.pos)[0]
+            gap = (ps - self.s) * direction - 0.5 * sp.size[0]
+            eff = a.power * m["power"] * (self.strength / 45000.0)
+            h = {"head": self.stand_h * 0.95, "body": self.stand_h * 0.7}.get(m["height"], 14.0)
+            point = self.frame.to_world(ps - direction * 0.5 * sp.size[0], min(h, self.frame.to_frame(st.pos)[1] + 0.4 * sp.size[1]))
+            data = {"move": I["move"], "target": "prop:" + pid, "point": point, "dir": direction, "power": round(eff, 3)}
+            if gap > self._strike_reach(I["move"]) or gap < -0.5 * sp.size[0]:
+                self.emit(self._ev(t, "whiff", data))
+                return
+            J = IMPULSE_PROP * eff
+            tan = self.frame.tangent
+            loft = 0.15 if m["height"] == "legs" else 0.45  # a kick under it lifts it into the air
+            self.world.blow(pid, (tan[0] * direction * J, tan[1] * direction * J + loft * J), point)
+            data["impulse"] = round(J, 1)
+            self.emit(self._ev(t, "strike_prop", data))
+            return
         oc = self.others[I["other"]]
         direction = I["dir"]
         dx = (oc.s - self.s) * direction
@@ -365,6 +406,30 @@ class CombatMixin:
         tau = t - self.cur_t0
         T = 1.5
         u = clamp(tau / T, 0.0, 1.0)
+        fail = a.hesitate and not I.get("helper")  # tries alone and cannot: sits up, a hand planted, and slumps back
+        helper = I.get("helper")
+        SIT = 0.36
+        if fail:
+            u = 0.4 * (_smooth(tau / 0.8) if tau < 0.8 else 1.0 - _smooth((tau - 0.8) / 0.7))
+        elif helper:  # sits up, reaches for the offered hand, and is pulled up by it
+            from .interaction import HELP_WAIT, OFFER_REACH_T
+            if I["phase"] == "up" and tau >= SIT * T:
+                hc = self.others[helper]
+                if (getattr(hc, "inter", {}).get("phase") in ("offer", "pull") and hc.cur is not None and hc.cur.type == "offer_hand"
+                        and t - hc.cur_t0 >= OFFER_REACH_T):
+                    I.update(phase="pulled", tp=t)
+                    self.seg.data["grab_t"] = t
+                    self.emit(self._ev(t, "hand_grab", {"with": helper}))
+                else:
+                    I["wait"] = I.get("wait", 0.0) + dt
+                    if I["wait"] > HELP_WAIT or not self._help_coming(helper):
+                        self.emit(self._ev(t, "help_missed", {"helper": helper, "waited": round(I["wait"], 2)}))
+                        I.update(phase="pulled", tp=t, helper=None)
+                        helper = None
+            if I["phase"] == "pulled":
+                u = clamp(SIT + (t - I["tp"]) / 1.0 * (1.0 - SIT), 0.0, 1.0)
+            else:
+                u = min(u, SIT)
         pl = self.p_leg
         # uneven timing: a quick sit-up with momentum, a beat while a hand plants, the weight rocks forward over the
         # feet, the rise, then a small overshoot as the body steadies itself
@@ -383,9 +448,16 @@ class CombatMixin:
         self.h = interp(h_keys)
         self.s = I["s0"] + self.facing * interp(fwd_keys)
         self._place(t)
+        if fail and tau >= 1.5:
+            self.body_tilt, self.h = -math.pi / 2, LIE_H
+            self.emit(self._ev(t, "get_up_failed", {"from": "back"}))
+            self._open("supine", t)
+            self._next_action(t)
+            return
         if u >= 1.0:
             self.posture, self.body_tilt, self.h = "stand", 0.0, self.stand_h
             self.world.set_solid_to_props(self.cid, False)
             self.knocked = False
-            self.emit(self._ev(t, "stood_up", {"helper": None, "from": "back"}))
+            self.inter["phase"] = "done"
+            self.emit(self._ev(t, "stood_up", {"helper": helper, "from": "back"}))
             self._next_action(t)

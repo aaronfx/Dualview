@@ -46,100 +46,124 @@ def gate(s=TOP + 130):
 A = lambda cid, typ, **kw: dict(character=cid, type=typ, **kw)  # noqa: E731
 
 
-# ------------------------------------------------------------------ 1. the ambush (city rooftops, night, rain)
-def city():
+def core(x, y, **kw):
+    """The energy core that keeps the world lit (an energy glyph; set dressing until someone takes it)."""
+    return glyph("core", "0", x, y, size=34.0, mass=2.0, color="#7dfcff", energy=True, **kw)
+
+
+def holder(id_, x, top, h=56.0):
+    return dict(id=id_, kind="beam", center=[x, top + h / 2], size=[56.0, h], style="pedestal")
+
+
+# ------------------------------------------------------------------ 1. the theft and the rooftop pursuit (night, rain)
+CASE_X = -1300.0
+
+
+def city(power=()):
     obs = [plat("R1", -2000, -700, style="roof"), plat("R2", -480, 640, top=TOP - 50, style="roof"),
            plat("R3", 860, 2000, style="roof"),
+           holder("plinth", CASE_X, TOP),
            dict(id="vent", kind="beam", center=[120.0, TOP - 50 + 30], size=[70.0, 60.0])]
-    props = [glyph("bar", "-", -980, TOP + 8, size=70.0, mass=4.5, color="#59e3ff"),
-             glyph("x", "x", 360, TOP - 50 + 25, size=50.0, mass=5.0, color="#ffd84a"),
-             glass("case", 430, TOP - 50), glass("case2", 474, TOP - 50, w=34, h=70)]
-    return world("city", "city", obs, props, weather="rain", amount=1.3, exits=[gate()])
+    top = TOP + 56
+    props = [core(CASE_X, top + 18, solid=False),
+             dict(id="case", kind="canister", position=[CASE_X, top + 32], size=[52.0, 64.0], mass=2.0, z=0.0, depth=40.0,
+                  friction=0.5, breakable={"impulse": 260.0, "scatter": 160.0}, color="#9ff4ff"),
+             dict(id="crate", kind="crate", position=[-860.0, TOP + 25], size=[50.0, 50.0], mass=3.0, z=0.0, depth=40.0,
+                  breakable={"impulse": 3200.0, "grid": 2}, color="#8a6a3a")]
+    return world("city", "city", obs, props, weather="rain", amount=1.3, exits=[gate()], power=list(power))
 
 
 def scene_city():
     I, P, V = "iko", "pell", "vex"
     acts = [
-        # the two race across the roof, laughing
-        A(I, "run_to", target_x=-1350, lane=-20), A(I, "wait_for", until="event:throw_start@vex"),
-        A(I, "dodge", dodge="duck"),
-        A(I, "run_to", target_x=-1060), A(I, "guard", duration=0.3),
-        A(I, "strike", target="char:vex", move="jab"), A(I, "strike", target="char:vex", move="cross"),
-        A(I, "wait_for", until="next:strike_start@vex"), A(I, "dodge", dodge="back"),
-        A(I, "run_to", target_x=-760), A(I, "jump_to", target_x=-400, height=130, flip="front", onto="obstacle:R2"),
-        A(I, "run_to", target_x=40), A(I, "vault", target="obstacle:vent"),
-        A(I, "run_to", target_x=560), act(I, "recover_relief_shake", 0.9, "determined"),
-        A(I, "wait_for", until="next:takeoff@vex"), A(I, "run_to", target_x=600),
-        A(I, "jump_to", target_x=1080, height=150, onto="obstacle:R3"),
-        A(I, "roll", distance=240),
-        A(I, "run_to", target_x=1700), A(I, "reach_exit", target="exit:gate", speed=300),
-        A(P, "run_to", target_x=-1480, lane=20), A(P, "wait_for", until="event:throw_start@vex"),
-        act(P, "shock", 1.2, "scared"), A(P, "wait_for", until="event:turn@vex"),
-        A(P, "run_to", target_x=-800), A(P, "wait_for", until="event:impact@iko"),
-        A(P, "run_to", target_x=-760), A(P, "jump_to", target_x=-330, height=110, onto="obstacle:R2"),
-        act(P, "lose_balance", 0.8, "scared"), A(P, "wait_for", until="event:knockdown@iko"),
-        act(P, "shock", 0.8, "scared"),
-        A(P, "run_to", target_x=-60), A(P, "jump_to", target_x=260, height=140, onto="obstacle:R2"),
-        A(P, "run_to", target_x=580), A(P, "jump_to", target_x=1020, height=140, onto="obstacle:R3"),
-        A(P, "run_to", target_x=1650), A(P, "reach_exit", target="exit:gate", speed=280),
-        # VEX: waiting with a bar; the throw, the brawl, then away across the roofs
-        A(V, "pick_up", target="prop:bar"), A(V, "look_at", target="char:iko", duration=1.2),
-        A(V, "throw", target="char:iko", power=1.1),
-        A(V, "guard", until="next:strike_start@iko"), A(V, "guard", duration=0.9),
-        A(V, "strike", target="char:iko", move="roundhouse", power=1.1),
-        A(V, "turn", face=1), A(V, "run_to", target_x=-760),
-        A(V, "jump_to", target_x=-150, height=150, flip="front", onto="obstacle:R2"),
-        A(V, "run_to", target_x=40), A(V, "vault", target="obstacle:vent"),
-        A(V, "pick_up", target="prop:x"), A(V, "throw", target="char:iko", power=0.9),
-        A(V, "turn", face=1), A(V, "run_to", target_x=600, lane=-45), A(V, "jump_to", target_x=1150, height=160, flip="back", onto="obstacle:R3"),
-        A(V, "run_to", target_x=1760), A(V, "reach_exit", target="exit:gate", speed=320)]
-    return {"id": "city", "title": "Ambush", "environment": "city", "duration": 40.0, "transition_in": "fade",
-            "placements": [{"character": I, "x": -1850, "on": "obstacle:R1", "z": -10}, {"character": P, "x": -1960, "on": "obstacle:R1", "z": 10},
-                           {"character": V, "x": -900, "on": "obstacle:R1", "facing": -1}],
+        # VEX: the theft, a look back at them with the core, away over the roofs; a crate kicked into their path
+        A(V, "walk_to", target_x=CASE_X + 70), A(V, "strike", target="prop:case", move="cross", power=1.2),
+        A(V, "pick_up", target="prop:core"), A(V, "turn", face=-1), A(V, "look_at", target="char:iko", duration=1.0),
+        act(V, "laugh", 0.9, "joyful"), A(V, "turn", face=1), A(V, "run_to", target_x=-775, speed=330, lane=46),
+        A(V, "walk_to", target_x=-790, lane=0), A(V, "turn", face=-1),
+        A(V, "strike", target="prop:crate", move="front_kick", power=1.3),
+        A(V, "turn", face=1), A(V, "run_to", target_x=-760, speed=360),
+        A(V, "jump_to", target_x=-260, height=140, flip="front", onto="obstacle:R2"),
+        A(V, "run_to", target_x=40), A(V, "vault", target="obstacle:vent"), A(V, "run_to", target_x=580),
+        A(V, "jump_to", target_x=1000, height=150, onto="obstacle:R3"), A(V, "run_to", target_x=1180),
+        A(V, "turn", face=-1), A(V, "wait_for", until="next:strike_start@iko"), A(V, "dodge", dodge="back"),
+        A(V, "strike", target="char:iko", move="front_kick", power=1.0, reaction="stagger", distance=56),
+        act(V, "laugh", 0.8, "joyful"), A(V, "turn", face=1),
+        A(V, "run_to", target_x=1700, speed=360), A(V, "reach_exit", target="exit:gate", speed=340),
+        # IKO: sees it, goes straight after him; the vent, the gap, the flip over the tank, the flying kick that fails
+        A(I, "wait_for", until="event:break@case"), act(I, "shock", 0.7, "scared"),
+        A(I, "wait_for", until="event:act@vex[clip=laugh]"), act(I, "rise", 0.5, "determined", tempo=1.6),
+        A(I, "run_to", target_x=CASE_X - 140, speed=380, lane=-20), A(I, "vault", target="obstacle:plinth"),
+        A(I, "run_to", target_x=-1060, speed=380),
+        A(I, "wait_for", until="event:strike_prop@vex[move=front_kick]"), A(I, "dodge", dodge="duck"),
+        A(I, "run_to", target_x=-760, speed=400), A(I, "jump_to", target_x=-380, height=130, onto="obstacle:R2"),
+        A(I, "run_to", target_x=30), A(I, "vault", target="obstacle:vent"),
+        A(I, "run_to", target_x=600), A(I, "jump_to", target_x=1000, height=150, flip="front", onto="obstacle:R3"),
+        A(I, "strike", target="char:vex", move="flying_kick", power=1.3, distance=175),  # too far: reckless
+        A(I, "wait_for", until="event:hurt@iko"), act(I, "lose_balance", 0.9, "scared"),
+        A(I, "wait_for", until="event:hand_offered@pell"), act(I, "wave_on", 0.9, "determined"), A(I, "turn", face=1),
+        A(I, "run_to", target_x=1700, speed=380), A(I, "reach_exit", target="exit:gate", speed=320),
+        # PELL: startled, behind, the safe way round; reaches IKO at the edge and is waved on
+        A(P, "wait_for", until="event:break@case"), act(P, "shock", 1.1, "scared"),
+        A(P, "run_to", target_x=CASE_X - 150, speed=330, lane=24), A(P, "vault", target="obstacle:plinth"),
+        A(P, "run_to", target_x=-1120, speed=330),
+        A(P, "wait_for", until="event:strike_prop@vex[move=front_kick]"), A(P, "roll", distance=150),
+        A(P, "run_to", target_x=-760, speed=340), A(P, "jump_to", target_x=-360, height=110, onto="obstacle:R2"),
+        A(P, "run_to", target_x=-40, lane=30), A(P, "jump_to", target_x=260, height=140, onto="obstacle:R2"),
+        A(P, "run_to", target_x=580), A(P, "jump_to", target_x=920, height=130, onto="obstacle:R3"),
+        A(P, "offer_hand", target="char:iko"), A(P, "wait_for", until="event:act@iko[clip=wave_on]"),
+        A(P, "run_to", target_x=1650, speed=330), A(P, "reach_exit", target="exit:gate", speed=280)]
+    return {"id": "city", "title": "The theft", "environment": "city", "duration": 40.0, "transition_in": "fade",
+            "placements": [{"character": I, "x": -1820, "on": "obstacle:R1", "z": -10, "facing": -1},
+                           {"character": P, "x": -1930, "on": "obstacle:R1", "z": 10, "facing": -1},
+                           {"character": V, "x": -1000, "on": "obstacle:R1", "facing": -1, "z": 0}],
             "hud": {"messages": [{"text": "CORE RUN", "at": 0.6, "duration": 2.6, "style": "title"}]},
             "actions": acts, "shots": [{"id": "wide", "start": 0, "end": 40.0, "camera": {"mode": "follow", "target": "iko", "view_height": 900}}]}
 
 
-# ------------------------------------------------------------------ 2. the tower (storm, steel scaffolding)
+# ------------------------------------------------------------------ 2. the storm tower: the climb, the girder fight, the fall, the hand
+UP = TOP + 190
+
+
 def tower():
-    up = TOP + 190
-    obs = [plat("G1", -2000, -480, style="girder"), plat("G2", -460, 360, top=up, style="girder"),
-           plat("G3", 600, 2000, top=up, style="girder")]
-    props = [dict(id="crate", kind="crate", position=[1180.0, up + 35], size=[70.0, 70.0], mass=6.0, z=10.0, depth=40.0,
-                  breakable={"impulse": 900.0, "grid": 2}, color="#8a6a3a"),
-             dict(id="crate2", kind="crate", position=[1250.0, up + 30], size=[60.0, 60.0], mass=5.0, z=10.0, depth=40.0,
-                  breakable={"impulse": 900.0, "grid": 2}, color="#7a5a32")]
-    return world("tower", "tower", obs, props, weather="rain", amount=1.6, lightning=True, exits=[gate(s=up + 130)])
+    obs = [plat("G1", -2000, -480, style="girder"), plat("G2", -460, 360, top=UP, style="girder"),
+           plat("G3", 600, 2000, top=UP, style="girder")]
+    return world("tower", "tower", obs, [core(-1100, UP + 400)], weather="rain", amount=1.6, lightning=True, exits=[gate(s=UP + 130)])
 
 
 def scene_tower():
     I, P, V = "iko", "pell", "vex"
     acts = [
-        A(I, "run_to", target_x=-560), A(I, "climb", target="obstacle:G2"),
-        A(I, "run_to", target_x=300), A(I, "jump_to", target_x=820, height=140, flip="front", onto="obstacle:G3"),
-        A(I, "guard", duration=0.25), A(I, "strike", target="char:vex", move="jab"), A(I, "strike", target="char:vex", move="cross"),
-        A(I, "wait_for", until="next:strike_start@vex"), A(I, "dodge", dodge="back"),
-        A(I, "strike", target="char:vex", move="roundhouse", power=1.1),  # VEX goes flying into the crates
-        act(I, "cheer", 1.4, "joyful"), A(I, "turn", face=-1), act(I, "laugh", 2.4, "joyful"),  # too soon
-        A(I, "wait_for", until="event:knockdown@iko"), A(I, "get_up", target="char:pell"),
-        A(I, "run_to", target_x=1700), A(I, "reach_exit", target="exit:gate", speed=300),
-        A(P, "idle", duration=0.8, lane=36), A(P, "run_to", target_x=-570), A(P, "climb", target="obstacle:G2"),
-        A(P, "run_to", target_x=300), A(P, "jump_to", target_x=760, height=120, onto="obstacle:G3"),
-        A(P, "wait_for", until="event:knockdown@iko"), act(P, "shock", 0.7, "scared"),
-        A(P, "offer_hand", target="char:iko"),
-        A(P, "run_to", target_x=1650), A(P, "reach_exit", target="exit:gate", speed=280),
-        A(V, "run_to", target_x=-570, lane=32), A(V, "climb", target="obstacle:G2"),
-        A(V, "run_to", target_x=300, lane=0), A(V, "jump_to", target_x=1000, height=150, flip="back", onto="obstacle:G3"),
-        A(V, "turn", face=-1), A(V, "guard", until="next:strike_start@iko"), A(V, "guard", duration=0.7),
-        A(V, "strike", target="char:iko", move="hook", power=0.9),
-        A(V, "guard", until="next:strike_start@iko"),
-        A(V, "wait_for", until="event:knockdown@vex"), A(V, "get_up"),  # up out of the wreckage, behind IKO's back
-        A(V, "strike", target="char:iko", move="hook", power=1.4, reaction="knockdown"),
-        act(V, "laugh", 1.0, "joyful"), A(V, "turn", face=1),
-        A(V, "run_to", target_x=1700), A(V, "reach_exit", target="exit:gate", speed=320)]
+        # VEX: leaps the girders with the core, lets IKO come, gives ground, then turns his rush into a sweep
+        A(V, "run_to", target_x=-640, speed=360), A(V, "jump_to", target_x=-300, height=290, flip="back", onto="obstacle:G2"),
+        A(V, "run_to", target_x=260, speed=360), A(V, "jump_to", target_x=760, height=150, onto="obstacle:G3"),
+        A(V, "turn", face=-1), A(V, "guard", until="event:act@iko[clip=cheer]"),  # takes the combo on the guard, giving ground
+        A(V, "wait_for", until="next:strike_start@iko"), A(V, "dodge", dodge="back"),
+        A(V, "strike", target="char:iko", move="sweep", power=1.2, reaction="knockdown", distance=62),
+        act(V, "peer_down", 1.2, "joyful"), act(V, "laugh", 0.9, "joyful"), A(V, "turn", face=1),
+        A(V, "run_to", target_x=1700, speed=360), A(V, "reach_exit", target="exit:gate", speed=340),
+        # IKO: up the girders, catches him, drives him back - and is swept off the girder
+        A(I, "run_to", target_x=-560, speed=400, lane=-20), A(I, "climb", target="obstacle:G2"),
+        A(I, "run_to", target_x=300, speed=400), A(I, "jump_to", target_x=640, height=140, flip="front", onto="obstacle:G3"),
+        A(I, "strike", target="char:vex", move="jab"), A(I, "strike", target="char:vex", move="cross"),
+        A(I, "strike", target="char:vex", move="side_kick", power=1.1), act(I, "cheer", 0.6, "joyful"),
+        A(I, "strike", target="char:vex", move="roundhouse", power=1.2),
+        A(I, "wait_for", until="event:knockdown@iko"), A(I, "wait_for", until="event:settled@iko"),
+        A(I, "get_up", hesitate=True),  # he tries alone and cannot
+        A(I, "wait_for", until="event:hand_offered@pell"), A(I, "get_up", target="char:pell"),
+        A(I, "look_at", target="exit:gate", duration=0.8),
+        A(I, "wait_for", until="event:point@pell"), act(I, "rise", 0.5, "determined", tempo=1.6),
+        A(I, "run_to", target_x=1700, speed=380), A(I, "reach_exit", target="exit:gate", speed=320),
+        # PELL: the long way round, down to the catwalk; the hand, then the way back up
+        A(P, "run_to", target_x=-570, speed=340, lane=26), A(P, "climb", target="obstacle:G2"),
+        A(P, "run_to", target_x=300, speed=340), A(P, "wait_for", until="event:knockdown@iko"), act(P, "shock", 0.6, "scared"),
+        A(P, "jump_to", target_x=630, height=120, onto="obstacle:G3"),
+        A(P, "wait_for", until="event:get_up_failed@iko"), A(P, "offer_hand", target="char:iko"),
+        A(P, "point", target="exit:gate", duration=0.9),
+        A(P, "run_to", target_x=1650, speed=340), A(P, "reach_exit", target="exit:gate", speed=300)]
     return {"id": "tower", "title": "The tower", "environment": "tower", "duration": 40.0, "transition_in": "warp",
-            "placements": [{"character": I, "x": -1500, "on": "obstacle:G1", "z": -10}, {"character": P, "x": -1650, "on": "obstacle:G1", "z": 10},
-                           {"character": V, "x": -1050, "on": "obstacle:G1"}],
+            "placements": [{"character": I, "x": -1500, "on": "obstacle:G1", "z": -10}, {"character": P, "x": -1680, "on": "obstacle:G1", "z": 10},
+                           {"character": V, "x": -1100, "on": "obstacle:G1", "carrying": "prop:core"}],
             "actions": acts, "shots": [{"id": "wide", "start": 0, "end": 40.0, "camera": {"mode": "follow", "target": "iko", "view_height": 900}}]}
 
 

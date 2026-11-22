@@ -196,8 +196,6 @@ class InteractionMixin:
             I.update(phase="wait", prop=self.pinned_by)
         elif a.type == "get_up":
             helper = self._pid(a.target) if a.target else None
-            if self.posture == "supine":
-                helper = None  # getting up from the back is unassisted
             I.update(phase="up", helper=helper, s0=self.s)
             self._open("getup", t, helper=helper, assisted=helper is not None, back=self.posture == "supine", s0=self.s)
             self.emit(self._ev(t, "get_up_start", {"helper": helper}))
@@ -430,7 +428,11 @@ class InteractionMixin:
                     self.emit(self._ev(t, "help_missed", {"helper": helper, "waited": round(I["wait"], 2)}))
                     I.update(helper=None, solo_t0=t - 0.75)
                     helper = None
-        if helper and I["phase"] == "pulled":
+        fail = a.hesitate and not helper  # tries alone and cannot: up onto the hands and knees, then sinks back down
+        if fail:
+            up_t, dn_t = 0.9, 0.75
+            k = 0.5 * GETUP_T * (_smooth(tau / up_t) if tau < up_t else 1.0 - _smooth((tau - up_t) / dn_t))
+        elif helper and I["phase"] == "pulled":
             k = clamp(0.75 + (t - I["tp"]) * (GETUP_T - 0.75) / 0.85, 0.0, GETUP_T)
         elif helper:
             k = min(tau, 0.75)
@@ -455,6 +457,13 @@ class InteractionMixin:
         self.s = I["s0"] - self.facing * interp(back_keys)
         self.seg.data["u_rec"] = True
         self._place(t)
+        if fail and tau >= up_t + dn_t:
+            self.body_tilt, self.h = math.pi / 2, LIE_H
+            self.inter["phase"] = "done"
+            self.emit(self._ev(t, "get_up_failed", {}))
+            self._open("prone", t)
+            self._next_action(t)
+            return
         if u >= 1.0:
             self.posture, self.body_tilt, self.h = "stand", 0.0, self.stand_h
             self.world.set_solid_to_props(self.cid, False)
