@@ -482,7 +482,7 @@ class SceneRuntime:
                 slow = math.hypot(*st.vel) <= restoration.max_speed
                 free = not world.is_kinematic(pid) and pid not in world.carried
                 settled_steps = settled_steps + 1 if released and free and near and slow else 0
-                if settled_steps >= 8:  # remain in the socket for at least eight physics steps
+                if settled_steps >= max(8, int(round(0.12 / dt))):  # rest near the socket for >= 0.12 s
                     restored = True
                     events.append(Event(t + dt, "core_restored", pid,
                                         {"prop": pid, "point": st.pos, "socket": restoration.at}))
