@@ -276,6 +276,8 @@ class CombatMixin:
         from ..rig.stickman import Pose, base_pose, set_arm, set_lean
         from .ragdoll import Ragdoll
         import pymunk
+        if getattr(self, "carrying", None) is not None:  # whatever was in the hands flies loose
+            self._release_carry(t, (direction * 160.0, 180.0), -direction * 6.0, why="drop")
         L = base_pose()
         set_lean(L, -0.12 if part != "legs" else 0.05, head=0.15)
         set_arm(L, "n", 0.9, 1.4)

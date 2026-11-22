@@ -67,6 +67,8 @@ class World:
         self.horizon = self.bd.horizon if self.bd.horizon is not None else self.level - 900.0
         self.rng = np.random.default_rng(self.bd.seed)
         self.layers: List[Tuple[float, skia.Picture]] = []  # (depth, picture), far first
+        self.lights: Dict[int, Tuple[list, skia.Picture]] = {}  # layer index -> (light chunks, beacons): drawn by power
+        self.t_sim = 0.0  # scene time (power cues are placed on the simulation clock)
         self._build()
         self._facades: Dict[str, skia.Picture] = {}
 
@@ -89,58 +91,107 @@ class World:
         getattr(self, "_build_" + self.kind)()
 
     def _build_city(self) -> None:
-        rng = self.rng
         for z, hmin, hmax, wmin, wmax, base, win, signs in ((14000, 900, 3200, 260, 700, (18, 14, 38), 0.05, 0),
                                                               (6500, 700, 2600, 200, 520, (12, 10, 26), 0.12, 6),
                                                               (2600, 200, 1300, 160, 380, (8, 8, 16), 0.18, 10)):
-            x0, x1 = self._span(z)
-            hz = self.horizon - 0.15 * z
-            blds = []
-            x = x0
-            while x < x1:
-                w = rng.uniform(wmin, wmax)
-                h = rng.uniform(hmin, hmax) * (1.0 + 0.6 * rng.random() ** 4)
-                blds.append((x, w, h, rng.integers(1 << 30)))
-                x += w + rng.uniform(-0.1, 0.25) * w
-            col_b = self._haze(base, z)
-            def draw(c, blds=blds, hz=hz, col_b=col_b, z=z, win=win, signs=signs):
-                body = skia.Paint(AntiAlias=True, Color=_c(col_b))
-                for bx, bw, bh, s in blds:
-                    rr = np.random.default_rng(int(s))
-                    top = hz + bh
-                    c.drawRect(skia.Rect(bx, -top, bx + bw, -(hz - 6000)), body)
-                    step = rr.uniform(0.0, 1.0)
-                    if step < 0.3:  # stepped crown
-                        c.drawRect(skia.Rect(bx + bw * 0.2, -(top + bh * 0.08), bx + bw * 0.8, -top), body)
-                    if step > 0.75:  # antenna with a red light
-                        ax = bx + bw * rr.uniform(0.3, 0.7)
-                        c.drawRect(skia.Rect(ax - 4, -(top + 260), ax + 4, -top), body)
-                        c.drawCircle(ax, -(top + 265), 14, skia.Paint(AntiAlias=True, Color=_c((255, 60, 60), 0.9)))
-                        c.drawCircle(ax, -(top + 265), 60, skia.Paint(AntiAlias=True, Color=_c((255, 60, 60), 0.12)))
-                    # windows
-                    wx, wy = max(26.0, bw / rr.integers(6, 14)), 46.0
-                    nx, ny = int(bw / wx), int(min(bh, 3000) / wy)
-                    lit = rr.random((ny, nx)) < win * rr.uniform(0.5, 2.0)
-                    warm = rr.random() < 0.6
-                    wc = (255, 196, 120) if warm else (150, 220, 255)
-                    p = skia.Paint(AntiAlias=False, Color=_c(self._haze(wc, z, 30000), 0.85))
-                    for j in range(ny):
-                        for i in range(nx):
-                            if lit[j, i]:
-                                xx, yy = bx + (i + 0.25) * wx, top - (j + 1) * wy
-                                c.drawRect(skia.Rect(xx, -yy, xx + wx * 0.5, -yy + wy * 0.45), p)
-                # neon signs on some buildings
-                for _ in range(signs):
-                    bx, bw, bh, s = blds[int(rng.integers(len(blds)))]
-                    acc = self.accents[int(rng.integers(len(self.accents)))]
-                    sw, sh = rng.uniform(0.35, 0.8) * bw, rng.uniform(50, 140)
-                    sx, sy = bx + rng.uniform(0.05, 0.3) * bw, hz + bh * rng.uniform(0.35, 0.85)
-                    glow = skia.Paint(AntiAlias=True, Color=_c(acc, 0.22), MaskFilter=skia.MaskFilter.MakeBlur(skia.kNormal_BlurStyle, 40))
-                    c.drawRect(skia.Rect(sx - 30, -(sy + sh + 30), sx + sw + 30, -(sy - 30)), glow)
-                    c.drawRect(skia.Rect(sx, -(sy + sh), sx + sw, -sy), skia.Paint(AntiAlias=True, Color=_c(acc, 0.85)))
-                    c.drawRect(skia.Rect(sx + 8, -(sy + sh - 8), sx + sw - 8, -(sy + 8)), skia.Paint(AntiAlias=True, Color=_c(_mix(acc, (255, 255, 255), 0.5), 0.9),
-                                                                                              Style=skia.Paint.kStroke_Style, StrokeWidth=5))
-            self._rec(z, draw)
+            self._city_layer(z, hmin, hmax, wmin, wmax, base, win, signs, self.horizon - 0.15 * z)
+
+    def _city_layer(self, z, hmin, hmax, wmin, wmax, base, win, signs, hz) -> None:
+        """One depth of skyline: the buildings (always drawn), and their lights (windows and neon signs, recorded in
+        chunks along x so a power change can sweep across the city) and red beacons, drawn by `backdrop` by power."""
+        rng = self.rng
+        x0, x1 = self._span(z)
+        blds = []
+        x = x0
+        while x < x1:
+            w = rng.uniform(wmin, wmax)
+            h = rng.uniform(hmin, hmax) * (1.0 + 0.6 * rng.random() ** 4)
+            blds.append((x, w, h, rng.integers(1 << 30)))
+            x += w + rng.uniform(-0.1, 0.25) * w
+        sign_list = []
+        for _ in range(signs):
+            bx, bw, bh, s_ = blds[int(rng.integers(len(blds)))]
+            acc = self.accents[int(rng.integers(len(self.accents)))]
+            sw, sh = rng.uniform(0.35, 0.8) * bw, rng.uniform(50, 140)
+            sx, sy = bx + rng.uniform(0.05, 0.3) * bw, hz + bh * rng.uniform(0.35, 0.85)
+            sign_list.append((sx, sy, sw, sh, acc))
+        col_b = self._haze(base, z)
+
+        def body(c):
+            paint = skia.Paint(AntiAlias=True, Color=_c(col_b))
+            for bx, bw, bh, s_ in blds:
+                rr = np.random.default_rng(int(s_))
+                top = hz + bh
+                c.drawRect(skia.Rect(bx, -top, bx + bw, -(hz - 6000)), paint)
+                step = rr.uniform(0.0, 1.0)
+                if step < 0.3:  # stepped crown
+                    c.drawRect(skia.Rect(bx + bw * 0.2, -(top + bh * 0.08), bx + bw * 0.8, -top), paint)
+                if step > 0.75:  # antenna
+                    ax = bx + bw * rr.uniform(0.3, 0.7)
+                    c.drawRect(skia.Rect(ax - 4, -(top + 260), ax + 4, -top), paint)
+
+        def beacons(c):
+            for bx, bw, bh, s_ in blds:
+                rr = np.random.default_rng(int(s_))
+                top = hz + bh
+                if rr.uniform(0.0, 1.0) > 0.75:
+                    ax = bx + bw * rr.uniform(0.3, 0.7)
+                    c.drawCircle(ax, -(top + 265), 14, skia.Paint(AntiAlias=True, Color=_c((255, 60, 60), 0.9)))
+                    c.drawCircle(ax, -(top + 265), 60, skia.Paint(AntiAlias=True, Color=_c((255, 60, 60), 0.12)))
+
+        def lights(c, xa, xb):
+            for bx, bw, bh, s_ in blds:
+                if not (xa <= bx < xb):
+                    continue
+                rr = np.random.default_rng(int(s_))
+                top = hz + bh
+                if rr.uniform(0.0, 1.0) > 0.75:  # (the antenna's draw, to keep the same windows as before)
+                    rr.uniform(0.3, 0.7)
+                wx, wy = max(26.0, bw / rr.integers(6, 14)), 46.0
+                nx, ny = int(bw / wx), int(min(bh, 3000) / wy)
+                lit = rr.random((ny, nx)) < win * rr.uniform(0.5, 2.0)
+                warm = rr.random() < 0.6
+                wc = (255, 196, 120) if warm else (150, 220, 255)
+                p = skia.Paint(AntiAlias=False, Color=_c(self._haze(wc, z, 30000), 0.85))
+                for j in range(ny):
+                    for i in range(nx):
+                        if lit[j, i]:
+                            xx, yy = bx + (i + 0.25) * wx, top - (j + 1) * wy
+                            c.drawRect(skia.Rect(xx, -yy, xx + wx * 0.5, -yy + wy * 0.45), p)
+            for sx, sy, sw, sh, acc in sign_list:
+                if not (xa <= sx < xb):
+                    continue
+                glow = skia.Paint(AntiAlias=True, Color=_c(acc, 0.22), MaskFilter=skia.MaskFilter.MakeBlur(skia.kNormal_BlurStyle, 40))
+                c.drawRect(skia.Rect(sx - 30, -(sy + sh + 30), sx + sw + 30, -(sy - 30)), glow)
+                c.drawRect(skia.Rect(sx, -(sy + sh), sx + sw, -sy), skia.Paint(AntiAlias=True, Color=_c(acc, 0.85)))
+                c.drawRect(skia.Rect(sx + 8, -(sy + sh - 8), sx + sw - 8, -(sy + 8)), skia.Paint(AntiAlias=True, Color=_c(_mix(acc, (255, 255, 255), 0.5), 0.9),
+                                                                                          Style=skia.Paint.kStroke_Style, StrokeWidth=5))
+        self._rec(z, body)
+        chunks = []
+        n = max(4, int((x1 - x0) / (1200.0 + 0.35 * z)))
+        for i in range(n):
+            xa, xb = x0 + (x1 - x0) * i / n - (1e6 if i == 0 else 0), x0 + (x1 - x0) * (i + 1) / n + (1e6 if i == n - 1 else 0)
+            rec = skia.PictureRecorder()
+            cc = rec.beginRecording(skia.Rect(-1e6, -1e6, 1e6, 1e6))
+            lights(cc, xa, xb)
+            chunks.append((x0 + (x1 - x0) * (i + 0.5) / n, i, rec.finishRecordingAsPicture()))
+        rec = skia.PictureRecorder()
+        beacons(rec.beginRecording(skia.Rect(-1e6, -1e6, 1e6, 1e6)))
+        self.lights[len(self.layers) - 1] = (chunks, rec.finishRecordingAsPicture())
+
+    def power(self, t: float, x: Optional[float] = None) -> Tuple[float, float]:
+        """The lights' level at time t (at world x, for a change spreading from an origin) and how far through a change
+        it is (0..1; 1 when settled), for the flicker."""
+        lvl, prog = self.bd.power0, 1.0
+        for cue in sorted(self.bd.power, key=lambda q: q.at):
+            t0 = cue.at
+            if cue.origin is not None and x is not None:
+                t0 += abs(x - cue.origin[0]) / cue.speed
+            if t < t0:
+                break
+            u = clamp((t - t0) / cue.fade, 0.0, 1.0)
+            lvl, prog = lvl + (cue.level - lvl) * u, u
+        return lvl, prog
 
     def _ridge(self, x0, x1, base, hmin, hmax, step, rng, mesa=False):
         pts = []
@@ -288,8 +339,11 @@ class World:
                     snow.close()
                     c.drawPath(snow, skia.Paint(AntiAlias=True, Color=_c(_mix(colr, (255, 220, 200), 0.6))))
             self._rec(z, draw)
-        # a sea of cloud below the summit, in bands
+        # a sea of cloud below the summit, in bands (and, rising out of it, the city far below where the light comes back)
         for z, dy, rgb in ((5000, -700, (240, 180, 190)), (2200, -500, (250, 205, 200)), (900, -380, (255, 225, 210))):
+            if z == 2200 and self.bd.city_lights:
+                self._city_layer(3600, 600, 1700, 110, 260, (58, 48, 92), 0.45, 10, self.level - 1700.0)
+                self.city_glow = (3600, self.level - 1700.0 + 900.0)
             x0, x1 = self._span(z)
             blobs = [(rng.uniform(x0, x1), self.level + dy - 0.05 * z + rng.uniform(-120, 80), rng.uniform(300, 900)) for _ in range(int((x1 - x0) / 300))]
             def draw(c, blobs=blobs, rgb=rgb, z=z):
@@ -372,7 +426,8 @@ class World:
     def backdrop(self, c: skia.Canvas, t: float) -> None:
         """The far layers through the camera (call inside the renderer's centred camera transform)."""
         cam = self.r.cam
-        for z, pic in self.layers:
+        ts = self.t_sim
+        for li, (z, pic) in enumerate(self.layers):
             k = self.r.focal / max(z + self.r.Fd, 20.0)
             drift = 0.0
             if self.kind == "void":
@@ -381,7 +436,30 @@ class World:
             c.translate(-(cam.cx - drift) * k, cam.cy * k)
             c.scale(k, k)
             c.drawPicture(pic)
+            if li in self.lights:
+                chunks, beac = self.lights[li]
+                for xm, ci, lp in chunks:
+                    lvl, prog = self.power(ts, xm * 0.25)  # a far layer's x, brought to the action's scale
+                    if prog < 1.0:  # flickering on the way: on/off by a per-chunk noise
+                        nz = math.sin(ci * 12.9898 + math.floor(ts * 13.0) * 78.233) * 43758.5453
+                        lvl *= 1.0 if (nz - math.floor(nz)) > 0.35 + 0.3 * prog else 0.15
+                    if lvl > 0.02:
+                        c.drawPicture(lp, None, skia.Paint(Alphaf=min(1.0, lvl)))
+                lvl, _ = self.power(ts)
+                warn = 0.25 + 0.75 * (0.5 + 0.5 * math.sin(ts * 6.5)) ** 2 if lvl < 0.6 else 1.0  # warning beacons
+                c.drawPicture(beac, None, skia.Paint(Alphaf=warn))
             c.restore()
+        cg = getattr(self, "city_glow", None)
+        if cg is not None:  # the city's own light, bouncing off the cloud and haze, when the power is on
+            lvl, _ = self.power(ts)
+            if lvl > 0.02:
+                y = self.r.P(0, cg[1], cg[0])[1]
+                hgt = 0.35 * self.r.H
+                sh = skia.GradientShader.MakeLinear([skia.Point(0, y - hgt), skia.Point(0, y + hgt)],
+                                                    [_c((255, 190, 120), 0.0), _c((255, 200, 140), 0.38 * lvl), _c((255, 190, 120), 0.0)],
+                                                    [0.0, 0.5, 1.0])
+                c.drawRect(skia.Rect(-1e4, y - hgt, 1e4, y + hgt), skia.Paint(Shader=sh, BlendMode=skia.BlendMode.kScreen))
+        self._power_pulse(c, ts)
         # fog rising from the depths (over the far world, under the action)
         y0 = self.r.P(0, self.level - 250.0, 400.0)[1]
         y1 = self.r.P(0, self.level - 1100.0, 400.0)[1]
@@ -391,6 +469,22 @@ class World:
             hy = self.r.P(0, self.horizon + 400.0, 6000.0)[1]
             sh = skia.GradientShader.MakeRadial(skia.Point(0, hy), self.r.W, [_c(self.skyc[2], 0.25), _c(self.skyc[2], 0.0)])
             c.drawRect(skia.Rect(-1e4, -1e4, 1e4, 1e4), skia.Paint(Shader=sh, BlendMode=skia.BlendMode.kScreen))
+
+    def _power_pulse(self, c: skia.Canvas, t: float) -> None:
+        """A ring of light racing outward from where the power changed (restoring the core)."""
+        for cue in self.bd.power:
+            if cue.origin is None or not (cue.at <= t < cue.at + 3.0):
+                continue
+            u = (t - cue.at) / 3.0
+            ox, oy, k = self.r.P(cue.origin[0], cue.origin[1], 0.0)
+            rad = (60.0 + 2600.0 * (1 - (1 - u) ** 2)) * k
+            a = (1.0 - u) ** 1.5
+            rgb = (150, 240, 255) if cue.level >= 0.5 else (255, 80, 80)
+            c.drawCircle(ox, oy, rad, skia.Paint(AntiAlias=True, Color=_c(rgb, 0.55 * a), Style=skia.Paint.kStroke_Style,
+                                                 StrokeWidth=max(2.0, 26.0 * k * (1 - u) + 3),
+                                                 MaskFilter=skia.MaskFilter.MakeBlur(skia.kNormal_BlurStyle, 10.0)))
+            sh = skia.GradientShader.MakeRadial(skia.Point(ox, oy), max(1.0, rad), [_c(rgb, 0.0), _c(rgb, 0.16 * a)], [0.6, 1.0])
+            c.drawCircle(ox, oy, rad, skia.Paint(AntiAlias=True, Shader=sh, BlendMode=skia.BlendMode.kScreen))
 
     def weather(self, c: skia.Canvas, t: float, front: bool) -> None:
         """Rain, embers, snow, motes or data, at several depths (deterministic in time; no state)."""
@@ -473,6 +567,10 @@ class World:
                 self._girder(c, ob, x0, x1, y0, y1, nr, bk)
             elif st == "bridge":
                 self._bridge(c, ob, x0, x1, y0, y1, nr, bk)
+            elif st == "pedestal":
+                self._pedestal(c, ob, x0, x1, y0, y1, col_)
+        elif st == "pedestal":
+            pass
         else:  # the near edge, drawn over the characters' feet
             edge = {"roof": (150, 160, 180), "rock": (230, 170, 120), "pillar": (230, 170, 120), "girder": (255, 200, 60),
                     "bridge": (200, 160, 110)}[st]
@@ -508,6 +606,10 @@ class World:
         wx, wy = 70.0, 90.0
         nx = max(1, int((x1 - x0 - 40) / wx))
         warm = (255, 200, 130) if rr.random() < 0.5 else (150, 220, 255)
+        pw, prog = self.power(self.t_sim, 0.5 * (x0 + x1))
+        if prog < 1.0:  # flickering through a power change
+            nz = math.sin(x0 * 0.0137 + math.floor(self.t_sim * 13.0) * 78.233) * 43758.5453
+            pw *= 1.0 if (nz - math.floor(nz)) > 0.35 + 0.3 * prog else 0.15
         for j in range(1, 20):
             y = top - 60 - j * wy
             for i in range(nx):
@@ -515,13 +617,32 @@ class World:
                     xx = x0 + 30 + i * wx
                     pa, pb = r.P(xx, y, nr - 0.5), r.P(xx + 34, y - 46, nr - 0.5)
                     fade = clamp(1.0 - j / 18.0, 0.15, 1.0)
-                    c.drawRect(skia.Rect(pa[0], pa[1], pb[0], pb[1]), skia.Paint(Color=_c(warm, 0.75 * fade)))
+                    if pw > 0.02:
+                        c.drawRect(skia.Rect(pa[0], pa[1], pb[0], pb[1]), skia.Paint(Color=_c(warm, 0.75 * fade * min(1.0, pw))))
         # parapet: a low wall along the back and a lip at the front edge
         self._face(c, [(x0, top, bk - 30), (x1, top, bk - 30), (x1, top + 40, bk - 30), (x0, top + 40, bk - 30)], (70, 74, 92))
         # rooftop clutter at the back: vents and an antenna
         for k in range(int(rr.integers(1, 3))):
             vx = x0 + rr.uniform(0.15, 0.8) * (x1 - x0)
             self._box(c, vx, vx + rr.uniform(60, 130), top, top + rr.uniform(40, 90), bk - 160, bk - 60, (64, 68, 84))
+
+    def _pedestal(self, c, ob, x0, x1, y0, top, col_) -> None:
+        """A holder for an energy core: a steel column with light strips and a glowing cradle on top."""
+        r = self.r
+        glow = col_ or (125, 252, 255)
+        steel = (52, 58, 74)
+        self._box(c, x0 - 6, x1 + 6, y0, y0 + 12, -34.0, 34.0, steel)  # foot
+        self._box(c, x0, x1, y0 + 12, top - 10, -24.0, 24.0, _mix(steel, (0, 0, 0), 0.2))  # column
+        for zz in (-24.0, 24.0):  # light strips up the corners
+            a3, b3 = r.P(x0 + 4, y0 + 16, zz), r.P(x0 + 4, top - 14, zz)
+            c.drawLine(a3[0], a3[1], b3[0], b3[1], skia.Paint(AntiAlias=True, Color=_c(glow, 0.7), StrokeWidth=max(1.0, 2.2 * a3[2])))
+        self._box(c, x0 - 8, x1 + 8, top - 10, top, -32.0, 32.0, steel)  # top plate
+        ctr = r.P(0.5 * (x0 + x1), top, 0.0)
+        ring = skia.Paint(AntiAlias=True, Color=_c(glow, 0.9), Style=skia.Paint.kStroke_Style, StrokeWidth=max(1.5, 3.0 * ctr[2]))
+        w = 0.5 * (x1 - x0 + 16) * ctr[2]
+        c.drawOval(skia.Rect(ctr[0] - w, ctr[1] - 0.28 * w, ctr[0] + w, ctr[1] + 0.28 * w), ring)
+        c.drawOval(skia.Rect(ctr[0] - 1.6 * w, ctr[1] - 0.7 * w, ctr[0] + 1.6 * w, ctr[1] + 0.7 * w),
+                   skia.Paint(AntiAlias=True, Color=_c(glow, 0.15), MaskFilter=skia.MaskFilter.MakeBlur(skia.kNormal_BlurStyle, 8.0)))
 
     def _box(self, c, x0, x1, y0, y1, z0, z1, rgb) -> None:
         self._face(c, [(x0, y1, z0), (x1, y1, z0), (x1, y1, z1), (x0, y1, z1)], _mix(rgb, (255, 255, 255), 0.12))

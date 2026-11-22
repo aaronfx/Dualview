@@ -391,6 +391,12 @@ class SceneRuntime:
                 c_.frame = structures.obstacle_top(self.env, frames, pl.on.split(":", 1)[1], pl.x)
                 world.set_kinematic(pl.character, c_.frame.to_world(c_.s, c_.h), c_.frame.body_angle)
                 c_.seg.frame = c_.frame.tag  # the opening segment stands on it too (with no action, nothing reopens it)
+            if pl.carrying:  # carried in from the previous scene: already in both hands
+                c_ = ctrls[pl.character]
+                pid = pl.carrying.split(":", 1)[1]
+                c_.carrying = pid
+                world.set_kinematic(pid, *c_._hold_pose(pid))
+                c_.carry_log.append([pid, 0.0, math.inf])
         shared = {"taken": {}}
         for c in ctrls.values():  # characters can see each other, the props and everything that has happened so far
             c.others, c.all_events = ctrls, events

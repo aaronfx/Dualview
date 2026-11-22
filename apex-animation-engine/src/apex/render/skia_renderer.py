@@ -106,6 +106,7 @@ class SkiaRenderer:
         self._collapsed = getattr(fs, "collapsed", set()) or set()
         if getattr(fs, "depth", None):
             self.depth = dict(fs.depth)  # depth lanes can change over time (e.g. rolling past in front of someone)
+        self._fs_t = fs.t
         c = self.surface.getCanvas()
         c.clear(col(self.bg))
         tw = fs.t if fx_t is None else fx_t  # the world's own motion runs on the film clock
@@ -117,6 +118,7 @@ class SkiaRenderer:
         c.translate(self.W / 2 + cam.shx * sc, self.H / 2 + cam.shy * sc)
         c.rotate(cam.roll)
         if W_ is not None:
+            W_.t_sim = fs.t
             W_.backdrop(c, tw)
             W_.weather(c, tw, front=False)
         elif not self.open:
@@ -756,7 +758,16 @@ class SkiaRenderer:
             local = glyphs.strokes(getattr(pr, "glyph", None) or sp.glyph, sp.size)
         strokes = [[(pr.pos[0] + x * ca - y * sa, pr.pos[1] + x * sa + y * ca) for x, y in st] for st in local]
         rgb = hex_rgb(sp.color) if sp.color else self.accent
+        if sp.energy:  # an energy core: a pulsing halo and a white-hot heart
+            ctr = self.P(pr.pos[0], pr.pos[1], pr.z)
+            pulse = 0.8 + 0.2 * math.sin(self._fs_t * 5.0)
+            r0 = max(sp.size) * ctr[2]
+            self._glow(c, (ctr[0], ctr[1]), r0 * 3.2 * pulse, rgb, 0.45)
+            self._glow(c, (ctr[0], ctr[1]), r0 * 1.2, mix(rgb, (255, 255, 255), 0.6), 0.8)
         self._draw_glyph(c, strokes, sp.weight or glyphs.default_weight(sp.size), rgb, pr.z - pr.depth / 2, pr.z + pr.depth / 2, layers=4)
+        if sp.energy:
+            ctr = self.P(pr.pos[0], pr.pos[1], pr.z)
+            c.drawCircle(ctr[0], ctr[1], 0.22 * max(sp.size) * ctr[2], skia.Paint(AntiAlias=True, Color=col((255, 255, 255), 0.95)))
 
     def _rail(self, c: skia.Canvas, ob, back: bool) -> None:
         """Grab rail spanning the room depth: a steel tube with yellow grip bands, bolted to the back wall by a

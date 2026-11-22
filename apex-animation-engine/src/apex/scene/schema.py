@@ -142,6 +142,7 @@ class PropSpec(Strict):
     glyph: Optional[str] = None  # kind glyph: "+", "-", "x", "÷", "=", "<", ">", "!", "?", "π", "√", "0".."9"
     weight: Optional[float] = Field(None, gt=0)  # glyph stroke thickness (default 15% of the smaller side)
     color: Optional[str] = None  # glyph colour (default: the theme accent)
+    energy: bool = False  # a glowing energy core: drawn with a pulsing light around it
     position: Vec2
     size: Vec2 = (40.0, 40.0)
     mass: float = Field(8.0, gt=0)
@@ -239,7 +240,7 @@ class ObstacleSpec(Strict):
     weight: Optional[float] = Field(None, gt=0)  # glyph stroke thickness
     color: Optional[str] = None
     collapse: Optional[CollapseSpec] = None  # Milestone 6: a platform that gives way
-    style: Optional[Literal["slab", "roof", "rock", "girder", "bridge", "pillar"]] = None  # how it is drawn: a roof is the
+    style: Optional[Literal["slab", "roof", "rock", "girder", "bridge", "pillar", "pedestal"]] = None  # how it is drawn: a roof is the
     # top of a building (its facade is drawn down into the depths), rock a cliff, a bridge planks on ropes
 
     @model_validator(mode="after")
@@ -393,6 +394,17 @@ class GlitchSpec(Strict):
     color: str = "#ff2a48"
 
 
+class PowerCue(Strict):
+    """The world's lights change (the Director's Cut): from `at` (scene time) the distant city's windows and signs fade
+    to `level` over `fade` seconds, flickering on the way. With `origin` (x, y) the change spreads outward from there as
+    a wave (`speed` world units a second) and a ring of light pulses out from that point."""
+    at: float = Field(..., ge=0)
+    level: float = Field(..., ge=0, le=1)
+    fade: float = Field(1.2, gt=0)
+    origin: Optional[Vec2] = None
+    speed: float = Field(5000.0, gt=0)
+
+
 class BackdropSpec(Strict):
     """The world around an open environment (cinematic upgrade): sky, distant layers drawn at depth (so they move
     with real parallax), weather and fog. Drawn only; nothing in it collides."""
@@ -406,6 +418,9 @@ class BackdropSpec(Strict):
     horizon: Optional[float] = None  # world height of the far horizon line (default: below the level)
     lightning: bool = False
     glitch: Optional[GlitchSpec] = None
+    city_lights: bool = False  # summit: a distant city far below (its lights follow `power`)
+    power: List[PowerCue] = Field(default_factory=list)  # the lights' level over time (starts at `power0`)
+    power0: float = Field(1.0, ge=0, le=1)
 
 
 class EnvironmentSpec(Strict):
@@ -538,7 +553,9 @@ ActionType = Literal["idle", "walk_to", "run_to", "turn", "press", "jump", "look
                      # beat sync (Milestone 4)
                      "wait_beat",
                      # acting and rescue (Milestone 6)
-                     "act", "catch_ledge", "hang", "pull_up"]
+                     "act", "catch_ledge", "hang", "pull_up",
+                     # the Director's Cut: set a carried prop down on a structure's top or at a point
+                     "place"]
 StrikeMove = Literal["jab", "cross", "hook", "uppercut", "front_kick", "side_kick", "roundhouse", "sweep", "flying_kick",
                      "swing_weapon"]
 
@@ -589,7 +606,7 @@ class ActionSpec(Strict):
                 "push": ["target"], "lift": ["target"], "use_lever": ["target", "tool", "fulcrum"], "offer_hand": ["target"],
                 "gesture": ["target", "gesture"], "wait_for": ["until"], "strike": ["target", "move"],
                 "vault": ["target"], "climb": ["target"], "wall_kick": ["target_x"], "pick_up": ["target"], "throw": ["target"],
-                "act": ["clip"], "catch_ledge": ["target"], "pull_up": ["target"]}
+                "act": ["clip"], "catch_ledge": ["target"], "pull_up": ["target"], "place": ["target"]}
         if self.type in ("walk_to", "run_to") and self.target_x is None and not (self.target or "").split(":", 1)[0] in ("char", "prop"):
             raise ValueError(f"action '{self.type}' requires 'target_x' (or a 'char:'/'prop:' target)")
         for f in need.get(self.type, []):
@@ -648,6 +665,7 @@ class CharacterPlacement(Strict):
     on: Optional[str] = None  # start standing on this structure's top ("obstacle:<id>"), not on the floor
     facing: Literal[-1, 1] = 1
     z: float = Field(0.0, ge=-60, le=60)  # drawing depth lane (negative = nearer the camera); does not affect physics
+    carrying: Optional[str] = None  # starts the scene holding this prop ("prop:<id>"), e.g. a core carried in from a previous scene
 
 
 # ---------------------------------------------------------------- cinematography / sound / shots

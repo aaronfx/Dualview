@@ -24,7 +24,7 @@ from ..scene import structures
 from ..scene.schema import ActionSpec
 from .interaction import _smooth
 
-ACRO = ("roll", "vault", "climb", "wall_kick", "pick_up", "throw")
+ACRO = ("roll", "vault", "climb", "wall_kick", "pick_up", "throw", "place")
 VAULT_MAX = 0.95  # x stand height: higher than this, climb
 CARRY_MASS_G = 0.9  # a character lifts at most 0.9 x strength (force) overhead
 PICK_T, THROW_T, THROW_RELEASE = 0.7, 0.62, 0.3
@@ -525,7 +525,7 @@ class AcroMixin:
 
     # ------------------------------------------------------------ action start
     def _start_acro(self, t: float, a: ActionSpec, landing: Optional[float] = None) -> None:
-        if a.type != "throw" and a.type != "pick_up" and not self._upright():
+        if a.type not in ("throw", "pick_up", "place") and not self._upright():
             self._fail(f"{self.cid}: '{a.type}' needs an upright floor-like surface")
             self._next_action(t)
             return
@@ -828,6 +828,76 @@ class AcroMixin:
             self.carrying = pid
             self._next_action(t)
 
+    # ------------------------------------------------------------ set a carried prop down (place), let go of it (drop, disarm)
+    def _place_rest(self, ref: str) -> Vec:
+        """Where a placed prop comes to rest: centred on a structure's top ("obstacle:<id>"), or at a point."""
+        pid = self.carrying
+        half = 0.5 * self.props[pid].size[1]
+        kind, _, rid = ref.partition(":")
+        if kind == "point":
+            x, y = (float(v) for v in rid.split(","))
+            return (x, y + half)
+        ob = next(o for o in self.env.obstacles if o.id == rid)
+        return (ob.center[0], ob.center[1] + 0.5 * ob.size[1] + half + 1.0)
+
+    def _start_place(self, t: float, a: ActionSpec) -> None:
+        if self.carrying is None:
+            self._fail(f"{self.cid}: place needs a carried prop")
+            self._next_action(t)
+            return
+        rest = self._place_rest(a.target)
+        ps = self.frame.to_frame(rest)[0]
+        side = 1.0 if self.s >= ps else -1.0
+        off = 0.46 * self.stand_h
+        kind, _, rid = a.target.partition(":")
+        if kind == "obstacle":  # stop short of the holder: the carried prop reaches ahead of the body
+            ob = next(o for o in self.env.obstacles if o.id == rid)
+            off = max(off, 0.5 * ob.size[0] + max(10.0, self._carried_front(-side) + 2.0) + 6.0)
+        stand = ps + side * off
+        if self._go(t, a, stand) or self._face(t, a, -side):
+            return
+        pid = self.carrying
+        st = self.world.state(pid)
+        self.inter = {"t0": t, "pid": pid, "from": (st.pos, st.angle), "rest": rest, "placed": False}
+        self._open("pick_up", t, prop=pid, T=PICK_T, place=True)
+
+    def _place_tick(self, t: float, dt: float, a: ActionSpec) -> None:
+        from .controller import Event
+        I = self.inter
+        u = clamp((t - I["t0"]) / PICK_T, 0.0, 1.0)
+        pid = I["pid"]
+        self.h = self.stand_h - 0.3 * self.stand_h * math.sin(math.pi * min(1.0, u / 0.9))
+        if not I["placed"]:
+            k = _smooth(min(1.0, u / 0.55))
+            (fx, fy), fa = I["from"]
+            rx, ry = I["rest"]
+            ra = 0.0
+            self.world.set_kinematic(pid, (fx + (rx - fx) * k, fy + (ry - fy) * k), fa + wrap_angle(ra - fa) * k)
+            if u >= 0.55:
+                I["placed"] = True
+                self._release_carry(t, why="place", data={"on": a.target, "point": I["rest"]})
+                if a.target.startswith("obstacle:"):  # a holder seats it: it stays put until someone takes it
+                    self.world.set_kinematic(pid, I["rest"], 0.0)
+        if u >= 1.0:
+            self.h = self.stand_h
+            self._next_action(t)
+
+    def _release_carry(self, t: float, vel: Vec = (0.0, 0.0), angvel: float = 0.0, why: str = "drop",
+                       data: Optional[Dict[str, Any]] = None) -> Optional[str]:
+        """Let go of the carried prop: it becomes an ordinary dynamic body again (set down, dropped, or knocked loose)."""
+        from .controller import Event
+        pid = self.carrying
+        if pid is None:
+            return None
+        self.carrying = None
+        if self.carry_log and self.carry_log[-1][0] == pid and self.carry_log[-1][2] == math.inf:
+            self.carry_log[-1][2] = t
+        self.world.make_dynamic(pid, vel, angvel)
+        d = {"prop": pid, "point": self.world.state(pid).pos}
+        d.update(data or {})
+        self.emit(Event(t, why, self.cid, d))
+        return pid
+
     def _grip_local(self, pid: str) -> Vec:
         sp = self.props[pid]
         return (-sp.size[0] / 2 + (sp.weight or 8.0), 0.0) if sp.kind == "glyph" else (0.0, 0.0)
@@ -931,6 +1001,36 @@ class AcroMixin:
                 for p, q in glyphs.segments(getattr(self.world, "glyph_now", {}).get(pid, sp.glyph), sp.size)] if sp.kind == "glyph" \
             else [(self._prop_point(pid, (-sp.size[0] / 2, 0)), self._prop_point(pid, (sp.size[0] / 2, 0)))]
         r = wgt / 2 if sp.kind == "glyph" else sp.size[1] / 2
+        # a symbol thrown into what another character holds knocks it out of their hands (a disarm)
+        for cid, oc in self.others.items():
+            hp = getattr(oc, "carrying", None)
+            if cid == self.cid or cid in T["done"] or hp is None or self.props[hp].kind != "glyph":
+                continue
+            hsp = self.props[hp]
+            hsegs = [(self._prop_point(hp, p), self._prop_point(hp, q))
+                     for p, q in glyphs.segments(getattr(self.world, "glyph_now", {}).get(hp, hsp.glyph), hsp.size)]
+            hr = (hsp.weight or glyphs.default_weight(hsp.size)) / 2
+            best = min((_seg_dist(p, q, a_, b_) for p, q in segs for a_, b_ in hsegs), key=lambda x: x[0])
+            if best[0] > r + hr + 3.0:
+                continue
+            T["done"].add(cid)
+            point = best[1]
+            hs = self.world.state(hp)
+            m_p, m_h, e = sp.mass, hsp.mass + 6.0, RESTITUTION  # the held symbol, with the hands' grip behind it
+            vrel = (st.vel[0] - hs.vel[0], st.vel[1] - hs.vel[1])
+            n = (vrel[0] / max(1e-6, speed), vrel[1] / max(1e-6, speed))
+            vn = -math.hypot(*vrel)
+            J = -(1.0 + e) * vn * m_p * m_h / (m_p + m_h)
+            self.world.apply_impulse_at(pid, (-n[0] * J * 0.6, -n[1] * J * 0.6), point)
+            fly = (hs.vel[0] + n[0] * J / m_h, hs.vel[1] + abs(n[1]) * J / m_h * 0.4 + 220.0)
+            direction = 1.0 if st.vel[0] >= 0 else -1.0
+            eff = clamp(J / IMPULSE_REF, 0.15, 1.9)
+            oc._release_carry(t, fly, -direction * 11.0, why="disarm", data={"by": self.cid, "with": pid, "impulse": round(J, 1)})
+            self.emit(Event(t, "prop_hit", pid, {"prop": pid, "target": hp, "point": point, "normal_speed": -vn, "blocked": False,
+                                                 "impulse": round(J, 1)}))
+            if oc.mode in ("grounded", "landing") and not oc.lying:
+                oc._receive(t, self.cid, "throw", "flinch", min(eff, 0.6), direction, "body", point)
+            return
         for cid, oc in self.others.items():
             if cid == self.cid or cid in T["done"] or oc.mode not in ("grounded", "landing") or oc.lying:
                 continue
