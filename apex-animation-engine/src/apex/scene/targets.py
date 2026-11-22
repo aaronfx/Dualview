@@ -16,7 +16,8 @@ def surface_point(env: EnvironmentSpec, surface: str, s: float, h: float = 0.0) 
 
 
 def surface_normal(surface: str) -> Vec:
-    return {"floor": (0.0, 1.0), "ceiling": (0.0, -1.0), "wall_right": (-1.0, 0.0), "wall_left": (1.0, 0.0)}[surface]
+    # a structure's top (any other surface tag) faces up, like the floor
+    return {"floor": (0.0, 1.0), "ceiling": (0.0, -1.0), "wall_right": (-1.0, 0.0), "wall_left": (1.0, 0.0)}.get(surface, (0.0, 1.0))
 
 
 def switch_world(env: EnvironmentSpec, sw: SwitchSpec) -> Vec:
