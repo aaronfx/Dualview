@@ -664,7 +664,7 @@ class Inspector:
                 tp = an._target_point(seg.data["other"], e.t, seg.data["height"], seg.facing)
                 err = math.dist(j[joint], tp)
             if err > worst:
-                worst, where = err, f"{e.character} {seg.data['move']} at t={e.t:.2f}s"
+                worst, where = err, f"{e.character} {e.data.get('move') or seg.data.get('move')} at t={e.t:.2f}s"
         out.append(Check("strike_contact", "PASS" if worst <= TOL["strike_contact"] else "FAIL", worst, TOL["strike_contact"],
                          f"fist/foot distance from the struck body point at contact ({len(hits)} contacts; worst: {where})"))
         cids = list(self.joints)
