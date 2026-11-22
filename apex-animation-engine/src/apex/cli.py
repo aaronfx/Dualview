@@ -1,4 +1,4 @@
-"""Command line interface: `apex validate|render|qa|plan|serve|schema`."""
+"""Command line interface: `apex validate|render|film|qa|plan|serve|schema`."""
 from __future__ import annotations
 
 import argparse
@@ -34,6 +34,15 @@ def main(argv=None) -> int:
     r.add_argument("--no-qa", action="store_true")
     r.add_argument("--qa-json", help="write the QA report here")
     r.add_argument("--review-dir", help="write contact sheet, diagnostics (JSON + chart) and decode report here")
+    fm = sub.add_parser("film", help="render every scene of a project and join them into one film (transitions, film QA)")
+    fm.add_argument("project")
+    fm.add_argument("-o", "--out", required=True)
+    fm.add_argument("--preset", choices=["draft", "final"], default=None)
+    fm.add_argument("--samples", type=int, default=None)
+    fm.add_argument("--scale", type=float, default=None)
+    fm.add_argument("--no-qa", action="store_true")
+    fm.add_argument("--only", help="comma-separated scene ids to re-render (the others are reused from the work directory)")
+    fm.add_argument("--report", help="write the film report (per-scene metrics, gates, film checks) here")
     p = sub.add_parser("plan", help="AI Story Director: story text -> validated project JSON")
     p.add_argument("story")
     p.add_argument("-o", "--out", required=True)
@@ -78,6 +87,28 @@ def main(argv=None) -> int:
             print(res.qa.summary())
             return 0 if res.qa.passed else 2
         return 0
+    if a.cmd == "film":
+        from .render.film import render_film
+        import os as _os
+        proj = _load(a.project)
+        preset = a.preset or _os.environ.get("APEX_RENDER_PRESET", "draft")
+        scale = a.scale if a.scale is not None else (min(1.0, 720.0 / proj.height) if preset == "draft" else 1.0)
+        samples = a.samples if a.samples is not None else (1 if preset == "draft" else 2)
+        print(f"preset {preset}: {int(proj.width * scale)}x{int(proj.height * scale)}, {samples} sample(s)/frame, "
+              f"{len(proj.scenes)} scene(s)", flush=True)
+        res = render_film(proj, a.out, samples=samples, preview_scale=scale, qa=not a.no_qa,
+                          only=a.only.split(",") if a.only else None, progress=_progress)
+        for m in res.scenes:
+            print(f"  {m.scene:14s} {m.frames:5d} frames {m.seconds:7.1f}s ({m.render_fps:.1f} fps)  gates {m.gates}  "
+                  f"failed {m.failed or '-'}  peak {m.peak_rss_mb:.0f} MB")
+        for c in res.film_checks:
+            print(f"  film check {c['name']}: {c['status']}  {c['details']}")
+        print(f"wrote {res.video} ({res.duration:.1f}s) in {res.seconds:.0f}s, peak memory {res.peak_rss_mb:.0f} MB")
+        if a.report:
+            with open(a.report, "w") as fh:
+                json.dump(res.to_dict(), fh, indent=1)
+        ok = all(m.gates.get(g) != "FAIL" for m in res.scenes for g in m.gates) and all(c["status"] != "FAIL" for c in res.film_checks)
+        return 0 if ok else 2
     if a.cmd == "review":
         from .qa.review import build_review_packet
         proj = _load(a.project)

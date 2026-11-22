@@ -58,6 +58,16 @@ class InteractionAnimMixin:
         h = 0.5 * (self.stand_h + o.stand_h) * 0.95
         return ((a[0] + b[0]) / 2, F.to_world(0.0, h)[1])
 
+    def _held_grip(self, other: str, g: Vec, t: float, t_grab: float) -> Vec:
+        """Once two hands have taken hold, both go to one grip point between the real shoulders (so they stay together
+        while one pulls the other up), blended in from the meeting point `g`."""
+        if getattr(self, "_no_grip", False) or getattr(self.others[other], "_no_grip", False):
+            return g
+        from .rescue import grip_point
+        G = grip_point(self, self.others[other], t)
+        w = smoothstep(t_grab, t_grab + 0.12, t)
+        return (lerp(g[0], G[0], w), lerp(g[1], G[1], w))
+
     def _shoulder_of(self, other: str, t: float) -> Vec:
         o = self.others[other]
         rx, ry = o.root_at(t)
@@ -252,8 +262,8 @@ class InteractionAnimMixin:
                 sh = ch["shoulder_n"]
                 tgt = (lerp(sh[0], g[0], reach), lerp(sh[1] + 10, g[1], reach))
             else:
-                tgt = g
-            self.rig.arm_ik(pose, "n", tgt, fingertip=False)
+                tgt = self._held_grip(helper, g, t, grab_t)
+            self.rig.arm_ik(pose, "n", tgt, fingertip=True)
             pose.hands["n"] = "fist"
             set_arm(L, "f", 0.25, 0.6)
         else:  # hand on the front knee to push up
@@ -373,7 +383,17 @@ class InteractionAnimMixin:
         ch = self.rig.world_joints(pose)
         sh = ch["shoulder_n"]
         reach = smoothstep(0.0, 0.5, tau)
-        self.rig.arm_ik(pose, "n", (lerp(sh[0], g[0], reach), lerp(sh[1] - 20, g[1], reach)), fingertip=False)
+        o = self.others[seg.data["other"]]
+        if not getattr(self, "_no_grip", False) and not getattr(o, "_no_grip", False):
+            o._no_grip = True  # reach for where the other's hand really is (its pose does not depend on ours here)
+            try:
+                g = o.rig.world_joints(o.pose_at(t))["hand_n"]
+            finally:
+                o._no_grip = False
+        tgt = (lerp(sh[0], g[0], reach), lerp(sh[1] - 20, g[1], reach))
+        if seg.data.get("pull_t") is not None and t >= seg.data["pull_t"]:
+            tgt = self._held_grip(seg.data["other"], tgt, t, seg.data["pull_t"])
+        self.rig.arm_ik(pose, "n", tgt, fingertip=True)
         pose.hands["n"] = "open" if pull == 0 else "fist"
         set_arm(pose.local, "f", -0.2 - 0.3 * pull, 0.5)
         self._gaze(pose, self._dyn_gaze("char:" + seg.data["other"], t), 0.8)

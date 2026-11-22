@@ -33,6 +33,7 @@ PRESS_T = 0.9
 RELEASE_T = 0.5
 GESTURE_T = 1.5
 GESTURE_CONTACT = 0.55
+OFFER_REACH_T = 0.55  # s: the helper's hand reaches out this long before it can be taken
 HELP_WAIT = 4.0  # a helped get_up stops waiting for the hand after this long (the helper is stuck)
 INTERACTIONS = ("push", "lift", "use_lever", "struggle", "crawl_out", "get_up", "offer_hand", "gesture", "wait_for")
 
@@ -416,7 +417,8 @@ class InteractionMixin:
         helper = I["helper"]
         if helper and I["phase"] == "up" and tau >= 0.75:
             hc = self.others[helper]
-            if getattr(hc, "inter", {}).get("phase") in ("offer", "pull") and hc.cur is not None and hc.cur.type == "offer_hand":
+            if (getattr(hc, "inter", {}).get("phase") in ("offer", "pull") and hc.cur is not None and hc.cur.type == "offer_hand"
+                    and t - hc.cur_t0 >= OFFER_REACH_T):  # the offered hand has finished reaching out
                 I.update(phase="pulled", tp=t)
                 self.seg.data["grab_t"] = t
                 self.emit(self._ev(t, "hand_grab", {"with": helper}))

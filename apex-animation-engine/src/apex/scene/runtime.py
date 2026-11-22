@@ -359,7 +359,10 @@ class SceneRuntime:
         gravity = GravityField(initial=self.env.gravity)
         events: List[Event] = []
         doors: Dict[str, Dict[str, Optional[float]]] = {ex.id: {"unlock_t": None, "open_t": None, "exit_t": None} for ex in self.env.exits}
-        unlock_by = {ex.unlock_on.split(":", 1)[1]: ex.id for ex in self.env.exits if ex.unlock_on}
+        unlock_by = {ex.unlock_on.split(":", 1)[1]: ex.id for ex in self.env.exits if ex.unlock_on and ex.unlock_on.startswith("switch:")}
+        together = {ex.id: ex.unlock_on.split(":", 1)[1].split(",") for ex in self.env.exits
+                    if ex.unlock_on and ex.unlock_on.startswith("together:")}
+        failed: set = set()
 
         def emit(e: Event) -> None:
             events.append(e)
@@ -447,6 +450,24 @@ class SceneRuntime:
                         shatter(pid, t + dt, j, pt)
             for c in ctrls.values():
                 c.after_step(t + dt, contacts)
+            for ex_id, who in together.items():  # an exit that opens only for everyone at once
+                d = doors[ex_id]
+                if d["unlock_t"] is None:
+                    ew = exit_world(self.env, ex_id)
+                    ex = next(x for x in self.env.exits if x.id == ex_id)
+                    if all(w in ctrls and ctrls[w].mode == "grounded" and math.dist(world.state(w).pos, ew) <= ex.open_radius for w in who):
+                        d["unlock_t"] = t + dt
+                        events.append(Event(t + dt, "exit_together", who[0], {"exit": ex_id, "with": who, "point": ew}))
+                        events.append(Event(t + dt, "door_unlocking", who[0], {"exit": ex_id}))
+                        events.append(Event(t + dt + DOOR_UNLOCK_S, "door_unlocked", who[0], {"exit": ex_id}))
+            if self.scene.fail is not None:  # falling out of the level
+                for cid, c in ctrls.items():
+                    if cid in failed or (self.scene.fail.characters and cid not in self.scene.fail.characters):
+                        continue
+                    p_ = world.state(cid).pos
+                    if p_[1] < self.scene.fail.below:
+                        failed.add(cid)
+                        events.append(Event(t + dt, "fail", cid, {"point": p_}))
             for ex in self.env.exits:  # automatic door: opens for a grounded character once unlocked
                 d = doors[ex.id]
                 if d["open_t"] is None and d["unlock_t"] is not None and t >= d["unlock_t"] + DOOR_UNLOCK_S:

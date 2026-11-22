@@ -93,7 +93,7 @@ class SkiaRenderer:
     def render(self, fs: FrameState, cam: CameraState, red_flash: float = 0.0, fx: Optional[List[dict]] = None, fade: float = 0.0,
                trails: Optional[Dict[str, List[Tuple[Pose, float]]]] = None, fx_t: Optional[float] = None,
                smears: Optional[Dict[str, Pose]] = None, prop_ghosts: Optional[Dict[str, List[Tuple[float, float, float, float]]]] = None,
-               screen: Optional[Dict[str, float]] = None, particles=None, diagrams=None) -> np.ndarray:
+               screen: Optional[Dict[str, float]] = None, particles=None, diagrams=None, hud=None) -> np.ndarray:
         """`fx_t`: the clock effects run on (film time: they keep animating through a hit-stop). `smears`: each character's
         pose a moment earlier (fast limbs leave a smear). `prop_ghosts`: earlier poses of fast props. `screen`: full-screen
         effects (flash, speed lines, vignette pulse)."""
@@ -173,6 +173,8 @@ class SkiaRenderer:
         self._post(c, red_flash)
         if screen:
             self._screen_fx(c, screen)
+        if hud is not None:
+            self._hud(c, hud)
         if fade > 0.0:  # shot fade to black (end of film)
             c.drawRect(skia.Rect(0, 0, self.W, self.H), skia.Paint(Color=col((0, 0, 0), clamp(fade, 0.0, 1.0))))
         img = self.surface.makeImageSnapshot()
@@ -318,6 +320,46 @@ class SkiaRenderer:
                 for (x, y) in ((x0, y0), (x1, y1)):
                     c.drawLine(x - nx, y - ny, x + nx, y + ny, stroke)
                 label((x0 + x1) / 2 + nx * 2.2, (y0 + y1) / 2 + ny * 2.2, p.text, rgb, a)
+
+    def _hud(self, c: skia.Canvas, h) -> None:
+        """Screen-space game overlay: the retry counter (top right) and messages (centre / lower third)."""
+        sc = self.H / 720.0
+        if getattr(self, "_hfont", None) is None:
+            tf = skia.Typeface("DejaVu Sans", skia.FontStyle.Bold())
+            self._hfont = {"small": skia.Font(tf, 18 * sc), "info": skia.Font(tf, 28 * sc), "big": skia.Font(tf, 46 * sc),
+                           "title": skia.Font(tf, 58 * sc)}
+        F = self._hfont
+        if h.retries is not None:
+            n, left = h.retries_max, h.retries
+            x0, y0, gap, r = self.W - 28 * sc - n * 34 * sc, 40 * sc, 34 * sc, 11 * sc
+            c.drawString(h.label, x0 - 10 * sc - F["small"].measureText(h.label), y0 + 6 * sc, F["small"],
+                         skia.Paint(AntiAlias=True, Color=col((220, 235, 255), 0.85)))
+            for k in range(n):
+                cx = x0 + k * gap + r
+                if k < left:
+                    self._glow(c, (cx, y0), r * 2.2, (120, 230, 255), 0.35)
+                    c.drawCircle(cx, y0, r, skia.Paint(AntiAlias=True, Color=col((150, 240, 255), 0.95)))
+                elif k == left and h.flash > 0:  # the one just lost: a red flash, shrinking away
+                    rr = r * (0.4 + 0.9 * h.flash)
+                    self._glow(c, (cx, y0), rr * 3.0, (255, 60, 60), 0.6 * h.flash)
+                    c.drawCircle(cx, y0, rr, skia.Paint(AntiAlias=True, Color=col((255, 80, 80), h.flash)))
+                c.drawCircle(cx, y0, r, skia.Paint(AntiAlias=True, Color=col((150, 200, 230), 0.6), Style=skia.Paint.kStroke_Style,
+                                                   StrokeWidth=2 * sc))
+        if h.flash > 0:  # the whole screen takes the hit
+            c.drawRect(skia.Rect(0, 0, self.W, self.H), skia.Paint(Color=col((255, 30, 30), 0.18 * h.flash)))
+        for text, style, a in h.messages:
+            if a <= 0.01:
+                continue
+            font = F["title"] if style == "title" else F["big"] if style in ("alert", "success") else F["info"]
+            rgb = {"alert": (255, 70, 70), "success": (120, 255, 170), "title": (240, 248, 255), "info": (225, 235, 255)}[style]
+            w = font.measureText(text)
+            y = self.H * (0.42 if style in ("alert", "success", "title") else 0.84)
+            pad = 18 * sc
+            c.drawRoundRect(skia.Rect(self.W / 2 - w / 2 - pad, y - font.getSize() - pad * 0.6, self.W / 2 + w / 2 + pad, y + pad * 0.8),
+                            10 * sc, 10 * sc, skia.Paint(AntiAlias=True, Color=col((6, 8, 14), 0.62 * a)))
+            if style in ("alert", "success"):
+                self._glow(c, (self.W / 2, y - font.getSize() * 0.35), w * 0.7, rgb, 0.25 * a, squash=0.25)
+            c.drawString(text, self.W / 2 - w / 2, y, font, skia.Paint(AntiAlias=True, Color=col(rgb, a)))
 
     def _particles(self, c: skia.Canvas, parts) -> None:
         for (x, y, r, a, rgb) in parts:
@@ -465,12 +507,36 @@ class SkiaRenderer:
         mid = self.P(0, rh - 500, 300)[1]
         shader = skia.GradientShader.MakeLinear([skia.Point(0, top), skia.Point(0, mid)], [col(self.bg, 0.85), col(self.bg, 0.0)])
         c.drawRect(skia.Rect(-4000, -4000, 4000, 4000), skia.Paint(Shader=shader))
+        if self.env.room.void_below is not None:
+            self._void(c, fs, self.env.room.void_below)
         if self.env.room.entry_door:
             door = self.poly([(-hw, 0, -75), (-hw, 0, 75), (-hw, 230, 75), (-hw, 230, -75)])
             a, b = self.P(-hw, 230, 0), self.P(-hw, 0, 0)
             sh = skia.GradientShader.MakeLinear([skia.Point(0, a[1]), skia.Point(0, b[1])], [col((40, 120, 140), 0.9), col((210, 250, 255), 1.0)])
             c.drawPath(door, skia.Paint(AntiAlias=True, Shader=sh))
             c.drawPath(door, skia.Paint(AntiAlias=True, Color=col((160, 250, 255), 0.9), Style=skia.Paint.kStroke_Style, StrokeWidth=2.5))
+
+    def _void(self, c: skia.Canvas, fs: FrameState, top: float) -> None:
+        """A bottomless drop under the level: the room fades into darkness below `top`, with streams of data falling
+        into it (deterministic in time)."""
+        y0 = min(self.P(0, top, self.back)[1], self.P(0, top, self.near)[1])
+        y1 = max(self.P(0, top - 320, self.back)[1], y0 + 1.0)
+        sh = skia.GradientShader.MakeLinear([skia.Point(0, y0), skia.Point(0, y1)], [col(self.bg, 0.0), col((2, 3, 7), 0.985)])
+        c.drawRect(skia.Rect(-6000, y0, 6000, 6000), skia.Paint(Shader=sh))
+        rng = np.random.default_rng(7)
+        hw = self.hw
+        for k in range(70):  # falling data streaks, drawn in the depth of the void
+            x = rng.uniform(-hw - 400, hw + 400)
+            z = rng.uniform(self.near + 40, self.back)
+            sp = rng.uniform(160, 420)
+            ln = rng.uniform(30, 110)
+            ph = rng.uniform(0, 1)
+            span = 900.0
+            yv = top - 40 - ((fs.t * sp + ph * span) % span)
+            a, b = self.P(x, yv + ln, z), self.P(x, yv, z)
+            depth = clamp(1.0 - (top - yv) / span, 0.0, 1.0)
+            p = skia.Paint(AntiAlias=True, StrokeWidth=max(1.0, 1.6 * a[2]), Color=col(self.accent, 0.22 * depth))
+            c.drawLine(a[0], a[1], b[0], b[1], p)
 
     def _glow(self, c: skia.Canvas, center: Tuple[float, float], radius: float, rgb, alpha: float, squash: float = 1.0) -> None:
         if radius <= 1:

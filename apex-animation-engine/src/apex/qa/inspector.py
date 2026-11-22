@@ -554,7 +554,15 @@ class Inspector:
             seq = [("unlock", u), ("open", o), ("exit", x)]
             ok = True
             msg = []
-            if ex.unlock_on and u is not None:
+            if ex.unlock_on and ex.unlock_on.startswith("together:") and u is not None:
+                # re-derived: at the unlock, every one of them is standing near the door (from the rendered bodies)
+                from ..scene.targets import exit_world
+                who = ex.unlock_on.split(":", 1)[1].split(",")
+                ew = exit_world(env, ex.id)
+                far = max(math.dist(r.animators[w].root_at(u), ew) for w in who if w in r.animators)
+                ok &= far <= ex.open_radius + 2.0 and all(w in r.animators for w in who)
+                msg.append(f"together ({', '.join(who)}; farthest {far:.0f} of {ex.open_radius:.0f} units)")
+            elif ex.unlock_on and u is not None:
                 sw_id = ex.unlock_on.split(":", 1)[1]
                 act = next((e.t for e in r.events if e.type == "switch_activated" and e.data.get("switch") == sw_id), None)
                 ok &= act is not None and u >= act

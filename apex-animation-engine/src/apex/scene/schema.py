@@ -63,6 +63,8 @@ class RoomSpec(Strict):
     entry_door: bool = True
     grid_spacing: float = 100.0
     grid_alpha: float = Field(1.0, ge=0, le=1)  # strength of the neon grid (set dressing reads better over a quieter grid)
+    void_below: Optional[float] = None  # Milestone 6: drawn as a bottomless void below this height (the floor is still
+    # there physically, far below a level built on platforms; a scene's `fail` zone catches a fall before it is reached)
 
 
 class GravityEffect(Strict):
@@ -197,7 +199,8 @@ class ExitSpec(Strict):
     s: float
     width: float = Field(170.0, gt=20)
     sealed: bool = True
-    unlock_on: Optional[str] = None  # "switch:<id>" (unlocks when that switch's gravity change settles)
+    unlock_on: Optional[str] = None  # "switch:<id>" (when that switch's gravity change settles) or "together:<id>,<id>,..."
+    # (Milestone 6: only when all those characters stand within `open_radius` of it at once)
     open_radius: float = Field(260.0, gt=0)
 
 
@@ -727,6 +730,30 @@ class DiagramSpec(Strict):
         return self
 
 
+class FailSpec(Strict):
+    """A way to fail (Milestone 6): a character whose body drops below `below` (world y) has failed (`fail` event)."""
+    below: float
+    characters: List[str] = Field(default_factory=list)  # default: everyone
+
+
+class HudMessage(Strict):
+    text: str
+    at: Optional[float] = Field(None, ge=0)
+    on: Optional[str] = None  # an event (goal syntax)
+    delay: float = Field(0.0, ge=0, le=10)
+    duration: float = Field(2.5, gt=0, le=30)
+    style: Literal["alert", "info", "success", "title"] = "info"
+
+
+class HudSpec(Strict):
+    """A game-style overlay drawn over the picture (Milestone 6): a retry counter (it ticks down with a flash at each
+    `fail`) and messages shown at a time or on an event."""
+    retries: Optional[int] = Field(None, ge=0, le=9)
+    retries_max: int = Field(3, ge=1, le=9)
+    label: str = "RETRIES"
+    messages: List[HudMessage] = Field(default_factory=list)
+
+
 class MusicSpec(Strict):
     """A beat grid in film time (what the audience hears), Milestone 4. Beat k is at `offset + k * 60 / bpm` s.
     `snap_cuts`: each shot boundary within `snap_window` beats of a beat moves onto it. `wait_beat` actions end on
@@ -753,6 +780,10 @@ class SceneSpec(Strict):
     time_fx: Optional[TimeFxSpec] = None  # hit-stop, slow motion, smears and screen effects (Milestone 3)
     music: Optional[MusicSpec] = None  # beat grid: cut snapping, beat waits, beat-locked soundtrack (Milestone 4)
     diagrams: List[DiagramSpec] = Field(default_factory=list)  # annotations from simulation data (Milestone 5)
+    fail: Optional[FailSpec] = None  # Milestone 6: falling out of the level
+    hud: Optional[HudSpec] = None  # Milestone 6: retry counter and messages
+    transition_in: Literal["cut", "fade", "rewind"] = "cut"  # how a film enters this scene from the previous one
+    retry_of: Optional[str] = None  # Milestone 6: this scene is a retry of that scene (it restarts from the same state)
 
     @model_validator(mode="after")
     def _shots(self) -> "SceneSpec":
@@ -816,8 +847,12 @@ class ProjectSpec(Strict):
                     if not ((k == "prop" and ref in props) or (k == "world" and end == r.b)):
                         raise ValueError(f"rope {r.id}: end {end!r} must be 'prop:<id>' (or 'world:x,y' for b)")
             for ex in envs[sc.environment].exits:
-                if ex.unlock_on and (not ex.unlock_on.startswith("switch:") or ex.unlock_on.split(":", 1)[1] not in switches):
-                    raise ValueError(f"exit {ex.id}: unlock_on must be 'switch:<id>' of a known switch")
+                if ex.unlock_on and ex.unlock_on.startswith("together:"):
+                    who = set(ex.unlock_on.split(":", 1)[1].split(","))
+                    if not who or not who <= chars:
+                        raise ValueError(f"exit {ex.id}: unlock_on 'together:' must list known characters")
+                elif ex.unlock_on and (not ex.unlock_on.startswith("switch:") or ex.unlock_on.split(":", 1)[1] not in switches):
+                    raise ValueError(f"exit {ex.id}: unlock_on must be 'switch:<id>' of a known switch or 'together:<ids>'")
             for a in sc.actions:
                 if a.character not in placed:
                     raise ValueError(f"scene {sc.id}: action for unplaced character {a.character}")
