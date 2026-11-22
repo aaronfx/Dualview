@@ -123,10 +123,13 @@ def _concat(parts: List[str], out: str, fps: int, size, fades: List[bool], crf: 
 
 
 def render_film(project, out_path: str, samples: int = 1, preview_scale: float = 1.0, work_dir: Optional[str] = None,
-                qa: bool = True, only: Optional[List[str]] = None, progress: Optional[Callable] = None) -> FilmResult:
+                qa: bool = True, only: Optional[List[str]] = None, progress: Optional[Callable] = None,
+                strict_qa: bool = False) -> FilmResult:
     """Render every scene (or the ones in `only`, reusing earlier renders of the rest from `work_dir`) and join them."""
     from ..qa.film import check_film
     from .pipeline import render_scene
+    if strict_qa and not qa:
+        raise ValueError("strict_qa requires QA to be enabled")
     t0 = time.time()
     work = work_dir or os.path.splitext(out_path)[0] + "_scenes"
     os.makedirs(work, exist_ok=True)
@@ -153,6 +156,12 @@ def render_film(project, out_path: str, samples: int = 1, preview_scale: float =
         json.dump(vars(m), open(meta, "w"), indent=1)
         result.scenes.append(m)
         segs.append(seg)
+        if strict_qa and any(v == "FAIL" for v in m.gates.values()):
+            raise RuntimeError(f"strict film QA: scene {sc.id} failed: {m.failed}")
+    result.film_checks = [vars(c) for c in check_film(project)]
+    if strict_qa and any(c["status"] == "FAIL" for c in result.film_checks):
+        raise RuntimeError("strict film QA: film-wide checks failed: " +
+                           ", ".join(c["name"] for c in result.film_checks if c["status"] == "FAIL"))
     parts, fades = [], []
     for i, (sc, seg) in enumerate(zip(project.scenes, segs)):
         if i > 0 and sc.transition_in == "rewind":
@@ -166,7 +175,6 @@ def render_film(project, out_path: str, samples: int = 1, preview_scale: float =
         progress("film", 0.0, f"joining {len(parts)} parts")
     _concat(parts, out_path, project.fps, (W, H), fades)
     result.duration = _duration(out_path)
-    result.film_checks = [vars(c) for c in check_film(project)]
     result.seconds = time.time() - t0
     result.peak_rss_mb = _rss_mb()
     return result
