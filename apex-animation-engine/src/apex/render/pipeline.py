@@ -363,6 +363,7 @@ def render_scene(project: ProjectSpec, scene_id: str, out_path: str, samples: in
         if e.type == "footstep":
             e.data.setdefault("x", rt.evaluate(e.t).poses[e.character].root[0] if e.character in res.animators else 0.0)
     from .timewarp import build_warp
+    from .power import power_level_at
     warp = build_warp(scene, res.events, res.duration, project.fps)
     tfx = scene.time_fx
     fx = warp_effects(_effects_from_events(res.events, switches, rt.env) + strike_swooshes(res), warp)
@@ -398,7 +399,8 @@ def render_scene(project: ProjectSpec, scene_id: str, out_path: str, samples: in
                 frame = renderer.render(rt.evaluate(t), film_camera(cam.at(t), warp, tf, tfx), red_flash(res.events, t), fx, fade,
                                         motion_trails(res, t), fx_t=tf if not warp.is_identity() else None, smears=smears,
                                         prop_ghosts=ghosts, screen=scr, particles=parts.at(t), diagrams=dgm.at(t) if dgm else None,
-                                        hud=hudm.at(t) if hudm else None)
+                                        hud=hudm.at(t) if hudm else None,
+                                        world_power=power_level_at(scene.world_power, res.events, t))
             else:
                 acc = None
                 sh = cam.shot_at(t)
@@ -411,7 +413,8 @@ def render_scene(project: ProjectSpec, scene_id: str, out_path: str, samples: in
                                         motion_trails(res, ts) if k == samples // 2 else None, fx_t=tfk if not warp.is_identity() else None,
                                         smears=smears if k == samples // 2 else None, prop_ghosts=ghosts if k == samples // 2 else None,
                                         screen=screen_effects(warp, tfk, tfx), particles=parts.at(ts),
-                                        diagrams=dgm.at(ts) if dgm else None, hud=hudm.at(ts) if hudm else None).astype(np.float32)
+                                        diagrams=dgm.at(ts) if dgm else None, hud=hudm.at(ts) if hudm else None,
+                                        world_power=power_level_at(scene.world_power, res.events, ts)).astype(np.float32)
                     acc = f if acc is None else acc + f
                 frame = (acc / samples).astype(np.uint8)
             if hold is not None and tfx is not None and tfx.screen_fx and hold[0].kind != "block_hit":
