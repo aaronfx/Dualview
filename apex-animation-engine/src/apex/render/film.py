@@ -129,6 +129,8 @@ def render_film(project, out_path: str, samples: int = 1, preview_scale: float =
     from ..qa.film import check_film
     if strict_qa and not qa:
         raise ValueError("strict_qa requires QA to be enabled")
+    if strict_qa and only is not None:
+        raise ValueError("strict_qa requires a full fresh render; omit --only to avoid stale cached scenes")
     from .pipeline import render_scene
     t0 = time.time()
     work = work_dir or os.path.splitext(out_path)[0] + "_scenes"
