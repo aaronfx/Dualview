@@ -41,6 +41,7 @@ def main(argv=None) -> int:
     fm.add_argument("--samples", type=int, default=None)
     fm.add_argument("--scale", type=float, default=None)
     fm.add_argument("--no-qa", action="store_true")
+    fm.add_argument("--strict-qa", action="store_true", help="do not join/finalize if any scene or film check fails")
     fm.add_argument("--only", help="comma-separated scene ids to re-render (the others are reused from the work directory)")
     fm.add_argument("--report", help="write the film report (per-scene metrics, gates, film checks) here")
     p = sub.add_parser("plan", help="AI Story Director: story text -> validated project JSON")
@@ -97,7 +98,7 @@ def main(argv=None) -> int:
         print(f"preset {preset}: {int(proj.width * scale)}x{int(proj.height * scale)}, {samples} sample(s)/frame, "
               f"{len(proj.scenes)} scene(s)", flush=True)
         res = render_film(proj, a.out, samples=samples, preview_scale=scale, qa=not a.no_qa,
-                          only=a.only.split(",") if a.only else None, progress=_progress)
+                          only=a.only.split(",") if a.only else None, progress=_progress, strict_qa=a.strict_qa)
         for m in res.scenes:
             print(f"  {m.scene:14s} {m.frames:5d} frames {m.seconds:7.1f}s ({m.render_fps:.1f} fps)  gates {m.gates}  "
                   f"failed {m.failed or '-'}  peak {m.peak_rss_mb:.0f} MB")
