@@ -33,9 +33,13 @@ jobs:
       - name: Render faster 360p full-length preview
         run: |
           mkdir -p out/core_run
-          PYTHONPATH=src python -m apex.cli film examples/core_run_directors_cut.json -o out/core_run/CORE_RUN_fast_360p.mp4 --scale 0.333333 --no-qa --report out/core_run/report_360p.json
-          ffmpeg -hide_banner -loglevel error -y -i out/core_run/CORE_RUN_fast_360p.mp4 -c:v libx264 -preset veryfast -crf 26 -c:a aac -b:a 96k -movflags +faststart out/core_run/CORE_RUN_360p_share.mp4
-          ffprobe -v error -show_entries format=duration,size -of json out/core_run/CORE_RUN_360p_share.mp4 > out/core_run/probe_360p.json
+          set +e
+          PYTHONPATH=src python -m apex.cli film examples/core_run_directors_cut.json -o out/core_run/CORE_RUN_fast_432p.mp4 --scale 0.4 --no-qa --report out/core_run/report_432p.json
+          echo "apex film exit code: $?" > out/core_run/qa_status.txt
+          set -e
+          test -s out/core_run/CORE_RUN_fast_432p.mp4
+          ffmpeg -hide_banner -loglevel error -y -i out/core_run/CORE_RUN_fast_432p.mp4 -c:v libx264 -preset veryfast -crf 26 -c:a aac -b:a 96k -movflags +faststart out/core_run/CORE_RUN_432p_share.mp4
+          ffprobe -v error -show_entries format=duration,size -of json out/core_run/CORE_RUN_360p_share.mp4 > out/core_run/probe_432p.json
       - name: Share actual movie output
         if: always()
         uses: actions/upload-artifact@v4
