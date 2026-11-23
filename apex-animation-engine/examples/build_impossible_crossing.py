@@ -54,7 +54,8 @@ def world(duration=19.0):
             "props": [
                 {"id": "crate", "kind": "crate", "position": [-345, 44],
                  "size": [75, 86], "mass": 135, "friction": 0.92,
-                 "static_friction": 1.0, "color": "#d9a578"},
+                 "static_friction": 1.0, "color": "#d9a578",
+                 "collide_characters": False},
                 {"id": target, "kind": "glyph", "glyph": "+",
                  "position": [460, 25], "size": [43, 43],
                  "mass": 2.2, "weight": 12, "friction": 0.8,
