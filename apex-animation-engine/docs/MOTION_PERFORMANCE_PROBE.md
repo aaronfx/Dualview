@@ -6,11 +6,11 @@ Previous APEX action films could be **technically valid yet emotionally and visu
 
 The purpose here is to force APEX to present a *single readable intention*, a motivated decision, a real physical obstacle, and an earned payoff in a short original film.
 
-### Original story / four shot grammar
-1. **Doubt:** IKO sees a heavy slab blocking the path to a glowing plus-sign object. He double-takes and physically recoils.
-2. **Commitment:** a decision builds from an eye move and backward recoil into a leg-loaded crouch and forward lean; running begins only when the pose releases.
-3. **Leap / absorption:** IKO clears the existing rigid physical obstacle under gravity and lands; the existing high-quality APEX landing performance handles contact.
-4. **Recovery / reward:** hands plant against knees while breathing and looking back; the actor rises and moves to physically retrieve the glowing sign, then celebrates.
+### Original story / five shot grammar
+1. **Establish:** one wide view includes the character, the real obstacle and the reward.\n2. **Doubt:** IKO sees a heavy slab blocking the path to a glowing plus-sign object. He double-takes and physically recoils.
+3. **Commitment:** a decision builds from an eye move and backward recoil into a leg-loaded crouch and forward lean; running begins only when the pose releases.
+4. **Leap / absorption:** IKO clears the existing rigid physical obstacle under gravity and lands; the existing high-quality APEX landing performance handles contact.
+5. **Recovery / reward:** hands plant against knees while breathing and looking back; the actor rises and moves to physically retrieve the glowing sign, then celebrates.
 
 ### New reusable clips
 - `motion/clips/doubt_to_dash.json`: eye focus → recoil → anticipation → body weight load → release. Named keyposes and phases, no hard-coded frame offsets.
@@ -22,7 +22,7 @@ Both are available to any APEX project via `{"type": "act", "clip": "..."}`. The
 
 - Builder `examples/build_motion_performance_probe.py` simulates Pymunk/Chipmunk before writing a storyboard.
 - It rejects missing or badly ordered `takeoff`, `impact` and `pick_up` physics events.
-- Four camera cuts come from actual simulated event times, with minimum shot durations.
+- Five shots and four camera cuts come from actual simulated event times, with minimum shot durations.
 - Native scene goals verify notice, clip start, takeoff, impact, recovery clip and physical glyph pickup.
 - Code-level tests check expressive contrast in clip channels (not a claimed visual review score), contact targeting and deterministic storyboard.
 - `apex render` produces an MP4 with technical QA and review sheet; the actual MP4 must decode and have stable sync before approval.
