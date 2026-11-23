@@ -22,6 +22,10 @@ def main(argv=None) -> int:
     sub = ap.add_subparsers(dest="cmd", required=True)
     v = sub.add_parser("validate", help="validate a project JSON against the scene schema")
     v.add_argument("project")
+    cq = sub.add_parser("creative-qa", help="audit a three-reference causal storyboard before rendering")
+    cq.add_argument("project")
+    cq.add_argument("--simulate", action="store_true", help="verify declared event outcomes in real scene simulation")
+    cq.add_argument("--report", help="write a JSON creative QA report")
     r = sub.add_parser("render", help="simulate + render one scene to MP4 (with QA)")
     r.add_argument("project")
     r.add_argument("--scene", help="scene id (default: first scene)")
@@ -68,6 +72,26 @@ def main(argv=None) -> int:
         proj = _load(a.project)
         print(f"OK: {proj.id} ({len(proj.scenes)} scene(s), {len(proj.characters)} character(s))")
         return 0
+    if a.cmd == "creative-qa":
+        from .qa.creative import audit_creative_plan
+        from dataclasses import asdict
+        proj = _load(a.project)
+        events = None
+        if a.simulate and proj.creative_plan is not None:
+            from .scene.runtime import SceneRuntime
+            scenes_with_proofs = {b.scene for b in proj.creative_plan.beats if b.proof_event}
+            existing = {s.id for s in proj.scenes}
+            events = {sid: SceneRuntime(proj, sid).simulate().events for sid in scenes_with_proofs if sid in existing}
+        checks = audit_creative_plan(proj, events)
+        if not checks:
+            print("SKIP: project has no creative_plan; existing technical QA remains unchanged")
+            return 0
+        for check in checks:
+            print(f"  {check.status:4s} {check.name}: {check.details}")
+        if a.report:
+            with open(a.report, "w", encoding="utf-8") as f:
+                json.dump({"project": proj.id, "checks": [asdict(c) for c in checks]}, f, indent=2)
+        return 2 if any(c.status == "FAIL" for c in checks) else 0
     if a.cmd == "schema":
         from .scene.schema import json_schema
         print(json.dumps(json_schema(), indent=1))
