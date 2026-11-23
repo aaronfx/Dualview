@@ -6,6 +6,8 @@ on:
     paths:
       - '.github/workflows/apex-math-stage-preview.yml'
       - 'apex-animation-engine/examples/build_math_stage_smoke.py'
+      - 'apex-animation-engine/src/apex/audio/samples.py'
+      - 'apex-animation-engine/src/apex/audio/sound_director.py'
   workflow_dispatch:
 
 jobs:
