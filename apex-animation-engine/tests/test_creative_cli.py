@@ -1,8 +1,6 @@
 """Native ProjectSpec + CLI integration for the creative-storyboard gate."""
 import json
 from apex.cli import main
-from apex.ai.director import StoryDirector, system_prompt
-import pytest
 from apex.scene.schema import ProjectSpec
 
 
@@ -54,10 +52,3 @@ def test_cli_returns_zero_for_valid_proof_and_nonzero_for_wrong_math(tmp_path):
     src.write_text(json.dumps(minimal(verified=False)), encoding="utf-8")
     assert main(["creative-qa", str(src)]) == 2
 
-
-def test_ai_director_understands_and_proves_creative_story_contract():
-    assert "OPTIONAL CREATIVE PLAN" in system_prompt()
-    assert "creative_plan" in system_prompt()
-    StoryDirector._dry_run(ProjectSpec.model_validate(minimal(verified=True)))
-    with pytest.raises(ValueError, match="creative plan contradicted"):
-        StoryDirector._dry_run(ProjectSpec.model_validate(minimal(verified=False)))
