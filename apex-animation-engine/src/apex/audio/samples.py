@@ -54,7 +54,16 @@ class SampleBank:
         return spec
 
     def has(self, name: str) -> bool:
-        return self.ok and self._spec(name) is not None
+        if not self.ok:
+            return False
+        spec = self._spec(name)
+        if not spec:
+            return False
+        # Some development checkouts intentionally omit large sample packs.
+        # Every declared layer must offer a real file; otherwise the sound
+        # director should use its built-in synthesised effect.
+        return all(any(os.path.isfile(os.path.join(self.root, f)) for f in layer.get("files", ()))
+                   for layer in spec.get("layers", ())) and bool(spec.get("layers"))
 
     def synth_mix(self, name: str) -> float:
         spec = self._spec(name)
@@ -69,15 +78,25 @@ class SampleBank:
             out.add(self.manifest["room_tone"]["file"])
         return sorted(out)
 
-    def render(self, name: str, index: int, intensity: float = 1.0) -> np.ndarray:
-        """One performance of `name` for cue number `index` (deterministic). Harder hits play slightly lower."""
+    def render(self, name: str, index: int, intensity: float = 1.0) -> Optional[np.ndarray]:
+        """Sample performance, or None to request the engine's synthesised fallback."""
         spec = self._spec(name)
+        if not spec or not self.has(name):
+            return None
         rng = np.random.default_rng((self.seed * 1_000_003 + index * 7919 + sum(map(ord, name))) & 0xFFFFFFFF)
         spread = float(spec.get("pitch", 0.0))
         out = np.zeros(1)
         for layer in spec["layers"]:
-            f = layer["files"][int(rng.integers(len(layer["files"])))]
-            x = decode(os.path.join(self.root, f), self.sr)
+            # Deterministic among files *present in this checkout*; avoids
+            # sampling references to absent (or unvendored) sound packs.
+            files = [f for f in layer["files"] if os.path.isfile(os.path.join(self.root, f))]
+            if not files:
+                return None
+            f = files[int(rng.integers(len(files)))]
+            try:
+                x = decode(os.path.join(self.root, f), self.sr)
+            except (OSError, subprocess.CalledProcessError, ValueError):
+                return None
             ratio = layer.get("pitch_base", 1.0) * (1.0 + spread * float(rng.uniform(-1, 1))) * (1.0 - 0.08 * (intensity - 1.0))
             x = _repitch(x, max(0.5, ratio)) * layer.get("gain", 1.0) * 10 ** (float(rng.uniform(-1.5, 1.5)) / 20)
             if len(x) > len(out):
@@ -90,7 +109,12 @@ class SampleBank:
         rt = self.manifest.get("room_tone")
         if not self.ok or not rt:
             return None
-        x = decode(os.path.join(self.root, rt["file"]), self.sr)
+        try:
+            x = decode(os.path.join(self.root, rt["file"]), self.sr)
+        except (OSError, subprocess.CalledProcessError, ValueError):
+            return None
+        if len(x) == 0:
+            return None
         xf = min(int(0.25 * self.sr), len(x) // 4)
         if xf > 0:  # crossfaded loop body
             body = x[:-xf].copy()
