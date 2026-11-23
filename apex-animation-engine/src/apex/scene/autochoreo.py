@@ -153,6 +153,7 @@ def propose(project: ProjectSpec, objective: Objective) -> tuple[Candidate, ...]
             _a(objective.actor, "vault", target=f"obstacle:{ob.id}"),
         ) + finish, required_event="vault"),
         Candidate("climb_then_drop", opening + (
+            _a(objective.actor, "run_to", target_x=left - 106, speed=355),
             _a(objective.actor, "climb", target=f"obstacle:{ob.id}"),
             _a(objective.actor, "jump_to", target_x=far, height=85.0),
             _a(objective.actor, "act", clip="impact_to_grin", emotion="relieved", intensity=0.9),
