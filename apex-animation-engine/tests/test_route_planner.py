@@ -34,7 +34,7 @@ def test_obstacle_is_derived_from_real_project_geometry():
 
 
 def test_room_ceiling_and_boundaries_cannot_be_ignored():
-    small = env(room={"width": 700, "height": 200, "entry_door": False})
+    small = env(room={"width": 700, "height": 201, "entry_door": False})
     r = check_jump(small, (-150, 0), (150, 0), horizontal_speed=600)
     assert not r.feasible and "ceiling" in r.reason
     r2 = check_jump(env(), (-590, 0), (590, 0), horizontal_speed=600, max_rise=2000,
