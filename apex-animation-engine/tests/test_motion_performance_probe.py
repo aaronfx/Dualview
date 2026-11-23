@@ -55,7 +55,7 @@ def test_original_threshold_scene_is_real_physics_and_shots_follow_events():
     assert isinstance(project, ProjectSpec)
     scene = project.scenes[0]
     assert 7.0 < scene.duration <= 17.0
-    assert len(scene.shots) == 4
+    assert len(scene.shots) == 5
     assert all(b.start == a.end for a,b in zip(scene.shots, scene.shots[1:]))
     assert scene.shots[0].start == 0 and scene.shots[-1].end == scene.duration
     assert {e for e in ("takeoff", "impact", "pick_up")} <= {k[0] for k in events}
