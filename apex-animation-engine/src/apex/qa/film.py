@@ -60,4 +60,12 @@ def check_film(project) -> List[Check]:
             prev = s
         out.append(Check("retry_counter_consistent", "FAIL" if bad else "PASS",
                          details="; ".join(bad) or f"the counter carries across {len(huds)} scenes"))
+    # Optional creative QA: absent in existing projects, preserving their behavior.
+    if getattr(project, "creative_plan", None) is not None:
+        from .creative import audit_creative_plan
+        proof_scenes = {b.scene for b in project.creative_plan.beats if b.proof_event}
+        evidence = {sid: SceneRuntime(project, sid).simulate().events
+                    for sid in proof_scenes if sid in scenes}
+        out.extend(Check(c.name, c.status, c.metric, c.threshold, c.details)
+                   for c in audit_creative_plan(project, evidence))
     return out
