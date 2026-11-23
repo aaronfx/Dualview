@@ -35,7 +35,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install validation dependencies
-        run: python -m pip install --disable-pip-version-check 'pydantic>=2.6,<3' 'sympy>=1.13,<2' 'pytest>=8,<10'
+        run: python -m pip install --disable-pip-version-check 'pydantic>=2.6,<3' 'sympy>=1.13,<2' 'pytest>=8,<10' 'numpy>=1.26,<3'
       - name: Test mathematics and three reference-story contracts
         env:
           PYTHONPATH: apex-animation-engine/src
