@@ -53,7 +53,7 @@ def test_unrenderable_variables_overlap_and_oversized_layout_fail_closed():
     with pytest.raises(ValueError, match="overlap"):
         compile_math_stage(I(2), glyph_size=(100, 100), gap=100)
     with pytest.raises(ValueError, match="width"):
-        compile_math_stage(I(123456789), max_width=300)
+        compile_math_stage(I(12345), max_width=300)
 
 
 def test_new_mathematical_symbols_have_valid_physical_strokes():
