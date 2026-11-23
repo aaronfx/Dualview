@@ -12,13 +12,16 @@ on:
       - 'apex-animation-engine/tests/test_audio_fallback.py'
       - 'apex-animation-engine/src/apex/audio/samples.py'
       - 'apex-animation-engine/src/apex/audio/sound_director.py'
+      - 'apex-animation-engine/src/apex/audio/sfx/manifest.json'
+      - 'apex-animation-engine/tests/test_quality_upgrade.py'
+      - 'apex-animation-engine/tests/test_motion_performance_probe.py'
       - 'apex-animation-engine/src/apex/render/film.py'
   workflow_dispatch:
 
 jobs:
   physics-and-scenes:
     runs-on: ubuntu-latest
-    timeout-minutes: 22
+    timeout-minutes: 32
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
