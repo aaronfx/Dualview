@@ -3,7 +3,7 @@ import pytest
 
 from apex.ai.director import StoryDirector, system_prompt
 from apex.scene.schema import ProjectSpec
-from test_creative_cli import minimal
+from tests.test_creative_cli import minimal
 
 
 def test_director_prompt_describes_causal_math_arcade_and_epic_contract():
