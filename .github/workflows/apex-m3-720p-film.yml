@@ -1,0 +1,47 @@
+name: APEX M3 high-quality 720p film
+
+on:
+  push:
+    branches: [feature/apex-three-reference-grade]
+    paths:
+      - '.github/workflows/apex-m3-720p-film.yml'
+  workflow_dispatch:
+
+jobs:
+  native-film:
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install APEX runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg libegl1
+          python -m pip install --disable-pip-version-check -e './apex-animation-engine[dev]'
+      - name: Build autonomously selected scene and audit route evidence
+        working-directory: apex-animation-engine
+        run: |
+          mkdir -p out/m3_final_review
+          python examples/build_impossible_crossing.py out/impossible_crossing_720p.json
+          apex validate out/impossible_crossing_720p.json
+      - name: Render 1280x720 with two Skia motion samples per frame
+        working-directory: apex-animation-engine
+        run: |
+          apex render out/impossible_crossing_720p.json -o out/impossible_crossing_720p.mp4 --scale 1.0 --samples 2 --qa-json out/impossible_crossing_720p_qa.json --review-dir out/m3_final_review
+          apex review out/impossible_crossing_720p.json out/m3_final_review --video out/impossible_crossing_720p.mp4 --qa-json out/impossible_crossing_720p_qa.json
+      - name: Archive fully reproducible high-quality benchmark
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: apex-m3-impossible-crossing-720p-and-proof
+          path: |
+            apex-animation-engine/out/impossible_crossing_720p.mp4
+            apex-animation-engine/out/impossible_crossing_720p.json
+            apex-animation-engine/out/impossible_crossing_720p.plan.json
+            apex-animation-engine/out/impossible_crossing_720p_qa.json
+            apex-animation-engine/out/m3_final_review/**
+          retention-days: 14
+          if-no-files-found: warn
