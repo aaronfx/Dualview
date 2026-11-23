@@ -7,6 +7,8 @@ on:
       - '.github/workflows/apex-reference-triad-integration.yml'
       - 'apex-animation-engine/src/apex/scene/route_planner.py'
       - 'apex-animation-engine/tests/test_route_planner.py'
+      - 'apex-animation-engine/tests/test_creative_director.py'
+      - 'apex-animation-engine/src/apex/ai/director.py'
       - 'apex-animation-engine/src/apex/render/film.py'
   workflow_dispatch:
 
@@ -26,7 +28,7 @@ jobs:
         run: python -m pip install --disable-pip-version-check -e '.[dev]'
       - name: Verify new math / creative features against real physics and scene schemas
         working-directory: apex-animation-engine
-        run: python -m pytest -q tests/test_schema.py tests/test_physics.py tests/test_milestone4.py tests/test_milestone5.py tests/test_math_stage.py tests/test_math_semantics.py tests/test_creative_storyboard.py tests/test_route_planner.py tests/test_film_windows.py
+        run: python -m pytest -q tests/test_schema.py tests/test_physics.py tests/test_milestone4.py tests/test_milestone5.py tests/test_math_stage.py tests/test_math_semantics.py tests/test_creative_storyboard.py tests/test_route_planner.py tests/test_film_windows.py tests/test_creative_director.py
       - name: Run whole APEX regression suite
         working-directory: apex-animation-engine
         run: python -m pytest -q
