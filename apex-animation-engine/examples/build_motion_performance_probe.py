@@ -117,11 +117,11 @@ def shots_for(events, duration):
         raise ValueError(f"storyboard edits made a shot unreadably short: {edges}")
     descriptions = [
         ("01_establish", "establishing", "one original world: IKO, a solid threshold, and a glowing reward",
-         {"mode": "static", "center": [-25, 235], "view_height": 720,
+         {"mode": "static", "center": [-65, 235], "view_height": 720,
           "keep_in_frame": False}),
         ("02_choice", "medium", "IKO sees the threshold, recoils, and chooses to cross",
-         {"mode": "static", "center": [-390, 195], "view_height": 440,
-          "include": ["obstacle:threshold"]}),
+         {"mode": "follow", "target": "iko", "view_height": 440,
+          "offset": [25, 35], "lead": 0.10, "stiffness": 4.5}),
         ("03_leap", "wide", "the committed jump must clear the actual slab",
          {"mode": "follow", "target": "iko", "view_height": 500, "lead": 0.28,
           "offset": [55, 45], "stiffness": 3.8,
