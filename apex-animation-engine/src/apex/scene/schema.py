@@ -882,6 +882,9 @@ class SceneSpec(Strict):
         return self
 
 
+from .creative import CreativePlan
+
+
 class ProjectSpec(Strict):
     schema_version: str = SCHEMA_VERSION
     id: str
@@ -893,6 +896,7 @@ class ProjectSpec(Strict):
     characters: List[CharacterSpec]
     environments: List[EnvironmentSpec]
     scenes: List[SceneSpec]
+    creative_plan: Optional[CreativePlan] = None  # optional cross-scene story contract; absent in legacy projects
 
     @field_validator("schema_version")
     @classmethod
