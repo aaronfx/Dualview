@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import json
 import os
-import resource
 import subprocess
 import time
 from dataclasses import dataclass, field
@@ -57,7 +56,21 @@ class FilmResult:
 
 
 def _rss_mb() -> float:
-    return resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0  # Linux: kilobytes
+    """Return peak memory in MB when supported, otherwise -1 for unknown.
+
+    The Unix-only `resource` module must not prevent the film renderer from
+    importing on Windows. Linux reports ru_maxrss in KiB; macOS reports bytes.
+    """
+    try:
+        import resource
+    except ImportError:
+        try:
+            import psutil
+        except ImportError:
+            return -1.0  # not measured, never confuse this with a 0 MB reading
+        return psutil.Process(os.getpid()).memory_info().rss / (1024.0 ** 2)
+    rss = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
+    return rss / (1024.0 ** (2 if os.name == "posix" and __import__("sys").platform == "darwin" else 1))
 
 
 def _run(cmd: List[str]) -> None:
