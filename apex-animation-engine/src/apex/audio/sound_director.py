@@ -446,11 +446,14 @@ class SoundDirector:
             name = "door_close" if cue.event_type == "door_close" else cue.sound
             if self.samples is not None and self.samples.has(name):
                 rec = self.samples.render(name, ci, intensity=cue.gain if cue.sound in ("impact", "clang", "land") else 1.0)
-                if cue.sound in ("impact", "clang", "land"):
-                    rec = rec * cue.gain  # the synthesised impact already carries its strength
-                mix = self.samples.synth_mix(name)
-                m0 = max(len(rec), len(sig))
-                sig = np.pad(rec, (0, m0 - len(rec))) + mix * np.pad(sig, (0, m0 - len(sig)))
+                if rec is not None:
+                    if cue.sound in ("impact", "clang", "land"):
+                        rec = rec * cue.gain  # the synthesised impact already carries its strength
+                    mix = self.samples.synth_mix(name)
+                    m0 = max(len(rec), len(sig))
+                    sig = np.pad(rec, (0, m0 - len(rec))) + mix * np.pad(sig, (0, m0 - len(sig)))
+                # Missing/invalid sample: retain the complete synthesised cue.
+                # A bad optional asset must never abort a valid scene render.
             i = int(round(cue.t * SR))
             if i >= n:
                 continue
