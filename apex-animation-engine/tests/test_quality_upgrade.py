@@ -257,10 +257,15 @@ def test_samples_are_deterministic_and_varied():
         pytest.skip("ffmpeg not installed")
     from apex.audio.samples import SampleBank
     bank = SampleBank(48000, seed=7)
-    assert bank.has("footstep") and bank.has("impact") and bank.has("land") and not bank.has("notice")
-    a, b = bank.render("footstep", 3), bank.render("footstep", 3)
+    # Footstep and jump samples are not shipped in the repo. The *active*
+    # manifest must contain only real, licensed recordings. Both unshipped
+    # cues use the sound director's original synth instead.
+    assert not bank.has("footstep") and not bank.has("jump")
+    assert bank.has("impact") and bank.has("land") and not bank.has("notice")
+    a, b = bank.render("impact", 3), bank.render("impact", 3)
     assert np.array_equal(a, b)
-    others = [bank.render("footstep", i) for i in range(6)]
+    others = [bank.render("impact", i) for i in range(6)]
+    assert all(x is not None and len(x) > 1 for x in others)
     assert len({(len(x), round(float(np.abs(x).max()), 4)) for x in others}) > 1  # varied pitch / file / gain
     assert bank.room_tone(48000) is not None and len(bank.room_tone(48000)) == 48000
 
