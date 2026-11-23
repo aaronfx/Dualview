@@ -109,23 +109,28 @@ def shots_for(events, duration):
     takeoff, landing, pickup = at("takeoff"), at("impact"), at("pick_up")
     if not (1.0 < takeoff < landing < pickup < duration - 0.4):
         raise ValueError(f"unexpected event order takeoff={takeoff:.2f}, impact={landing:.2f}, pick_up={pickup:.2f}")
-    edges = [0.0, round(takeoff - 0.28, 3), round(landing + 0.20, 3),
-             round(pickup - 0.24, 3), duration]
+    # The establishing insert proves the visible obstacle and goal *before*
+    # the acting close-up; the action and landing remain event-timed.
+    edges = [0.0, 0.76, round(takeoff - 0.28, 3),
+             round(landing + 0.20, 3), round(pickup - 0.24, 3), duration]
     if min(b - a for a, b in zip(edges, edges[1:])) < 0.55:
         raise ValueError(f"storyboard edits made a shot unreadably short: {edges}")
     descriptions = [
-        ("01_choice", "medium", "IKO sees the threshold, recoils, and chooses to cross",
-         {"mode": "static", "center": [-370, 195], "view_height": 460,
+        ("01_establish", "establishing", "one original world: IKO, a solid threshold, and a glowing reward",
+         {"mode": "static", "center": [-25, 235], "view_height": 720,
+          "keep_in_frame": False}),
+        ("02_choice", "medium", "IKO sees the threshold, recoils, and chooses to cross",
+         {"mode": "static", "center": [-390, 195], "view_height": 440,
           "include": ["obstacle:threshold"]}),
-        ("02_leap", "wide", "the committed jump must clear the actual slab",
-         {"mode": "follow", "target": "iko", "view_height": 530, "lead": 0.28,
+        ("03_leap", "wide", "the committed jump must clear the actual slab",
+         {"mode": "follow", "target": "iko", "view_height": 500, "lead": 0.28,
           "offset": [55, 45], "stiffness": 3.8,
           "include": ["obstacle:threshold"]}),
-        ("03_weight", "medium", "the body absorbs its landing and takes a breath",
-         {"mode": "follow", "target": "iko", "view_height": 390,
+        ("04_weight", "medium", "the body absorbs its landing and takes a breath",
+         {"mode": "follow", "target": "iko", "view_height": 370,
           "lead": 0.14, "offset": [35, 40], "stiffness": 3.8}),
-        ("04_reward", "medium", "the reward is physical: IKO picks up a live glyph",
-         {"mode": "follow", "target": "iko", "view_height": 420,
+        ("05_reward", "medium", "the reward is physical: IKO picks up a live glyph",
+         {"mode": "follow", "target": "iko", "view_height": 330,
           "lead": 0.1, "offset": [0, 35], "stiffness": 4.1,
           "include": ["prop:spark"]})
     ]
@@ -153,7 +158,7 @@ def build():
     ptime = events.get(("pick_up", "iko"), [])
     if not ptime:
         raise ValueError("physics did not let IKO reach and pick up the energy glyph")
-    duration = math.ceil((ptime[0] + 3.0) * base.fps) / base.fps
+    duration = math.ceil((ptime[0] + 2.20) * base.fps) / base.fps
     if duration > 17.0:
         raise ValueError(f"motion test is excessively long: {duration:.2f}s")
     d = project(duration=duration, shots=shots_for(events, duration))
