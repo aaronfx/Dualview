@@ -6,12 +6,15 @@ on:
       - feature/apex-three-reference-grade
     paths:
       - 'apex-animation-engine/src/apex/scene/creative.py'
+      - 'apex-animation-engine/src/apex/scene/math_stage.py'
+      - 'apex-animation-engine/src/apex/scene/glyphs.py'
       - 'apex-animation-engine/src/apex/scene/math_semantics.py'
       - 'apex-animation-engine/src/apex/qa/creative.py'
       - 'apex-animation-engine/src/apex/qa/film.py'
       - 'apex-animation-engine/src/apex/scene/schema.py'
       - 'apex-animation-engine/tests/test_creative_storyboard.py'
       - 'apex-animation-engine/tests/test_math_semantics.py'
+      - 'apex-animation-engine/tests/test_math_stage.py'
       - '.github/workflows/apex-reference-triad-tests.yml'
   pull_request:
     paths:
@@ -33,4 +36,4 @@ jobs:
       - name: Test mathematics and three reference-story contracts
         env:
           PYTHONPATH: apex-animation-engine/src
-        run: python -m pytest -q apex-animation-engine/tests/test_math_semantics.py apex-animation-engine/tests/test_creative_storyboard.py
+        run: python -m pytest -q apex-animation-engine/tests/test_math_semantics.py apex-animation-engine/tests/test_creative_storyboard.py apex-animation-engine/tests/test_math_stage.py
