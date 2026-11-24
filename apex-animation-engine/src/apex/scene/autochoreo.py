@@ -172,6 +172,35 @@ def propose(project: ProjectSpec, objective: Objective) -> tuple[Candidate, ...]
             _a(objective.actor, "act", clip="impact_to_grin", emotion="relieved", intensity=1.08,
                tempo=pace.recovery_tempo),
         ) + finish
+    # Before confronting the main barrier, a same-lane collidable supply
+    # crate is itself an obstacle. A physically visible hop must clear it.
+    # This is *not* a fast-animation shortcut through decorative scenery.
+    crate_hop = ()
+    if objective.movable_prop_id:
+        crate = next((p for p in env.props if p.id == objective.movable_prop_id), None)
+        if crate is None or crate.id == goal.id:
+            raise ValueError("movable_prop_id must be another actual prop")
+        if (crate.collide_characters and
+            abs(crate.z - pl.z) <= (crate.depth / 2.0 + 18.0) and
+            start < crate.position[0] - crate.size[0]/2 and
+            crate.position[0] + crate.size[0]/2 < left):
+            near_crate = crate.position[0] - crate.size[0] / 2
+            far_crate = crate.position[0] + crate.size[0] / 2
+            approach_x = near_crate - 110.0
+            # If the observation run already approaches the hop, continue
+            # straight into takeoff. Measured-mode actors first run up.
+            if objective.pacing == "active":
+                if opening[0]["target_x"] > near_crate - 85.0:
+                    raise ValueError("active observation run starts too close to a solid crate for a safe hop")
+                crate_hop = (_a(objective.actor, "jump_to",
+                                  target_x=far_crate + 95.0,
+                                  height=max(180.0, crate.size[1] + 85.0)),)
+            else:
+                crate_hop = (
+                    _a(objective.actor, "run_to", target_x=approach_x, speed=pace.travel_speed),
+                    _a(objective.actor, "jump_to", target_x=far_crate + 95.0,
+                       height=max(180.0, crate.size[1] + 85.0)),
+                )
     # The landing x is outside the obstacle, not an unexplained teleport.
     base = [
         Candidate("direct_run", opening + (_a(objective.actor, "run_to", target_x=gx - 62, speed=pace.travel_speed),)
@@ -189,7 +218,7 @@ def propose(project: ProjectSpec, objective: Objective) -> tuple[Candidate, ...]
         Candidate("vault", opening + (
             _a(objective.actor, "vault", target=f"obstacle:{ob.id}"),
         ) + finish, required_event="vault"),
-        Candidate("climb_then_drop", opening + (
+        Candidate("climb_then_drop", opening + crate_hop + (
             _a(objective.actor, "run_to", target_x=climb_ready_x, speed=pace.travel_speed),
             _a(objective.actor, "climb", target=f"obstacle:{ob.id}",
                tempo=1.30 if objective.pacing == "active" else 1.0),
