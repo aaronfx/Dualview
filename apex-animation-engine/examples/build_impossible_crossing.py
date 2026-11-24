@@ -97,7 +97,11 @@ def _shots(events, duration, chosen):
     if chosen in ("climb_then_drop", "shift_crate_then_climb"):
         if climb_start is None or climbed is None or takeoff is None:
             raise ValueError("climbing route is missing mandatory physical milestones")
-        edges = [0, 0.82, round(climb_start - 0.20, 3),
+        # Fast actors can reach the obstacle before the old fixed-length
+        # opening has finished. Cut the establishing shot earlier rather
+        # than slowing the performer or creating an unreadably short scene.
+        establish_end = min(0.82, max(0.39, climb_start - 0.67))
+        edges = [0, round(establish_end, 3), round(climb_start - 0.20, 3),
                  round(climbed + 0.1, 3), round(impact + 0.18, 3),
                  round(pickup - 0.18, 3), duration]
         specs = [
