@@ -564,7 +564,10 @@ class PhysicsWorld:
         body.moment = moment
         ca, sa = math.cos(body.angle), math.sin(body.angle)
         body.position = (c_world.x + nudge[0] - (com[0] * ca - com[1] * sa), c_world.y + nudge[1] - (com[0] * sa + com[1] * ca))
-        body.velocity, body.angular_velocity = v, w0 * I0 / moment
+        # a fixed (kinematic / set-dressing) glyph has no mass or spin to conserve: it morphs in place and stays upright,
+        # so keep its angular velocity as is (0) rather than computing w0 * I0 / moment, which is 0 * inf = NaN for it
+        spin = w0 * I0 / moment if (body.body_type == pymunk.Body.DYNAMIC and math.isfinite(I0) and moment > 0) else w0
+        body.velocity, body.angular_velocity = v, spin
         self.space.add(*shapes)
         self.space.reindex_shapes_for_body(body)
         return I0, moment
