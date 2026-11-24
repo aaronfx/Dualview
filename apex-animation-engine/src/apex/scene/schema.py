@@ -131,6 +131,25 @@ class MorphSpec(Strict):
         return self
 
 
+class TransposeSpec(Strict):
+    """A fixed (set-dressing) glyph gliding to a new place along an arc — the reusable "cross the equals sign" move for
+    the Math world. It starts at time `at` or on an event `on` (e.g. a character gesture), travels to `to` over
+    `duration` seconds rising `arc` units at the apex, and rests there. A sign flip (`+`<->`-`, `x`<->`/`) is authored
+    separately as a `morph` on the same trigger with `delay = duration/2`, so the symbol inverts as it crosses."""
+    to: Vec2
+    at: Optional[float] = Field(None, ge=0)
+    on: Optional[str] = None
+    duration: float = Field(0.5, gt=0, le=4)
+    delay: float = Field(0.0, ge=0, le=10)   # with `on`: start this long after the event
+    arc: float = Field(90.0, ge=0, le=600)
+
+    @model_validator(mode="after")
+    def _one(self) -> "TransposeSpec":
+        if (self.at is None) == (self.on is None):
+            raise ValueError("a transpose needs exactly one of 'at' (a time) or 'on' (an event)")
+        return self
+
+
 class PropSpec(Strict):
     """A dynamic rigid body. `container` (heavy box with handles), `post` (tall steel support), `bar` (pry bar /
     lever), `toolbox` (small block, a typical fulcrum), `glyph` (a symbol built from its strokes, see scene/glyphs.py:
@@ -159,6 +178,7 @@ class PropSpec(Strict):
     fragment_of: Optional[str] = None  # a piece of a breakable prop (made by the engine; exists once it breaks)
     local: Vec2 = (0.0, 0.0)  # a box piece's centre in its parent's frame
     morphs: List[MorphSpec] = Field(default_factory=list)  # Milestone 5: shape changes (glyph props)
+    transposes: List["TransposeSpec"] = Field(default_factory=list)  # Math world: glide a fixed glyph across the equation
     creature_of: Optional[str] = None  # a part of a composite creature (made by the engine)
 
     @model_validator(mode="after")

@@ -158,3 +158,40 @@ def test_key_events_happen_on_screen():
         ins.times = [i / p.fps for i in range(int(res.duration * p.fps))]
         c = ins.check_causes_on_screen()[0]
         assert c.status == "PASS", (f, c.details)
+
+
+# ---------------------------------------------------------------- transpose (the reusable algebra move)
+def test_transpose_glides_a_term_across_and_the_sign_inverts():
+    # A kinematic (set-dressing) glyph glides from its start to a target over the duration and lands exactly there;
+    # a paired morph inverts the operator as it crosses -- the engine move that teaches equation transposition.
+    p = proj([{"id": "g", "kind": "glyph", "glyph": "+", "position": [-200, 120], "size": [70, 90], "mass": 2,
+               "solid": False, "z": -40,
+               "transposes": [{"to": [300.0, 120.0], "at": 0.4, "duration": 0.5, "arc": 150.0}],
+               "morphs": [{"to": "-", "at": 0.6, "duration": 0.3}]}],
+             acts=[{"character": "kai", "type": "idle", "duration": 1.5}], placements=[{"character": "kai", "x": -700}])
+    rt = SceneRuntime(p, "s")
+    res = rt.simulate()
+    start = next(e for e in res.events if e.type == "transpose_start")
+    arrive = next(e for e in res.events if e.type == "transpose")
+    assert start.data["prop"] == "g" and tuple(start.data["to"]) == (300.0, 120.0)
+    assert abs(start.t - 0.4) < 0.1 and abs(arrive.t - 0.9) < 0.1       # starts on time, arrives after the duration
+    assert math.dist(arrive.data["point"], (300.0, 120.0)) < 1.0        # lands exactly on the target
+    # mid-flight it is genuinely between start and target, lifted by the arc (not teleported)
+    mid = next(x for x in rt.evaluate(0.65).props if x.id == "g")
+    assert -200.0 < mid.pos[0] < 300.0 and mid.pos[1] > 150.0
+    # the operator inverted as it crossed
+    assert [m["to"] for m in res.morphs["g"]] == ["-"]
+
+
+def test_transpose_can_fire_on_an_event():
+    # the move also triggers from a named event (on), like morphs -- so a crossing can be caused, not just timed.
+    # here a second glyph morphs at 0.5s and that event sets the first glyph gliding across.
+    p = proj([{"id": "g", "kind": "glyph", "glyph": "2", "position": [0, 120], "size": [70, 90], "mass": 2,
+               "solid": False, "z": -40, "transposes": [{"to": [400.0, 120.0], "on": "morph", "duration": 0.4}]},
+              {"id": "cue", "kind": "glyph", "glyph": "-", "position": [-400, 120], "size": [70, 90], "mass": 2,
+               "solid": False, "z": -40, "morphs": [{"to": "+", "at": 0.5, "duration": 0.2}]}],
+             acts=[{"character": "kai", "type": "idle", "duration": 1.2}], placements=[{"character": "kai", "x": -700}])
+    rt = SceneRuntime(p, "s")
+    res = rt.simulate()
+    starts = [e for e in res.events if e.type == "transpose_start"]
+    assert len(starts) == 1 and starts[0].t >= 0.5                       # fired at/after the cue event, not before
