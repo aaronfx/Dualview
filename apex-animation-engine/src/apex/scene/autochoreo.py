@@ -19,6 +19,7 @@ from typing import Any, Optional
 from .route_planner import check_jump
 from .schema import ActionSpec, ProjectSpec
 from .runtime import SceneRuntime
+from .pacing import PaceName, actor_pace
 from .structures import obstacle_bounds
 
 
@@ -32,12 +33,14 @@ class Objective:
     max_jump_apex: float = 210.0
     prefer_prop_interaction: bool = False
     movable_prop_id: Optional[str] = None
+    pacing: PaceName = "active"  # director asks for brisk, decisive acting; measured retains the previous benchmark
 
     def __post_init__(self):
         if not 4 <= self.max_trial_seconds <= 60:
             raise ValueError("trial budget must be between 4 and 60 seconds")
         if not 40 <= self.max_jump_apex <= 420:
             raise ValueError("jump apex budget must be between 40 and 420")
+        actor_pace(self.pacing)  # reject unknown/unsupported styles instead of silently slowing down
 
 
 @dataclass(frozen=True)
@@ -102,6 +105,7 @@ def propose(project: ProjectSpec, objective: Objective) -> tuple[Candidate, ...]
     """
     scene = project.scene(objective.scene_id)
     env = project.environment(scene.environment)
+    pace = actor_pace(objective.pacing)
     if env.gravity[1] >= 0 or abs(env.gravity[0]) > 1e-6:
         raise ValueError("M3 bounded planner currently supports downward gravity only")
     pl = next((p for p in scene.placements if p.character == objective.actor), None)
@@ -124,28 +128,30 @@ def propose(project: ProjectSpec, objective: Objective) -> tuple[Candidate, ...]
 
     # Observation and expressive preparation are kept separate from solving.
     opening = (
-        _a(objective.actor, "notice", target=f"point:{(left + right)/2:g},{top + 35:g}", duration=0.7),
-        _a(objective.actor, "act", clip="doubt_to_dash", emotion="afraid", intensity=1.04),
+        _a(objective.actor, "notice", target=f"point:{(left + right)/2:g},{top + 35:g}", duration=pace.notice_seconds),
+        _a(objective.actor, "act", clip="doubt_to_dash", emotion="afraid", intensity=1.14,
+           tempo=pace.decision_tempo),
     )
     finish = (
-        _a(objective.actor, "run_to", target_x=gx - 62, speed=300),
+        _a(objective.actor, "run_to", target_x=gx - 62, speed=pace.goal_speed),
         _a(objective.actor, "pick_up", target=f"prop:{objective.goal_prop_id}"),
-        _a(objective.actor, "act", clip="cheer", emotion="joyful", intensity=0.74),
-        _a(objective.actor, "idle", duration=1.0),
+        _a(objective.actor, "act", clip="cheer", emotion="joyful", intensity=0.95,
+           tempo=pace.celebration_tempo),
+        _a(objective.actor, "idle", duration=pace.end_hold),
     )
 
     near, far = left - 122, right + 135
     # The landing x is outside the obstacle, not an unexplained teleport.
     base = [
-        Candidate("direct_run", opening + (_a(objective.actor, "run_to", target_x=gx - 62, speed=320),)
+        Candidate("direct_run", opening + (_a(objective.actor, "run_to", target_x=gx - 62, speed=pace.travel_speed),)
                   + finish[1:], required_event=None),
         Candidate("low_jump", opening + (
-            _a(objective.actor, "run_to", target_x=near, speed=350),
+            _a(objective.actor, "run_to", target_x=near, speed=pace.travel_speed),
             _a(objective.actor, "jump_to", target_x=far, height=min(top + 20, objective.max_jump_apex * 0.70)),
         ) + finish, required_event="takeoff", check_jump_height=min(top + 20, objective.max_jump_apex * 0.70),
             takeoff_x=near, landing_x=far),
         Candidate("powered_jump", opening + (
-            _a(objective.actor, "run_to", target_x=near, speed=390),
+            _a(objective.actor, "run_to", target_x=near, speed=pace.travel_speed * 1.08),
             _a(objective.actor, "jump_to", target_x=far, height=min(top + 90, objective.max_jump_apex)),
         ) + finish, required_event="takeoff", check_jump_height=min(top + 90, objective.max_jump_apex),
             takeoff_x=near, landing_x=far),
@@ -153,10 +159,11 @@ def propose(project: ProjectSpec, objective: Objective) -> tuple[Candidate, ...]
             _a(objective.actor, "vault", target=f"obstacle:{ob.id}"),
         ) + finish, required_event="vault"),
         Candidate("climb_then_drop", opening + (
-            _a(objective.actor, "run_to", target_x=left - 106, speed=355),
+            _a(objective.actor, "run_to", target_x=left - 106, speed=pace.travel_speed),
             _a(objective.actor, "climb", target=f"obstacle:{ob.id}"),
             _a(objective.actor, "jump_to", target_x=far, height=85.0),
-            _a(objective.actor, "act", clip="impact_to_grin", emotion="relieved", intensity=0.9),
+            _a(objective.actor, "act", clip="impact_to_grin", emotion="relieved", intensity=1.08,
+               tempo=pace.recovery_tempo),
         ) + finish, required_event="climbed"),
     ]
     if objective.movable_prop_id:
@@ -169,7 +176,7 @@ def propose(project: ProjectSpec, objective: Objective) -> tuple[Candidate, ...]
         elif start < movable.position[0]:
             approach = movable.position[0] - movable.size[0] / 2 - 65
             base.append(Candidate("shift_crate_then_climb", opening + (
-                _a(objective.actor, "walk_to", target_x=approach, speed=140),
+                _a(objective.actor, "walk_to", target_x=approach, speed=205 if objective.pacing == "active" else 140),
                 _a(objective.actor, "push", target=f"prop:{movable.id}", duration=1.10, effort=0.42),
                 _a(objective.actor, "climb", target=f"obstacle:{ob.id}"),
                 _a(objective.actor, "jump_to", target_x=far, height=85.0),
