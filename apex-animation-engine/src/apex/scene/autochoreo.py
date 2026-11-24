@@ -152,6 +152,21 @@ def propose(project: ProjectSpec, objective: Objective) -> tuple[Candidate, ...]
     )
 
     near, far = left - 122, right + 135
+    # For an active actor, a verified landing is followed immediately by the
+    # goal-directed run. A contact-aware upper-body clip carries the emotion
+    # while the real gait owns footsteps; the legacy measured presentation
+    # retains a separate knee-contact recovery performance.
+    if objective.pacing == "active":
+        climb_payoff = (
+            _a(objective.actor, "run_to", target_x=gx - 62, speed=pace.goal_speed,
+               clip="land_and_dash", emotion="determined",
+               intensity=1.05, tempo=pace.recovery_tempo),
+        ) + finish[1:]
+    else:
+        climb_payoff = (
+            _a(objective.actor, "act", clip="impact_to_grin", emotion="relieved", intensity=1.08,
+               tempo=pace.recovery_tempo),
+        ) + finish
     # The landing x is outside the obstacle, not an unexplained teleport.
     base = [
         Candidate("direct_run", opening + (_a(objective.actor, "run_to", target_x=gx - 62, speed=pace.travel_speed),)
@@ -173,9 +188,7 @@ def propose(project: ProjectSpec, objective: Objective) -> tuple[Candidate, ...]
             _a(objective.actor, "run_to", target_x=left - 106, speed=pace.travel_speed),
             _a(objective.actor, "climb", target=f"obstacle:{ob.id}"),
             _a(objective.actor, "jump_to", target_x=far, height=85.0),
-            _a(objective.actor, "act", clip="impact_to_grin", emotion="relieved", intensity=1.08,
-               tempo=pace.recovery_tempo),
-        ) + finish, required_event="climbed"),
+        ) + climb_payoff, required_event="climbed"),
     ]
     if objective.movable_prop_id:
         movable = next((p for p in env.props if p.id == objective.movable_prop_id), None)
