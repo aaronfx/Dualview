@@ -106,3 +106,41 @@ def test_final_assembled_scene_replays_selected_physics(example):
     assert any(k == "pick_up" and d.get("prop") == "spark" for k,t,d in events)
     assert any(k == "climbed" for k,t,d in events)
     assert any(k == "impact" for k,t,d in events)
+
+
+def test_active_pace_is_an_explicit_director_contract_not_global_physics(mission):
+    from apex.scene.pacing import actor_pace
+    from dataclasses import replace
+    p, obj = mission
+    active = actor_pace("active")
+    measured = actor_pace("measured")
+    assert active.notice_seconds < measured.notice_seconds
+    assert active.decision_seconds < 0.75
+    assert active.recovery_seconds < 0.80
+    assert active.final_tail <= 1.7
+    assert active.travel_speed > measured.travel_speed
+    fast = propose(p, obj)
+    slow = propose(p, replace(obj, pacing="measured"))
+    assert fast[0].actions[0]["duration"] == active.notice_seconds
+    assert fast[0].actions[1]["tempo"] == active.decision_tempo
+    assert fast[0].actions[1]["tempo"] > slow[0].actions[1].get("tempo", 1)
+    climber = next(c for c in fast if c.name == "climb_then_drop")
+    assert next(a for a in climber.actions if a["type"] == "run_to")["speed"] >= active.travel_speed
+    assert next(a for a in climber.actions if a.get("clip") == "impact_to_grin")["tempo"] == active.recovery_tempo
+    assert climber.actions[-1]["type"] == "idle"
+    assert climber.actions[-1]["duration"] <= 0.25
+
+
+def test_short_notice_emits_event_before_next_action(example):
+    d = example.world(duration=3)
+    sc = d["scenes"][0]
+    sc["actions"] = [
+        {"type": "notice", "character": "iko", "target": "point:0,200", "duration": 0.28},
+        {"type": "act", "character": "iko", "clip": "doubt_to_dash", "tempo": 1.72},
+        {"type": "idle", "character": "iko", "duration": 0.2},
+    ]
+    sc["shots"][0]["end"] = 3
+    sim = SceneRuntime(ProjectSpec.model_validate(d), "cross").simulate(physics_only=True)
+    notice = next(e for e in sim.events if e.type == "notice" and e.character == "iko")
+    acting = next(e for e in sim.events if e.type == "act" and e.character == "iko")
+    assert 0 < notice.t < acting.t <= 0.30
