@@ -386,7 +386,23 @@ class CharacterController(InteractionMixin, CombatMixin, AcroMixin, ArcadeMixin,
             self.emit(Event(t + 0.25, "point", self.cid, {"target": a.target}))
         elif a.type in ("walk_to", "run_to"):
             if self.seg.kind != "loco":
-                self._open("loco", t, run=(a.type == "run_to"), style=a.style, gaze=gaze, gaze_ref=dyn, carry=self.carrying)
+                self._open("loco", t, run=(a.type == "run_to"), style=a.style, gaze=gaze, gaze_ref=dyn,
+                           carry=self.carrying, motion_overlay=a.clip,
+                           act_emotion=a.emotion or "neutral", act_int=a.intensity,
+                           act_tempo=a.tempo, gaze_mode="notice" if a.notice_while_moving else None)
+            elif a.clip or a.notice_while_moving:
+                # Consecutive runs share a gait segment: update its upper-body
+                # performance without resetting planted feet or root momentum.
+                self.seg.data.update(motion_overlay=a.clip, overlay_t0=t,
+                                     act_emotion=a.emotion or "neutral", act_int=a.intensity,
+                                     act_tempo=a.tempo,
+                                     gaze=gaze, gaze_ref=dyn,
+                                     gaze_mode="notice" if a.notice_while_moving else None)
+            if a.notice_while_moving:
+                self.emit(Event(t, "notice", self.cid, {"target": a.target, "while_moving": True}))
+            if a.clip:
+                self.emit(Event(t, "act", self.cid, {"clip": a.clip, "emotion": a.emotion or "neutral",
+                                                    "while_moving": True}))
         elif a.type == "turn":
             self._open("turn", t, face_from=self.facing, face_to=float(a.face))
             self.emit(Event(t, "turn", self.cid, {"to": a.face}))
@@ -528,7 +544,15 @@ class CharacterController(InteractionMixin, CombatMixin, AcroMixin, ArcadeMixin,
         direction = self.cur_dir  # fixed for the whole action (never re-decided mid-move)
         remaining = (a.target_x - self.s) * direction
         nxt = self.queue[0] if self.queue else None
-        carry = nxt is not None and (nxt.type in ("jump", "duck_slide") or (nxt.type in ("walk_to", "run_to") and (nxt.target_x - a.target_x) * direction > 0))
+        # A forward jump_to is an active continuation of the run, not a
+        # command to brake to zero and launch from a stationary squat.
+        # Do not carry into reverse jumps or jumps onto another support.
+        carry_jump = (nxt is not None and nxt.type == "jump_to" and nxt.onto is None
+                      and self.frame.owner is None and nxt.target_x is not None
+                      and (nxt.target_x - a.target_x) * direction > 35.0)
+        carry = nxt is not None and (nxt.type in ("jump", "duck_slide") or carry_jump or
+                                     (nxt.type in ("walk_to", "run_to") and nxt.target_x is not None
+                                      and (nxt.target_x - a.target_x) * direction > 0))
         v_des = speed if carry else min(speed, math.sqrt(2 * dec * max(remaining, 0.0)))
         cur = self.v * direction
         cur = min(cur + acc * dt, v_des) if cur < v_des else max(cur - dec * dt, v_des)
