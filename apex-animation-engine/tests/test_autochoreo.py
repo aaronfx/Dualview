@@ -131,7 +131,8 @@ def test_active_pace_is_an_explicit_director_contract_not_global_physics(mission
     assert fast[0].actions[0]["tempo"] > slow[0].actions[1].get("tempo", 1)
     climber = next(c for c in fast if c.name == "climb_then_drop")
     assert next(a for a in climber.actions if a["type"] == "run_to")["speed"] >= active.travel_speed
-    assert next(a for a in climber.actions if a.get("clip") == "impact_to_grin")["tempo"] == active.recovery_tempo
+    assert next(a for a in climber.actions if a.get("clip") == "land_and_dash")["tempo"] == active.recovery_tempo
+    assert not any(a["type"] == "act" and a.get("clip") == "impact_to_grin" for a in climber.actions)
     assert climber.actions[-1]["type"] == "idle"
     assert climber.actions[-1]["duration"] <= 0.25
 
@@ -151,23 +152,24 @@ def test_short_notice_emits_event_before_next_action(example):
     assert 0 < notice.t < acting.t <= 0.30
 
 
-def test_scripted_landing_recovery_does_not_wait_through_duplicate_idle(example):
-    """An expressive landing replaces, not follows, automatic relief."""
+def test_active_impact_recovers_into_movement_without_stationary_act(example):
+    """An active actor keeps actual impact but runs toward the next goal."""
     film, _ = example.build()
-    assert film.scenes[0].duration < 11.6, "no extra second of dead time after landing"
+    assert film.scenes[0].duration < 10.1
     sim = SceneRuntime(film, "cross").simulate(physics_only=True)
     events = [e for e in sim.events if e.character == "iko"]
     impact = next(e for e in events if e.type == "impact")
-    recovered = next(e for e in events if e.type == "recovered" and e.t > impact.t)
     acting = next(e for e in events if e.type == "act"
-                  and e.data.get("clip") == "impact_to_grin")
+                  and e.data.get("clip") == "land_and_dash")
     pickup = next(e for e in events if e.type == "pick_up"
                   and e.data.get("prop") == "spark")
-    # Full physical absorption first, but no 1.2-second standstill *after*
-    # the character has already returned to the grounded state.
-    assert impact.t < recovered.t <= acting.t < pickup.t
-    assert acting.t - recovered.t < 0.04
-    assert pickup.t - impact.t < 4.0
+    assert impact.t <= acting.t < pickup.t
+    assert acting.t - impact.t < 0.2
+    assert pickup.t - impact.t < 3.0
+    ctrl = sim.controllers["iko"]
+    between = [s for s in ctrl.segments if s.kind == "idle"
+               and s.t0 >= impact.t - 0.01 and s.t0 < pickup.t]
+    assert sum(max(0.0, min(s.t1, pickup.t) - s.t0) for s in between) < 0.3
 
 
 def test_moving_observation_proves_foot_travel_and_actor_cues(example):
