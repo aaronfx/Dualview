@@ -47,3 +47,30 @@ def test_invalid_personality(kwargs):
 def test_invalid_perception(kwargs):
     with pytest.raises(ValueError):
         Perception(**kwargs)
+
+
+def test_repeated_failure_changes_intent_for_same_target_only():
+    brain = CharacterBrain(Personality(curiosity=0.9, courage=0.9))
+    stimulus = Perception(novelty=0.8, goal_visible=True, target_id="crate")
+    for _ in range(2):
+        assert brain.choose(stimulus) == Intent.EXPLORE
+        brain.record_outcome("crate", Intent.EXPLORE, succeeded=False)
+    assert brain.choose(stimulus) == Intent.APPROACH
+    assert brain.choose(Perception(novelty=0.8, target_id="door")) == Intent.EXPLORE
+    brain.record_outcome("crate", Intent.EXPLORE, succeeded=True)
+    assert brain.choose(stimulus) == Intent.EXPLORE
+
+
+def test_failure_memory_never_suppresses_safety():
+    brain = CharacterBrain(Personality())
+    for _ in range(3):
+        brain.record_outcome("hazard", Intent.EVADE, succeeded=False)
+    assert brain.choose(Perception(danger=1, target_id="hazard")) == Intent.EVADE
+
+
+def test_failure_memory_is_bounded():
+    brain = CharacterBrain(Personality())
+    for i in range(150):
+        brain.record_outcome(str(i), Intent.APPROACH, succeeded=False)
+    assert len(brain.failed_attempts) == 128
+    assert ("0", Intent.APPROACH) not in brain.failed_attempts
