@@ -158,9 +158,11 @@ def test_active_impact_recovers_into_movement_without_stationary_act(example):
     assert film.scenes[0].duration < 10.1
     sim = SceneRuntime(film, "cross").simulate(physics_only=True)
     events = [e for e in sim.events if e.character == "iko"]
-    impact = next(e for e in events if e.type == "impact")
     acting = next(e for e in events if e.type == "act"
                   and e.data.get("clip") == "land_and_dash")
+    # The real crate-hop landing precedes the high obstacle's landing.
+    impact = next(e for e in reversed(events)
+                  if e.type == "impact" and e.t <= acting.t)
     pickup = next(e for e in events if e.type == "pick_up"
                   and e.data.get("prop") == "spark")
     assert impact.t <= acting.t < pickup.t
@@ -192,3 +194,41 @@ def test_moving_observation_proves_foot_travel_and_actor_cues(example):
     assert moving.data["motion_overlay"] == "doubt_to_dash"
     assert moving.data["gaze_mode"] == "notice"
     assert not any(seg.kind == "idle" and seg.t0 == 0.0 for seg in ctrl.segments if seg.t1-seg.t0 > 0.2)
+
+
+def test_no_visible_ghost_pass_through_solid_supply_crate(example):
+    """Regression for the owner-observed M4 defect: actor ran through the silver crate."""
+    from apex.rig.stickman import Proportions
+    import numpy as np
+
+    film, result = example.build()
+    env = film.environment(film.scene("cross").environment)
+    crate = next(p for p in env.props if p.id == "crate")
+    actor = next(p for p in film.scene("cross").placements if p.character == "iko")
+    assert crate.collide_characters, "on-screen solid crate must participate in actor collisions"
+    assert abs(crate.z - actor.z) <= crate.depth / 2 + 18, "foreground prop must share the gameplay depth lane"
+    assert result.chosen == "climb_then_drop"
+
+    sim = SceneRuntime(film, "cross").simulate(physics_only=True)
+    events = [e for e in sim.events if e.character == "iko"]
+    takeoffs = [e for e in events if e.type == "takeoff"]
+    climb = next(e for e in events if e.type == "climb_start")
+    assert len(takeoffs) >= 2, "the crate needs a visible jump before the big obstacle's jump"
+    assert takeoffs[0].t < climb.t < takeoffs[-1].t
+
+    stand_h = Proportions(**film.character("iko").proportions).stand_height
+    track = sim.prop_tracks["crate"]
+    times = sim.prop_times
+    crossings = 0
+    for r in sim.controllers["iko"].records:
+        cx = float(np.interp(r.t, times, track[:, 0]))
+        cy = float(np.interp(r.t, times, track[:, 1]))
+        # If the body centre is over the crate in the same lane, feet must
+        # be above its solid top (the alternative is a verified depth detour).
+        if abs(r.pos[0] - cx) < crate.size[0] / 2 + 7:
+            crossings += 1
+            feet_height = r.pos[1] - stand_h
+            assert feet_height > cy + crate.size[1] / 2 - 9, (
+                f"actor visibly clips solid crate at t={r.t:.3f}: feet={feet_height:.1f}, "
+                f"crate_top={cy + crate.size[1]/2:.1f}")
+    assert crossings >= 15, "test must witness the actual physical crossing, not vacuously pass"
