@@ -152,6 +152,11 @@ def propose(project: ProjectSpec, objective: Objective) -> tuple[Candidate, ...]
     )
 
     near, far = left - 122, right + 135
+    from ..rig.stickman import Proportions
+    # _start_climb lands on edge - 0.30*stand_height. Approach exactly
+    # there: no redundant short walk initiated after arriving at the barrier.
+    proportions = Proportions(**project.character(objective.actor).proportions)
+    climb_ready_x = left - 0.30 * proportions.stand_height
     # For an active actor, a verified landing is followed immediately by the
     # goal-directed run. A contact-aware upper-body clip carries the emotion
     # while the real gait owns footsteps; the legacy measured presentation
@@ -185,8 +190,9 @@ def propose(project: ProjectSpec, objective: Objective) -> tuple[Candidate, ...]
             _a(objective.actor, "vault", target=f"obstacle:{ob.id}"),
         ) + finish, required_event="vault"),
         Candidate("climb_then_drop", opening + (
-            _a(objective.actor, "run_to", target_x=left - 106, speed=pace.travel_speed),
-            _a(objective.actor, "climb", target=f"obstacle:{ob.id}"),
+            _a(objective.actor, "run_to", target_x=climb_ready_x, speed=pace.travel_speed),
+            _a(objective.actor, "climb", target=f"obstacle:{ob.id}",
+               tempo=1.21 if objective.pacing == "active" else 1.0),
             _a(objective.actor, "jump_to", target_x=far, height=85.0),
         ) + climb_payoff, required_event="climbed"),
     ]
