@@ -121,3 +121,34 @@ looks fairly mechanical relative to the three reference films.
 payoff; generalize live act blending to turns, grabs and multi-character
 interaction; validate in three *different* original scenes, not just this
 single obstacle benchmark. Final artistic review remains outstanding.
+
+
+## Owner-detected ghost-through defect — corrected 2026-11-24
+
+**What failed visually.** In the 6.96s M4 video, IKO ran straight
+through the small silver crate before climbing the main barrier.
+The 42/42 general animation QA checks did **not** detect this.
+
+**Root cause (verified in actual output JSON):** The crate was configured
+`collide_characters: false` with a foreground depth lane (`z: 55`)
+while still looking like a solid object. The choreography planner ignored
+the prop when generating the `climb_then_drop` path.
+
+**Corrections:** The crate is collidable in the actor's lane; the plan
+now includes a physical jump over it before the main climb. Camera cuts
+select the main platform's last impact, not the earlier crate landing.
+Regression tests require two distinct jumps and verify the actor's
+240Hz feet clearance above the moving crate's top, not just success
+collecting the reward.
+
+**Evidence:** GitHub Actions proof
+https://github.com/aaronfx/Dualview/actions/runs/45301392865
+passed 17 tests and 42/42 video QA. Native output: 7.62s, 183 frames,
+960x540. Frame inspection confirms a visible hop at ~0.77–1.73s before
+the main climb. The longer duration is necessary physical storytelling,
+not a regression in acting speed.
+
+**Remaining general QA gap:** Add scene-wide rendered-space ghosting
+checks for props, including noncolliding set dressing that visually
+looks like a solid obstacle. A passing 42/42 general gate is not proof
+that *all* object interactions look plausible.
