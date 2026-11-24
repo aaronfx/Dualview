@@ -1,0 +1,274 @@
+{
+ "id": "runaway_crate",
+ "title": "The Runaway Crate",
+ "seed": 5,
+ "characters": [
+  {
+   "id": "pip",
+   "name": "PIP",
+   "proportions": {
+    "spine": 30.0,
+    "chest": 28.0,
+    "head": 24.0,
+    "thigh": 44.0,
+    "shin": 42.0
+   },
+   "style": {
+    "body_color": "#ff6b8b",
+    "far_color": "#b34a62",
+    "has_scarf": false,
+    "cadence_scale": 1.05,
+    "lean_scale": 1.2
+   },
+   "strength": 50000.0
+  },
+  {
+   "id": "tao",
+   "name": "TAO",
+   "proportions": {
+    "spine": 32.0,
+    "chest": 30.0,
+    "head": 25.0,
+    "thigh": 46.0,
+    "shin": 44.0
+   },
+   "style": {
+    "body_color": "#8be36b",
+    "far_color": "#5a9c45",
+    "scarf_color": "#ffd23a",
+    "cadence_scale": 0.9,
+    "stride_scale": 1.1
+   }
+  }
+ ],
+ "environments": [
+  {
+   "id": "loading_bay",
+   "room": {
+    "width": 1600.0,
+    "height": 650.0,
+    "depth_back": 480.0,
+    "grid_spacing": 80.0
+   },
+   "theme": {
+    "accent": "#ffb347",
+    "alert": "#ff4040",
+    "back": "#1d1a17",
+    "floor": "#0f0d0b",
+    "side": "#17140f"
+   },
+   "props": [
+    {
+     "id": "crate",
+     "position": [
+      -60.0,
+      46.0
+     ],
+     "size": [
+      130.0,
+      90.0
+     ],
+     "mass": 70.0,
+     "friction": 0.1316,
+     "static_friction": 0.5264
+    }
+   ],
+   "dust": 60
+  }
+ ],
+ "scenes": [
+  {
+   "id": "bay",
+   "title": "The Runaway Crate",
+   "environment": "loading_bay",
+   "duration": 12.0,
+   "placements": [
+    {
+     "character": "pip",
+     "x": -420.0
+    },
+    {
+     "character": "tao",
+     "x": 520.0,
+     "facing": -1
+    }
+   ],
+   "actions": [
+    {
+     "type": "walk_to",
+     "character": "pip",
+     "target_x": -230.0,
+     "speed": 150.0
+    },
+    {
+     "type": "look_at",
+     "character": "pip",
+     "duration": 0.4,
+     "target": "prop:crate"
+    },
+    {
+     "type": "push",
+     "character": "pip",
+     "target": "prop:crate",
+     "effort": 1.3
+    },
+    {
+     "type": "struggle",
+     "character": "pip",
+     "duration": 1.0
+    },
+    {
+     "type": "get_up",
+     "character": "pip",
+     "target": "char:tao"
+    },
+    {
+     "type": "gesture",
+     "character": "pip",
+     "target": "char:tao",
+     "gesture": "fist_bump"
+    },
+    {
+     "type": "idle",
+     "character": "pip",
+     "duration": 2.0
+    },
+    {
+     "type": "look_around",
+     "character": "tao",
+     "duration": 1.5
+    },
+    {
+     "type": "wait_for",
+     "character": "tao",
+     "until": "event:body_fall@pip"
+    },
+    {
+     "type": "notice",
+     "character": "tao",
+     "duration": 0.6,
+     "target": "char:pip"
+    },
+    {
+     "type": "run_to",
+     "character": "tao",
+     "speed": 330.0,
+     "target": "char:pip"
+    },
+    {
+     "type": "offer_hand",
+     "character": "tao",
+     "target": "char:pip"
+    },
+    {
+     "type": "gesture",
+     "character": "tao",
+     "target": "char:pip",
+     "gesture": "fist_bump"
+    },
+    {
+     "type": "idle",
+     "character": "tao",
+     "duration": 2.0
+    }
+   ],
+   "shots": [
+    {
+     "id": "s1_wide",
+     "start": 0.0,
+     "end": 2.171,
+     "kind": "establishing",
+     "description": "the bay: PIP sizes up a heavy crate",
+     "camera": {
+      "mode": "static",
+      "center": [
+       0.0,
+       230.0
+      ],
+      "view_height": 620.0
+     }
+    },
+    {
+     "id": "s2_push",
+     "start": 2.171,
+     "end": 5.083,
+     "description": "PIP strains; the crate breaks loose and gets away",
+     "camera": {
+      "target": "pip",
+      "view_height": 340.0,
+      "include": [
+       "prop:crate"
+      ]
+     },
+     "sound_cues": [
+      {
+       "on_event": "push_start",
+       "sound": "strain",
+       "gain": 0.8
+      },
+      {
+       "on_event": "body_fall",
+       "sound": "impact"
+      }
+     ],
+     "cut_on": "event:push_start@pip",
+     "cut_offset": -0.3
+    },
+    {
+     "id": "s3_help",
+     "start": 5.083,
+     "end": 8.496,
+     "description": "TAO sees PIP fall, runs over and offers a hand",
+     "camera": {
+      "target": "tao",
+      "view_height": 360.0,
+      "include": [
+       "char:pip"
+      ]
+     },
+     "sound_cues": [
+      {
+       "on_event": "notice",
+       "sound": "notice",
+       "gain": 0.7
+      }
+     ],
+     "cut_on": "event:notice@tao"
+    },
+    {
+     "id": "s4_friends",
+     "start": 8.496,
+     "end": 12.0,
+     "description": "back on his feet; a fist bump",
+     "camera": {
+      "target": "pip",
+      "view_height": 300.0,
+      "include": [
+       "char:tao"
+      ]
+     },
+     "sound_cues": [
+      {
+       "on_event": "fist_bump",
+       "sound": "tap",
+       "gain": 0.9
+      }
+     ],
+     "fade_out": 0.8,
+     "cut_on": "event:stood_up@pip",
+     "cut_offset": 0.2
+    }
+   ],
+   "goals": [
+    "push_start@pip",
+    "push_lost@pip",
+    "body_fall@pip",
+    "notice@tao",
+    "hand_offered@tao",
+    "hand_grab@pip",
+    "stood_up@pip",
+    "fist_bump@tao"
+   ]
+  }
+ ]
+}

@@ -1,0 +1,40 @@
+{
+ "video": "APEX_1D_v3_gravity_switch_escape_30s_1080p.mp4",
+ "reviewer": "",
+ "scores": {
+  "character_acting": null,
+  "action_choreography": null,
+  "camera_clarity": null,
+  "visual_consistency": null,
+  "sound_quality": null,
+  "story_coherence": null,
+  "emotional_readability": null
+ },
+ "notes": {
+  "character_acting": "",
+  "action_choreography": "",
+  "camera_clarity": "",
+  "visual_consistency": "",
+  "sound_quality": "",
+  "story_coherence": "",
+  "emotional_readability": ""
+ },
+ "shots": {
+  "s01_establish": "",
+  "s02_notice": "",
+  "s03_approach": "",
+  "s04_insert": "",
+  "s05_shift": "",
+  "s06_recover": "",
+  "s07_door_pov": "",
+  "s08_point": "",
+  "s09_switch_pov": "",
+  "s10_slide": "",
+  "s11_slap": "",
+  "s12_reestablish": "",
+  "s13_catch_swing": "",
+  "s14_drop_land": "",
+  "s15_relief_door": "",
+  "s16_exit": ""
+ }
+}

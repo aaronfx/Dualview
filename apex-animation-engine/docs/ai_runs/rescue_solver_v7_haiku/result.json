@@ -1,0 +1,68 @@
+{
+ "story": "The Rescue (15-20 seconds, no dialogue). Two original stickman characters enter an industrial workshop. One tries to move a heavy metal container, loses control, and becomes trapped beneath a falling support. The second character notices the danger, runs to help, struggles to lift the obstruction, and uses a nearby lever to free the first character. The final moment should communicate relief and friendship without dialogue.",
+ "planner": "openrouter",
+ "model": "anthropic/claude-haiku-5.5",
+ "started_utc": "2026-11-21T07:56:47Z",
+ "status": "failed",
+ "error": "PlanningError: planner output failed validation after 3 attempts: 3 validation errors for ProjectSpec\nenvironments.0.switches.0.effect\n  Value error, rotate_deg must be non-zero and within +-360 [type=value_error, input_value={'rotate_deg': 0, 'delay': 0.4, 'duration': 0.3}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.14/v/value_error\nscenes.0.actions.7.type\n  Input should be 'idle', 'walk_to', 'run_to', 'turn', 'press', 'jump', 'look_around', 'wait_grounded', 'look_at', 'notice', 'point', 'duck_slide', 'jump_to', 'grab_swi",
+ "attempts": 3,
+ "seconds": 16.9,
+ "cost": {
+  "experiment": "20261121T075646Z-e9f466",
+  "started_utc": "2026-11-21T07:56:46Z",
+  "finished_utc": "2026-11-21T07:57:03Z",
+  "model": "anthropic/claude-haiku-5.5",
+  "reason": "Owner-approved re-test after fixing the v6 findings (reasoning off, proportion validation, token estimate)",
+  "status": "failed",
+  "note": "3 validation errors for ProjectSpec\nenvironments.0.switches.0.effect\n  Value error, rotate_deg must be non-zero and within +-360 [type=value_error, input_value={'rotate_deg': 0, 'delay': 0.4, 'duration': 0.3}, input_type=dict]\n    For further information visit https://errors.pydantic.dev/2.14/v/value_error\nscenes.0.actions.7.type\n  Input should be 'idle', 'walk_to', 'run_to', 'turn', 'press', 'jump', 'look_around', 'wait_grounded', 'look_at', 'notice', 'point', 'duck_slide', 'jump_to', 'grab_swi",
+  "limits": {
+   "max_calls": 3,
+   "max_output_tokens": 6000,
+   "experiment_budget_usd": 0.1,
+   "total_budget_usd": 1.0
+  },
+  "estimated_usd_upper": 0.010684,
+  "actual_usd": 0.004007,
+  "calls": [
+   {
+    "estimated_usd_upper": 0.003602,
+    "output_cap": 6000,
+    "estimated_input_tokens": 6024,
+    "n": 1,
+    "model": "anthropic/claude-haiku-5.5",
+    "input_tokens": 6038,
+    "output_tokens": 4264,
+    "reasoning_tokens": 0,
+    "visible_chars": 9168,
+    "actual_usd": 0.002736,
+    "actual_source": "provider usage report"
+   },
+   {
+    "estimated_usd_upper": 0.003565,
+    "output_cap": 6000,
+    "estimated_input_tokens": 5651,
+    "n": 2,
+    "model": "anthropic/claude-haiku-5.5",
+    "input_tokens": 5932,
+    "output_tokens": 230,
+    "reasoning_tokens": 0,
+    "visible_chars": 467,
+    "actual_usd": 0.000708,
+    "actual_source": "provider usage report"
+   },
+   {
+    "estimated_usd_upper": 0.003517,
+    "output_cap": 6000,
+    "estimated_input_tokens": 5165,
+    "n": 3,
+    "model": "anthropic/claude-haiku-5.5",
+    "input_tokens": 5381,
+    "output_tokens": 49,
+    "reasoning_tokens": 0,
+    "visible_chars": 94,
+    "actual_usd": 0.000563,
+    "actual_source": "provider usage report"
+   }
+  ]
+ }
+}

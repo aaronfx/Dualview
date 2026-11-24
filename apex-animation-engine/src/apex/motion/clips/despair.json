@@ -1,0 +1,117 @@
+{
+ "name": "despair",
+ "duration": 2.4,
+ "description": "Giving up: the legs go, down onto the knees, the head drops, the hands land on the floor.",
+ "phases": [
+  [
+   "action",
+   0,
+   1.6
+  ],
+  [
+   "settle",
+   1.6,
+   2.4
+  ]
+ ],
+ "keys": [
+  {
+   "t": 0,
+   "name": "standing",
+   "interp": "smooth",
+   "pose": {
+    "crouch": 0.0,
+    "lean": 0.05,
+    "head": 0.1,
+    "arm_n": 0.0,
+    "elbow_n": 0.3,
+    "arm_f": -0.05,
+    "elbow_f": 0.3,
+    "eye": 0.8
+   }
+  },
+  {
+   "t": 0.5,
+   "name": "buckle",
+   "interp": "slow_in",
+   "pose": {
+    "crouch": 0.12,
+    "lean": 0.15,
+    "head": 0.3,
+    "arm_n": -0.05,
+    "arm_f": -0.1,
+    "eye": 0.6
+   }
+  },
+  {
+   "t": 1.1,
+   "name": "knees",
+   "interp": "ease",
+   "pose": {
+    "crouch": 0.48,
+    "lean": 0.6,
+    "head": 0.55,
+    "arm_n": 0.55,
+    "elbow_n": 0.4,
+    "arm_f": 0.5,
+    "elbow_f": 0.45,
+    "eye": 0.4,
+    "squash": 0.97
+   }
+  },
+  {
+   "t": 1.6,
+   "name": "slump",
+   "interp": "ease",
+   "pose": {
+    "crouch": 0.55,
+    "lean": 0.85,
+    "chest": 0.15,
+    "head": 0.75,
+    "arm_n": 0.9,
+    "elbow_n": 0.3,
+    "arm_f": 0.85,
+    "elbow_f": 0.35,
+    "eye": 0.25,
+    "squash": 0.96
+   }
+  },
+  {
+   "t": 2.4,
+   "name": "hold",
+   "interp": "ease",
+   "pose": {
+    "crouch": 0.55,
+    "lean": 0.88,
+    "chest": 0.18,
+    "head": 0.8,
+    "arm_n": 0.9,
+    "elbow_n": 0.3,
+    "arm_f": 0.85,
+    "elbow_f": 0.35,
+    "eye": 0.2,
+    "squash": 0.96
+   }
+  }
+ ],
+ "contacts": [
+  {
+   "effector": "hand_n",
+   "on": "surface",
+   "t0": 1.25,
+   "t1": 9.0,
+   "s": 0.42,
+   "h": 0.02,
+   "blend": 0.2
+  },
+  {
+   "effector": "hand_f",
+   "on": "surface",
+   "t0": 1.3,
+   "t1": 9.0,
+   "s": 0.34,
+   "h": 0.02,
+   "blend": 0.2
+  }
+ ]
+}

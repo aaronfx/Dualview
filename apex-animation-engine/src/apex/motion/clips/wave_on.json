@@ -1,0 +1,14 @@
+{
+ "name": "wave_on",
+ "duration": 1.6,
+ "description": "Facing the other: come on, this way. The near arm reaches out and pulls back toward the body twice, a nod with each pull.",
+ "phases": [["anticipation", 0, 0.25], ["action", 0.25, 1.25], ["settle", 1.25, 1.6]],
+ "keys": [
+  {"t": 0, "name": "start", "interp": "smooth", "pose": {"lean": 0.02, "arm_n": 0.15, "elbow_n": 0.4, "head": 0.0}},
+  {"t": 0.25, "name": "out", "interp": "ease", "pose": {"lean": 0.08, "arm_n": 1.35, "elbow_n": 0.2, "head": -0.1, "eye": 1.3}},
+  {"t": 0.5, "name": "pull1", "interp": "ease", "pose": {"lean": 0.0, "arm_n": 1.25, "elbow_n": 1.8, "head": 0.12}},
+  {"t": 0.75, "name": "out2", "interp": "ease", "pose": {"lean": 0.08, "arm_n": 1.35, "elbow_n": 0.2, "head": -0.1}},
+  {"t": 1.0, "name": "pull2", "interp": "ease", "pose": {"lean": 0.0, "arm_n": 1.25, "elbow_n": 1.85, "head": 0.12}},
+  {"t": 1.6, "name": "end", "interp": "ease", "pose": {"lean": 0.03, "arm_n": 0.2, "elbow_n": 0.4, "head": 0.0, "eye": 1.0}}
+ ]
+}

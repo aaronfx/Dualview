@@ -1,0 +1,308 @@
+{
+ "schema_version": "0.1",
+ "id": "gravity_switch_1c",
+ "title": "Gravity Switch - 1C cinematic sequence",
+ "fps": 24,
+ "width": 1920,
+ "height": 1080,
+ "seed": 7,
+ "characters": [
+  {
+   "id": "axel",
+   "name": "AXEL"
+  }
+ ],
+ "environments": [
+  {
+   "id": "chamber",
+   "room": {
+    "width": 1200,
+    "height": 1400
+   },
+   "gravity": [
+    0,
+    -1568
+   ],
+   "switches": [
+    {
+     "id": "gswitch",
+     "x": 0,
+     "height": 66,
+     "effect": {
+      "to": [
+       1,
+       0
+      ],
+      "delay": 0.9,
+      "duration": 0.25
+     }
+    }
+   ],
+   "props": [
+    {
+     "id": "crate_a",
+     "kind": "crate",
+     "position": [
+      230,
+      21
+     ],
+     "size": [
+      42,
+      42
+     ],
+     "mass": 10
+    },
+    {
+     "id": "crate_b",
+     "kind": "crate",
+     "position": [
+      370,
+      17
+     ],
+     "size": [
+      34,
+      34
+     ],
+     "mass": 6
+    }
+   ],
+   "exits": [
+    {
+     "id": "door1",
+     "surface": "wall_right",
+     "s": 900,
+     "width": 170
+    }
+   ],
+   "dust": 170
+  }
+ ],
+ "scenes": [
+  {
+   "id": "switch_sequence",
+   "title": "notice -> approach -> hesitate -> press -> gravity shift -> fall -> brace -> land -> recover -> new path",
+   "environment": "chamber",
+   "duration": 14.0,
+   "placements": [
+    {
+     "character": "axel",
+     "x": -560,
+     "facing": 1
+    }
+   ],
+   "actions": [
+    {
+     "type": "walk_to",
+     "character": "axel",
+     "target_x": -330,
+     "speed": 150
+    },
+    {
+     "type": "notice",
+     "character": "axel",
+     "target": "switch:gswitch",
+     "duration": 1.0
+    },
+    {
+     "type": "walk_to",
+     "character": "axel",
+     "target_x": -62,
+     "style": "cautious",
+     "target": "switch:gswitch"
+    },
+    {
+     "type": "press",
+     "character": "axel",
+     "switch": "gswitch",
+     "hesitate": true
+    },
+    {
+     "type": "wait_grounded",
+     "character": "axel"
+    },
+    {
+     "type": "look_around",
+     "character": "axel",
+     "duration": 0.9
+    },
+    {
+     "type": "notice",
+     "character": "axel",
+     "target": "exit:door1",
+     "duration": 1.0
+    },
+    {
+     "type": "point",
+     "character": "axel",
+     "target": "exit:door1",
+     "duration": 1.3
+    },
+    {
+     "type": "idle",
+     "character": "axel",
+     "duration": 1.0
+    }
+   ],
+   "shots": [
+    {
+     "id": "s1_establish",
+     "start": 0,
+     "end": 1.75,
+     "kind": "establishing",
+     "description": "wide: room, switch, sealed exit high on the right wall; AXEL enters",
+     "camera": {
+      "mode": "static",
+      "center": [
+       0,
+       540
+      ],
+      "view_height": 1220
+     },
+     "exit_conditions": [],
+     "sound_cues": []
+    },
+    {
+     "id": "s2_notice",
+     "start": 1.75,
+     "end": 2.85,
+     "kind": "close",
+     "description": "close-up: AXEL notices the switch (double take)",
+     "camera": {
+      "mode": "follow",
+      "target": "axel",
+      "focus": "upper",
+      "view_height": 420,
+      "offset": [
+       165,
+       20
+      ],
+      "lead": 0.05
+     },
+     "exit_conditions": [
+      "event:notice"
+     ],
+     "sound_cues": [
+      {
+       "on_event": "notice",
+       "sound": "notice"
+      }
+     ]
+    },
+    {
+     "id": "s3_approach",
+     "start": 2.85,
+     "end": 6.4,
+     "kind": "medium",
+     "description": "medium tracking: cautious approach",
+     "camera": {
+      "mode": "follow",
+      "target": "axel",
+      "view_height": 470,
+      "offset": [
+       90,
+       30
+      ],
+      "lead": 0.3
+     },
+     "exit_conditions": [],
+     "sound_cues": []
+    },
+    {
+     "id": "s4_insert",
+     "start": 6.4,
+     "end": 8.0,
+     "kind": "insert",
+     "description": "insert: hand hesitates, then presses the switch",
+     "camera": {
+      "mode": "static",
+      "center": [
+       8,
+       92
+      ],
+      "view_height": 210
+     },
+     "exit_conditions": [
+      "event:press_contact"
+     ],
+     "sound_cues": [
+      {
+       "on_event": "press_contact",
+       "sound": "click"
+      },
+      {
+       "on_event": "switch_activated",
+       "sound": "startle"
+      }
+     ]
+    },
+    {
+     "id": "s5_shift",
+     "start": 8.0,
+     "end": 10.4,
+     "kind": "tracking",
+     "description": "wide tracking: gravity rotates, AXEL loses support, falls, braces, lands",
+     "camera": {
+      "mode": "follow",
+      "target": "axel",
+      "view_height": 820,
+      "offset": [
+       140,
+       120
+      ],
+      "lead": 0.35,
+      "stiffness": 4.0,
+      "shake": 1.0
+     },
+     "exit_conditions": [
+      "event:gravity_shift",
+      "event:lost_support"
+     ],
+     "sound_cues": [
+      {
+       "on_event": "gravity_shift",
+       "sound": "pulse"
+      },
+      {
+       "on_event": "lost_support",
+       "sound": "whoosh"
+      },
+      {
+       "on_event": "impact",
+       "sound": "impact"
+      }
+     ]
+    },
+    {
+     "id": "s6_recover",
+     "start": 10.4,
+     "end": 14.0,
+     "kind": "medium",
+     "description": "camera rolls to the new gravity: wall becomes floor; AXEL recovers, notices and points at the exit",
+     "camera": {
+      "mode": "follow",
+      "target": "axel",
+      "view_height": 640,
+      "offset": [
+       -150,
+       390
+      ],
+      "lead": 0.1,
+      "stiffness": 3.0,
+      "roll_mode": "align_gravity",
+      "shake": 0.6
+     },
+     "exit_conditions": [
+      "grounded_on:wall_right",
+      "event:point"
+     ],
+     "sound_cues": [
+      {
+       "on_event": "point",
+       "sound": "chime"
+      }
+     ]
+    }
+   ]
+  }
+ ]
+}

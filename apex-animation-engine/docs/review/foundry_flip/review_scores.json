@@ -1,0 +1,32 @@
+{
+ "video": "APEX_T6_foundry_flip_generalization_1080p.mp4",
+ "reviewer": "",
+ "scores": {
+  "character_acting": null,
+  "action_choreography": null,
+  "camera_clarity": null,
+  "visual_consistency": null,
+  "sound_quality": null,
+  "story_coherence": null,
+  "emotional_readability": null
+ },
+ "notes": {
+  "character_acting": "",
+  "action_choreography": "",
+  "camera_clarity": "",
+  "visual_consistency": "",
+  "sound_quality": "",
+  "story_coherence": "",
+  "emotional_readability": ""
+ },
+ "shots": {
+  "s01_establish": "",
+  "s02_notice": "",
+  "s03_pov": "",
+  "s04_run_slide": "",
+  "s05_slap": "",
+  "s06_flip": "",
+  "s07_relief": "",
+  "s08_exit": ""
+ }
+}

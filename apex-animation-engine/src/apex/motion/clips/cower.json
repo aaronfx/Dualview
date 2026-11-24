@@ -1,0 +1,48 @@
+{
+ "name": "cower",
+ "duration": 0.7,
+ "description": "Fear: knees give, arms come up over the head, eyes wide.",
+ "keys": [
+  {
+   "t": 0,
+   "name": "start",
+   "interp": "smooth",
+   "pose": {
+    "crouch": 0.0,
+    "eye": 1.2
+   }
+  },
+  {
+   "t": 0.25,
+   "name": "flinch",
+   "interp": "snap",
+   "pose": {
+    "crouch": 0.2,
+    "lean": 0.25,
+    "head": 0.35,
+    "arm_n": 2.5,
+    "elbow_n": 2.3,
+    "arm_f": 2.3,
+    "elbow_f": 2.4,
+    "eye": 1.8,
+    "squash": 0.95
+   }
+  },
+  {
+   "t": 0.7,
+   "name": "hold",
+   "interp": "ease",
+   "pose": {
+    "crouch": 0.24,
+    "lean": 0.32,
+    "head": 0.4,
+    "arm_n": 2.4,
+    "elbow_n": 2.4,
+    "arm_f": 2.2,
+    "elbow_f": 2.45,
+    "eye": 1.7,
+    "squash": 0.96
+   }
+  }
+ ]
+}

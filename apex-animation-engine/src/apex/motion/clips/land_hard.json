@@ -1,0 +1,183 @@
+{
+ "name": "land_hard",
+ "duration": 0.95,
+ "description": "Heavy landing: contact, impact frame (held), three-point absorb with a planted hand, push-off anticipation, rise into hands-on-knees.",
+ "phases": [
+  [
+   "contact",
+   0.0,
+   0.07
+  ],
+  [
+   "impact",
+   0.07,
+   0.16
+  ],
+  [
+   "follow_through",
+   0.16,
+   0.5
+  ],
+  [
+   "anticipation",
+   0.5,
+   0.6
+  ],
+  [
+   "action",
+   0.6,
+   0.82
+  ],
+  [
+   "settle",
+   0.82,
+   0.95
+  ]
+ ],
+ "keys": [
+  {
+   "t": 0.0,
+   "name": "contact",
+   "interp": "snap",
+   "pose": {
+    "crouch": 0.16,
+    "lean": 0.35,
+    "chest": 0.05,
+    "head": 0.1,
+    "arm_n": 1.0,
+    "elbow_n": 0.45,
+    "arm_f": -0.65,
+    "elbow_f": 0.5,
+    "squash": 0.9,
+    "eye": 1.5
+   }
+  },
+  {
+   "t": 0.07,
+   "name": "impact",
+   "interp": "hold",
+   "pose": {
+    "crouch": 0.53,
+    "lean": 1.02,
+    "chest": 0.15,
+    "head": 0.45,
+    "arm_n": 1.45,
+    "elbow_n": 0.35,
+    "arm_f": -0.8,
+    "elbow_f": 0.45,
+    "squash": 0.87,
+    "eye": 0.55
+   }
+  },
+  {
+   "t": 0.16,
+   "name": "impact_hold",
+   "pose": {
+    "crouch": 0.55,
+    "lean": 1.0,
+    "chest": 0.15,
+    "head": 0.48,
+    "arm_n": 1.45,
+    "elbow_n": 0.35,
+    "arm_f": -0.55,
+    "elbow_f": 0.6,
+    "squash": 0.9,
+    "eye": 0.55
+   }
+  },
+  {
+   "t": 0.42,
+   "name": "absorb",
+   "pose": {
+    "crouch": 0.5,
+    "lean": 0.95,
+    "chest": 0.12,
+    "head": 0.32,
+    "arm_n": 1.05,
+    "elbow_n": 0.35,
+    "arm_f": 0.15,
+    "elbow_f": 0.9,
+    "squash": 1.0,
+    "eye": 1.0
+   }
+  },
+  {
+   "t": 0.56,
+   "name": "push_off",
+   "interp": "snap",
+   "pose": {
+    "crouch": 0.54,
+    "lean": 1.05,
+    "chest": 0.12,
+    "head": 0.25,
+    "arm_n": 0.85,
+    "elbow_n": 0.5,
+    "arm_f": 0.35,
+    "elbow_f": 1.1,
+    "squash": 1.0,
+    "eye": 1.1
+   }
+  },
+  {
+   "t": 0.8,
+   "name": "rise",
+   "pose": {
+    "crouch": 0.2,
+    "lean": 0.66,
+    "chest": 0.05,
+    "head": 0.3,
+    "arm_n": 0.6,
+    "elbow_n": 1.4,
+    "arm_f": 0.6,
+    "elbow_f": 1.5,
+    "squash": 1.0,
+    "eye": 1.15
+   }
+  },
+  {
+   "t": 0.95,
+   "name": "hands_on_knees",
+   "pose": {
+    "crouch": 0.19,
+    "lean": 0.68,
+    "chest": 0.05,
+    "head": 0.4,
+    "arm_n": 0.7,
+    "elbow_n": 1.6,
+    "arm_f": 0.55,
+    "elbow_f": 1.6,
+    "squash": 1.0,
+    "eye": 1.0
+   }
+  }
+ ],
+ "contacts": [
+  {
+   "effector": "hand_n",
+   "on": "surface",
+   "t0": 0.05,
+   "t1": 0.7,
+   "s": 0.62,
+   "h": 0.03,
+   "blend": 0.08
+  },
+  {
+   "effector": "hand_n",
+   "on": "joint:knee_n",
+   "toward": "hip_n",
+   "frac": 0.18,
+   "t0": 0.74,
+   "t1": 0.95,
+   "blend": 0.1
+  },
+  {
+   "effector": "hand_f",
+   "on": "joint:knee_f",
+   "toward": "hip_f",
+   "frac": 0.18,
+   "t0": 0.74,
+   "t1": 0.95,
+   "blend": 0.1
+  }
+ ]
+}

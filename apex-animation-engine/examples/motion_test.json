@@ -1,0 +1,28 @@
+{
+  "schema_version": "0.1",
+  "id": "motion_test_1a",
+  "title": "Milestone 1A - locomotion, jump and landing test",
+  "fps": 24, "width": 1920, "height": 1080, "seed": 7,
+  "characters": [{"id": "axel", "name": "AXEL"}],
+  "environments": [{"id": "lab", "room": {"width": 2600, "height": 1400}, "gravity": [0, -1568]}],
+  "scenes": [{
+    "id": "locomotion", "title": "idle -> walk -> run -> jump -> land -> run -> stop", "environment": "lab", "duration": 8.5,
+    "placements": [{"character": "axel", "x": -1050, "facing": 1}],
+    "actions": [
+      {"type": "idle", "character": "axel", "duration": 0.6},
+      {"type": "walk_to", "character": "axel", "target_x": -620, "speed": 150},
+      {"type": "run_to", "character": "axel", "target_x": 80, "speed": 470},
+      {"type": "jump", "character": "axel", "height": 75},
+      {"type": "run_to", "character": "axel", "target_x": 980, "speed": 470},
+      {"type": "idle", "character": "axel", "duration": 1.5}
+    ],
+    "shots": [
+      {"id": "s1", "start": 0, "end": 8.5, "description": "side tracking shot following AXEL",
+       "camera": {"mode": "track_x", "target": "axel", "center": [0, 150], "view_height": 620, "lead": 0.35, "stiffness": 4.0},
+       "action_objectives": ["walk", "accelerate to a run", "jump with anticipation", "absorb landing", "decelerate to a stop"],
+       "physics_requirements": ["feet planted during stance", "ballistic jump under gravity"],
+       "sound_cues": [{"on_event": "footstep", "sound": "footstep"}, {"on_event": "takeoff", "sound": "jump"}, {"on_event": "impact", "sound": "land"}],
+       "exit_conditions": ["event:takeoff", "event:impact", "state:idle"]}
+    ]
+  }]
+}

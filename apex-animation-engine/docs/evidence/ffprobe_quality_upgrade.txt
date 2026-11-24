@@ -1,0 +1,8 @@
+stream|codec_name=h264|width=1920|height=1080|nb_frames=720
+stream|codec_name=aac|channels=2|nb_frames=1408
+format|duration=30.000000|size=21187692
+stream|codec_name=h264|width=1920|height=1080|nb_frames=468
+stream|codec_name=aac|channels=2|nb_frames=916
+format|duration=19.500000|size=11599064
+stream|codec_name=h264|width=1920|height=1080|nb_frames=120
+format|duration=5.000000|size=1022845

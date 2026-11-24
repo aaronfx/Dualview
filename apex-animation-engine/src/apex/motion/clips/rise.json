@@ -1,0 +1,123 @@
+{
+ "name": "rise",
+ "duration": 2.2,
+ "description": "Getting back up with resolve: pushes off the floor, rises, straightens, fists clench, chin up.",
+ "phases": [
+  [
+   "anticipation",
+   0,
+   0.5
+  ],
+  [
+   "action",
+   0.5,
+   1.6
+  ],
+  [
+   "follow_through",
+   1.6,
+   2.2
+  ]
+ ],
+ "keys": [
+  {
+   "t": 0,
+   "name": "slumped",
+   "interp": "smooth",
+   "pose": {
+    "crouch": 0.55,
+    "lean": 0.88,
+    "chest": 0.18,
+    "head": 0.8,
+    "arm_n": 0.9,
+    "elbow_n": 0.3,
+    "arm_f": 0.85,
+    "elbow_f": 0.35,
+    "eye": 0.2,
+    "squash": 0.96
+   }
+  },
+  {
+   "t": 0.5,
+   "name": "look_up",
+   "interp": "ease",
+   "pose": {
+    "crouch": 0.52,
+    "lean": 0.7,
+    "head": 0.1,
+    "eye": 0.9
+   }
+  },
+  {
+   "t": 1.1,
+   "name": "push",
+   "interp": "ease",
+   "pose": {
+    "crouch": 0.25,
+    "lean": 0.35,
+    "head": 0.0,
+    "arm_n": 0.4,
+    "elbow_n": 0.6,
+    "arm_f": 0.35,
+    "elbow_f": 0.6,
+    "eye": 1.0,
+    "squash": 1.0
+   }
+  },
+  {
+   "t": 1.6,
+   "name": "up",
+   "interp": "back",
+   "pose": {
+    "crouch": 0.0,
+    "lean": 0.02,
+    "chest": -0.12,
+    "head": -0.12,
+    "arm_n": -0.15,
+    "elbow_n": 1.5,
+    "arm_f": -0.2,
+    "elbow_f": 1.5,
+    "eye": 1.25,
+    "fist": 1.0,
+    "squash": 1.03
+   }
+  },
+  {
+   "t": 2.2,
+   "name": "set",
+   "interp": "ease",
+   "pose": {
+    "crouch": 0.03,
+    "lean": 0.06,
+    "chest": -0.1,
+    "head": -0.08,
+    "arm_n": -0.1,
+    "elbow_n": 1.4,
+    "arm_f": -0.15,
+    "elbow_f": 1.4,
+    "eye": 1.2,
+    "fist": 1.0
+   }
+  }
+ ],
+ "contacts": [
+  {
+   "effector": "hand_n",
+   "on": "surface",
+   "t0": 0.0,
+   "t1": 0.95,
+   "s": 0.42,
+   "h": 0.02,
+   "blend": 0.25
+  },
+  {
+   "effector": "hand_f",
+   "on": "surface",
+   "t0": 0.0,
+   "t1": 0.9,
+   "s": 0.34,
+   "h": 0.02,
+   "blend": 0.25
+  }
+ ]
+}

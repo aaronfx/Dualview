@@ -1,0 +1,1 @@
+planning failed: PlanningError: planner output failed validation after 5 attempts: shot s06_freed: unknown sound 'release'; use one of footstep, click, pulse, whoosh, impact, clang, jump, notice, startle, chime, slide, clank, unlock, door, resolve, land, strain, snap, creak, tap
