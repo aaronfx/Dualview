@@ -1,0 +1,54 @@
+name: APEX native semantic transposition proof
+on:
+  push:
+    branches: [fix/apex-semantic-transposition]
+  pull_request:
+    paths:
+      - 'apex-animation-engine/src/apex/scene/math_transfer_runtime.py'
+      - 'apex-animation-engine/tests/test_math_transposition.py'
+  workflow_dispatch:
+
+jobs:
+  native-math:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: apex-animation-engine
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg libegl1
+      - run: python -m pip install --disable-pip-version-check -e '.[dev]'
+      - name: Native math and V2 regressions
+        run: |
+          mkdir -p out/semantic
+          set -o pipefail
+          python -m pytest -q tests/test_math_transposition.py tests/test_math_stage.py tests/test_math_balance.py tests/test_apex_extension_native.py | tee out/semantic/targeted-tests.txt
+      - name: Render native demonstrations and extract review frames
+        run: |
+          set -e
+          for case in add_2_5 add_4_9 sub_4_9; do
+            IFS=_ read -r op n c <<< "$case"
+            python examples/build_semantic_transposition.py "out/semantic/$case.json" --n "$n" --c "$c" --op "$op"
+            apex validate "out/semantic/$case.json"
+            apex render "out/semantic/$case.json" -o "out/semantic/$case.mp4" --scale 1 --samples 1 --qa-json "out/semantic/${case}_qa.json" --review-dir "out/semantic/${case}_review"
+            ffprobe -v error -show_format -show_streams "out/semantic/$case.mp4" > "out/semantic/${case}_ffprobe.txt"
+            mkdir -p "out/semantic/${case}_frames"
+            ffmpeg -v error -i "out/semantic/$case.mp4" -vf fps=2 "out/semantic/${case}_frames/%03d.png"
+          done
+      - name: Complete native regression
+        if: always()
+        run: |
+          mkdir -p out/semantic
+          set -o pipefail
+          python -m pytest -q | tee out/semantic/full-tests.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: apex-semantic-transposition-proof
+          path: apex-animation-engine/out/semantic/
+          if-no-files-found: warn
+          retention-days: 14
