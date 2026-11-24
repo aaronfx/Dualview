@@ -663,6 +663,31 @@ class Animator(InteractionAnimMixin, CombatAnimMixin, AcroAnimMixin):
         self._legs(pose, F, (sss[0], sss[1]), (lifts[0], lifts[1]), (angs[0], angs[1]))
         if not cautious:
             pose.eye = 1.0 + 0.12 * rb
+        # M4: acting is layered on the *upper body* of a real moving gait.
+        # The actor can notice, recoil and decide while feet remain planted
+        # according to the locomotion IK. Never override root, hip, foot
+        # contacts or physics with an acting clip while travelling.
+        overlay_name = seg.data.get("motion_overlay")
+        if overlay_name:
+            clip = get_clip(overlay_name)
+            perf = Performance(tempo=seg.data.get("act_tempo", 1.0),
+                               intensity=seg.data.get("act_int", 1.0),
+                               emotion=seg.data.get("act_emotion", "neutral"))
+            tau = max(0.0, t - seg.data.get("overlay_t0", seg.t0))
+            length = clip.length(perf)
+            if tau < length:
+                blend = (smoothstep(0.0, 0.09, tau)
+                         * (1.0 - smoothstep(max(0.13, length - 0.17), length, tau)))
+                v = clip.sample(tau, perf)
+                def delta(c):
+                    return v.get(c, NEUTRAL[c]) - NEUTRAL[c]
+                L["spine"] += clamp(delta("lean") * 0.62, -0.25, 0.25) * blend
+                L["chest"] += clamp(delta("chest") * 0.55, -0.18, 0.18) * blend
+                L["head"] += clamp(delta("head") * 0.68, -0.35, 0.35) * blend
+                for side in ("n", "f"):
+                    L["upper_arm_" + side] += clamp(delta("arm_" + side) * 0.44, -0.60, 0.60) * blend
+                    L["forearm_" + side] += clamp(delta("elbow_" + side) * 0.35, -0.38, 0.38) * blend
+                pose.eye = clamp(pose.eye + delta("eye") * 0.55 * blend, 0.65, 2.0)
         g, w = self._seg_gaze(seg, t)
         self._gaze(pose, g, 0.75 * w)
         if seg.data.get("carry") and self.prop_at:  # carrying a bar: both hands on it
