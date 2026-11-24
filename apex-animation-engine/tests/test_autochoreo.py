@@ -37,8 +37,10 @@ def test_tactics_are_generated_from_scene_geometry(mission):
     assert names == ["direct_run", "low_jump", "powered_jump", "vault",
                      "climb_then_drop", "shift_crate_then_climb"]
     for plan in c:
-        assert plan.actions[0]["type"] == "notice"
-        assert plan.actions[1]["clip"] == "doubt_to_dash"
+        assert plan.actions[0]["type"] == "run_to"
+        assert plan.actions[0]["notice_while_moving"] is True
+        assert plan.actions[0]["clip"] == "doubt_to_dash"
+        assert plan.actions[0]["target"].startswith("point:")
         assert any(a["type"] == "pick_up" and a["target"] == "prop:spark" for a in plan.actions)
     assert next(x for x in c if x.name == "low_jump").check_jump_height <= obj.max_jump_apex
 
@@ -121,9 +123,12 @@ def test_active_pace_is_an_explicit_director_contract_not_global_physics(mission
     assert active.travel_speed > measured.travel_speed
     fast = propose(p, obj)
     slow = propose(p, replace(obj, pacing="measured"))
-    assert fast[0].actions[0]["duration"] == active.notice_seconds
-    assert fast[0].actions[1]["tempo"] == active.decision_tempo
-    assert fast[0].actions[1]["tempo"] > slow[0].actions[1].get("tempo", 1)
+    assert fast[0].actions[0]["notice_while_moving"] is True
+    assert fast[0].actions[0]["clip"] == "doubt_to_dash"
+    assert fast[0].actions[0]["tempo"] == active.decision_tempo
+    assert slow[0].actions[0]["type"] == "notice"
+    assert slow[0].actions[1]["type"] == "act"
+    assert fast[0].actions[0]["tempo"] > slow[0].actions[1].get("tempo", 1)
     climber = next(c for c in fast if c.name == "climb_then_drop")
     assert next(a for a in climber.actions if a["type"] == "run_to")["speed"] >= active.travel_speed
     assert next(a for a in climber.actions if a.get("clip") == "impact_to_grin")["tempo"] == active.recovery_tempo
@@ -163,3 +168,25 @@ def test_scripted_landing_recovery_does_not_wait_through_duplicate_idle(example)
     assert impact.t < recovered.t <= acting.t < pickup.t
     assert acting.t - recovered.t < 0.04
     assert pickup.t - impact.t < 4.0
+
+
+def test_moving_observation_proves_foot_travel_and_actor_cues(example):
+    from apex.scene.autochoreo import Objective, propose
+    p = ProjectSpec.model_validate(example.world())
+    obj = Objective("cross", "iko", "barrier", "spark", pacing="active")
+    run = propose(p, obj)[0].actions[0]
+    d = p.model_dump(mode="json")
+    sc = d["scenes"][0]
+    sc["actions"] = [dict(run), {"type": "idle", "character": "iko", "duration": 0.2}]
+    sim = SceneRuntime(ProjectSpec.model_validate(d), "cross").simulate(physics_only=True)
+    ctrl = sim.controllers["iko"]
+    notice = next(e for e in sim.events if e.type == "notice" and e.character == "iko")
+    acting = next(e for e in sim.events if e.type == "act" and e.character == "iko")
+    assert notice.data["while_moving"] is True
+    assert acting.data["while_moving"] is True
+    assert notice.t == acting.t
+    assert ctrl.records[120].s > ctrl.records[0].s + 30
+    moving = next(seg for seg in ctrl.segments if seg.kind == "loco")
+    assert moving.data["motion_overlay"] == "doubt_to_dash"
+    assert moving.data["gaze_mode"] == "notice"
+    assert not any(seg.kind == "idle" and seg.t0 == 0.0 for seg in ctrl.segments if seg.t1-seg.t0 > 0.2)
