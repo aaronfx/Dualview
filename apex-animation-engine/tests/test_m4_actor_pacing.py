@@ -68,9 +68,11 @@ def test_active_climb_uses_real_ledge_event_and_reaches_goal_without_extra_walk(
     climb = next(e for e in events if e.type == "climb_start")
     grab = next(e for e in events if e.type == "ledge_grab")
     top = next(e for e in events if e.type == "climbed")
-    jump = next(e for e in events if e.type == "takeoff")
+    jumps = [e for e in events if e.type == "takeoff"]
+    jump = jumps[-1]  # the later jump *off* the tall barrier
     pick = next(e for e in events if e.type == "pick_up" and e.data.get("prop") == "spark")
-    assert climb.t < grab.t < top.t < jump.t < pick.t
+    assert len(jumps) >= 2, "first jump is now a real, visible hop over the solid supply crate"
+    assert jumps[0].t < climb.t < grab.t < top.t < jump.t < pick.t
     assert top.t - climb.t < 1.5
     assert jump.t - top.t < 0.45
     # One direct arrival at the planned grab coordinate, not another hidden
