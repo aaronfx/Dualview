@@ -53,8 +53,10 @@ class Equation:
 
         x = {"op": "var", "value": "x"}
         lhs = x if self.a == 1 else {"op": "mul", "args": [I(self.a), x]}
-        if self.b != 0:
+        if self.b > 0:
             lhs = {"op": "add", "args": [lhs, I(self.b)]}
+        elif self.b < 0:
+            lhs = {"op": "sub", "args": [lhs, I(-self.b)]}   # render "x - 3", not "x + -3"
         return {"op": "eq", "args": [lhs, I(self.c)]}
 
 
