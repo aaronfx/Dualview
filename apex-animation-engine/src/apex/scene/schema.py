@@ -592,7 +592,8 @@ class ActionSpec(Strict):
     flip: Optional[Literal["front", "back"]] = None  # jump_to / wall_kick: a somersault in the air
     lane: Optional[float] = Field(None, ge=-80, le=80)  # move to this depth lane during the action (negative = nearer the camera)
     beats: int = Field(1, ge=1, le=64)  # wait_beat: hold until this many beats from now have started (the next action starts on it)
-    clip: Optional[str] = None  # act: a motion-library clip (cheer, laugh, beckon, cower, shock, reach_out, despair, rise, ...)
+    clip: Optional[str] = None  # act: full-body clip; run_to/walk_to: upper-body acting overlay while feet keep moving
+    notice_while_moving: bool = False  # run_to/walk_to: glance at target during travel; emit causal notice event
     intensity: float = Field(1.0, gt=0, le=2.5)  # act: exaggeration (scales the clip's deviation from neutral)
     tempo: float = Field(1.0, gt=0.2, le=3.0)  # act: playback speed
     tremble: float = Field(0.0, ge=0, le=1.5)  # act: shaking hands, arms and head (fear, exhaustion)
@@ -637,7 +638,9 @@ class ActionSpec(Strict):
             raise ValueError("throw.target must be 'char:<id>', 'prop:<id>' (where it is at the release) or 'point:x,y'")
         if self.type in ("push", "lift", "use_lever") and not (self.target or "").startswith("prop:"):
             raise ValueError(f"{self.type}.target must be 'prop:<id>'")
-        if self.type == "act":
+        if self.notice_while_moving and (self.type not in ("walk_to", "run_to") or self.target is None):
+            raise ValueError("notice_while_moving needs a walk_to/run_to with an observation target")
+        if self.type == "act" or (self.type in ("walk_to", "run_to") and self.clip is not None):
             from ..motion.library import get_clip
             try:
                 get_clip(self.clip)
