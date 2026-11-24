@@ -126,12 +126,23 @@ def propose(project: ProjectSpec, objective: Objective) -> tuple[Candidate, ...]
     if not (-env.room.width / 2 + 90 < start < gx < env.room.width / 2 - 70):
         raise ValueError("actor and goal require space clear of room edges")
 
-    # Observation and expressive preparation are kept separate from solving.
-    opening = (
-        _a(objective.actor, "notice", target=f"point:{(left + right)/2:g},{top + 35:g}", duration=pace.notice_seconds),
-        _a(objective.actor, "act", clip="doubt_to_dash", emotion="afraid", intensity=1.14,
-           tempo=pace.decision_tempo),
-    )
+    # M4 active actors see the problem and show emotion *while already
+    # travelling*. No idle notice -> idle act -> start run staircase.
+    # Measured mode remains as a controlled, reproducible A/B baseline.
+    focus = f"point:{(left + right)/2:g},{top + 35:g}"
+    if objective.pacing == "active":
+        opening = (
+            _a(objective.actor, "run_to", target_x=min(start + 180.0, left - 155.0),
+               speed=pace.travel_speed, target=focus, notice_while_moving=True,
+               clip="doubt_to_dash", emotion="afraid", intensity=1.14,
+               tempo=pace.decision_tempo),
+        )
+    else:
+        opening = (
+            _a(objective.actor, "notice", target=focus, duration=pace.notice_seconds),
+            _a(objective.actor, "act", clip="doubt_to_dash", emotion="afraid", intensity=1.14,
+               tempo=pace.decision_tempo),
+        )
     finish = (
         _a(objective.actor, "run_to", target_x=gx - 62, speed=pace.goal_speed),
         _a(objective.actor, "pick_up", target=f"prop:{objective.goal_prop_id}"),
