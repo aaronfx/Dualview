@@ -6,6 +6,8 @@ on:
     paths:
       - '.github/workflows/apex-m3-autochoreo.yml'
       - 'apex-animation-engine/src/apex/scene/autochoreo.py'
+      - 'apex-animation-engine/src/apex/scene/pacing.py'
+      - 'apex-animation-engine/src/apex/motion/controller.py'
       - 'apex-animation-engine/examples/build_impossible_crossing.py'
       - 'apex-animation-engine/tests/test_autochoreo.py'
       - 'apex-animation-engine/tests/test_autochoreo_cli.py'
