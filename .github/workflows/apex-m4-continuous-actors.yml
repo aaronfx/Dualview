@@ -1,0 +1,53 @@
+name: APEX M4 continuous actor performance proof
+
+on:
+  push:
+    branches: [feature/apex-three-reference-grade]
+    paths:
+      - '.github/workflows/apex-m4-continuous-actors.yml'
+      - 'apex-animation-engine/src/apex/scene/schema.py'
+      - 'apex-animation-engine/src/apex/scene/autochoreo.py'
+      - 'apex-animation-engine/src/apex/motion/controller.py'
+      - 'apex-animation-engine/src/apex/motion/animator.py'
+      - 'apex-animation-engine/tests/test_autochoreo.py'
+      - 'apex-animation-engine/tests/test_motion_performance_probe.py'
+      - 'apex-animation-engine/examples/build_impossible_crossing.py'
+  workflow_dispatch:
+
+jobs:
+  moving-actors:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install APEX runtime and FFmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg libegl1
+          python -m pip install --disable-pip-version-check -e './apex-animation-engine[dev]'
+      - name: Verify live acting, foot contacts and physical story objectives
+        working-directory: apex-animation-engine
+        run: python -m pytest -q tests/test_autochoreo.py tests/test_motion_performance_probe.py tests/test_route_planner.py tests/test_motion.py
+      - name: Build M4 scene from bounded autonomous physics planning
+        working-directory: apex-animation-engine
+        run: |
+          mkdir -p out/m4/review
+          python examples/build_impossible_crossing.py out/m4/impossible_crossing_m4.json
+          apex validate out/m4/impossible_crossing_m4.json
+      - name: Render new real APEX MP4 and technical/cinematic QA
+        working-directory: apex-animation-engine
+        run: |
+          apex render out/m4/impossible_crossing_m4.json -o out/m4/impossible_crossing_m4.mp4 --scale 0.75 --samples 1 --qa-json out/m4/qa.json --review-dir out/m4/review
+          apex review out/m4/impossible_crossing_m4.json out/m4/review --video out/m4/impossible_crossing_m4.mp4 --qa-json out/m4/qa.json
+      - name: Preserve QA, video, physical plan and frame contact sheets
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: apex-m4-continuous-actors-video-and-proof
+          path: |
+            apex-animation-engine/out/m4/**
+          if-no-files-found: warn
+          retention-days: 14
