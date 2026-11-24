@@ -112,3 +112,59 @@ def compile_proven_math_pair(before: Mapping[str, Any], after: Mapping[str, Any]
     return (compile_math_stage(before, name=f"{name}_before", **kwargs),
             compile_math_stage(after, name=f"{name}_after", **kwargs),
             proof)
+
+
+@dataclass(frozen=True)
+class BalancePlan:
+    """How to turn a SymPy-proven equation rewrite into physical actions on the `before` glyphs.
+
+    `remove` are glyph ids (terms) the character physically removes (throws off / knocks loose). `morph` are
+    (glyph id, new glyph) pairs the engine morphs in place when the removal happens. The plan never spawns a new
+    symbol — only removal and in-place value change — so the staged film and the proof stay honest.
+    """
+    before: MathStage
+    after: MathStage
+    proof: ProofResult
+    remove: tuple[str, ...]
+    morph: tuple[tuple[str, str], ...]
+
+
+def _split_eq(stage: MathStage):
+    toks = list(stage.glyphs)
+    cut = next((i for i, g in enumerate(toks) if g.semantic == "eq"), None)
+    if cut is None:
+        raise ValueError("plan_balance needs an equation (a token with '=')")
+    return toks[:cut], toks[cut + 1:]
+
+
+def _side_plan(b_side, a_side):
+    """Align one side of the equation: a common prefix stays; the rest of `before` is removed or morphed to match
+    `after`. Adding a brand-new symbol that `before` does not have is not a physical balance and is refused."""
+    lcp = 0
+    while lcp < len(b_side) and lcp < len(a_side) and b_side[lcp].glyph == a_side[lcp].glyph:
+        lcp += 1
+    b_rest, a_rest = b_side[lcp:], a_side[lcp:]
+    remove, morph = [], []
+    for i, bg in enumerate(b_rest):
+        if i < len(a_rest):
+            if bg.glyph != a_rest[i].glyph:
+                morph.append((bg.id, a_rest[i].glyph))
+        else:
+            remove.append(bg.id)
+    if len(a_rest) > len(b_rest):
+        raise NotImplementedError("physical balance can remove or change terms, not spawn new ones; "
+                                  "stage this rewrite as more steps")
+    return remove, morph
+
+
+def plan_balance(before: Mapping[str, Any], after: Mapping[str, Any], *, name: str = "eqn", **layout) -> BalancePlan:
+    """Prove an equation rewrite (SymPy) and compute the physical balance plan over the `before` glyphs.
+
+    A false rewrite raises before any object is built. The returned plan says which term glyphs the character
+    removes and which morph in place, so an authored film performs a *proven* transformation rather than cutting to
+    a fake one. Supports the linear-balance pattern (cancel equal terms from both sides, change the constant)."""
+    stage_b, stage_a, proof = compile_proven_math_pair(before, after, name=name, **layout)
+    (bl, br), (al, ar) = _split_eq(stage_b), _split_eq(stage_a)
+    rl, ml = _side_plan(bl, al)
+    rr, mr = _side_plan(br, ar)
+    return BalancePlan(stage_b, stage_a, proof, tuple(rl + rr), tuple(ml + mr))
