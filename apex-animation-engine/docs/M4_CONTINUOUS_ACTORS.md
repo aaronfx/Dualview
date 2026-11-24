@@ -73,3 +73,51 @@ Actively reduce unnecessary *climb* stationary dwell with proof of real
 support/hand contacts, preserving frame continuity and verified success.
 Add an automated boredom/idle-budget diagnostic that excludes intentional
 acting holds and necessary physical stabilization.
+
+
+## Increment 2 — run-to-climb continuity and wasted-time audit (2026-11-24)
+
+Verified build: https://github.com/aaronfx/Dualview/actions/runs/45300052680
+(sha `24379c797`; subsequent docs-only commits do not modify this executable build).
+
+**Root cause.** The actor previously stopped at a generic point some
+distance from the barrier, and the climb controller then scheduled a second
+approach to its exact ledge-grab position. After that, its timed climb included
+a hanging hold. Shortening these phases exposed a second defect: the camera
+editor assumed the old slow action schedule, producing a sub-0.5s shot.
+We corrected the shot timeline rather than slowing the performer.
+
+**Changes.**
+- The planner obtains the actor's real leg proportions and computes the same
+  grab-start coordinate as the climb controller: edge minus 30% of standing
+  height. The controller carries velocity into a *matching* climb approach.
+- A tempo-bounded, contact-preserving climb shortens reach/ledge-grab/mantle
+  phases together; the hand-IK targets, causal ledge event and support change
+  are retained. APEX's climb is still an authored kinematic motion, **not** a
+  physically simulated two-hand grasp with force feedback.
+- Event-driven shot boundaries adapt to the earlier climb and keep the
+  cinematic gate's minimum shot duration.
+- `qa/actor_pacing.py` scans actual 240 Hz root trajectories and action
+  segments for wasted idle and movement stalls. Dramatic acting, purposeful
+  holds and physical recovery remain visible but excluded from the waste
+  budget; it cannot decide whether a deliberate hold is aesthetically good.
+- `examples/audit_m4_actor_pacing.py` exports `actor_pacing_report.json`
+  before rendering, with a hard threshold of 0.65s wasted time.
+
+**Evidence.** 50 Python tests passed; actual APEX MP4 is 960x540 H.264
+with AAC, 24 fps, 167 frames, 6.9583s. Film QA: **42 PASS, 0 FAIL**,
+technical PASS and cinematic PASS. Six planner tactics were evaluated;
+`climb_then_drop` passed and physically collected the specified reward at
+t=5.2958s. The 8.1667s previous M4 version was 1.2084s longer; this is
+about a 14.8% reduction in film duration on the *same scene*.
+
+The idle audit reported **0.40s of unmotivated final idle**, **0.875s of
+explicit celebration performance**, and an accepted 0.65s waste limit.
+The remaining idle is real and should be reduced by the editor; do not count
+the audit PASS as a human artistic acceptance. The climb movement still
+looks fairly mechanical relative to the three reference films.
+
+**Next.** Remove remaining non-dramatic end holds without truncating the
+payoff; generalize live act blending to turns, grabs and multi-character
+interaction; validate in three *different* original scenes, not just this
+single obstacle benchmark. Final artistic review remains outstanding.
