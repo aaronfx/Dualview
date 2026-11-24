@@ -666,6 +666,12 @@ class AcroMixin:
         times[4] = times[3] + 0.42
         times[5] = times[4] + 0.4
         times[6] = times[5] + 0.36
+        # Tempo is constrained for *this* physically staged action. Time-
+        # scale the full reach/grab/pull/mantle path together, including IK
+        # contact intervals and causal ledge_grab event. No key is removed,
+        # so accelerating the actor does not jump or teleport over the ledge.
+        tempo = clamp(a.tempo, 0.7, 1.35)
+        times = [phase_t / tempo for phase_t in times]
         T = times[6]
         keys = [(times[0] / T, P0), (times[1] / T, P1), (times[2] / T, P2), (times[3] / T, P2), (times[4] / T, P4), (times[5] / T, P5), (1.0, P6)]
         tilt = [(times[0] / T, 0.0), (times[1] / T, 0.08), (times[2] / T, 0.0), (times[3] / T, 0.0), (times[4] / T, 0.35), (times[5] / T, 0.45),

@@ -1,0 +1,153 @@
+{
+  "name": "doubt_to_dash",
+  "duration": 1.18,
+  "description": "Actor sees a daunting obstacle, physically recoils, measures it with the eyes, plants the feet, gathers weight and commits to a run. Original reusable character performance.",
+  "phases": [
+    [
+      "observation",
+      0,
+      0.16
+    ],
+    [
+      "reaction",
+      0.16,
+      0.4
+    ],
+    [
+      "anticipation",
+      0.4,
+      0.88
+    ],
+    [
+      "action",
+      0.88,
+      1.08
+    ],
+    [
+      "follow_through",
+      1.08,
+      1.18
+    ]
+  ],
+  "keys": [
+    {
+      "t": 0,
+      "name": "spot_the_danger",
+      "interp": "ease",
+      "pose": {
+        "crouch": 0.02,
+        "lean": 0.04,
+        "chest": 0,
+        "head": -0.1,
+        "arm_n": 0.1,
+        "elbow_n": 0.4,
+        "arm_f": -0.1,
+        "elbow_f": 0.4,
+        "eye": 1.3,
+        "squash": 1
+      }
+    },
+    {
+      "t": 0.16,
+      "name": "unexpected_scale",
+      "interp": "snap",
+      "pose": {
+        "crouch": 0.07,
+        "lean": -0.18,
+        "chest": -0.09,
+        "head": 0.24,
+        "arm_n": 0.9,
+        "elbow_n": 0.8,
+        "arm_f": 0.55,
+        "elbow_f": 0.85,
+        "eye": 1.7,
+        "squash": 0.95
+      }
+    },
+    {
+      "t": 0.35,
+      "name": "hold_uncertainty",
+      "interp": "hold",
+      "pose": {
+        "crouch": 0.09,
+        "lean": -0.13,
+        "chest": -0.07,
+        "head": 0.21,
+        "arm_n": 0.6,
+        "elbow_n": 1.1,
+        "arm_f": 0.5,
+        "elbow_f": 1,
+        "eye": 1.5,
+        "squash": 0.97
+      }
+    },
+    {
+      "t": 0.56,
+      "name": "find_the_line",
+      "interp": "ease",
+      "pose": {
+        "crouch": 0.11,
+        "lean": 0.08,
+        "chest": -0.02,
+        "head": -0.1,
+        "arm_n": -0.06,
+        "elbow_n": 0.55,
+        "arm_f": -0.25,
+        "elbow_f": 0.55,
+        "eye": 1.25,
+        "squash": 0.97
+      }
+    },
+    {
+      "t": 0.87,
+      "name": "load_the_legs",
+      "interp": "slow_in",
+      "pose": {
+        "crouch": 0.26,
+        "lean": 0.3,
+        "chest": -0.12,
+        "head": -0.08,
+        "arm_n": -0.52,
+        "elbow_n": 0.55,
+        "arm_f": 0.32,
+        "elbow_f": 0.42,
+        "eye": 0.95,
+        "squash": 0.92
+      }
+    },
+    {
+      "t": 1.02,
+      "name": "resolve",
+      "interp": "snap",
+      "pose": {
+        "crouch": 0.16,
+        "lean": 0.22,
+        "chest": -0.1,
+        "head": -0.12,
+        "arm_n": -0.4,
+        "elbow_n": 0.46,
+        "arm_f": 0.22,
+        "elbow_f": 0.45,
+        "eye": 1.15,
+        "squash": 1.015
+      }
+    },
+    {
+      "t": 1.18,
+      "name": "release_into_striding",
+      "interp": "ease",
+      "pose": {
+        "crouch": 0.035,
+        "lean": 0.13,
+        "chest": -0.02,
+        "head": -0.04,
+        "arm_n": 0.25,
+        "elbow_n": 0.48,
+        "arm_f": -0.23,
+        "elbow_f": 0.5,
+        "eye": 1.12,
+        "squash": 1
+      }
+    }
+  ]
+}

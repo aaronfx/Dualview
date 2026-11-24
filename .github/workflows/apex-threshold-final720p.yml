@@ -1,0 +1,46 @@
+name: APEX Threshold 720p film proof
+
+on:
+  push:
+    branches: [feature/apex-three-reference-grade]
+    paths:
+      - '.github/workflows/apex-threshold-final720p.yml'
+  workflow_dispatch:
+
+jobs:
+  render-native:
+    runs-on: ubuntu-latest
+    timeout-minutes: 22
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install animation and ffmpeg runtime
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg libegl1
+          python -m pip install --disable-pip-version-check -e './apex-animation-engine[dev]'
+      - name: Build deterministic 5-shot film
+        working-directory: apex-animation-engine
+        run: |
+          mkdir -p out/final_review
+          python examples/build_motion_performance_probe.py out/threshold_final.json
+          apex validate out/threshold_final.json
+      - name: Render native 1280x720 H264/AAC with 2 motion samples per frame and QA
+        working-directory: apex-animation-engine
+        run: |
+          apex render out/threshold_final.json -o out/threshold_final_720p.mp4 --scale 1.0 --samples 2 --qa-json out/threshold_final_720p_qa.json --review-dir out/final_review
+          apex review out/threshold_final.json out/final_review --video out/threshold_final_720p.mp4 --qa-json out/threshold_final_720p_qa.json
+      - name: Preserve final-quality reviewable film
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: apex-threshold-native-720p-motion-benchmark
+          path: |
+            apex-animation-engine/out/threshold_final.json
+            apex-animation-engine/out/threshold_final_720p.mp4
+            apex-animation-engine/out/threshold_final_720p_qa.json
+            apex-animation-engine/out/final_review/**
+          if-no-files-found: warn
+          retention-days: 14

@@ -1,0 +1,40 @@
+name: APEX recovered audio/film regressions
+
+on:
+  push:
+    branches: [feature/apex-three-reference-grade]
+    paths:
+      - '.github/workflows/apex-audio-regressions.yml'
+      - 'apex-animation-engine/src/apex/audio/sfx/manifest.json'
+      - 'apex-animation-engine/src/apex/audio/samples.py'
+      - 'apex-animation-engine/src/apex/audio/sound_director.py'
+      - 'apex-animation-engine/tests/test_quality_upgrade.py'
+  workflow_dispatch:
+
+jobs:
+  recover-eight-regressions:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install APEX, ffmpeg and graphics
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg libegl1
+          python -m pip install --disable-pip-version-check -e './apex-animation-engine[dev]'
+      - name: Re-test eight historically failing audio-dependent scenarios
+        working-directory: apex-animation-engine
+        run: |
+          python -m pytest -q \
+            tests/test_ai_api.py::test_api_project_lifecycle_and_render_job \
+            tests/test_milestone6.py::test_a_film_joins_its_scenes_with_a_rewind_built_from_the_failed_attempt \
+            tests/test_quality_upgrade.py::test_sample_library_files_and_credits \
+            tests/test_quality_upgrade.py::test_samples_are_deterministic_and_varied \
+            tests/test_quality_upgrade.py::test_sound_director_falls_back_to_synth_without_samples \
+            tests/test_render_audio_video.py::test_sound_cues_are_bound_to_event_times \
+            tests/test_render_audio_video.py::test_end_to_end_small_render_produces_playable_mp4 \
+            tests/test_render_audio_video.py::test_non_frame_aligned_duration_keeps_every_frame \
+            tests/test_audio_fallback.py

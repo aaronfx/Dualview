@@ -1,0 +1,41 @@
+name: APEX reference-triad engine integration
+
+on:
+  push:
+    branches: [feature/apex-three-reference-grade]
+    paths:
+      - '.github/workflows/apex-reference-triad-integration.yml'
+      - 'apex-animation-engine/src/apex/scene/route_planner.py'
+      - 'apex-animation-engine/tests/test_route_planner.py'
+      - 'apex-animation-engine/tests/test_creative_director.py'
+      - 'apex-animation-engine/src/apex/ai/director.py'
+      - 'apex-animation-engine/tests/test_audio_fallback.py'
+      - 'apex-animation-engine/src/apex/audio/samples.py'
+      - 'apex-animation-engine/src/apex/audio/sound_director.py'
+      - 'apex-animation-engine/src/apex/audio/sfx/manifest.json'
+      - 'apex-animation-engine/tests/test_quality_upgrade.py'
+      - 'apex-animation-engine/tests/test_motion_performance_probe.py'
+      - 'apex-animation-engine/src/apex/render/film.py'
+  workflow_dispatch:
+
+jobs:
+  physics-and-scenes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 32
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install headless graphics and video libraries
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg libegl1
+      - name: Install complete APEX engine
+        working-directory: apex-animation-engine
+        run: python -m pip install --disable-pip-version-check -e '.[dev]'
+      - name: Verify new math / creative features against real physics and scene schemas
+        working-directory: apex-animation-engine
+        run: python -m pytest -q tests/test_schema.py tests/test_physics.py tests/test_milestone4.py tests/test_milestone5.py tests/test_math_stage.py tests/test_math_semantics.py tests/test_creative_storyboard.py tests/test_route_planner.py tests/test_film_windows.py tests/test_creative_director.py tests/test_audio_fallback.py
+      - name: Run whole APEX regression suite
+        working-directory: apex-animation-engine
+        run: python -m pytest -q
+

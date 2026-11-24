@@ -1,0 +1,58 @@
+name: APEX M3 self-correcting choreography proof
+
+on:
+  push:
+    branches: [feature/apex-three-reference-grade]
+    paths:
+      - '.github/workflows/apex-m3-autochoreo.yml'
+      - 'apex-animation-engine/src/apex/scene/autochoreo.py'
+      - 'apex-animation-engine/src/apex/scene/pacing.py'
+      - 'apex-animation-engine/src/apex/motion/controller.py'
+      - 'apex-animation-engine/examples/build_impossible_crossing.py'
+      - 'apex-animation-engine/tests/test_autochoreo.py'
+      - 'apex-animation-engine/tests/test_autochoreo_cli.py'
+      - 'apex-animation-engine/src/apex/cli.py'
+  workflow_dispatch:
+
+jobs:
+  autonomous-plan-and-film:
+    runs-on: ubuntu-latest
+    timeout-minutes: 24
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install core, graphics and ffmpeg
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg libegl1
+          python -m pip install --disable-pip-version-check -e './apex-animation-engine[dev]'
+      - name: Test physically grounded candidate selection and replay
+        working-directory: apex-animation-engine
+        run: |
+          python -m pytest -q tests/test_autochoreo.py tests/test_autochoreo_cli.py tests/test_route_planner.py
+      - name: Build final scene and persist rejection/proof trace
+        working-directory: apex-animation-engine
+        run: |
+          mkdir -p out/m3_review
+          python examples/build_impossible_crossing.py out/impossible_crossing.json
+          apex validate out/impossible_crossing.json
+      - name: Render native APEX 960x540 preview with full QA and honest review sheet
+        working-directory: apex-animation-engine
+        run: |
+          apex render out/impossible_crossing.json -o out/impossible_crossing.mp4 --scale 0.75 --samples 1 --qa-json out/impossible_crossing_qa.json --review-dir out/m3_review
+          apex review out/impossible_crossing.json out/m3_review --video out/impossible_crossing.mp4 --qa-json out/impossible_crossing_qa.json
+      - name: Archive MP4 and decision evidence, even if cinematic QA fails
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: apex-m3-impossible-crossing-autochoreo
+          path: |
+            apex-animation-engine/out/impossible_crossing.mp4
+            apex-animation-engine/out/impossible_crossing.json
+            apex-animation-engine/out/impossible_crossing.plan.json
+            apex-animation-engine/out/impossible_crossing_qa.json
+            apex-animation-engine/out/m3_review/**
+          if-no-files-found: warn
+          retention-days: 14

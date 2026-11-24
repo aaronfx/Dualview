@@ -96,6 +96,18 @@ exit_conditions: "event:<type>" with types from: {EVENT_TYPES}.
 sound_cues: {{on_event, sound, gain}}; sound must be one of: {", ".join(SOUND_NAMES)}.
 Keep characters consistent: one CharacterSpec per character, referenced by id everywhere. Include only what the story
 needs: no switches, exits or gravity changes unless the story asks for them.
+OPTIONAL CREATIVE PLAN: When constructing math-world, arcade/rhythm, or multi-scene epic stories, include a top-level
+creative_plan with "profile" = math|arcade|epic|hybrid, "premise", optional "initial_state": {{key: state}},
+and "beats": [{{"id", "scene", "t", "kind", "intent", "actor", "causes": ["previous_id"],
+"requires": {{}}, "effects": {{}}, optional "proof_event": "eventtype@actor",
+optional "on_beat": true, "film_t": seconds, optional "math": {{"before": typed_AST, "after": typed_AST}}}}].
+Beat kinds: setup|discovery|obstacle|response|reversal|payoff|transition. Every non-setup beat must name its
+earlier cause; changing world state must be motivated by a previous beat. A proof_event must actually be emitted
+at time t by simulation. For math expression trees use strictly typed operations int(value), var(value),
+add(args), sub(args), mul(args), div(args), pow(args), eq(args). NEVER invent a physics event for a mathematical
+operation unless APEX has an implemented action that triggers it. Avoid claims that equations rewrite physically
+until that engine feature exists. If profile=arcade, music beat markers refer to FILM time, including slow motion.
+A creative plan is optional; do not add it to simple projects where it serves no purpose.
 REPAIRS: when told your previous output was invalid, reply with ONLY {{"patch": [...]}}: RFC 6902 operations
 ({{"op": "replace"|"add"|"remove", "path": "/scenes/0/actions/3/until", "value": ...}}) against your previous JSON, not a full
 rewrite."""
@@ -308,8 +320,11 @@ class StoryDirector:
         from ..scene.runtime import SceneRuntime
         from ..scene.solver import stuck_characters
         StoryDirector._check_sounds(proj)
+        creative_evidence = {}
         for sc in proj.scenes:
             r = SceneRuntime(proj, sc.id).simulate(physics_only=True)
+            if proj.creative_plan is not None:
+                creative_evidence[sc.id] = r.events
             # every character must get through its action list: a step that never completes means the physical setup
             # did not produce what the story needs (e.g. a wait_for event that never happened)
             stuck = stuck_characters(r)
@@ -324,6 +339,13 @@ class StoryDirector:
                                  f"Events that actually happened: {happened or 'none'}. Physics diagnostics: "
                                  f"{StoryDirector._diagnose(proj, sc, r)}. Adjust the physical setup "
                                  "(masses, friction, positions, ropes) or the actions so the needed events occur.")
+        if proj.creative_plan is not None:
+            from ..qa.creative import audit_creative_plan
+            broken = [c for c in audit_creative_plan(proj, creative_evidence) if c.status == "FAIL"]
+            if broken:
+                details = "; ".join(f"{c.name}: {c.details}" for c in broken)
+                raise ValueError("AI creative plan contradicted its mathematical, rhythmic, narrative or "
+                                 f"simulation evidence: {details}. Repair causal beats or underlying scene physics.")
 
     @staticmethod
     def _check_sounds(proj: ProjectSpec) -> None:

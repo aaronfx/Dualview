@@ -1,28 +1,204 @@
 {
- "about": "Curated sound-effect samples used by apex.audio.SoundDirector. Every file is free for commercial use; see CREDITS.md. A sound is built from one or more layers; each cue picks one file per layer (deterministic by seed) with small pitch and gain variation. synth_mix blends in the engine's own synthesised version of the sound (0 = samples only).",
- "sounds": {
-  "footstep": {"layers": [{"files": ["metal_footsteps/metal_steps_01.wav", "metal_footsteps/metal_steps_02.wav", "metal_footsteps/metal_steps_03.wav", "metal_footsteps/metal_steps_04.wav", "metal_footsteps/metal_steps_05.wav", "metal_footsteps/metal_steps_06.wav", "metal_footsteps/metal_steps_07.wav", "metal_footsteps/metal_steps_08.wav"], "gain": 1.0}], "synth_mix": 0.25, "pitch": 0.06},
-  "impact": {"layers": [{"files": ["wet_towel/wet_towel_on_floor-03.flac", "wet_towel/wet_towel_on_floor-05.flac", "wet_towel/wet_towel_on_floor-02.flac", "wet_towel/wet_towel_on_floor-06.flac"], "gain": 1.2, "pitch_base": 0.8},
-                        {"files": ["rubberduck_100cc0_v2/sfx100v2_wood_hit_01.ogg", "rubberduck_100cc0_v2/sfx100v2_wood_hit_02.ogg"], "gain": 0.8, "pitch_base": 0.85}], "synth_mix": 0.55, "pitch": 0.04},
-  "land": {"alias": "impact"},
-  "clang": {"layers": [{"files": ["rubberduck_100cc0/hit_03.ogg", "rubberduck_100cc0/hit_04.ogg"], "gain": 1.1, "pitch_base": 0.9}, {"files": ["rubberduck_100cc0/metal_03.ogg", "rubberduck_100cc0/metal_09.ogg"], "gain": 0.4}], "synth_mix": 0.1, "pitch": 0.06},
-  "clank": {"layers": [{"files": ["rubberduck_100cc0/metal_03.ogg", "rubberduck_100cc0/metal_01.ogg", "rubberduck_100cc0/metal_09.ogg"], "gain": 1.5, "pitch_base": 0.92}], "synth_mix": 0.15, "pitch": 0.04},
-  "click": {"layers": [{"files": ["kenney_interface/switch_003.ogg", "kenney_interface/switch_002.ogg"], "gain": 0.8}], "synth_mix": 0.2, "pitch": 0.03},
-  "pulse": {"layers": [{"files": ["kenney_scifi/forceField_000.ogg", "kenney_scifi/forceField_002.ogg"], "gain": 0.8}, {"files": ["kenney_scifi/lowFrequency_explosion_001.ogg"], "gain": 0.7}], "synth_mix": 0.4, "pitch": 0.03},
-  "whoosh": {"layers": [{"files": ["rubberduck_100cc0_v2/sfx100v2_air_02.ogg"], "gain": 0.7}], "synth_mix": 0.4, "pitch": 0.06},
-  "jump": {"layers": [{"files": ["swishes/swish-3.wav", "swishes/swish-7.wav"], "gain": 0.45}], "synth_mix": 0.5, "pitch": 0.08},
-  "unlock": {"layers": [{"files": ["rubberduck_100cc0/key_open_01.ogg", "rubberduck_100cc0_v2/sfx100v2_lock_open_01.ogg"], "gain": 0.8}], "synth_mix": 0.4, "pitch": 0.0},
-  "door": {"layers": [{"files": ["kenney_scifi/doorOpen_001.ogg"], "gain": 0.8}], "synth_mix": 0.4, "pitch": 0.0},
-  "door_close": {"layers": [{"files": ["kenney_scifi/doorClose_001.ogg"], "gain": 0.8}], "synth_mix": 0.3, "pitch": 0.0}
- },
- "room_tone": {"file": "rubberduck_100cc0_v2/sfx100v2_loop_machine_02.ogg", "gain": 0.12},
- "sources": [
-  {"pack": "Sci-Fi Sounds", "author": "Kenney (www.kenney.nl)", "license": "CC0 1.0", "url": "https://opengameart.org/content/sci-fi-sounds", "dir": "kenney_scifi"},
-  {"pack": "Interface Sounds", "author": "Kenney (www.kenney.nl)", "license": "CC0 1.0", "url": "https://opengameart.org/content/interface-sounds", "dir": "kenney_interface"},
-  {"pack": "100 CC0 SFX", "author": "rubberduck", "license": "CC0 1.0", "url": "https://opengameart.org/content/100-cc0-sfx", "dir": "rubberduck_100cc0"},
-  {"pack": "100 CC0 SFX #2", "author": "rubberduck", "license": "CC0 1.0", "url": "https://opengameart.org/content/100-cc0-sfx-2", "dir": "rubberduck_100cc0_v2"},
-  {"pack": "Metal footsteps on concrete", "author": "thimras", "license": "CC0 1.0", "url": "https://opengameart.org/content/metal-footsteps-on-concrete", "dir": "metal_footsteps"},
-  {"pack": "Swishes Sound Pack", "author": "artisticdude", "license": "CC0 1.0", "url": "https://opengameart.org/content/swishes-sound-pack", "dir": "swishes"},
-  {"pack": "12 wet towel hitting/falling/punching floor sounds", "author": "Iwan Gabovitch (qubodup)", "license": "CC0 on OpenGameArt; the pack's own notice also grants MIT/zlib/new-BSD (notice kept in licenses/)", "url": "https://opengameart.org/content/12-wet-towel-hittingfallingpunching-floor-sounds", "dir": "wet_towel"}
- ]
+  "about": "Curated sound-effect samples used by apex.audio.SoundDirector. Every file is free for commercial use; see CREDITS.md. A sound is built from one or more layers; each cue picks one file per layer (deterministic by seed) with small pitch and gain variation. synth_mix blends in the engine's own synthesised version of the sound (0 = samples only). The recorded footstep and swish packs are not bundled in the repository; those cues use the engine's original procedural synthesiser until licensed samples are installed and declared here.",
+  "sounds": {
+    "impact": {
+      "layers": [
+        {
+          "files": [
+            "wet_towel/wet_towel_on_floor-03.flac",
+            "wet_towel/wet_towel_on_floor-05.flac",
+            "wet_towel/wet_towel_on_floor-02.flac",
+            "wet_towel/wet_towel_on_floor-06.flac"
+          ],
+          "gain": 1.2,
+          "pitch_base": 0.8
+        },
+        {
+          "files": [
+            "rubberduck_100cc0_v2/sfx100v2_wood_hit_01.ogg",
+            "rubberduck_100cc0_v2/sfx100v2_wood_hit_02.ogg"
+          ],
+          "gain": 0.8,
+          "pitch_base": 0.85
+        }
+      ],
+      "synth_mix": 0.55,
+      "pitch": 0.04
+    },
+    "land": {
+      "alias": "impact"
+    },
+    "clang": {
+      "layers": [
+        {
+          "files": [
+            "rubberduck_100cc0/hit_03.ogg",
+            "rubberduck_100cc0/hit_04.ogg"
+          ],
+          "gain": 1.1,
+          "pitch_base": 0.9
+        },
+        {
+          "files": [
+            "rubberduck_100cc0/metal_03.ogg",
+            "rubberduck_100cc0/metal_09.ogg"
+          ],
+          "gain": 0.4
+        }
+      ],
+      "synth_mix": 0.1,
+      "pitch": 0.06
+    },
+    "clank": {
+      "layers": [
+        {
+          "files": [
+            "rubberduck_100cc0/metal_03.ogg",
+            "rubberduck_100cc0/metal_01.ogg",
+            "rubberduck_100cc0/metal_09.ogg"
+          ],
+          "gain": 1.5,
+          "pitch_base": 0.92
+        }
+      ],
+      "synth_mix": 0.15,
+      "pitch": 0.04
+    },
+    "click": {
+      "layers": [
+        {
+          "files": [
+            "kenney_interface/switch_003.ogg",
+            "kenney_interface/switch_002.ogg"
+          ],
+          "gain": 0.8
+        }
+      ],
+      "synth_mix": 0.2,
+      "pitch": 0.03
+    },
+    "pulse": {
+      "layers": [
+        {
+          "files": [
+            "kenney_scifi/forceField_000.ogg",
+            "kenney_scifi/forceField_002.ogg"
+          ],
+          "gain": 0.8
+        },
+        {
+          "files": [
+            "kenney_scifi/lowFrequency_explosion_001.ogg"
+          ],
+          "gain": 0.7
+        }
+      ],
+      "synth_mix": 0.4,
+      "pitch": 0.03
+    },
+    "whoosh": {
+      "layers": [
+        {
+          "files": [
+            "rubberduck_100cc0_v2/sfx100v2_air_02.ogg"
+          ],
+          "gain": 0.7
+        }
+      ],
+      "synth_mix": 0.4,
+      "pitch": 0.06
+    },
+    "unlock": {
+      "layers": [
+        {
+          "files": [
+            "rubberduck_100cc0/key_open_01.ogg",
+            "rubberduck_100cc0_v2/sfx100v2_lock_open_01.ogg"
+          ],
+          "gain": 0.8
+        }
+      ],
+      "synth_mix": 0.4,
+      "pitch": 0
+    },
+    "door": {
+      "layers": [
+        {
+          "files": [
+            "kenney_scifi/doorOpen_001.ogg"
+          ],
+          "gain": 0.8
+        }
+      ],
+      "synth_mix": 0.4,
+      "pitch": 0
+    },
+    "door_close": {
+      "layers": [
+        {
+          "files": [
+            "kenney_scifi/doorClose_001.ogg"
+          ],
+          "gain": 0.8
+        }
+      ],
+      "synth_mix": 0.3,
+      "pitch": 0
+    }
+  },
+  "room_tone": {
+    "file": "rubberduck_100cc0_v2/sfx100v2_loop_machine_02.ogg",
+    "gain": 0.12
+  },
+  "sources": [
+    {
+      "pack": "Sci-Fi Sounds",
+      "author": "Kenney (www.kenney.nl)",
+      "license": "CC0 1.0",
+      "url": "https://opengameart.org/content/sci-fi-sounds",
+      "dir": "kenney_scifi"
+    },
+    {
+      "pack": "Interface Sounds",
+      "author": "Kenney (www.kenney.nl)",
+      "license": "CC0 1.0",
+      "url": "https://opengameart.org/content/interface-sounds",
+      "dir": "kenney_interface"
+    },
+    {
+      "pack": "100 CC0 SFX",
+      "author": "rubberduck",
+      "license": "CC0 1.0",
+      "url": "https://opengameart.org/content/100-cc0-sfx",
+      "dir": "rubberduck_100cc0"
+    },
+    {
+      "pack": "100 CC0 SFX #2",
+      "author": "rubberduck",
+      "license": "CC0 1.0",
+      "url": "https://opengameart.org/content/100-cc0-sfx-2",
+      "dir": "rubberduck_100cc0_v2"
+    },
+    {
+      "pack": "Metal footsteps on concrete",
+      "author": "thimras",
+      "license": "CC0 1.0",
+      "url": "https://opengameart.org/content/metal-footsteps-on-concrete",
+      "dir": "metal_footsteps"
+    },
+    {
+      "pack": "Swishes Sound Pack",
+      "author": "artisticdude",
+      "license": "CC0 1.0",
+      "url": "https://opengameart.org/content/swishes-sound-pack",
+      "dir": "swishes"
+    },
+    {
+      "pack": "12 wet towel hitting/falling/punching floor sounds",
+      "author": "Iwan Gabovitch (qubodup)",
+      "license": "CC0 on OpenGameArt; the pack's own notice also grants MIT/zlib/new-BSD (notice kept in licenses/)",
+      "url": "https://opengameart.org/content/12-wet-towel-hittingfallingpunching-floor-sounds",
+      "dir": "wet_towel"
+    }
+  ]
 }

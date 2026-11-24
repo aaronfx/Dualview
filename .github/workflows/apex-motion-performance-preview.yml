@@ -1,0 +1,53 @@
+name: APEX character performance proof
+
+on:
+  push:
+    branches: [feature/apex-three-reference-grade]
+    paths:
+      - '.github/workflows/apex-motion-performance-preview.yml'
+      - 'apex-animation-engine/examples/build_motion_performance_probe.py'
+      - 'apex-animation-engine/src/apex/motion/clips/doubt_to_dash.json'
+      - 'apex-animation-engine/src/apex/motion/clips/impact_to_grin.json'
+      - 'apex-animation-engine/tests/test_motion_performance_probe.py'
+  workflow_dispatch:
+
+jobs:
+  performance-preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 24
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install APEX dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq ffmpeg libegl1
+          python -m pip install --disable-pip-version-check -e './apex-animation-engine[dev]'
+      - name: Test reusable performance clips and physics benchmark
+        working-directory: apex-animation-engine
+        run: python -m pytest -q tests/test_motion_performance_probe.py tests/test_rig.py tests/test_motion.py
+      - name: Compile and validate 4-shot physics-driven storyboard
+        working-directory: apex-animation-engine
+        run: |
+          mkdir -p out/threshold_review
+          python examples/build_motion_performance_probe.py out/threshold_performance.json
+          apex validate out/threshold_performance.json
+      - name: Render an original 960x540 motion-quality MP4 with technical QA and review sheets
+        working-directory: apex-animation-engine
+        run: |
+          apex render out/threshold_performance.json -o out/threshold_performance.mp4 --scale 0.75 --samples 1 --qa-json out/threshold_qa.json --review-dir out/threshold_review
+          apex review out/threshold_performance.json out/threshold_review --video out/threshold_performance.mp4 --qa-json out/threshold_qa.json
+      - name: Archive benchmark, QA, contact sheet and review rubric
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: apex-threshold-performance-benchmark
+          path: |
+            apex-animation-engine/out/threshold_performance.json
+            apex-animation-engine/out/threshold_performance.mp4
+            apex-animation-engine/out/threshold_qa.json
+            apex-animation-engine/out/threshold_review/**
+          if-no-files-found: warn
+          retention-days: 14

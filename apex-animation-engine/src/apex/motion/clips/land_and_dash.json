@@ -1,0 +1,124 @@
+{
+  "name": "land_and_dash",
+  "duration": 0.72,
+  "description": "Active recovery performed on the upper body while the feet immediately resume a moving gait after physical landing; no stationary knee contact. Follows real body contact and root momentum.",
+  "phases": [
+    [
+      "impact",
+      0,
+      0.13
+    ],
+    [
+      "reaction",
+      0.13,
+      0.3
+    ],
+    [
+      "anticipation",
+      0.3,
+      0.43
+    ],
+    [
+      "action",
+      0.43,
+      0.61
+    ],
+    [
+      "follow_through",
+      0.61,
+      0.72
+    ]
+  ],
+  "keys": [
+    {
+      "t": 0,
+      "name": "brace_and_look_forward",
+      "interp": "hold",
+      "pose": {
+        "lean": 0.35,
+        "chest": 0.1,
+        "head": 0.23,
+        "arm_n": 0.62,
+        "elbow_n": 1.2,
+        "arm_f": 0.42,
+        "elbow_f": 1.05,
+        "eye": 0.75
+      }
+    },
+    {
+      "t": 0.13,
+      "name": "absorb_without_stopping",
+      "interp": "ease",
+      "pose": {
+        "lean": 0.46,
+        "chest": 0.13,
+        "head": 0.31,
+        "arm_n": 0.88,
+        "elbow_n": 1.15,
+        "arm_f": 0.3,
+        "elbow_f": 1.28,
+        "eye": 0.88
+      }
+    },
+    {
+      "t": 0.28,
+      "name": "spot_the_goal",
+      "interp": "snap",
+      "pose": {
+        "lean": 0.13,
+        "chest": -0.12,
+        "head": -0.2,
+        "arm_n": 0.24,
+        "elbow_n": 0.8,
+        "arm_f": -0.25,
+        "elbow_f": 0.65,
+        "eye": 1.46
+      }
+    },
+    {
+      "t": 0.45,
+      "name": "push_into_next_stride",
+      "interp": "snap",
+      "pose": {
+        "lean": 0.33,
+        "chest": -0.08,
+        "head": -0.16,
+        "arm_n": -0.55,
+        "elbow_n": 0.5,
+        "arm_f": 0.5,
+        "elbow_f": 0.56,
+        "eye": 1.22
+      }
+    },
+    {
+      "t": 0.61,
+      "name": "driving_forward",
+      "interp": "ease",
+      "pose": {
+        "lean": 0.25,
+        "chest": -0.05,
+        "head": -0.1,
+        "arm_n": 0.31,
+        "elbow_n": 0.48,
+        "arm_f": -0.29,
+        "elbow_f": 0.48,
+        "eye": 1.1
+      }
+    },
+    {
+      "t": 0.72,
+      "name": "return_to_running_cycle",
+      "interp": "ease",
+      "pose": {
+        "lean": 0.1,
+        "chest": 0,
+        "head": -0.03,
+        "arm_n": 0.12,
+        "elbow_n": 0.35,
+        "arm_f": -0.1,
+        "elbow_f": 0.35,
+        "eye": 1.06
+      }
+    }
+  ]
+}

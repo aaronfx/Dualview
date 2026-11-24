@@ -22,6 +22,22 @@ def main(argv=None) -> int:
     sub = ap.add_subparsers(dest="cmd", required=True)
     v = sub.add_parser("validate", help="validate a project JSON against the scene schema")
     v.add_argument("project")
+    cq = sub.add_parser("creative-qa", help="audit a three-reference causal storyboard before rendering")
+    cq.add_argument("project")
+    cq.add_argument("--simulate", action="store_true", help="verify declared event outcomes in real scene simulation")
+    cq.add_argument("--report", help="write a JSON creative QA report")
+    ch = sub.add_parser("choreo", help="M3: select a physical obstacle-crossing tactic and save the auditable result")
+    ch.add_argument("project", help="existing project JSON with one obstacle, actor, and physical goal")
+    ch.add_argument("--scene", required=True)
+    ch.add_argument("--actor", required=True)
+    ch.add_argument("--obstacle", required=True)
+    ch.add_argument("--goal-prop", required=True)
+    ch.add_argument("--movable-prop")
+    ch.add_argument("--max-jump", type=float, default=210.0)
+    ch.add_argument("--max-seconds", type=float, default=20.0)
+    ch.add_argument("--prefer-prop-interaction", action="store_true")
+    ch.add_argument("-o", "--out", required=True, help="save the accepted plan's actual native APEX project")
+    ch.add_argument("--report", required=True, help="save every candidate's simulation result and rejection reason")
     r = sub.add_parser("render", help="simulate + render one scene to MP4 (with QA)")
     r.add_argument("project")
     r.add_argument("--scene", help="scene id (default: first scene)")
@@ -68,6 +84,62 @@ def main(argv=None) -> int:
         proj = _load(a.project)
         print(f"OK: {proj.id} ({len(proj.scenes)} scene(s), {len(proj.characters)} character(s))")
         return 0
+    if a.cmd == "choreo":
+        from .scene.autochoreo import Objective, search
+        from .scene.runtime import SceneRuntime
+        from pathlib import Path
+        from dataclasses import asdict
+        proj = _load(a.project)
+        objective = Objective(
+            scene_id=a.scene, actor=a.actor, obstacle_id=a.obstacle, goal_prop_id=a.goal_prop,
+            max_trial_seconds=a.max_seconds, max_jump_apex=a.max_jump,
+            movable_prop_id=a.movable_prop, prefer_prop_interaction=a.prefer_prop_interaction)
+        result = search(proj, objective)
+        report_path = Path(a.report)
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+        report_path.write_text(json.dumps(result.report(), indent=2), encoding="utf-8")
+        for trial in result.trials:
+            print(f"  {trial.candidate:25s} {'ACCEPT' if trial.accepted else 'REJECT'}: {trial.reason}")
+        if not result.succeeded:
+            print(f"no physical route passed; decision report: {report_path}")
+            return 2
+        data = proj.model_dump(mode="json")
+        scene = next(s for s in data["scenes"] if s["id"] == a.scene)
+        scene["actions"] = list(result.actions)
+        scene["goals"] = [f"notice@{a.actor}", f"pick_up@{a.actor}[prop={a.goal_prop}]"]
+        # No camera edits: the caller / AI Director must author a meaningful
+        # shot plan, then run creative and cinematic QA before release.
+        accepted = type(proj).model_validate(data)
+        replay = SceneRuntime(accepted, a.scene, strict=False).simulate(physics_only=True)
+        if not any(e.type == "pick_up" and e.character == a.actor
+                   and e.data.get("prop") == a.goal_prop for e in replay.events):
+            print("replay drift: selected plan no longer completes goal; no final project written")
+            return 3
+        output = Path(a.out)
+        output.parent.mkdir(parents=True, exist_ok=True)
+        output.write_text(accepted.model_dump_json(indent=2, exclude_defaults=True), encoding="utf-8")
+        print(f"selected {result.chosen}: {output} (proof: {report_path}; shots still require artistic review)")
+        return 0
+    if a.cmd == "creative-qa":
+        from .qa.creative import audit_creative_plan
+        from dataclasses import asdict
+        proj = _load(a.project)
+        events = None
+        if a.simulate and proj.creative_plan is not None:
+            from .scene.runtime import SceneRuntime
+            scenes_with_proofs = {b.scene for b in proj.creative_plan.beats if b.proof_event}
+            existing = {s.id for s in proj.scenes}
+            events = {sid: SceneRuntime(proj, sid).simulate().events for sid in scenes_with_proofs if sid in existing}
+        checks = audit_creative_plan(proj, events)
+        if not checks:
+            print("SKIP: project has no creative_plan; existing technical QA remains unchanged")
+            return 0
+        for check in checks:
+            print(f"  {check.status:4s} {check.name}: {check.details}")
+        if a.report:
+            with open(a.report, "w", encoding="utf-8") as f:
+                json.dump({"project": proj.id, "checks": [asdict(c) for c in checks]}, f, indent=2)
+        return 2 if any(c.status == "FAIL" for c in checks) else 0
     if a.cmd == "schema":
         from .scene.schema import json_schema
         print(json.dumps(json_schema(), indent=1))

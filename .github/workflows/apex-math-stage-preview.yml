@@ -1,0 +1,43 @@
+name: APEX Math World physical-scene preview
+
+on:
+  push:
+    branches: [feature/apex-three-reference-grade]
+    paths:
+      - '.github/workflows/apex-math-stage-preview.yml'
+      - 'apex-animation-engine/examples/build_math_stage_smoke.py'
+      - 'apex-animation-engine/src/apex/audio/samples.py'
+      - 'apex-animation-engine/src/apex/audio/sound_director.py'
+  workflow_dispatch:
+
+jobs:
+  render-preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg libegl1
+      - name: Install APEX
+        working-directory: apex-animation-engine
+        run: pip install --disable-pip-version-check -e '.[dev]'
+      - name: Generate physical-math scene and render 540p smoke test
+        working-directory: apex-animation-engine
+        run: |
+          mkdir -p out
+          python examples/build_math_stage_smoke.py out/math_stage_smoke.json
+          apex validate out/math_stage_smoke.json
+          apex render out/math_stage_smoke.json -o out/math_stage_smoke.mp4 --scale 0.75 --samples 1 --qa-json out/math_stage_qa.json
+      - name: Preserve preview and QA results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: apex-math-world-smoke
+          path: |
+            apex-animation-engine/out/math_stage_smoke.json
+            apex-animation-engine/out/math_stage_smoke.mp4
+            apex-animation-engine/out/math_stage_qa.json
+          if-no-files-found: warn
+          retention-days: 7
