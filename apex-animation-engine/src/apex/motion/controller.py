@@ -380,7 +380,7 @@ class CharacterController(InteractionMixin, CombatMixin, AcroMixin, ArcadeMixin,
         elif a.type in ("look_at", "notice"):
             self._open("idle", t, gaze=gaze, gaze_mode=a.type, gaze_target=a.target, gaze_ref=dyn)
             if a.type == "notice":
-                self.emit(Event(t + NOTICE_DOUBLE_TAKE, "notice", self.cid, {"target": a.target}))
+                self.emit(Event(t + min(NOTICE_DOUBLE_TAKE, 0.85 * (a.duration or 1.0)), "notice", self.cid, {"target": a.target}))
         elif a.type == "point":
             self._open("point", t, gaze=gaze if point_at is None else point_at, gaze_target=a.target)
             self.emit(Event(t + 0.25, "point", self.cid, {"target": a.target}))
