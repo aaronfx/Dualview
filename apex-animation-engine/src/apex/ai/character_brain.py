@@ -41,6 +41,7 @@ class Perception:
     ally_needs_help: bool = False
     recovering: bool = False
     goal_visible: bool = False
+    target_id: str | None = None
 
     def __post_init__(self) -> None:
         for name in ("danger", "novelty"):
@@ -52,6 +53,21 @@ class Perception:
 class CharacterBrain:
     personality: Personality
     memory: dict[str, int] = field(default_factory=dict)
+    failed_attempts: dict[tuple[str, Intent], int] = field(default_factory=dict)
+
+    def record_outcome(self, target_id: str, intent: Intent, *, succeeded: bool) -> None:
+        """Record only observed execution outcomes, never predicted physics."""
+        key = (target_id, intent)
+        if succeeded:
+            self.failed_attempts.pop(key, None)
+        else:
+            self.failed_attempts[key] = min(3, self.failed_attempts.get(key, 0) + 1)
+        # Bound memory for long films; insertion order is deterministic.
+        while len(self.failed_attempts) > 128:
+            del self.failed_attempts[next(iter(self.failed_attempts))]
+
+    def _blocked(self, perception: Perception, intent: Intent) -> bool:
+        return perception.target_id is not None and self.failed_attempts.get((perception.target_id, intent), 0) >= 2
 
     def choose(self, perception: Perception) -> Intent:
         """Safety-first priorities with personality-dependent choices.
@@ -67,9 +83,11 @@ class CharacterBrain:
             intent = Intent.EVADE
         elif perception.ally_needs_help and self.personality.empathy >= 0.45:
             intent = Intent.HELP
-        elif perception.novelty >= 0.5 and self.personality.curiosity >= 0.6:
+        elif (perception.novelty >= 0.5 and self.personality.curiosity >= 0.6
+              and not self._blocked(perception, Intent.EXPLORE)):
             intent = Intent.EXPLORE
-        elif perception.goal_visible and perception.danger <= self.personality.courage:
+        elif (perception.goal_visible and perception.danger <= self.personality.courage
+              and not self._blocked(perception, Intent.APPROACH)):
             intent = Intent.APPROACH
         else:
             intent = Intent.OBSERVE
