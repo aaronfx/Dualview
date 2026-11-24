@@ -89,8 +89,13 @@ def _event(events, name, who="iko"):
 def _shots(events, duration, chosen):
     climb_start = _event(events, "climb_start")
     climbed = _event(events, "climbed")
-    takeoff = _event(events, "takeoff")
-    impact = _event(events, "impact")
+    # A scene can now contain a real hop over the supply crate before the
+    # principal obstacle. Camera cuts for the major drop must use the *last*
+    # physical takeoff and impact, not the incidental earlier crate landing.
+    takeoffs = [e.t for e in events if e.type == "takeoff" and e.character == "iko"]
+    impacts = [e.t for e in events if e.type == "impact" and e.character == "iko"]
+    takeoff = takeoffs[-1] if takeoffs else None
+    impact = impacts[-1] if impacts else None
     pickup = _event(events, "pick_up")
     if pickup is None or impact is None:
         raise ValueError("selected plan has no real pickup and impact events")
@@ -109,7 +114,7 @@ def _shots(events, duration, chosen):
         specs = [
             ("s01_goal", "establishing", "original broken path, barrier, supply crate and distant symbol",
              {"mode": "static", "center": [-35, 245], "view_height": 770}),
-            ("s02_decision", "medium", "IKO tries to reason about the impassable leap, gathers courage",
+            ("s02_decision", "medium", "IKO visibly clears the solid foreground crate before approaching the tall barrier",
              {"mode": "follow", "target": "iko", "view_height": 460, "offset": [30, 40],
               "lead": 0.10, "stiffness": 4.0}),
             ("s03_climb", "medium", "the engine-selected alternative: reach the edge and climb with hand contact",
