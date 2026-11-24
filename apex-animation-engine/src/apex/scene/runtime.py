@@ -101,6 +101,9 @@ class SimulationResult:
     fragment_parent: Dict[str, str] = field(default_factory=dict)  # piece id -> the prop it came from
     creatures: list = field(default_factory=list)  # creature drivers (Milestone 5)
     carried_out: Dict[str, float] = field(default_factory=dict)  # prop id -> when its carrier took it out through an exit
+    # prop id -> per track sample: held kinematically (posed by a character or the engine) rather than free under physics.
+    # Observation only (QA: a kinematic prop nobody is holding floats in the air)
+    prop_kinematic: Dict[str, np.ndarray] = field(default_factory=dict)
 
     def glyph_at(self, pid: str, t: float, base: Optional[str]):
         """(the glyph a prop physically is at t, (from, to, u) while it is visibly morphing or None)."""
@@ -416,6 +419,7 @@ class SceneRuntime:
         n = int(round(sim_len * SIM_HZ)) + 1
         prop_ids = [p.id for p in self.env.props]
         prop_tracks = {pid: np.zeros((n, 3)) for pid in prop_ids}
+        prop_kin = {pid: np.zeros(n, dtype=bool) for pid in prop_ids}
         times = np.zeros(n)
         t = 0.0
         prop_speed_prev: Dict[str, float] = {}
@@ -536,6 +540,7 @@ class SceneRuntime:
             for pid in prop_ids:
                 st = world.state(pid)
                 prop_tracks[pid][i] = (st.pos[0], st.pos[1], st.angle)
+                prop_kin[pid][i] = world.is_kinematic(pid)
         end = sim_len
         for c in ctrls.values():
             c.finish(end + dt)
@@ -544,6 +549,7 @@ class SceneRuntime:
             self.result = SimulationResult(end, frames, gravity, {}, ctrls, events, times, prop_tracks, world.static_segments(),
                                            {}, None, doors, snapped, rope_peak, prop_cuts, dict(shared["taken"]), morph_log, broken, frag_of, drivers)
             self.result.carried_out = {e.data['prop']: e.t for e in events if e.type == 'carried_out'}
+            self.result.prop_kinematic = prop_kin
             return self.result
         animators = {}
         for cid, c in ctrls.items():
@@ -580,6 +586,7 @@ class SceneRuntime:
         self.result = SimulationResult(end, frames, gravity, animators, ctrls, events, times, prop_tracks, world.static_segments(),
                                        scarves, dust, doors, snapped, rope_peak, prop_cuts, dict(shared["taken"]), morph_log, broken, frag_of, drivers)
         self.result.carried_out = {e.data['prop']: e.t for e in events if e.type == 'carried_out'}
+        self.result.prop_kinematic = prop_kin
         return self.result
 
     # ------------------------------------------------------------ evaluation

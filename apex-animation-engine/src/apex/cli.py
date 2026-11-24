@@ -62,6 +62,8 @@ def main(argv=None) -> int:
     rv.add_argument("--video")
     rv.add_argument("--qa-json")
     rv.add_argument("--ai", action="store_true", help="add AI Director correction suggestions (needs a configured provider)")
+    rg = sub.add_parser("review-gate", help="mandatory visual-review stage: pass only when a human has reviewed the revision")
+    rg.add_argument("out_dir", help="the render's review directory (holds reviewers/<name>.json)")
     a = ap.parse_args(argv)
 
     if a.cmd == "validate":
@@ -115,6 +117,11 @@ def main(argv=None) -> int:
         md = build_review_packet(proj, a.scene or proj.scenes[0].id, a.out_dir, a.video, a.qa_json, with_ai=a.ai)
         print(f"wrote {md} and review_scores.json (human reviewers score; metrics are listed separately)")
         return 0
+    if a.cmd == "review-gate":
+        from .qa.review import review_gate
+        g = review_gate(a.out_dir)
+        print(("DELIVERABLE: " if g["deliverable"] else "BLOCKED: ") + g["reason"])
+        return 0 if g["deliverable"] else 3
     if a.cmd == "plan":
         from .ai.director import StoryDirector
         import json as _json

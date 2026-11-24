@@ -40,6 +40,11 @@ TOL = {
     "fighter_gap": 28.0,  # minimum pelvis distance between two standing characters (bodies must not pass through)
     "obstacle_margin": 2.5,  # joints must stay this far outside solid beams (limb half-thickness)
     "swing_energy_gain": 0.02,
+    "carry_reach": 60.0,  # units: a carried prop stays within this of the carrier's nearest hand/pelvis/neck (arms may
+                          # extend to swing a held glyph; a prop left behind on a jump/fall is >100u away)
+    "float_gap": 26.0,  # units: a posed (kinematic) prop that nobody holds must sit within this of a support below it
+    "char_overlap": 0.6,  # fraction: two important characters' screen boxes may overlap at most this much of the smaller
+    "char_overlap_frames": 0.12,  # fraction of frames allowed over that overlap before it reads as one shape
     "subject_frac": {"establishing": 0.07, "wide": 0.12, "tracking": 0.16, "medium": 0.18, "close": 0.3},  # min subject size / frame
     "roll_while_moving_speed": 260.0,  # u/s: the camera may only roll while the subject is (nearly) still  # relative mechanical-energy increase allowed while swinging (solver drift only; no pumping)
 }
@@ -52,13 +57,18 @@ class Check:
     metric: Optional[float] = None
     threshold: Optional[float] = None
     details: str = ""
+    # structured diagnostics: when a check fails or warns, exactly why — the worst sample(s) as machine-readable
+    # records {t, who, where, state, cause}, so a failure says time, entities, positions, relevant state and a likely
+    # root cause rather than only a number. Empty on a clean PASS.
+    diag: List[dict] = field(default_factory=list)
 
 
 # Two acceptance gates. Technical: physics consistency, valid geometry, no unintended clipping, stable replay, correct
 # event outcomes, a valid file. Cinematic: readable silhouettes and framing, camera direction, pacing. A film should
 # pass both; cinematic checks warn rather than fail, because a person decides what reads well.
 CINEMATIC = ("causes_on_screen", "diagrams_in_frame", "subject_in_frame", "silhouettes_readable", "screen_separation", "composition_", "screen_direction_across_cuts",
-             "min_shot_length", "no_roll_during_fast_action", "camera_roll_rate", "camera_roll_follows_gravity_direction")
+             "min_shot_length", "no_roll_during_fast_action", "camera_roll_rate", "camera_roll_follows_gravity_direction",
+             "characters_not_overlapping", "narrative_", "decisive_events_visible")
 
 
 def gate_of(name: str) -> str:
@@ -134,7 +144,8 @@ class Inspector:
                    self.check_secondary, self.check_exit_conditions, self.check_interactions, self.check_composition,
                    self.check_combat, self.check_acrobatics, self._props_through_bodies, self.check_arcade, self.check_particles,
                    self.check_breakables, self.check_morphs, self.check_diagrams, self.check_creatures,
-                   self.check_causes_on_screen, self.check_hands_meet):
+                   self.check_causes_on_screen, self.check_hands_meet,
+                   self.check_carried_continuity, self.check_floating_props, self.check_screen_overlap, self.check_narrative):
             rep.checks.extend(fn())
         rep.checks.extend(self.check_time_fx())
         rep.checks.extend(self.check_beats(video))
@@ -978,6 +989,289 @@ class Inspector:
                         worst, where = pen, f"{pid} into {cid} at t={rec.t:.2f}s"
         return [Check("props_not_through_bodies", "PASS" if worst <= TOL["prop_body"] else "FAIL", worst, TOL["prop_body"],
                       f"deepest a dynamic prop goes into a standing body in its depth lane ({where or 'never'})")]
+
+    # ------------------------------------------------------------ carried-object continuity (CORE RUN regressions)
+    def _carry_spans(self):
+        """Every logged carry: (carrier cid, prop id, t_from, t_to) clamped to the scene."""
+        out = []
+        for cid, c in self.r.controllers.items():
+            for pid, t0, t1 in getattr(c, "carry_log", []):
+                out.append((cid, pid, t0, min(t1, self.r.duration)))
+        return out
+
+    def check_carried_continuity(self) -> List[Check]:
+        """A carried prop stays in its carrier's hands for the whole carry — on the ground, through jumps, flips and
+        falls — never left floating in the air behind him (the CORE RUN 'core left behind on the jump' bug). Measured as
+        the distance from the prop to the carrier's nearest hand or pelvis at every frame of the carry."""
+        spans = self._carry_spans()
+        if not spans:
+            return []
+        worst, where, diag = 0.0, "", []
+        for cid, pid, t0, t1 in spans:
+            an = self.r.animators.get(cid)
+            if an is None:
+                continue
+            span_worst, span_t = 0.0, t0
+            for i, t in enumerate(self.times):
+                if not (t0 <= t < t1):
+                    continue
+                px, py, _ = self.r.animators[cid].prop_at(pid, t) if hasattr(self.r.animators[cid], "prop_at") and self.r.animators[cid].prop_at else (self.r.prop_tracks[pid][min(i, len(self.r.prop_tracks[pid]) - 1)][0], self.r.prop_tracks[pid][min(i, len(self.r.prop_tracks[pid]) - 1)][1], 0.0)
+                j = self.joints[cid][i]
+                d = min(math.dist((px, py), j[p]) for p in ("hand_n", "hand_f", "pelvis", "neck_base"))
+                if d > span_worst:
+                    span_worst, span_t = d, t
+                if d > worst:
+                    worst, where = d, f"{pid} vs {cid} at t={t:.2f}s"
+            if span_worst > TOL["carry_reach"]:
+                diag.append({"t": round(span_t, 3), "who": [cid, pid], "where": {"prop": [round(c, 1) for c in self.r.animators[cid].prop_at(pid, span_t)[:2]]},
+                             "state": {"gap": round(span_worst, 1), "carry_span": [round(t0, 2), round(t1, 2)]},
+                             "cause": "carried prop drifted beyond hand reach of its carrier — likely the carry is not updated in this motion state (airborne/flip/fall) or the hold pose is wrong"})
+        st = "PASS" if worst <= TOL["carry_reach"] else "FAIL"
+        return [Check("carried_object_continuity", st, worst, TOL["carry_reach"],
+                      f"{len(spans)} carry span(s): farthest a carried prop got from its carrier's hands ({where or 'never'})", diag)]
+
+    def _supports(self):
+        """Solid surfaces a resting prop can sit on: static segments, structure tops, and the room floor (y=0)."""
+        segs = [(a, b) for _, a, b, _ in self.r.static_segments]
+        for ob in self.rt.env.obstacles:
+            if ob.kind in ("platform", "beam"):
+                cx, cy = ob.center
+                hw, hh = ob.size[0] / 2, ob.size[1] / 2
+                segs.append(((cx - hw, cy + hh), (cx + hw, cy + hh)))  # the top edge
+        hw = self.rt.env.room.width / 2
+        segs.append(((-hw, 0.0), (hw, 0.0)))
+        return segs
+
+    def check_floating_props(self) -> List[Check]:
+        """No posed (kinematic) prop hangs in the air with nothing holding it and nothing under it — the CORE RUN 'core
+        left floating at the exit gate' bug. A prop posed by the engine is legitimate only while someone carries it, or
+        while it rests on a surface (placed on a holder, set on the ground). Props a carrier takes out through an exit are
+        removed from the scene and never reach this check."""
+        from ..scene import glyphs
+        kin = getattr(self.r, "prop_kinematic", {})
+        if not kin or not any(k.any() for k in kin.values()):
+            return []
+        # raw carry spans (t1 may be inf: carried to the end of the scene — never clamp it here, or a trailing sample
+        # just past the clamp reads as a stranded frame)
+        raw = [(pid, t0, t1) for c in self.r.controllers.values() for pid, t0, t1 in getattr(c, "carry_log", [])]
+        # only props that something carries are subject to this rule; an authored kinematic flyer (e.g. a drone on a
+        # scripted path) is meant to hang in the air and is not a stranded carry
+        handled = {pid for pid, _, _ in raw}
+        if not handled:
+            return []
+        supports = self._supports()
+        ts = self.r.prop_times
+        props = {p.id: p for p in self.rt.env.props}
+        worst, where, diag = 0.0, "", []
+        for pid, flags in kin.items():
+            sp = props.get(pid)
+            if sp is None or pid not in handled:
+                continue
+            rad = (sp.weight or glyphs.default_weight(sp.size)) / 2 if sp.kind == "glyph" else sp.size[1] / 2
+            for i in range(0, len(flags), 3):
+                t = ts[i]
+                if not flags[i] or not self.r.alive(pid, t):
+                    continue
+                if any(t0 <= t <= t1 for p2, t0, t1 in raw if p2 == pid):
+                    continue  # someone is carrying it (t1 == inf: to the end of the scene)
+                x, y = self.r.prop_tracks[pid][i][0], self.r.prop_tracks[pid][i][1]
+                bottom = y - rad
+                # the nearest support directly beneath this x
+                gap = math.inf
+                for a, b in supports:
+                    lo, hi = min(a[0], b[0]), max(a[0], b[0])
+                    if lo - rad <= x <= hi + rad:
+                        sy = a[1] + (b[1] - a[1]) * ((x - a[0]) / (b[0] - a[0]) if abs(b[0] - a[0]) > 1e-6 else 0.0)
+                        if sy <= bottom + 2.0:
+                            gap = min(gap, bottom - sy)
+                if gap > worst:
+                    worst, where = gap, f"{pid} at t={t:.2f}s"
+                if gap > TOL["float_gap"] and gap < math.inf:
+                    diag.append({"t": round(float(t), 3), "who": [pid], "where": {"prop": [round(x, 1), round(y, 1)]},
+                                 "state": {"gap_below": round(gap, 1), "kinematic": True, "carried": False},
+                                 "cause": "a posed prop nobody is carrying sits well above any surface — likely a carry ended without a release/placement or the prop was not set to dynamics/removed"})
+        st = "PASS" if worst <= TOL["float_gap"] or worst == math.inf else "FAIL"
+        m = None if worst == math.inf else worst
+        return [Check("props_not_floating", st, m, TOL["float_gap"],
+                      f"largest gap below an unheld posed prop and the nearest surface ({where or 'none'})", diag)]
+
+    # ------------------------------------------------------------ screen-space occlusion of important entities
+    def _important_props(self):
+        """Props that carry the story: anything ever carried, thrown, placed, or named in a key event."""
+        ids = {pid for _, pid, _, _ in self._carry_spans()}
+        for e in self.r.events:
+            if e.type in ("throw", "place", "disarm", "pick_up", "carried_out") and isinstance(e.data.get("prop"), str):
+                ids.add(e.data["prop"])
+        return [p for p in self.rt.env.props if p.id in ids]
+
+    def check_screen_overlap(self) -> List[Check]:
+        """Screen-space (camera view): important characters and story props should not visually bury one another. Where
+        one entity's silhouette covers most of another's for a sustained stretch, the action reads as a single shape and
+        the audience loses track of who holds what. Reports the worst occlusions with diagnostics (which pair, when, how
+        much, who is in front)."""
+        import numpy as np
+        from ..render.skia_renderer import FOV_K
+        cids = list(self.joints)
+        iprops = self._important_props()
+        if len(cids) + len(iprops) < 2:
+            return []
+        W, H = self.size
+        gw, gh = 160, 90
+        gx, gy = np.meshgrid((np.arange(gw) + 0.5) / gw * W - W / 2, (np.arange(gh) + 0.5) / gh * H - H / 2)
+        P = np.stack([gx.ravel(), gy.ravel()], axis=1)
+        CORE = (("pelvis", "neck_base", 9.0), ("head_center", "head_center", 11.0), ("hip_n", "knee_n", 4.0), ("knee_n", "ankle_n", 4.0),
+                ("hip_f", "knee_f", 4.0), ("knee_f", "ankle_f", 4.0))
+
+        def cmask(j, cam, z):
+            k = (H * FOV_K) / max(z + cam.view_h * FOV_K, 20.0)
+            S = lambda p: np.array([(p[0] - cam.cx) * k, -(p[1] - cam.cy) * k])
+            m = np.zeros(len(P), dtype=bool)
+            for a, b, r in CORE:
+                A, B = S(j[a]), S(j[b])
+                AB = B - A
+                L = float(AB @ AB)
+                u = np.clip(((P - A) @ AB) / L, 0.0, 1.0) if L > 1e-9 else np.zeros(len(P))
+                m |= np.linalg.norm(P - (A + np.outer(u, AB)), axis=1) <= r * k
+            return m
+
+        def pmask(segs, rad, cam, z):
+            k = (H * FOV_K) / max(z + cam.view_h * FOV_K, 20.0)
+            S = lambda p: np.array([(p[0] - cam.cx) * k, -(p[1] - cam.cy) * k])
+            m = np.zeros(len(P), dtype=bool)
+            for a, b in segs:
+                A, B = S(a), S(b)
+                AB = B - A
+                L = float(AB @ AB)
+                u = np.clip(((P - A) @ AB) / L, 0.0, 1.0) if L > 1e-9 else np.zeros(len(P))
+                m |= np.linalg.norm(P - (A + np.outer(u, AB)), axis=1) <= rad * k
+            return m
+        ent = [("char", c) for c in cids] + [("prop", p.id) for p in iprops]
+        raw = [(c.cid, pid, t0, t1) for c in self.r.controllers.values() for pid, t0, t1 in getattr(c, "carry_log", [])]
+        bad, worst, where, n, diag = 0, 0.0, "", 0, []
+        pflt = {p.id: p for p in iprops}
+        for i, t in enumerate(self.times[::2]):
+            i *= 2
+            cam = self.cam.at(t)
+            # a prop and the character carrying it right now overlap by design (he is holding it) — not an occlusion
+            held_by = {pid: cid for cid, pid, t0, t1 in raw if t0 <= t <= t1}
+            masks = {}
+            for kind, eid in ent:
+                if kind == "char":
+                    masks[eid] = (cmask(self.joints[eid][i], cam, self.r.animators[eid].depth_at(t)), self.r.animators[eid].depth_at(t))
+                else:
+                    if not self.r.alive(eid, t):
+                        continue
+                    segs, rad = self._prop_segments(eid, t)
+                    masks[eid] = (pmask(segs, rad, cam, pflt[eid].z), pflt[eid].z)
+            ids = list(masks)
+            for a in range(len(ids)):
+                for b in range(a + 1, len(ids)):
+                    # skip the carrier/carried pair: a held prop lying over its own carrier is not one burying the other
+                    if held_by.get(ids[a]) == ids[b] or held_by.get(ids[b]) == ids[a]:
+                        continue
+                    ma, za = masks[ids[a]]
+                    mb, zb = masks[ids[b]]
+                    sa, sb = ma.sum(), mb.sum()
+                    small = min(sa, sb)
+                    if small < 6:
+                        continue
+                    n += 1
+                    ov = float((ma & mb).sum()) / small
+                    if ov > TOL["char_overlap"]:
+                        bad += 1
+                    if ov > worst:
+                        front = ids[a] if za < zb else ids[b]
+                        where = f"{ids[a]}/{ids[b]} at t={t:.2f}s ({front} in front)"
+                        worst = ov
+                    if ov > 0.85:
+                        front = ids[a] if za < zb else ids[b]
+                        diag.append({"t": round(t, 3), "who": [ids[a], ids[b]], "where": {"front": front},
+                                     "state": {"overlap_frac": round(ov, 3), "depths": [round(za, 1), round(zb, 1)]},
+                                     "cause": f"{front} almost entirely covers the other on screen — stage them apart, change the depth lane, or move the camera"})
+        frac = bad / max(1, n)
+        st = "PASS" if frac <= TOL["char_overlap_frames"] else "WARN"
+        return [Check("characters_not_overlapping", st, frac, TOL["char_overlap_frames"],
+                      f"share of frames where an important character/prop pair overlaps on screen by more than "
+                      f"{TOL['char_overlap']:.0%} of the smaller silhouette (worst {worst:.0%}; {where or 'none'})", diag[:12])]
+
+    # ------------------------------------------------------------ narrative beats (order, cause, visibility)
+    def check_narrative(self) -> List[Check]:
+        """Validate the story's spine from the engine events: the scripted beats happen in order; each decisive effect
+        has its cause on record before it; and the decisive beats play where the camera is looking."""
+        from ..scene.goals import matches, parse_goal
+        sc = self.rt.scene
+        goals = list(sc.goals)
+        out: List[Check] = []
+        ev = self.r.events
+        # 1) order: the explicit goals happen, in the listed order
+        if goals:
+            from ..scene.goals import progress
+            met, times, missing = progress(goals, ev, ordered=True)
+            diag = []
+            if met < len(goals):
+                diag.append({"t": None, "who": [missing], "where": {}, "state": {"met": met, "of": len(goals), "times": [None if x is None else round(x, 2) for x in times]},
+                             "cause": f"beat {missing!r} did not happen in order after the earlier beats"})
+            out.append(Check("narrative_order", "PASS" if met == len(goals) else "WARN", float(met), float(len(goals)),
+                             f"{met}/{len(goals)} scripted story beats happened in order" + ("" if met == len(goals) else f"; first missing: {missing}"), diag))
+        # 2) causality: an effect must follow its cause (same subject where it applies) within a window
+        RULES = [  # (effect type, [cause types], same_subject, window s)
+            ("knockdown", ["hit", "strike_start", "throw", "prop_hit"], False, 2.5),
+            ("hit", ["strike_start"], True, 1.5),
+            ("blocked", ["strike_start"], False, 1.5),
+            ("freed", ["pinned"], True, 60.0),
+            ("pulled_up", ["ledge_catch", "collapse", "hang_slip", "hand_grab"], False, 60.0),
+            ("throw", ["pick_up", "grab"], False, 60.0),
+            ("carried_out", ["pick_up", "grab"], False, 1e9),
+            ("disarm", ["throw", "hit", "prop_hit"], False, 2.5),
+        ]
+        by_type: Dict[str, list] = {}
+        for e in ev:
+            by_type.setdefault(e.type, []).append(e)
+        spans = self._carry_spans()
+        viol, nrules, diag = 0, 0, []
+        for eff, causes, same, win in RULES:
+            for e in by_type.get(eff, []):
+                nrules += 1
+                ok = any(c.t <= e.t + 1e-6 and e.t - c.t <= win and (not same or c.character == e.character)
+                         for ct in causes for c in by_type.get(ct, []))
+                # handling a prop (throw, carried_out, disarm) is also caused by already carrying it — a prop can be
+                # carried in from the previous scene (a placement, logged with no pick_up event of its own)
+                if not ok and eff in ("throw", "carried_out", "disarm"):
+                    prop = e.data.get("prop") or e.data.get("with")
+                    ok = any(t0 <= e.t + 1e-6 for cid, pid, t0, t1 in spans if pid == prop)
+                if not ok:
+                    viol += 1
+                    diag.append({"t": round(e.t, 3), "who": [e.character], "where": {"event": eff},
+                                 "state": {"needs_one_of": causes, "within_s": win, "same_subject": same},
+                                 "cause": f"{eff}@{e.character} has no preceding {' / '.join(causes)} — the effect appears without its cause"})
+        if nrules:
+            out.append(Check("narrative_causality", "PASS" if viol == 0 else "WARN", float(viol), 0.0,
+                             f"{nrules} cause→effect links checked; {viol} effect(s) without a cause before them", diag[:12]))
+        # 3) visibility: the decisive beats (the scripted goal events that have a world point) are on screen
+        if goals:
+            aspect = self.size[0] / self.size[1]
+            off, n, diag = [], 0, []
+            for g in goals:
+                e = next((x for x in ev if matches(g, x)), None)
+                if e is None:
+                    continue
+                p = e.data.get("point")
+                if not isinstance(p, (tuple, list)) or len(p) != 2:
+                    continue
+                n += 1
+                c = self.cam.at(e.t)
+                r = math.radians(c.roll)
+                dx, dy = p[0] - c.cx, -(p[1] - c.cy)
+                sx, sy = dx * math.cos(r) - dy * math.sin(r), dx * math.sin(r) + dy * math.cos(r)
+                if abs(sx) > c.view_h * aspect / 2 * 0.96 or abs(sy) > c.view_h / 2 * 0.96:
+                    off.append(f"{e.type}@{e.character} t={e.t:.2f}s")
+                    diag.append({"t": round(e.t, 3), "who": [e.character], "where": {"point": [round(p[0], 1), round(p[1], 1)], "screen": [round(sx, 1), round(sy, 1)]},
+                                 "state": {"view_h": round(c.view_h, 1), "cam": [round(c.cx, 1), round(c.cy, 1)]},
+                                 "cause": "a decisive story beat happened off screen — the shot framing this beat does not contain its location"})
+            if n:
+                out.append(Check("decisive_events_visible", "PASS" if not off else "WARN", float(len(off)), 0.0,
+                                 f"{n} decisive beat(s) with a location; off screen: {', '.join(off[:6]) or 'none'}", diag))
+        return out
 
     def _core_at(self, cid: str, t: float, core):
         """The body parts that must keep clear: during a kick, the kicking leg is the weapon (like the arms), not the body."""

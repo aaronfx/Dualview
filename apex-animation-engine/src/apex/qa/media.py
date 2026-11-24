@@ -29,6 +29,30 @@ def _grab(path: str, t: float, w: int, h: int) -> np.ndarray:
     return np.frombuffer(out, dtype=np.uint8).reshape(h, w, 4)
 
 
+# events worth looking at frame by frame (impacts, hand-overs, decisive story beats)
+KEY_REVIEW_EVENTS = ("knockdown", "hit", "blocked", "throw", "place", "pick_up", "carried_out", "disarm", "break",
+                     "creature_break", "morph", "ledge_catch", "pulled_up", "collapse", "portal_exit", "orb_jump",
+                     "switch_activated", "settled", "vault", "flip", "exit_reached")
+
+
+def review_frame_times(duration: float, key_times: Sequence[float], fps: int, base_dt: float = 1.0,
+                       dense_window: float = 0.4, dense_step_frames: int = 2):
+    """Frames for a review contact sheet: a one-second grid over the whole film, plus high-frequency frames (every
+    `dense_step_frames` frames) in a +/- `dense_window` s window around each key event time. Returns (times, is_dense)
+    with times sorted and de-duplicated; is_dense[i] marks a frame added for an event rather than the base grid."""
+    frame = 1.0 / fps
+    grid = {round(x * base_dt, 4) for x in range(int(duration / base_dt) + 1) if x * base_dt < duration}
+    dense = set()
+    for kt in key_times:
+        k = kt - dense_window
+        while k <= kt + dense_window + 1e-9:
+            if 0.0 <= k < duration:
+                dense.add(round(k, 4))
+            k += dense_step_frames * frame
+    allt = sorted(grid | dense)
+    return allt, [t in dense and t not in grid for t in allt]
+
+
 def contact_sheet(path: str, out_png: str, times: Sequence[float], labels: Optional[Sequence[str]] = None, cols: int = 5,
                   thumb_w: int = 384, title: str = "") -> str:
     thumb_h = thumb_w * 9 // 16

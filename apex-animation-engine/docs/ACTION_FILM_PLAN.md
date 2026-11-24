@@ -86,3 +86,12 @@ The first draft is a 720p, 2:15 film with five scenes, built by `examples/build_
     - `strike_contact`: the flying kick, 49 units against 24;
     - `props_not_through_bodies`: IKO stands on the spent X at the end.
 - **Fragile choreography:** small changes cascade through the physics (lanes, throw origins, timing). Change one thing at a time and re-run `ends.py`-style checks (every scene must still reach its closing event) before running QA.
+
+## QA hardening (post-r4)
+
+r4 is frozen as the reproducible benchmark (`examples/core_run_r4.json`); see `docs/PROBLEM_LOG.md` for every engine
+bug found making CORE RUN, each linked to its root cause, fix, regression test and verification, and `docs/QA_SYSTEMS.md`
+for the new checks (carried-object continuity, floating props, screen-space occlusion, narrative order/causality,
+decisive-beat visibility), structured diagnostics, the pairwise action matrix, the 1 s + event-dense contact sheets, and
+the mandatory visual-review gate. The next major priority is a deterministic choreography stager between the AI Director
+and the engine; the QA systems are its verification layer.

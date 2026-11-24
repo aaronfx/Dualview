@@ -438,14 +438,18 @@ def render_scene(project: ProjectSpec, scene_id: str, out_path: str, samples: in
             json.dump(diag, fh)
         shots = [(sh.id, sh.start, sh.end) for sh in scene.shots]
         diagnostics_chart(diag, base + "_diagnostics.png", shots, f"{project.title} - {scene_id} - character / physics / camera diagnostics")
-        times = [round(x * 0.5, 2) for x in range(int(n / project.fps / 0.5) + 1) if x * 0.5 < n / project.fps]  # film times
+        from ..qa.media import KEY_REVIEW_EVENTS, review_frame_times
+        film_end = n / project.fps
+        key_film = sorted(warp.film_at(e.t) for e in res.events if e.type in KEY_REVIEW_EVENTS and warp.film_at(e.t) < film_end)
+        times, is_dense = review_frame_times(film_end, key_film, project.fps)  # 1 s grid + dense frames around key events
         labels = []
         an = next(iter(res.animators.values()))
-        for tf in times:
+        for tf, dense in zip(times, is_dense):
             t = warp.sim_at(tf)
             story = "" if warp.is_identity() else f" | story {t:.2f}s"
-            labels.append(f"{cam.shot_at(t).id} | {an.segments[an.segment_at(t)].kind}{story}")
-        contact_sheet(out_path, base + "_contact_sheet.png", times, labels, title=f"{project.title} - {scene_id} (film t | shot | state | story t)")
+            labels.append(("* " if dense else "") + f"{cam.shot_at(t).id} | {an.segments[an.segment_at(t)].kind}{story}")
+        contact_sheet(out_path, base + "_contact_sheet.png", times, labels,
+                      title=f"{project.title} - {scene_id} (film t | shot | state | story t; * = frame around a key event)")
         with open(base + "_decode.json", "w") as fh:
             json.dump(decode_check(out_path), fh, indent=1)
         say("review", 1.0, f"review artefacts in {review_dir}")

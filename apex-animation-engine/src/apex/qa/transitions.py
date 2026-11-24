@@ -112,7 +112,150 @@ def run(name: str) -> dict:
             "events": sorted({e.type for e in res.events}), "ok": not bad and not viol and not any(left[K])}
 
 
+# --------------------------------------------------------------------------- pairwise context matrix
+# The hand-picked chains above test move-to-move hand-overs. This second matrix tests one move under varied *context*:
+# the factors that, combined, exposed the CORE RUN bugs (carrying through a jump, a thrown prop and a body in different
+# lanes, a prop near a structure, pace). Testing every combination is 4*2*2*2*2*2 = 128 scenes; most add nothing. A
+# pairwise (all-pairs) covering set hits every pair of factor levels in far fewer scenes, and a short high-risk list
+# adds the specific combinations we know are dangerous.
+FACTORS: Dict[str, List[str]] = {
+    "move": ["jump_flip", "roll", "run_jump", "duck_slide"],
+    "carrying": ["empty", "core"],      # both hands free, or carrying a glyph (continuity through the move)
+    "surface": ["floor", "top"],        # starting on the ground or on a raised platform
+    "lane": ["same", "split"],          # the other actor shares the depth lane, or passes in a separate one
+    "nearby": ["clear", "crate"],       # a heavy structure in the path or not
+    "pace": ["normal", "fast"],         # the pacing pass applied or not
+}
+
+
+def pairwise(factors: Dict[str, List[str]], seed: int = 0) -> List[dict]:
+    """A small set of rows covering every pair of factor levels (a randomized-greedy covering array; deterministic)."""
+    import random
+    names = list(factors)
+    rnd = random.Random(seed)
+    need = set()
+    for i in range(len(names)):
+        for j in range(i + 1, len(names)):
+            for a in factors[names[i]]:
+                for b in factors[names[j]]:
+                    need.add((i, a, j, b))
+    rows: List[dict] = []
+    while need:
+        best, best_cov = None, -1
+        for _ in range(120):
+            row = {n: rnd.choice(factors[n]) for n in names}
+            cov = sum(1 for (i, a, j, b) in need if row[names[i]] == a and row[names[j]] == b)
+            if cov > best_cov:
+                best, best_cov = row, cov
+        rows.append(best)
+        need -= {(i, a, j, b) for (i, a, j, b) in need if best[names[i]] == a and best[names[j]] == b}
+    return rows
+
+
+def covers_all_pairs(factors: Dict[str, List[str]], rows: List[dict]) -> bool:
+    names = list(factors)
+    for i in range(len(names)):
+        for j in range(i + 1, len(names)):
+            for a in factors[names[i]]:
+                for b in factors[names[j]]:
+                    if not any(r[names[i]] == a and r[names[j]] == b for r in rows):
+                        return False
+    return True
+
+
+def context_scene(row: dict) -> dict:
+    """Build a scene placing KAI in the given context and having him perform the chosen move (carrying a glyph or not),
+    with RHO watching from the same or a separate depth lane. The pacing pass is applied when the row asks for it."""
+    on_top = row["surface"] == "top"
+    obstacles = []
+    deck_top = 320.0  # top surface height when standing on the deck
+    base = deck_top if on_top else 0.0  # the surface KAI moves along
+    if on_top:
+        obstacles.append({"id": "deck", "kind": "platform", "center": [0, 300], "size": [1500, 40]})  # wide: the whole move stays on it
+    if row["nearby"] == "crate":  # a solid beam standing clear of both actors and the move range (x in [-360, 180])
+        obstacles.append({"id": "wall", "kind": "beam", "center": [520, base + 80], "size": [60, 160]})
+    carrying = row["carrying"] == "core"
+    kx = -360
+    move = row["move"]
+    if move == "jump_flip":
+        act = [k(type="run_to", target_x=-180, speed=360), k(type="jump_to", target_x=120, height=220, **({} if carrying else {"flip": "back"}))]
+    elif move == "roll":
+        act = [k(type="run_to", target_x=-120, speed=360), k(type="roll", distance=150)]
+    elif move == "run_jump":
+        act = [k(type="run_to", target_x=-120, speed=380), k(type="jump_to", target_x=180, height=150)]
+    else:  # duck_slide
+        act = [k(type="run_to", target_x=-120, speed=360), k(type="duck_slide", target_x=140)]
+    if row["pace"] == "fast":  # the pacing pass: runs quicker (capped), holds shorter — applied inline, not a schema field
+        for a in act:
+            if "speed" in a:
+                a["speed"] = min(560.0, a["speed"] * 1.25)
+    rho = [r(type="guard", duration=10.0)]
+    kz, rz = -12, (-12 if row["lane"] == "same" else 40)
+    place = {"character": K, "x": kx, "facing": 1, "z": kz}
+    if on_top:
+        place["on"] = "obstacle:deck"
+    if carrying:
+        place["carrying"] = "prop:core"
+    rplace = {"character": R, "x": 320, "facing": -1, "z": rz}  # clear of the move range (x ends <= 180) and the wall (x 520)
+    if on_top:
+        rplace["on"] = "obstacle:deck"
+    props = [{"id": "core", "kind": "glyph", "glyph": "0", "position": [kx, base + 40],
+              "size": [34, 34], "mass": 2, "weight": 12, "z": 0, "depth": 16, "solid": False}]
+    sc = {"id": "s", "environment": "e", "duration": 7.0, "placements": [place, rplace], "actions": act + rho,
+          "shots": [{"id": "a", "start": 0, "end": 7.0, "camera": {"mode": "follow", "target": K, "view_height": 640, "include": [f"char:{R}"]}}]}
+    return {"schema_version": "0.1", "id": "ctx", "title": "ctx", "fps": 24, "width": 1280, "height": 720, "seed": 5,
+            "characters": [{"id": K, "name": "KAI", "strength": 50000}, {"id": R, "name": "RHO", "strength": 47000}],
+            "environments": [{"id": "e", "room": {"width": 2200, "height": 1000, "entry_door": False}, "dust": 0,
+                              "obstacles": obstacles, "props": props}],
+            "scenes": [sc]}
+
+
+# specific combinations we know are dangerous (each was a real CORE RUN failure or close to one)
+HIGH_RISK: Dict[str, dict] = {
+    "carry + jump_flip + crate in path": {"move": "jump_flip", "carrying": "core", "surface": "top", "lane": "split", "nearby": "crate", "pace": "fast"},
+    "carry + roll on the floor": {"move": "roll", "carrying": "core", "surface": "floor", "lane": "same", "nearby": "clear", "pace": "normal"},
+    "carry + duck_slide past a wall": {"move": "duck_slide", "carrying": "core", "surface": "floor", "lane": "same", "nearby": "crate", "pace": "fast"},
+    "carry + run_jump between lanes": {"move": "run_jump", "carrying": "core", "surface": "top", "lane": "split", "nearby": "clear", "pace": "fast"},
+}
+
+CTX_CHECKS = TECH + ("carried_object_continuity", "props_not_floating", "characters_not_overlapping")
+
+
+def run_context(row: dict) -> dict:
+    """Simulate one context row and judge it on the technical checks plus the carry/float/overlap checks."""
+    from ..render.pipeline import build_camera
+    from ..scene.runtime import SceneRuntime
+    from ..scene.schema import ProjectSpec
+    from .inspector import Inspector
+    try:
+        p = ProjectSpec.model_validate(context_scene(row))
+        rt = SceneRuntime(p, "s", strict=False)
+        res = rt.simulate()
+    except Exception as exc:
+        return {"row": row, "ok": False, "failed": [f"engine: {str(exc)[:160]}"], "violations": {}}
+    viol = {cid: c.violation for cid, c in res.controllers.items() if c.violation}
+    rep = Inspector(rt, build_camera(rt, 16 / 9), 24, (1280, 720)).run(check_determinism=False)
+    bad = [f"{c.name} {c.metric:.3g}" if c.metric is not None else c.name
+           for c in rep.checks if c.name.startswith(CTX_CHECKS) and c.status == "FAIL"]
+    return {"row": row, "ok": not bad and not viol, "failed": bad, "violations": viol}
+
+
 if __name__ == "__main__":
-    for nm in SCENARIOS:
-        out = run(nm)
-        print(f"{'OK  ' if out['ok'] else 'FAIL'} {nm:45s} {'' if out['ok'] else (out['failed_checks'], out['violations'], out['left'])}")
+    import sys
+    if "--pairwise" in sys.argv:
+        rows = pairwise(FACTORS)
+        print(f"pairwise context matrix: {len(rows)} scenes cover all factor-level pairs (vs "
+              f"{__import__('math').prod(len(v) for v in FACTORS.values())} full combinations); "
+              f"covers_all_pairs={covers_all_pairs(FACTORS, rows)}")
+        for row in rows:
+            out = run_context(row)
+            tag = "OK  " if out["ok"] else "FAIL"
+            print(f"{tag} {' '.join(f'{k}={v}' for k, v in row.items()):70s} {'' if out['ok'] else (out['failed'], out['violations'])}")
+        print("\nhigh-risk combinations:")
+        for nm, row in HIGH_RISK.items():
+            out = run_context(row)
+            print(f"{'OK  ' if out['ok'] else 'FAIL'} {nm:45s} {'' if out['ok'] else (out['failed'], out['violations'])}")
+    else:
+        for nm in SCENARIOS:
+            out = run(nm)
+            print(f"{'OK  ' if out['ok'] else 'FAIL'} {nm:45s} {'' if out['ok'] else (out['failed_checks'], out['violations'], out['left'])}")

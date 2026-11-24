@@ -116,6 +116,46 @@ def build_review_packet(project, scene_id: str, out_dir: str, video: Optional[st
     return md
 
 
+def review_status(out_dir: str) -> Dict[str, object]:
+    """The visual-review state of a render directory. A reviewer saves a filled copy of review_scores.json under
+    `<out_dir>/reviewers/<name>.json`; a review counts as complete when every rubric criterion is scored. This is the
+    record the delivery gate reads — it says whether a human has actually looked, never whether the film is 'good'."""
+    rev_dir = os.path.join(out_dir, "reviewers")
+    sheets, complete = [], []
+    if os.path.isdir(rev_dir):
+        for fn in sorted(os.listdir(rev_dir)):
+            if not fn.endswith(".json"):
+                continue
+            try:
+                with open(os.path.join(rev_dir, fn)) as fh:
+                    s = json.load(fh)
+            except (OSError, ValueError):
+                continue
+            s["_file"] = fn
+            sheets.append(s)
+            if all(s.get("scores", {}).get(k) is not None for k, _, _ in CRITERIA):
+                complete.append(s)
+    return {"reviewers_total": len(sheets), "reviewers_complete": len(complete),
+            "pending": [s["_file"] for s in sheets if s not in complete],
+            "scores": aggregate_scores(complete) if complete else {},
+            "reviewed": bool(complete)}
+
+
+def review_gate(out_dir: str) -> Dict[str, object]:
+    """Mandatory visual-review stage before a movie revision is delivered. A revision is deliverable only once at least
+    one human reviewer has completed the rubric for it. Technical QA passing is NOT sufficient and never implies quality.
+    Returns {deliverable, reason, status}; the caller refuses to ship a revision when deliverable is False."""
+    st = review_status(out_dir)
+    if not st["reviewed"]:
+        reason = ("blocked: no completed human review. A reviewer must fill and save "
+                  f"{os.path.join(out_dir, 'reviewers', '<name>.json')} (every rubric criterion scored) before this "
+                  "revision can be delivered. Technical QA does not substitute for visual review.")
+        return {"deliverable": False, "reason": reason, "status": st}
+    return {"deliverable": True,
+            "reason": f"{st['reviewers_complete']} completed human review(s) on record (scores are advisory, not a quality claim).",
+            "status": st}
+
+
 def aggregate_scores(sheets: List[dict]) -> Dict[str, dict]:
     """Combine reviewers' sheets: per criterion mean, spread and count (unscored criteria are ignored)."""
     out = {}

@@ -34,6 +34,8 @@ FILMS: Dict[str, str] = {
     "orb_runner.json": "level grid, orbs, portals (characters and a prop), beat sync, particles (Milestone 4)",
     "specimen.json": "breakables, morphs, a composite creature torn apart, diagrams, set dressing (Milestone 5)",
     "last_retry.json": "acting, collapses, ledge catches and rescues, retries, HUD, together exits (Milestone 6)",
+    "core_run_r4.json": "CORE RUN r4, frozen (2026-11-22): carried core across scenes, place, disarm, prop strikes, helped "
+                        "get-up from the back, power lights, five worlds (never re-choreograph this file; it is the benchmark)",
 }
 DRIFT_WARN = 0.5  # s: a goal that moved more than this may need its cut re-placed (reported, not a failure)
 _GRADE = {"PASS": 0, "WARN": 1, "FAIL": 2}
@@ -70,11 +72,24 @@ def run_film(fname: str, determinism: bool = True) -> Dict[str, dict]:
     return out
 
 
+def known(base: Optional[dict], cur: dict) -> List[str]:
+    """Defects the reviewed baseline already had (a frozen benchmark keeps its flaws on record; only new ones regress)."""
+    if base is None:
+        return []
+    out = [f"known: action never ran: {x}" for x in cur["left"] if x in base.get("left", [])]
+    if cur["missing"] and cur["missing"] == base.get("missing") and cur["met"] >= base["met"]:
+        out.append(f"known: goal not met: {cur['missing']} ({cur['met']}/{len(cur['goals'])})")
+    return out
+
+
 def compare(base: Optional[dict], cur: dict) -> List[str]:
-    """Regressions of one scene against its baseline (empty: none)."""
-    bad = [f"actions never ran: {', '.join(cur['left'])}"] if cur["left"] else []
-    bad += [f"violation: {v}" for v in cur["violations"]]
-    if cur["met"] < len(cur["goals"]):
+    """Regressions of one scene against its baseline (empty: none). Defects already in the baseline are `known`, not
+    regressions; a scene with no baseline must be clean."""
+    old_left = set(base.get("left", [])) if base else set()
+    new_left = [x for x in cur["left"] if x not in old_left]
+    bad = [f"actions never ran: {', '.join(new_left)}"] if new_left else []
+    bad += [f"violation: {v}" for v in cur["violations"] if not base or v not in base.get("violations", [])]
+    if cur["met"] < len(cur["goals"]) and not (base and cur["missing"] == base.get("missing") and cur["met"] >= base["met"]):
         bad.append(f"goal not met: {cur['missing']} ({cur['met']}/{len(cur['goals'])})")
     if base is None:
         return bad + [f"{g} gate {s}" for g, s in cur["gates"].items() if s == "FAIL"]
@@ -112,6 +127,8 @@ def main(argv: List[str]) -> int:
                   f"technical {cur['gates']['technical']}  cinematic {cur['gates']['cinematic']}")
             for m in bad:
                 print(f"          - {m}")
+            for m in known(b, cur):
+                print(f"          ! {m}")
             for m in dr:
                 print(f"          ~ drift: {m}")
     if update:
