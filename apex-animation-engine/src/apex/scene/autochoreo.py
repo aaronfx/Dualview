@@ -192,7 +192,7 @@ def propose(project: ProjectSpec, objective: Objective) -> tuple[Candidate, ...]
         Candidate("climb_then_drop", opening + (
             _a(objective.actor, "run_to", target_x=climb_ready_x, speed=pace.travel_speed),
             _a(objective.actor, "climb", target=f"obstacle:{ob.id}",
-               tempo=1.21 if objective.pacing == "active" else 1.0),
+               tempo=1.30 if objective.pacing == "active" else 1.0),
             _a(objective.actor, "jump_to", target_x=far, height=85.0),
         ) + climb_payoff, required_event="climbed"),
     ]
