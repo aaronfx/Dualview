@@ -927,8 +927,16 @@ class CharacterController(InteractionMixin, CombatMixin, AcroMixin, ArcadeMixin,
             self._open("idle", t, settle=big, settle_k=clamp(L["approach"] / 1300.0, 0.75, 1.25), variant=self.hard_landings - 1)
             if self.queue and self.queue[0].type == "wait_grounded":
                 self.queue.popleft()
-            # after a hard landing the relief beat (exhale, hands on knees, straighten up) always plays out
-            self.cur = ActionSpec(type="idle", character=self.cid, duration=RECOVER_T) if big else None
+            # The queued performance may already contain a complete physical
+            # recovery. Do not play an extra 1.2s breath/idle before that act:
+            # it doubles the aftermath, makes a decisive actor look confused,
+            # and delays the goal despite a valid landing. Ordinary hard
+            # landings without a scripted recovery keep their safety beat.
+            next_act = self.queue[0] if self.queue else None
+            scripted_recovery = (next_act is not None and next_act.type == "act"
+                                 and next_act.clip in ("impact_to_grin", "recover_relief"))
+            self.cur = (ActionSpec(type="idle", character=self.cid, duration=RECOVER_T)
+                        if big and not scripted_recovery else None)
             self.cur_t0 = t
             self._place(t)
 
