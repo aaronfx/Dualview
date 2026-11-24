@@ -21,7 +21,7 @@ strike_start swing hit hurt blocked block_hit whiff evaded knockdown settled dod
 step_off flip roll_start roll_end vault_start vault climb_start ledge_grab climbed wall_run wall_contact wall_kick throw_start throw
 prop_hit bump
 orb_jump orb_boost orb_pad collect portal_enter portal_exit beat_wait_end
-break morph_start morph morph_blocked creature_break
+break morph_start morph morph_blocked creature_break place math_crossed math_transferred math_evaluate
 collapse ledge_catch hang_slip pulled_up act fail exit_together""".split())
 
 

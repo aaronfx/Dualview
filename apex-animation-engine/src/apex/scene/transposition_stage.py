@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from typing import Any, Mapping
 from .glyphs import canonical
 from .math_transposition import AdditiveTransposition, plan_additive_transposition
-from .schema import PropSpec
+from .schema import PropSpec, MorphSpec, MathTransferSpec
 
 
 @dataclass(frozen=True)
@@ -35,14 +35,48 @@ def compile_transposition_stage(raw: Mapping[str, Any], *, name: str = "transpos
               ("equals", "="), ("rhs", str(plan.rhs_before)))
     widths = [len(token) * glyph_width for _, token in tokens]
     term_width = widths[1]
-    total = sum(widths) + 4 * gap + term_width
+    total = sum(widths) + 3 * gap + term_width
     x = center[0] - total / 2
     props = []
     for (role, token), w in zip(tokens, widths):
         props.append(PropSpec(id=f"{name}_{role}", kind="glyph", glyph=canonical(token),
-                              position=(x + w / 2, center[1]), size=(w, height),
+                              position=(x + w / 2, center[1]),
+                              size=(0.82 * w if role == "rhs" and len(token) == 1 else w, height),
+                              weight=0.15 * min(0.82 * glyph_width, height),
                               color="#6bdffe" if role == "variable" else
                                     "#ffcc66" if role == "term" else "#f5f6ff",
                               mass=2.4, solid=False, z=-52))
-        x += w + gap
+        x += w + (0 if role == "rhs" else gap)
     return TranspositionStage(plan, tuple(props), f"{name}_term", (x + term_width / 2, center[1]))
+
+def compile_native_transfer(spec: MathTransferSpec) -> tuple[TranspositionStage, tuple[PropSpec, ...]]:
+    """Compile the actual native morphs and a geometrically aligned RHS body.
+
+    Its activation is controlled by MathTransferRuntime, not by authored time.
+    """
+    stage = compile_transposition_stage(spec.equation, name=spec.name, center=spec.center,
+                                        glyph_width=spec.glyph_width, height=spec.height, gap=spec.gap)
+    p = stage.plan
+    props = list(stage.props)
+    term, rhs = props[1], props[3]
+    term = term.model_copy(update={"morphs": [MorphSpec(
+        to=p.destination.text, on=f"math_crossed@{spec.actor}[prop={term.id}]", duration=0.36)]})
+    props[1] = term
+    expression = p.expression_text
+    slots = max(len(expression), len(str(p.result)))
+    width = len(expression) * spec.glyph_width
+    # The numeric group occupies precisely the two operand positions at
+    # the transfer checkpoint. The merge has no discontinuous glyph jump.
+    rhs_cells = len(str(p.rhs_before))
+    x0 = rhs.position[0] - rhs_cells * spec.glyph_width / 2
+    if slots != len(expression):
+        raise ValueError("result exceeds expression width")
+    combined = PropSpec(id=f"{spec.name}_evaluation", kind="glyph", glyph=expression,
+                        position=(x0 + width / 2, spec.center[1]), size=(width, spec.height),
+                        weight=rhs.weight, color=rhs.color, mass=term.mass + rhs.mass,
+                        solid=False, z=rhs.z,
+                        morphs=[MorphSpec(to=f"@{slots}:{p.result}",
+                                         on=f"math_evaluate@{spec.actor}[prop={spec.name}_evaluation]",
+                                         duration=0.9)])
+    props.append(combined)
+    return stage, tuple(props)
