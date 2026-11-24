@@ -261,6 +261,33 @@ class SceneRuntime:
         world.glyph_now = {p.id: p.glyph for p in self.env.props if p.kind == "glyph"}
         morph_log: Dict[str, List[dict]] = {}
         morphing: Dict[str, dict] = {}
+        trans_q = {p.id: list(p.transposes) for p in self.env.props if p.transposes}
+        transposing: Dict[str, dict] = {}
+
+        def transpose_tick(tn: float) -> None:
+            """Glide a fixed glyph to its target along an arc (the 'cross the equals sign' move). The glyph is kinematic
+            set dressing, so its position is driven directly; the sign flip is an ordinary morph on the same trigger."""
+            for pid, q in trans_q.items():
+                if pid in transposing or not q:
+                    continue
+                m = q[0]
+                fire = (m.at is not None and tn >= m.at) or (m.on is not None and any(
+                    e.t + m.delay <= tn and _matches(m.on, e) for e in events))
+                if fire:
+                    q.pop(0)
+                    s = world.state(pid)
+                    transposing[pid] = {"t0": tn, "p0": (s.pos[0], s.pos[1]), "to": tuple(m.to),
+                                        "dur": m.duration, "arc": m.arc}
+                    events.append(Event(tn, "transpose_start", pid, {"prop": pid, "to": list(m.to)}))
+            for pid, st in list(transposing.items()):
+                u = min(1.0, (tn - st["t0"]) / st["dur"])
+                w = u * u * (3 - 2 * u)                      # smoothstep ease
+                x = st["p0"][0] + (st["to"][0] - st["p0"][0]) * w
+                y = st["p0"][1] + (st["to"][1] - st["p0"][1]) * w + st["arc"] * math.sin(math.pi * u)
+                world.set_kinematic(pid, (x, y), 0.0)
+                if u >= 1.0:
+                    del transposing[pid]
+                    events.append(Event(tn, "transpose", pid, {"prop": pid, "point": (st["to"][0], st["to"][1])}))
 
         def morph_tick(tn: float, i_sample: int) -> None:
             for pid, q in morph_q.items():
@@ -455,6 +482,8 @@ class SceneRuntime:
                 dv.after_step(t + dt, events, Event)
             if morph_q:
                 morph_tick(t + dt, i)
+            if trans_q or transposing:
+                transpose_tick(t + dt)   # after morphs: the glide owns the glyph's position while it crosses
             for pid, sp in breakables.items():  # a blow hard enough breaks it
                 if pid not in broken:
                     j, pt, _ = world.step_impulse.get(pid, (0.0, None, 0.0))
