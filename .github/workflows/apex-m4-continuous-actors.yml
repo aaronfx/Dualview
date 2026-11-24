@@ -9,6 +9,7 @@ on:
       - 'apex-animation-engine/src/apex/scene/autochoreo.py'
       - 'apex-animation-engine/src/apex/motion/controller.py'
       - 'apex-animation-engine/src/apex/motion/animator.py'
+      - 'apex-animation-engine/src/apex/motion/clips/land_and_dash.json'
       - 'apex-animation-engine/tests/test_autochoreo.py'
       - 'apex-animation-engine/tests/test_motion_performance_probe.py'
       - 'apex-animation-engine/examples/build_impossible_crossing.py'
