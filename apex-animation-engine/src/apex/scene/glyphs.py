@@ -10,6 +10,7 @@ The glyph shapes are plain typographic constructions (straight strokes and arcs)
 from __future__ import annotations
 
 import math
+import re
 from typing import Dict, List, Sequence, Tuple
 
 Pt = Tuple[float, float]
@@ -77,7 +78,7 @@ def pieces(glyph: str) -> List[List[Pt]]:
     """How a glyph breaks: one piece per stroke, long strokes cut into runs of at most MAX_PIECE_SEGS segments
     (unit-box coordinates, the same frame as the whole glyph)."""
     out = []
-    for st in GLYPHS[canonical(glyph)]:
+    for st in _unit_strokes(canonical(glyph)):
         n = len(st) - 1
         k = max(1, math.ceil(n / MAX_PIECE_SEGS))
         step = math.ceil(n / k)
@@ -90,7 +91,20 @@ def _unit_strokes(g: str) -> List[List[Pt]]:
     if "#" in g:  # a fragment: "<glyph>#<k>" is piece k of that glyph
         base, _, k = g.partition("#")
         return [pieces(base)[int(k)]]
-    return GLYPHS[g]
+    if g in GLYPHS:
+        return GLYPHS[g]
+    return _numeric_strokes(g)
+
+
+_NUMERIC_GROUP = re.compile(r"[+-]?\d{1,6}(?:[+-]\d{1,6})?\Z", re.ASCII)
+
+
+def _numeric_strokes(g: str) -> List[List[Pt]]:
+    """One rigid body for a bounded numeric group; keep digit order."""
+    cell = 1.0 / len(g)
+    return [[(((i + 0.5) * cell - 0.5) + x * cell * 0.82, y)
+              for x, y in st]
+             for i, token in enumerate(g) for st in GLYPHS[token]]
 
 
 def canonical(g: str) -> str:
@@ -101,7 +115,7 @@ def canonical(g: str) -> str:
             raise ValueError(f"glyph fragment {g!r}: {base!r} has {len(pieces(base))} pieces")
         return f"{base}#{int(k)}"
     g = ALIASES.get(g, g)
-    if g not in GLYPHS:
+    if g not in GLYPHS and not _NUMERIC_GROUP.fullmatch(g):
         raise ValueError(f"unknown glyph {g!r}; available: {' '.join(sorted(GLYPHS))}")
     return g
 
@@ -138,6 +152,21 @@ def _resample(st: List[Pt], n: int) -> List[Pt]:
 def blend(a: str, b: str, u: float, size: Sequence[float], n: int = 18, shift: Pt = (0.0, 0.0)) -> List[List[Pt]]:
     """Strokes part way through a morph from glyph a to glyph b (u = 0..1): strokes are paired in order (a glyph with
     fewer strokes grows the extra ones out of its last stroke's end) and each pair is blended point by point."""
+    a, b = canonical(a), canonical(b)
+    # A signed term inversion changes the sign, never the digit geometry.
+    if (len(a) > 1 and len(a) == len(b) and a[0] in "+-" and
+            b[0] in "+-" and a[0] != b[0] and a[1:] == b[1:] and a[1:].isdigit()):
+        e = u * u * (3 - 2 * u)
+        sx, sy = size
+        cell = 1.0 / len(a)
+        x0 = (0.5 * cell - 0.5) * sx
+        out = [[((0.5 * cell - 0.5 + x * cell * 0.82) * sx, 0.0) for x in (-0.5, 0.5)]]
+        vertical = (1 - e) if a[0] == "+" else e
+        if vertical > 1e-9:
+            out.append([(x0, -0.5 * sy * vertical), (x0, 0.5 * sy * vertical)])
+        out += [[(x * sx, y * sy) for x, y in st]
+                for st in _numeric_strokes(a)[len(GLYPHS[a[0]]):]]
+        return [[(x + shift[0] * e, y + shift[1] * e) for x, y in st] for st in out]
     sa = strokes(a, size)
     sb = [[(x + shift[0], y + shift[1]) for x, y in st] for st in strokes(b, size)]  # b where it will be after the swap
     k = max(len(sa), len(sb))
