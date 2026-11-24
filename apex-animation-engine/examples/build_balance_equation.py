@@ -116,9 +116,10 @@ def project(duration: float = 20.0):
                 {"id": "s3_carry", "kind": "medium", "start": 7.2, "end": 11.5,
                  "camera": {"mode": "follow", "target": actor, "view_height": 520, "offset": [70, 60],
                             "lead": 0.16, "stiffness": 3.4, "include": [f"prop:{five.id}"]}},
-                # solved: frame x = 3 clearly and the triumph; the discarded 2 (x~760) sits off the right edge
+                # solved: frame x = 3 clearly; the discarded 2 (settles at x~437, just right of the 3 at ~362) sits
+                # off the right edge of this framing
                 {"id": "s4_solved", "kind": "medium", "start": 11.5, "end": duration,
-                 "camera": {"mode": "static", "center": [108, 160], "view_height": 500}},
+                 "camera": {"mode": "static", "center": [-44, 160], "view_height": 500}},
             ],
         }],
     }
