@@ -39,8 +39,27 @@ jobs:
             mkdir -p "out/semantic/${case}_frames"
             ffmpeg -v error -i "out/semantic/$case.mp4" -vf fps=2 "out/semantic/${case}_frames/%03d.png"
           done
-      - name: Complete native regression
+      - uses: actions/upload-artifact@v4
         if: always()
+        with:
+          name: apex-semantic-transposition-proof
+          path: apex-animation-engine/out/semantic/
+          if-no-files-found: warn
+          retention-days: 14
+  full-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: apex-animation-engine
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg libegl1
+      - run: python -m pip install --disable-pip-version-check -e '.[dev]'
+      - name: Complete native regression
         run: |
           mkdir -p out/semantic
           set -o pipefail
@@ -48,7 +67,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: apex-semantic-transposition-proof
-          path: apex-animation-engine/out/semantic/
+          name: apex-full-regression
+          path: apex-animation-engine/out/semantic/full-tests.txt
           if-no-files-found: warn
           retention-days: 14
