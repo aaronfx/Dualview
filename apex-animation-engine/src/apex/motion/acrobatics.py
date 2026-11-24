@@ -890,8 +890,11 @@ class AcroMixin:
             if u >= 0.55:
                 I["placed"] = True
                 self._release_carry(t, why="place", data={"on": a.target, "point": I["rest"]})
-                if a.target.startswith("obstacle:"):  # a holder seats it: it stays put until someone takes it
+                if a.target.startswith("obstacle:") or a.seat:
                     self.world.set_kinematic(pid, I["rest"], 0.0)
+                    if a.seat:
+                        for shape in self.world.shapes_of(pid):
+                            shape.sensor = True
         if u >= 1.0:
             self.h = self.stand_h
             self._next_action(t)
@@ -924,6 +927,8 @@ class AcroMixin:
         grip = self.frame.to_world(self.s + f * (20.0 + 0.5 * self.arm_reach * ext), self.h + 16.0 + 10.0 * ext)
         a = 0.35 if ang is None else ang
         wa = self.frame.body_angle + (a if f > 0 else math.pi - a)
+        if sp.kind == "glyph" and sp.glyph[:1] in ("+", "-") and sp.glyph[1:].isdigit() and ang is None:
+            wa = self.frame.body_angle  # keep the signed term legible while walking
         gl = self._grip_local(pid)
         ca, sa = math.cos(wa), math.sin(wa)
         c = (grip[0] - (gl[0] * ca - gl[1] * sa), grip[1] - (gl[0] * sa + gl[1] * ca))

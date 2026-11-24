@@ -101,8 +101,15 @@ _NUMERIC_GROUP = re.compile(r"[+-]?\d{1,6}(?:[+-]\d{1,6})?\Z", re.ASCII)
 
 def _numeric_strokes(g: str) -> List[List[Pt]]:
     """One rigid body for a bounded numeric group; keep digit order."""
-    cell = 1.0 / len(g)
-    return [[(((i + 0.5) * cell - 0.5) + x * cell * 0.82, y)
+    # A padded result retains the expression body's width without stretching
+    # the answer's digits. The text is centred in a fixed number of cells.
+    slots = len(g)
+    if g.startswith("@"):
+        slot_text, g = g[1:].split(":", 1)
+        slots = int(slot_text)
+    cell = 1.0 / slots
+    offset = (slots - len(g)) / 2
+    return [[(((i + offset + 0.5) * cell - 0.5) + x * cell * 0.82, y)
               for x, y in st]
              for i, token in enumerate(g) for st in GLYPHS[token]]
 
@@ -115,6 +122,11 @@ def canonical(g: str) -> str:
             raise ValueError(f"glyph fragment {g!r}: {base!r} has {len(pieces(base))} pieces")
         return f"{base}#{int(k)}"
     g = ALIASES.get(g, g)
+    if g.startswith("@"):
+        match = re.fullmatch(r"@([1-9]|1[0-4]):([+-]?\d{1,6})", g, re.ASCII)
+        if match and len(match[2]) <= int(match[1]):
+            return g
+        raise ValueError("invalid padded numeric glyph")
     if g not in GLYPHS and not _NUMERIC_GROUP.fullmatch(g):
         raise ValueError(f"unknown glyph {g!r}; available: {' '.join(sorted(GLYPHS))}")
     return g

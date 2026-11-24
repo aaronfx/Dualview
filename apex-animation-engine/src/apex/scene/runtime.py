@@ -102,6 +102,8 @@ class SimulationResult:
     creatures: list = field(default_factory=list)  # creature drivers (Milestone 5)
     carried_out: Dict[str, float] = field(default_factory=dict)  # prop id -> when its carrier took it out through an exit
 
+    math_visibility: Dict[str, Tuple[float, float]] = field(default_factory=dict)
+
     def glyph_at(self, pid: str, t: float, base: Optional[str]):
         """(the glyph a prop physically is at t, (from, to, u) while it is visibly morphing or None)."""
         g, blend = base, None
@@ -117,6 +119,10 @@ class SimulationResult:
 
     def alive(self, pid: str, t: float) -> bool:
         """A prop is in the scene: a breakable prop until it breaks; its pieces from then on."""
+        if pid in self.math_visibility:
+            start, end = self.math_visibility[pid]
+            if not start <= t < end:
+                return False
         par = self.fragment_parent.get(pid)
         if par is not None:
             return par in self.broken and t >= self.broken[par]
@@ -259,6 +265,10 @@ class SceneRuntime:
         from .goals import matches as _matches
         morph_q = {p.id: list(p.morphs) for p in self.env.props if p.morphs}
         world.glyph_now = {p.id: p.glyph for p in self.env.props if p.kind == "glyph"}
+        math_transfer = None
+        if self.scene.math_transfer is not None:
+            from .math_transfer_runtime import MathTransferRuntime
+            math_transfer = MathTransferRuntime(self.scene.math_transfer, self.env.props, world)
         morph_log: Dict[str, List[dict]] = {}
         morphing: Dict[str, dict] = {}
 
@@ -453,6 +463,8 @@ class SceneRuntime:
             contacts = world.step(dt)
             for dv in drivers:
                 dv.after_step(t + dt, events, Event)
+            if math_transfer is not None:
+                math_transfer.tick(t + dt, ctrls, events, Event)
             if morph_q:
                 morph_tick(t + dt, i)
             for pid, sp in breakables.items():  # a blow hard enough breaks it
@@ -544,6 +556,8 @@ class SceneRuntime:
             self.result = SimulationResult(end, frames, gravity, {}, ctrls, events, times, prop_tracks, world.static_segments(),
                                            {}, None, doors, snapped, rope_peak, prop_cuts, dict(shared["taken"]), morph_log, broken, frag_of, drivers)
             self.result.carried_out = {e.data['prop']: e.t for e in events if e.type == 'carried_out'}
+            if math_transfer is not None:
+                self.result.math_visibility = dict(math_transfer.visibility)
             return self.result
         animators = {}
         for cid, c in ctrls.items():
@@ -580,6 +594,8 @@ class SceneRuntime:
         self.result = SimulationResult(end, frames, gravity, animators, ctrls, events, times, prop_tracks, world.static_segments(),
                                        scarves, dust, doors, snapped, rope_peak, prop_cuts, dict(shared["taken"]), morph_log, broken, frag_of, drivers)
         self.result.carried_out = {e.data['prop']: e.t for e in events if e.type == 'carried_out'}
+        if math_transfer is not None:
+            self.result.math_visibility = dict(math_transfer.visibility)
         return self.result
 
     # ------------------------------------------------------------ evaluation

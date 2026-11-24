@@ -63,3 +63,33 @@ def test_invalid_compound_glyphs():
     for bad in ("++2", "2x", "1+2+3", "1234567"):
         with pytest.raises(ValueError):
             glyphs.canonical(bad)
+
+
+@pytest.mark.parametrize("n,c,op", [(2, 5, "add"), (4, 9, "add"), (4, 9, "sub")])
+def test_native_transfer_and_intermediate_frame(n, c, op):
+    import runpy
+    from pathlib import Path
+    from apex.scene.schema import ProjectSpec
+    from apex.scene.runtime import SceneRuntime
+    build = runpy.run_path(str(Path(__file__).parents[1] / "examples/build_semantic_transposition.py"))["project"]
+    p = ProjectSpec.model_validate(build(n, c, op))
+    runtime = SceneRuntime(p, "solve")
+    res = runtime.simulate()
+    events = res.events
+    first = lambda typ: next(e for e in events if e.type == typ)
+    picked, crossed, placed, evaluated = (first(x) for x in
+                                            ("pick_up", "math_crossed", "math_transferred", "math_evaluate"))
+    assert picked.t < crossed.t < placed.t < evaluated.t
+    assert evaluated.t - placed.t >= 1.0
+    assert not [e for e in events if e.type == "throw"]
+    assert not [c.violation for c in res.controllers.values() if c.violation]
+    plan = plan_additive_transposition(equation(op, n, c))
+    middle = runtime.evaluate((placed.t + evaluated.t) / 2)
+    glyphs_by_id = {p.id: p for p in middle.props}
+    assert glyphs_by_id["transpose_term"].glyph == plan.destination.text
+    assert glyphs_by_id["transpose_rhs"].glyph == str(c)
+    assert glyphs_by_id["transpose_term"].pos[0] > glyphs_by_id["transpose_rhs"].pos[0]
+    assert "transpose_evaluation" not in glyphs_by_id
+    last = {p.id: p for p in runtime.evaluate(13.5).props}
+    assert set(last) == {"transpose_variable", "transpose_equals", "transpose_evaluation"}
+    assert last["transpose_evaluation"].glyph.split(":")[1] == str(plan.result)
