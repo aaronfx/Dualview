@@ -1,0 +1,43 @@
+name: APEX latest engine video proof
+on:
+  push:
+    branches: [feature/apex-three-reference-grade]
+    paths:
+      - '.github/workflows/apex-latest-video-proof.yml'
+  pull_request:
+    paths:
+      - '.github/workflows/apex-latest-video-proof.yml'
+  workflow_dispatch:
+jobs:
+  render:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - scene: threshold
+            builder: build_motion_performance_probe.py
+          - scene: math
+            builder: build_math_stage_smoke.py
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg libegl1
+      - working-directory: apex-animation-engine
+        run: pip install -e '.[dev]'
+      - working-directory: apex-animation-engine
+        run: |
+          mkdir -p out/latest
+          python examples/${{ matrix.builder }} out/latest/${{ matrix.scene }}.json
+          apex validate out/latest/${{ matrix.scene }}.json
+          apex render out/latest/${{ matrix.scene }}.json -o out/latest/${{ matrix.scene }}.mp4 --scale 0.75 --samples 1 --qa-json out/latest/qa.json
+          ffprobe -v error -show_format -show_streams out/latest/${{ matrix.scene }}.mp4
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: apex-latest-${{ matrix.scene }}
+          path: apex-animation-engine/out/latest/
+          if-no-files-found: warn
