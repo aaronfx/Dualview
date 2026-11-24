@@ -21,6 +21,7 @@ from pathlib import Path
 import sys
 
 from apex.scene.autochoreo import Objective, search
+from apex.scene.pacing import actor_pace
 from apex.scene.runtime import SceneRuntime
 from apex.scene.schema import ProjectSpec
 
@@ -149,7 +150,7 @@ def build():
     obj = Objective(scene_id="cross", actor="iko", obstacle_id="barrier",
                     goal_prop_id="spark", movable_prop_id="crate",
                     max_trial_seconds=19, max_jump_apex=210,
-                    prefer_prop_interaction=True)
+                    prefer_prop_interaction=True, pacing="active")
     original = ProjectSpec.model_validate(world())
     result = search(original, obj)
     if not result.succeeded:
@@ -172,7 +173,8 @@ def build():
     pick = _event(sim.events, "pick_up")
     if pick is None:
         raise ValueError("the chosen trial stopped reproducing its goal during staging")
-    duration = math.ceil((pick + 2.5) * staged.fps) / staged.fps
+    # Keep the complete quick celebration and a readable fade, not seconds of dead air.
+    duration = math.ceil((pick + actor_pace(obj.pacing).final_tail) * staged.fps) / staged.fps
     if duration > 19:
         raise ValueError("selected plan too slow for film budget")
     raw["scenes"][0]["duration"] = duration
