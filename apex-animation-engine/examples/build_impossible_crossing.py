@@ -100,7 +100,9 @@ def _shots(events, duration, chosen):
         # Fast actors can reach the obstacle before the old fixed-length
         # opening has finished. Cut the establishing shot earlier rather
         # than slowing the performer or creating an unreadably short scene.
-        establish_end = min(0.82, max(0.39, climb_start - 0.67))
+        # Both establishing and decision shots must exceed the 0.5s
+        # cinematic QA minimum even when IKO sprints into the climb.
+        establish_end = min(0.82, max(0.51, climb_start - 0.75))
         edges = [0, round(establish_end, 3), round(climb_start - 0.20, 3),
                  round(climbed + 0.1, 3), round(impact + 0.18, 3),
                  round(pickup - 0.18, 3), duration]
