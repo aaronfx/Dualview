@@ -550,7 +550,18 @@ class CharacterController(InteractionMixin, CombatMixin, AcroMixin, ArcadeMixin,
         carry_jump = (nxt is not None and nxt.type == "jump_to" and nxt.onto is None
                       and self.frame.owner is None and nxt.target_x is not None
                       and (nxt.target_x - a.target_x) * direction > 35.0)
-        carry = nxt is not None and (nxt.type in ("jump", "duck_slide") or carry_jump or
+        # Run into a reachable ledge grab without braking to a complete
+        # stop and scheduling an extra walk_to. Limit this to the geometry-
+        # verified grab point; a mismatched climb still brakes normally.
+        carry_climb = False
+        if (nxt is not None and nxt.type == "climb" and nxt.target is not None
+                and self.frame.owner is None):
+            top = self._top_of(nxt.target, self.s)
+            edge = top.lo if direction > 0 else top.hi
+            grab_start = edge - direction * 0.30 * self.stand_h
+            carry_climb = (abs(a.target_x - grab_start) <= 5.0
+                           and (grab_start - self.s) * direction > 0)
+        carry = nxt is not None and (nxt.type in ("jump", "duck_slide") or carry_jump or carry_climb or
                                      (nxt.type in ("walk_to", "run_to") and nxt.target_x is not None
                                       and (nxt.target_x - a.target_x) * direction > 0))
         v_des = speed if carry else min(speed, math.sqrt(2 * dec * max(remaining, 0.0)))
