@@ -1,7 +1,6 @@
 name: APEX upstream presentation and generated QA
 on:
-  push:
-    branches: [apex-unified]
+  pull_request:
     paths: ['apex-animation-engine/**', '.github/workflows/apex-upstream.yml']
   workflow_dispatch:
 jobs:
