@@ -17,6 +17,8 @@ class Strict(BaseModel):
 
 # ---------------------------------------------------------------- characters
 class CharacterStyle(Strict):
+    visual_profile: Literal["legacy", "apex_ink"] = "legacy"
+    performance_profile: Literal["legacy", "continuous"] = "legacy"
     body_color: str = "#ffcf3a"
     far_color: str = "#c08f1e"
     visor_color: str = "#5ff6ff"
@@ -411,6 +413,7 @@ class BackdropSpec(Strict):
     """The world around an open environment (cinematic upgrade): sky, distant layers drawn at depth (so they move
     with real parallax), weather and fog. Drawn only; nothing in it collides."""
     kind: Literal["city", "canyon", "tower", "void", "summit"]
+    art_profile: Literal["legacy", "industrial_depth"] = "legacy"
     seed: int = 1
     sky: Optional[List[str]] = None  # top -> horizon colours (2 or 3); defaults per kind
     sun: Optional[Vec2] = None  # a sun or moon at this (x, y) on the far sky (default per kind; [] none)
@@ -599,6 +602,7 @@ class ActionSpec(Strict):
     tremble: float = Field(0.0, ge=0, le=1.5)  # act: shaking hands, arms and head (fear, exhaustion)
     slip_at: Optional[float] = Field(None, ge=0)  # hang: the near hand slips off this long into the hang (`distance`: the drop)
     # hang with `duration`: after that long the character scrambles up over the edge unaided
+    seat: bool = False  # place at a point as fixed, non-solid equation geometry
     note: str = ""
 
     @model_validator(mode="after")
@@ -615,6 +619,8 @@ class ActionSpec(Strict):
         for f in need.get(self.type, []):
             if getattr(self, f) is None:
                 raise ValueError(f"action '{self.type}' requires '{f}'")
+        if self.seat and (self.type != "place" or not (self.target or "").startswith("point:")):
+            raise ValueError("seat is only valid for place at a point")
         if self.type == "turn" and self.face not in (-1, 1):
             raise ValueError("turn.face must be +1 or -1")
         if self.target is not None:
@@ -850,6 +856,18 @@ class ScoreSpec(Strict):
     cues: List[ScoreCue] = Field(default_factory=list)
 
 
+class MathTransferSpec(Strict):
+    """A bounded, native, proof-carrying additive equation operation."""
+    equation: Dict[str, Any]
+    actor: str
+    name: str = "transpose"
+    center: Vec2 = (0.0, 65.0)
+    glyph_width: float = Field(54.0, gt=0, le=120)
+    height: float = Field(86.0, gt=0, le=180)
+    gap: float = Field(26.0, gt=0, le=100)
+    min_hold: float = Field(1.0, ge=0.75, le=5)
+
+
 class SceneSpec(Strict):
     id: str
     title: str = ""
@@ -861,6 +879,7 @@ class SceneSpec(Strict):
     # the story beats that must happen, in order, e.g. ["push_lost@milo", "pinned@milo[by=post]", "freed@milo"];
     # the dry run checks them and the setup solver tunes the physical setup until they happen
     goals: List[str] = Field(default_factory=list)
+    math_transfer: Optional[MathTransferSpec] = None
     time_fx: Optional[TimeFxSpec] = None  # hit-stop, slow motion, smears and screen effects (Milestone 3)
     music: Optional[MusicSpec] = None  # beat grid: cut snapping, beat waits, beat-locked soundtrack (Milestone 4)
     diagrams: List[DiagramSpec] = Field(default_factory=list)  # annotations from simulation data (Milestone 5)
