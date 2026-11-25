@@ -148,8 +148,17 @@ class AcroMixin:
         l, r, b, top = self._target_bounds(f"prop:{pid}")
         l, r = min(l, l + dx), max(r, r + dx)
         half = self.props[pid].depth / 2
+        # A queued native lever interaction owns its contact with the load
+        # and fulcrum. Its generated approach walk must not be mistaken for
+        # unrelated cargo transit. Restrict the exception to the same bar
+        # and the exact active interaction, not every future prop reference.
+        intentional = set()
+        nxt = self.queue[0] if self.queue else None
+        if (nxt is not None and nxt is self.inter_action and nxt.type == "use_lever"
+                and self.inter.get("phase") == "carry" and self.inter.get("bar") == pid):
+            intentional.update(x for x in (self.inter.get("load"), self.inter.get("ful")) if x)
         for other, sp in self.props.items():
-            if other == pid or other in self.world.inactive or not sp.solid:
+            if other == pid or other in intentional or other in self.world.inactive or not sp.solid:
                 continue
             z, ph = self.world.depth.get(other, (0.0, 30.0))
             if abs(self.z - z) >= half + ph:
