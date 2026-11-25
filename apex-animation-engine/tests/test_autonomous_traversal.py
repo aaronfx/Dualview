@@ -51,3 +51,12 @@ def test_goal_only_light_prop_relocation(direction):
     assert any(e.type=="place" and e.data.get("prop")=="light" for e in sim.events)
     assert any(e.type=="autonomous_reached" for e in sim.events)
     assert abs(sim.controllers["iko"].records[-1].pos[0]-600*direction)<3
+
+def test_goal_only_mixed_course():
+    raw=runpy.run_path("examples/build_autonomous_mixed.py")["build"]()
+    sim=SceneRuntime(ProjectSpec.model_validate(raw),"s").simulate()
+    skills=[e.data.get("skill") for e in sim.events if e.type=="autonomous_decision"]
+    assert "avoid_segment" in skills
+    assert "jump" in skills
+    assert any(e.type=="autonomous_reached" for e in sim.events)
+    assert abs(sim.controllers["iko"].records[-1].pos[0]-1050)<3

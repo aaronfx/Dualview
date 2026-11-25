@@ -18,6 +18,33 @@ class TraversalBrain:
     progress_x: float | None = None
     progress_t: float = 0.0
     active_action: object = None
+    route_signature: tuple | None = None
+
+    def _hazards(self,c):
+        """Observe approaching same-lane solids using a short swept horizon."""
+        d=1 if self.goal>c.s else -1
+        hazards=[]
+        for o in c.others.values():
+            if o is c or o._gone() or o.frame is not c.frame:
+                continue
+            gap=(o.s-c.s)*d
+            closing=max(0,abs(c.v)-o.v*d)
+            if abs(o.z-c.z)<BODY_PASS_Z and 0<gap<max(160,closing*.65+50):
+                hazards.append(("char:"+o.cid, bool(o.lying)))
+        for pid,sp in c.props.items():
+            if pid in c.world.inactive or not sp.solid or not sp.collide_characters:
+                continue
+            z,ph=c.world.depth.get(pid,(0,30))
+            if abs(z-c.z)>=ph+14:
+                continue
+            st=c.world.state(pid)
+            x0,x1,y0,y1=c._target_bounds("prop:"+pid)
+            near=x0 if d>0 else x1
+            gap=(near-c.s)*d
+            closing=max(0,abs(c.v)-st.vel[0]*d)
+            if y1>12 and y0<2.1*c.stand_h and -35<gap<max(160,closing*.65+70):
+                hazards.append(("prop:"+pid, math.hypot(*st.vel)>20))
+        return tuple(sorted(hazards))
 
     def tick(self, c, t):
         from ..motion.controller import Event
@@ -28,6 +55,18 @@ class TraversalBrain:
             # Never interrupt contact, flight, an authored interaction or recovery.
             # Only our own ordinary locomotion may be cancelled after a stall.
             if c.cur is self.active_action and c.cur.type in ("walk_to","run_to") and not c.queue and not c.carrying and not c.lying:
+                now=self._hazards(c)
+                # Standing actors and ordinary props are already handled by
+                # native lane avoidance. Newly prone bodies require a new plan.
+                unexpected=any(k.startswith("char:") and flag and (k,flag) not in (self.route_signature or ()) for k,flag in now)
+                if unexpected:
+                    self.pending=None
+                    self.active_action=None
+                    c.v=0.0
+                    c._next_action(t)
+                    c.emit(Event(t,"autonomous_blocked",c.cid,{"reason":"new prone obstacle; replanning"}))
+                    return
+                self.route_signature=now
                 if self.progress_x is None or abs(c.s-self.progress_x) >= 8:
                     self.progress_x, self.progress_t = c.s, t
                 elif t-self.progress_t >= 1.5:
@@ -91,9 +130,17 @@ class TraversalBrain:
                 else:
                     bands.append((ob.owner,*c.world.depth.get(ob.owner.split(":",1)[1],(0,30))))
             lane = c._free_lane(bands)
-            if lane is not None and not hit:
+            if lane is not None and not hit and not any(other is not None and other.lying for _,_,other in obstacles):
                 # Existing native proactive body/prop avoidance owns lane clearance.
                 add("avoid",b.owner,type="run_to",target_x=end,speed=300,adaptive_avoidance=True)
+        if len(obstacles)>1 and not hit:
+            _, first, actor=obstacles[0]
+            _, second, _=obstacles[1]
+            if actor is not None and not actor.lying:
+                mid=first.x1+140 if d>0 else first.x0-140
+                gap=(second.x0-mid) if d>0 else (mid-second.x1)
+                if gap>150 and c._free_lane([(first.owner,actor.z,BODY_PASS_Z/2)]) is not None:
+                    add("avoid_segment",first.owner,type="run_to",target_x=mid,speed=300,adaptive_avoidance=True)
         relocation = None
         # Small floor props only: native pickup and placement, not teleportation.
         if obstacles and not hit and not c.carrying:
@@ -156,6 +203,7 @@ class TraversalBrain:
             self.pending=(key,c.s)
             self.active_action=action
             self.progress_x,self.progress_t=c.s,t
+            self.route_signature=self._hazards(c)
             c.queue.append(action)
             if key[0]=="relocate" and relocation is not None:
                 c.queue.append(relocation)
