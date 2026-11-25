@@ -26,6 +26,8 @@ class TraversalBrain:
     hostile: bool = False
     last_attack: float = -10.0
     last_threat: float = -10.0
+    combat_moves: list = field(default_factory=list)
+    countered_at: float = -10.0
 
     def invalidate_after_hit(self,c,t,by):
         """Combat supersedes speculative traversal, never replay a stale queue."""
@@ -83,39 +85,22 @@ class TraversalBrain:
             if self.pursuit_last is None or abs(target.s-self.pursuit_last)>180:
                 c.emit(Event(t,'autonomous_decision',c.cid,{'skill':'pursue','target':self.pursuit,'observed_x':target.s,'predicted_x':self.goal}))
                 self.pursuit_last=target.s
-        # Only preempt unqueued locomotion, never committed contact or flight.
-        free = not c.queue and (c.cur is None or (c.cur is self.active_action and c.cur.type in ("run_to","walk_to")))
-        if self.hostile and self.pursuit and free and c._upright() and not c.lying:
-            target=c.others[self.pursuit]
-            gap=abs(target.s-c.s)
-            reach=c._strike_reach("jab")
-            if target.mode=="grounded" and not target.lying and target.frame is c.frame and abs(target.z-c.z)<BODY_PASS_Z and .55*reach<=gap<=reach and t-self.last_attack>.8 and not c._path_blocker(c.s,target.s):
-                action=ActionSpec(character=c.cid,type="strike",target="char:"+target.cid,move="jab",distance=gap,power=.8,reaction="flinch")
-                self.pending=None
-                self.active_action=action
-                c.queue.append(action)
-                if c.cur is not None:
-                    c._next_action(t)
+        from .combat_performance import choose_combat_action
+        decision=choose_combat_action(self,c,t)
+        if decision is not None:
+            skill,action,other=decision
+            c.queue.clear()
+            self.pending=None
+            self.active_action=action
+            c.queue.append(action)
+            if c.cur is not None:
+                c._next_action(t)
+            if skill in ("attack","counterattack"):
                 self.last_attack=t
-                c.emit(Event(t,"autonomous_decision",c.cid,{"skill":"attack","target":target.cid,"gap":gap}))
-                return
-        if not self.pursuit and c._upright() and not c.lying and (free or (c.cur is self.active_action and c.cur.type in ("run_to","walk_to"))):
-            for enemy in c.others.values():
-                attack=enemy.cur
-                if attack is None or attack.type!="strike" or attack.target!="char:"+c.cid or enemy.frame is not c.frame or abs(enemy.z-c.z)>=BODY_PASS_Z:
-                    continue
-                if attack.move not in ("jab","cross","hook") or t-self.last_threat<.6 or abs(enemy.s-c.s)>enemy._strike_reach(attack.move)+20 or enemy.inter.get("resolved"):
-                    continue
-                action=ActionSpec(character=c.cid,type="dodge",dodge="duck")
-                c.queue.clear()
-                self.pending=None
-                self.active_action=action
-                c.queue.append(action)
-                if c.cur is not None:
-                    c._next_action(t)
+            else:
                 self.last_threat=t
-                c.emit(Event(t,"autonomous_decision",c.cid,{"skill":"evade_attack","target":enemy.cid}))
-                return
+            c.emit(Event(t,"autonomous_decision",c.cid,{"skill":skill,"target":other,"move":action.move,"defense":action.dodge}))
+            return
         if c.cur is not None or c.queue:
             # Never interrupt contact, flight, an authored interaction or recovery.
             # Only our own ordinary locomotion may be cancelled after a stall.

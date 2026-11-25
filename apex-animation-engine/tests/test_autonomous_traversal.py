@@ -132,3 +132,17 @@ def test_hostile_chase_native_attack():
     assert any(e.character=="pell" and e.type=="strike_start" for e in sim.events)
     assert any(e.character=="iko" and e.type=="autonomous_decision" and e.data.get("skill")=="evade_attack" for e in sim.events)
     assert any(e.character=="pell" and e.type=="whiff" for e in sim.events)
+
+def test_combat_performance_uses_native_variety():
+    from apex.ai.combat_performance import choose_combat_action
+    from types import SimpleNamespace as NS
+    from apex.ai.autonomous_traversal import TraversalBrain
+    frame=object()
+    brain=TraversalBrain(500,pursuit="iko",hostile=True)
+    enemy=NS(cid="iko",s=90,z=0,frame=frame,mode="grounded",lying=False,cur=None,_gone=lambda:False)
+    actor=NS(cid="pell",s=0,z=0,frame=frame,lying=False,carrying=None,cur=None,queue=[],facing=1,
+             _upright=lambda:True,_path_blocker=lambda a,b:None,_strike_reach=lambda move:100,others={"iko":enemy})
+    moves=[choose_combat_action(brain,actor,i)[1].move for i in range(5)]
+    assert len(set(moves))==5
+    enemy.s=300
+    assert choose_combat_action(brain,actor,6) is None
