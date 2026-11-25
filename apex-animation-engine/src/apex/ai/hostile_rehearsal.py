@@ -31,13 +31,14 @@ def rehearse_hostile(raw,scene_id,directory):
     trials=[]
     accepted=[]
     # Bounded start-spacing alternatives, unchanged industrial geometry.
-    for gap in (90,110,125,75):
+    for gap,face in ((90,-1),(110,-1),(125,-1),(75,-1),(90,1),(110,1),(125,1),(75,1)):
         candidate=deepcopy(raw)
         scene=next(s for s in candidate["scenes"] if s["id"]==scene_id)
         fugitive=next(p for p in scene["placements"] if p["actor_role"]["role"]=="fugitive")
         hunter=next(p for p in scene["placements"] if p["actor_role"]["role"]=="hunter")
         hunter["x"]=fugitive["x"]-gap
-        entry={"initial_gap":gap}
+        fugitive["facing"]=face
+        entry={"initial_gap":gap,"initial_fugitive_facing":face}
         try:
             candidate=fit_goal_scene(candidate,scene_id,fugitive["character"])
             project=ProjectSpec.model_validate(candidate)
@@ -53,13 +54,13 @@ def rehearse_hostile(raw,scene_id,directory):
                 raise ValueError("native geometry or motion QA rejected")
             overlap=next((c.metric for c in qa.checks if c.name=="screen_separation"),0) or 0
             entry["accepted"]=True
-            accepted.append((overlap,-sum(report["attacks"].values()),gap,candidate))
+            accepted.append((overlap,-sum(report["attacks"].values()),gap,face,candidate))
         except (ValueError,RuntimeError,KeyError,TypeError,ArithmeticError) as exc:
             entry.update(accepted=False,reason=str(exc))
         trials.append(entry)
         (directory/"rehearsal.json").write_text(json.dumps(trials,indent=2,default=str),encoding="utf-8")
     if not accepted:
         raise ValueError("no verified hostile rehearsal; see rehearsal.json")
-    winner=min(accepted,key=lambda q:q[:3])
-    (directory/"selection.json").write_text(json.dumps({"gap":winner[2],"screen_overlap":winner[0],"artistic_review":"pending"},indent=2),encoding="utf-8")
-    return winner[3]
+    winner=min(accepted,key=lambda q:q[:4])
+    (directory/"selection.json").write_text(json.dumps({"gap":winner[2],"initial_fugitive_facing":winner[3],"screen_overlap":winner[0],"artistic_review":"pending"},indent=2),encoding="utf-8")
+    return winner[4]

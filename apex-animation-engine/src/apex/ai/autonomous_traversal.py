@@ -111,7 +111,7 @@ class TraversalBrain:
                 c._next_action(t)
             if skill in ("attack","counterattack"):
                 self.last_attack=t
-            else:
+            elif skill in ("evade_attack","defend"):
                 self.last_threat=t
             c.emit(Event(t,"autonomous_decision",c.cid,{"skill":skill,"target":other,"move":action.move,"defense":action.dodge}))
             return

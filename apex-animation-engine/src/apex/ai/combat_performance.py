@@ -39,6 +39,8 @@ def choose_combat_action(brain,c,t):
     counter=not brain.hostile and resolved and brain.last_threat>=attack_time-.05 and attack_time>brain.countered_at
     if not brain.hostile and not counter and not engaged:
         return None
+    if engaged and c.facing!=direction:
+        return "face_threat",ActionSpec(character=c.cid,type="turn",face=direction),enemy.cid
     moves=("jab","cross","hook","front_kick","side_kick") if brain.hostile else ("side_kick","cross","front_kick")
     feasible=[move for move in moves if .55*c._strike_reach(move)<=gap<=c._strike_reach(move)]
     if getattr(brain,"role",None) is not None:

@@ -12,7 +12,8 @@ def observe_encounter(brain,c,t):
     if near and t-brain.last_encounter>3 and t>brain.encounter_until:
         brain.encounter_until=t+(1.0+1.2*role.aggression+.25*role.resolve)
         brain.last_encounter=t
-    engaged=visible and t<brain.encounter_until and gap<2.0*c._strike_reach("jab")
+    # Do not forget the encounter during a brief dodge, turn or lane adjustment.
+    engaged=t<brain.encounter_until and enemy.frame is c.frame and gap<2.0*c._strike_reach("jab")
     state=("engage" if role.role=="hunter" else "fight_to_escape") if engaged else ("hunt" if role.role=="hunter" else "escape")
     if state!=brain.tactical_state:
         brain.tactical_state=state

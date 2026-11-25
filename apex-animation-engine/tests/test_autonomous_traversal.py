@@ -196,3 +196,17 @@ def test_camera_releases_distant_opponent():
     cam=CameraSpec(target="iko",include=["char:pell"],include_distance=800)
     assert c._includes(cam,.4)==[(200,0,300,150)]
     assert c._includes(cam,2)==[]
+
+def test_actor_turn_is_not_an_evasion():
+    from apex.ai.combat_performance import choose_combat_action
+    from apex.ai.autonomous_traversal import TraversalBrain
+    from types import SimpleNamespace as NS
+    frame=object()
+    brain=TraversalBrain(500,pursuit="iko",hostile=True)
+    brain.role=NS(role="hunter")
+    brain.tactical_state="engage"
+    enemy=NS(cid="iko",s=-90,z=0,frame=frame,mode="grounded",lying=False,cur=None,_gone=lambda:False)
+    actor=NS(cid="pell",s=0,z=0,frame=frame,lying=False,carrying=None,cur=None,queue=[],facing=1,
+             _upright=lambda:True,_path_blocker=lambda a,b:None,_strike_reach=lambda move:100,others={"iko":enemy})
+    result=choose_combat_action(brain,actor,0)
+    assert result[0]=="face_threat" and result[1].type=="turn" and result[1].face==-1
