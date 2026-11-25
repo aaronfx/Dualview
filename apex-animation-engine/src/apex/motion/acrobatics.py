@@ -320,6 +320,74 @@ class AcroMixin:
             self.s, self.v = best - d * 11.0, 0.0
             self.world.set_kinematic(self.cid, self.frame.to_world(self.s, self.h), self.world.state(self.cid).angle)
 
+    def _adaptive_body_tick(self, t: float, a: ActionSpec, direction: float, speed: float) -> bool:
+        """Opt-in native ground route adaptation; True holds longitudinal travel.
+        
+        Intent selection reads current controller state. No authored contact,
+        explicit lane, carried object or prop sidestep is overridden.
+        """
+        if (a.lane is not None or a.target is not None or self.carrying
+                or self.inter_action is not None or self.lying or not self._upright()
+                or self.frame.owner is not None or getattr(self, "_sidestep", None) is not None):
+            return False
+        from ..ai.character_brain import CharacterBrain, Intent, Perception, Personality
+        from .controller import Event
+        route = getattr(self, "_adaptive_body_route", None)
+        # A subsequent targeted interaction owns its approach; do not sidestep its partner.
+        intended = {q.target.split(":", 1)[1] for q in self.queue
+                    if q.target and q.target.startswith("char:")}
+        others = [o for cid, o in sorted(self.others.items())
+                  if cid != self.cid and cid not in intended and o.frame is self.frame
+                  and not o.lying and not o._gone() and o.mode in ("grounded", "landing")]
+        if route is not None:
+            tracked = [o for o in others if o.cid in route["ids"]]
+            # Remain offset until all tracked actors are behind or safely far
+            # away. Never return through a body, even if the original target moves.
+            if all((o.s - self.s) * direction < -BODY_GAP - 12
+                   or abs(o.s - self.s) > route["range"] * 1.5 for o in tracked):
+                if all(abs(o.s - self.s) > BODY_GAP + 20 for o in others):
+                    self.z_target = route["home"]
+                    self._adaptive_body_route = None
+                    self.emit(Event(t, "adaptive_resume", self.cid, {"reason": "body_clear"}))
+                return False
+            return any(abs(o.z - self.z) < BODY_PASS_Z + 3 for o in tracked)
+        if t < getattr(self, "_adaptive_body_next", 0.0) or self.z_target is not None:
+            return False
+        self._adaptive_body_next = t + 0.1
+        # Allow time for a 31-unit lateral step, including the 100ms tick.
+        reach = max(120.0, speed * 0.55 + BODY_GAP)
+        conflicts = []
+        for o in others:
+            gap = (o.s - self.s) * direction
+            closing = max(0.0, speed - o.v * direction)
+            if (0 < gap <= min(reach + max(0.0, closing - speed) * 0.55,
+                              abs(a.target_x - self.s) + BODY_GAP)
+                    and abs(o.z - self.z) < BODY_PASS_Z + 3):
+                conflicts.append(o)
+        if not conflicts:
+            return False
+        if not hasattr(self, "_adaptive_brain"):
+            self._adaptive_brain = CharacterBrain(Personality())
+        decision = self._adaptive_brain.decide(Perception(danger=1.0, goal_visible=True,
+                                                         target_id=conflicts[0].cid))
+        if decision.intent is not Intent.EVADE:
+            return False
+        # Reuse the native depth lane allocator with both actor and prop bands.
+        blockers = [(o.cid, o.z, BODY_PASS_Z / 2) for o in others
+                    if abs(o.s - self.s) <= reach * 2]
+        blockers += self._props_in_path(*sorted((self.s, a.target_x)), lookahead=0.35)
+        lane = self._free_lane(blockers)
+        if lane is None or abs(lane - self.z) < 1e-6:
+            return True
+        self._adaptive_body_route = {"ids": tuple(o.cid for o in conflicts),
+                                     "home": self.z, "range": reach}
+        self.z_target = lane
+        self.emit(Event(t, "adaptive_evade", self.cid,
+                        {"others": list(self._adaptive_body_route["ids"]), "lane": lane,
+                         "intent": decision.intent.value,
+                         "visited": [i.value for i in decision.visited]}))
+        return True
+
     def _enforce_bodies(self, t: float, s_prev: float) -> None:
         """Two standing bodies in the same depth lane cannot pass through each other: whatever moved this body
         (a walk, a lunge, a roll, a knockback), it stops at the other's body. Lanes at least BODY_PASS_Z apart pass by

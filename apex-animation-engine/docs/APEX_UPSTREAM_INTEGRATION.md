@@ -17,3 +17,5 @@ Native APEX owns physics, mathematical proof, choreography and acceptance. No re
 | AI4AnimationPy | Research only | Candidate |
 
 Motion Canvas MC1–MC8: isolated package, native interchange, joint/prop rendering, math glyph fidelity, camera/audio/effects, Director adapter, automated export, reference comparisons. The interchange v1 is deliberately limited: sampled world joints, props and event labels; native camera and basic styling now added; time warp, full glyph paths, detailed geometry, audio and effects remain to be added. No visual parity claim.
+
+C6 native trial: opt-in `adaptive_avoidance` on untargeted ground locomotion reads live standing actors, selects EVADE via CharacterBrain, and uses the existing depth-lane allocator. Authored contact, cargo, explicit lanes and existing prop sidesteps are excluded. Standing-blocker native regression committed; moving multi-actor and visual proofs pending.

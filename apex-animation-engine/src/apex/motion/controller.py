@@ -281,6 +281,8 @@ class CharacterController(InteractionMixin, CombatMixin, AcroMixin, ArcadeMixin,
         self.cur_t0 = t
         self.cur_dir = None
         self._carry_route_wait = None
+        self._adaptive_body_route = None
+        self._adaptive_body_next = 0.0
         a = self.cur
         if a is not None and a.lane is not None:
             self.z_target = float(a.lane)
@@ -545,6 +547,9 @@ class CharacterController(InteractionMixin, CombatMixin, AcroMixin, ArcadeMixin,
             self.cur_dir = 1.0 if a.target_x - self.s >= 0 else -1.0
         direction = self.cur_dir  # fixed for the whole action (never re-decided mid-move)
         remaining = (a.target_x - self.s) * direction
+        if a.adaptive_avoidance and self._adaptive_body_tick(t, a, direction, speed):
+            self.v = 0.0
+            return
         nxt = self.queue[0] if self.queue else None
         # A forward jump_to is an active continuation of the run, not a
         # command to brake to zero and launch from a stationary squat.

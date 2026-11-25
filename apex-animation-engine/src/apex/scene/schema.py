@@ -596,6 +596,7 @@ class ActionSpec(Strict):
     lane: Optional[float] = Field(None, ge=-80, le=80)  # move to this depth lane during the action (negative = nearer the camera)
     beats: int = Field(1, ge=1, le=64)  # wait_beat: hold until this many beats from now have started (the next action starts on it)
     clip: Optional[str] = None  # act: full-body clip; run_to/walk_to: upper-body acting overlay while feet keep moving
+    adaptive_avoidance: bool = False  # opt-in proactive body avoidance for untargeted ground locomotion
     notice_while_moving: bool = False  # run_to/walk_to: glance at target during travel; emit causal notice event
     intensity: float = Field(1.0, gt=0, le=2.5)  # act: exaggeration (scales the clip's deviation from neutral)
     tempo: float = Field(1.0, gt=0.2, le=3.0)  # act: playback speed

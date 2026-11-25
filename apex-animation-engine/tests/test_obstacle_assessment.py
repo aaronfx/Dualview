@@ -200,3 +200,17 @@ def test_native_incomplete_course_rejected():
     sim = SceneRuntime(ProjectSpec.model_validate(scene), "s").simulate()
     with pytest.raises(ValueError, match="core not collected"):
         _require_clean_completion(sim, "iko")
+
+
+def test_opt_in_native_body_avoidance_completes_route():
+    raw = _two_char_scene(-500, 100, 600, [])
+    raw["scenes"][0]["actions"][0]["adaptive_avoidance"] = True
+    sim = SceneRuntime(ProjectSpec.model_validate(raw), "s").simulate()
+    assert any(e.type == "adaptive_evade" and e.character == "iko" for e in sim.events)
+    assert any(e.type == "adaptive_resume" and e.character == "iko" for e in sim.events)
+    assert not any(e.type == "body_block" and e.character == "iko" for e in sim.events)
+    a, b = sim.controllers["iko"].records, sim.controllers["pell"].records
+    assert a[-1].s > 590
+    assert all(abs(x.s-y.s) >= 29.9 or abs(x.z-y.z) >= 28
+               for x, y in zip(a,b))
+    assert abs(a[-1].z) < 1
