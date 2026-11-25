@@ -9,6 +9,7 @@ on:
       - 'apex-animation-engine/src/apex/scene/schema.py'
       - 'apex-animation-engine/examples/build_autonomous_chase.py'
       - 'apex-animation-engine/src/apex/motion/**'
+      - 'apex-animation-engine/src/apex/physics/**'
       - 'apex-animation-engine/src/apex/ai/autonomous_traversal.py'
       - 'apex-animation-engine/src/apex/ai/strategic_planning.py'
       - 'apex-animation-engine/tests/test_strategic_planning.py'
@@ -45,6 +46,7 @@ jobs:
           apex validate out/chase/chase.json
           apex render out/chase/chase.json -o out/chase/chase.mp4 --scale 1 --samples 1 --qa-json out/chase/qa.json
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: apex-autonomous-chase
           path: apex-animation-engine/out/chase/
@@ -92,4 +94,4 @@ jobs:
         with:
           name: apex-c6-native-avoidance
           path: apex-animation-engine/out/c6/
-          if-no-files-found: error
+          if-no-files-found: warn

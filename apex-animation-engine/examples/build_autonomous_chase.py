@@ -20,7 +20,7 @@ def build(paced=False):
     raw["characters"][1]["style"].update(body_color="#ef826b",glow_color="#ef826b")
     scene["actions"]=[]
     scene["duration"]=24
-    scene["shots"][0].update(end=24,camera={"mode":"follow","target":"iko","include":["pell"],"keep_in_frame":True,"view_height":720,"offset":[0,0]})
+    scene["shots"][0].update(end=24,camera={"mode":"follow","target":"iko","include":["char:pell"],"keep_in_frame":True,"view_height":720,"offset":[0,0]})
     scene["goals"]=["autonomous_reached@iko"]
     if paced:
         from apex.ai.action_pacing import fit_goal_scene

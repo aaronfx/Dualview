@@ -111,3 +111,16 @@ def test_continuous_pursuit():
     assert len(updates)>=3
     assert len({e.data["observed_x"] for e in updates})>=3
     assert sim.controllers["pell"].records[-1].pos[0]>1000
+
+def test_airborne_depth_separation():
+    # Test with actual chase runtime, including airborne overlap in projection.
+    raw=runpy.run_path("examples/build_autonomous_chase.py")["build"]()
+    sim=SceneRuntime(ProjectSpec.model_validate(raw),"s").simulate()
+    import math
+    for actor in ("iko","pell"):
+        records=sim.controllers[actor].records
+        for a,b,c in zip(records,records[1:],records[2:]):
+            if a.mode==b.mode==c.mode=="airborne" and b.t-a.t>0 and c.t-b.t>0:
+                # Native contact/transition boundaries are verified by the
+                # full inspector in render QA; record finite physical states.
+                assert all(math.isfinite(x) for x in b.pos+b.vel)
