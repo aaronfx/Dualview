@@ -71,3 +71,27 @@ unrelated third-party overlap, isolated prop events and intended pair contact.
 This is a detection correction, not new physics or a proof of full silhouette
 clearance. The Local Studio presentation audit is not yet a mandatory gate;
 the physical root causes and rendered reference comparisons still need work.
+
+
+## Third patch: align historical fixtures, broaden typed objective access
+
+The previous CI run exposed an omitted Skia Linux dependency (libEGL.so.1)
+and two new assertions that expected the wrong exit actor. The original
+CORE RUN builder's ENDS table closes Canyon on PELL's exit and Arena on
+IKO's exit; Tower closes on PELL. The tests now assert the original
+terminal events, not a new exit order. Whether every actor exits before
+the cut is a separate continuity issue, not certified here.
+
+The existing ActorObjective schema now exposes vault, block, evade, recover,
+pull_up, celebrate and lift. These compile into existing native action queues
+and run through the same bounded ensemble rehearsal. Successful defense
+requires actual block_hit/evaded events from the named opponent; lift requires
+lift_ok, and recovery requires stood_up. Existing attack, climb and hand-grab
+proofs now identify their targets. The mission tool schema is generated from
+ActorObjective, so these types become visible to that planner without another
+executor. Full-story Local Studio still uses StoryDirector; this does not claim
+automatic high-level objective selection for every free-form story.
+
+The added tests exercise all seven new compiler mappings, reject unsupported
+target combinations and simulate a real native block with a retained opponent
+action. No existing motion controller, authored film, or QA threshold is changed.

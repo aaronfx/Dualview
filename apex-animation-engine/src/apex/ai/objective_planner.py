@@ -13,7 +13,8 @@ from ..scene.schema import ProjectSpec
 class ActorObjective(Strict):
     id: str = Field(pattern=r"^[A-Za-z][A-Za-z0-9_-]{0,39}$")
     actor:str
-    kind:Literal["observe","signal","collect","climb","exit","help_up","attack"]
+    kind:Literal["observe","signal","collect","climb","exit","help_up","attack",
+                 "vault","block","evade","recover","pull_up","celebrate","lift"]
     target:str
     after:list[str]=Field(default_factory=list,max_length=12)
     urgency:Literal["calm","urgent"]="urgent"
@@ -33,10 +34,11 @@ def compile_objectives(project,request,memory=None):
         kind,sep,target=task.target.partition(":")
         if task.actor not in placed or not sep or kind not in known or target not in known[kind]:
             raise ValueError(f"{task.id}: actor or target does not exist in current scene")
-        if kind=="char" and target==task.actor:raise ValueError("Actor cannot target itself")
+        if kind=="char" and target==task.actor and task.kind!="recover":raise ValueError("Actor cannot target itself")
         actor=task.actor
         brain=memory.actor_brain(p.id,actor) if memory else CharacterBrain(Personality())
-        perception=Perception(ally_needs_help=task.kind=="help_up",goal_visible=True,target_id=target)
+        perception=Perception(ally_needs_help=task.kind in ("help_up","pull_up"),
+                              recovering=task.kind=="recover",goal_visible=True,target_id=target)
         intent=brain.choose(perception)
         def a(typ,**kw):return dict(character=actor,type=typ,**kw)
         gaze=a("notice",target=task.target,duration=.35 if task.urgency=="urgent" else .7)
@@ -50,13 +52,38 @@ def compile_objectives(project,request,memory=None):
             seq=[[a("run_to",target=task.target,speed=310),pickup],[gaze,a("walk_to",target=task.target,speed=180),pickup],[gaze,pickup]]
             if intent==Intent.OBSERVE:seq.reverse()
         elif task.kind=="climb" and kind=="obstacle":
-            proof=f"climbed@{actor}";seq=[[gaze,a("climb",target=task.target,tempo=1.2)],[a("climb",target=task.target)]]
+            proof=f"climbed@{actor}[target={task.target}]";seq=[[gaze,a("climb",target=task.target,tempo=1.2)],[a("climb",target=task.target)]]
         elif task.kind=="exit" and kind=="exit":
             proof=f"exit_reached@{actor}[exit={target}]";seq=[[a("reach_exit",target=task.target,speed=250)],[gaze,a("reach_exit",target=task.target,speed=160)]]
         elif task.kind=="help_up" and kind=="char":
-            proof=f"hand_grab@{target}";seq=[[a("run_to",target=task.target),a("offer_hand",target=task.target)],[a("offer_hand",target=task.target)]]
+            proof=f"hand_grab@{target}[with={actor}]";seq=[[a("run_to",target=task.target),a("offer_hand",target=task.target)],[a("offer_hand",target=task.target)]]
         elif task.kind=="attack" and kind=="char":
-            proof=f"hit@{actor}";seq=[[a("strike",target=task.target,move=m)] for m in ("jab","cross","front_kick")]
+            proof=f"hit@{actor}[target={target}]";seq=[[a("strike",target=task.target,move=m)] for m in ("jab","cross","front_kick")]
+        elif task.kind=="vault" and kind in ("obstacle","prop"):
+            proof=f"vault@{actor}[target={task.target}]"
+            seq=[[a("vault",target=task.target)],[gaze,a("vault",target=task.target)]]
+        elif task.kind=="block" and kind=="char":
+            # A guard pose alone does not prove successful defense.
+            proof=f"block_hit@{actor}[by={target}]"
+            seq=[[a("guard",until="next:"+proof)]]
+        elif task.kind=="evade" and kind=="char":
+            proof=f"evaded@{actor}[by={target}]"
+            wait=a("wait_for",until=f"next:strike_start@{target}[target={actor}]")
+            seq=[[wait,a("dodge",dodge=style)] for style in ("back","duck")]
+        elif task.kind=="recover" and kind=="char" and target==actor:
+            proof=f"stood_up@{actor}"
+            seq=[[a("wait_for",until=f"event:settled@{actor}"),a("get_up")],
+                 [a("get_up")]]
+        elif task.kind=="pull_up" and kind=="char":
+            proof=f"pulled_up@{target}[by={actor}]"
+            seq=[[a("pull_up",target=task.target)]]
+        elif task.kind=="celebrate" and kind=="char":
+            proof=f"fist_bump@{actor}[with={target}]"
+            seq=[[a("gesture",target=task.target,gesture="fist_bump"),a("act",clip="cheer",emotion="joyful",duration=.8)],
+                 [a("gesture",target=task.target,gesture="fist_bump")]]
+        elif task.kind=="lift" and kind=="prop":
+            proof=f"lift_ok@{actor}[prop={target}]"
+            seq=[[a("lift",target=task.target,effort=e)] for e in (1.0,1.4)]
         else:raise ValueError(f"{task.id}: unsupported objective/target combination")
         out.append(Task(id=task.id,actor=actor,after=task.after,proof=proof,alternatives=seq))
         trace.append({"task":task.id,"actor":actor,"intent":intent.value,"target":task.target,"alternatives":len(seq)})

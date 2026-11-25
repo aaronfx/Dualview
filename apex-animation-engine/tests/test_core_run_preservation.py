@@ -14,11 +14,12 @@ from apex.scene.runtime import SceneRuntime
 from apex.scene.schema import ProjectSpec
 
 ROOT = Path(__file__).resolve().parents[1]
+# Terminal events match ENDS in examples/build_core_run.py, not an invented cut time.
 REQUIRED = {
     "city": ("break@case", "vault@iko", "hurt@iko", "hand_offered@pell", "exit_reached@iko"),
-    "tower": ("climbed@iko", "knockdown@iko", "hand_offered@pell", "point@pell", "exit_reached@iko"),
-    "canyon": ("collapse@bridge", "orb_jump@iko", "throw_start@pell", "creature_break@drone", "exit_reached@iko"),
-    "arena": ("knockdown@iko", "disarm@vex", "stood_up@iko", "knockdown@vex", "pick_up@iko[prop=core]", "exit_reached@pell"),
+    "tower": ("climbed@iko", "knockdown@iko", "hand_offered@pell", "point@pell", "exit_reached@iko", "exit_reached@pell"),
+    "canyon": ("collapse@bridge", "orb_jump@iko", "throw_start@pell", "creature_break@drone", "exit_reached@pell"),
+    "arena": ("knockdown@iko", "disarm@vex", "stood_up@iko", "knockdown@vex", "pick_up@iko[prop=core]", "exit_reached@iko"),
     "summit": ("place@iko", "gesture_start@iko", "fist_bump@iko"),
 }
 
