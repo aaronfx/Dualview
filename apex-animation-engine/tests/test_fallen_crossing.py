@@ -15,5 +15,9 @@ def test_fallen_crossing_native(tmp_path, monkeypatch):
     assert all(a.t <= b.t for a,b in zip(seq,seq[1:]))
     rec = sim.controllers["iko"].records
     assert any(r.mode == "airborne" for r in rec)
-    assert rec[-1].mode == "grounded"
+    landing = next((e for e in sim.events if e.type == "impact" and e.character == "iko" and e.t > seq[-1].t), None)
+    assert landing is not None, "no physical landing after jump"
+    assert sim.controllers["iko"].mode == "grounded"
+    assert rec[-1].frame == "floor"
+    assert rec[-1].pos[0] > 800
     assert rec[-1].pos[0] > sim.controllers["pell"].records[-1].pos[0] + 180
