@@ -75,29 +75,50 @@ def check_character_overlap(rt, sim=None, penetrate=26.0, y_gap=120.0, tol_frac=
         return {"name": "visible_character_overlap", "status": "PASS", "metric": 0.0, "threshold": tol_frac,
                 "detail": "single character"}
     wall = rt.env.room.width / 2 + 40            # past this a character has gone through an exit (faded off screen)
-    # requirement 9: windows of intentional close contact (combat/rescue/cooperation) are expected, not penetration
-    contact = sorted(e.t for e in sim.events if e.type in _INTENTIONAL_CONTACT)
+    # Contact is pair-specific. A rescue, punch or gesture elsewhere in an
+    # ensemble must not grant every other actor permission to intersect.
     import bisect
-    def intentional(t, w=1.6):
-        j = bisect.bisect_left(contact, t)
-        return (j < len(contact) and contact[j] - t <= w) or (j > 0 and t - contact[j - 1] <= w)
+    from collections import defaultdict
+    contacts = defaultdict(list)
+    actors = set(cids)
+    for e in sim.events:
+        if e.type not in _INTENTIONAL_CONTACT and e.type not in ("strike_start", "gesture_start"):
+            continue
+        if e.character not in actors:
+            continue
+        for field in ("with", "target", "to", "by"):
+            other = e.data.get(field)
+            if not isinstance(other, str):
+                continue
+            if other.startswith("char:"):
+                other = other[5:]
+            if other in actors and other != e.character:
+                contacts[frozenset((e.character, other))].append(e.t)
+    for times in contacts.values():
+        times.sort()
+
+    def intentional(a, b, t, w=1.6):
+        times = contacts.get(frozenset((a, b)), ())
+        j = bisect.bisect_left(times, t)
+        return (j < len(times) and times[j] - t <= w) or (j > 0 and t - times[j - 1] <= w)
     recs = {c: sim.controllers[c].records for c in cids}
     n = min(len(recs[c]) for c in cids)
     total = bad = 0
     worst = None
     for i in range(0, n, 2):
         total += 1
+        frame_bad = False
         for a in range(len(cids)):
             for b in range(a + 1, len(cids)):
                 ra, rb = recs[cids[a]][i], recs[cids[b]][i]
                 if abs(ra.pos[0]) > wall or abs(rb.pos[0]) > wall:   # one has exited; not on screen
                     continue
                 dx, dy = abs(ra.pos[0] - rb.pos[0]), abs(ra.pos[1] - rb.pos[1])
-                if dx < penetrate and dy < y_gap and not intentional(ra.t):   # unintended interpenetration (any depth)
-                    bad += 1
+                if dx < penetrate and dy < y_gap and not intentional(cids[a], cids[b], ra.t):
+                    frame_bad = True
                     if worst is None or dx < worst[0]:
                         worst = (dx, cids[a], cids[b], round(ra.t, 2), round(abs(ra.z - rb.z)))
-                    break
+        bad += int(frame_bad)
     frac = bad / total if total else 0.0
     ok = frac <= tol_frac
     return {"name": "visible_character_overlap", "status": "PASS" if ok else "FAIL", "metric": round(frac, 3),

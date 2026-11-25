@@ -109,3 +109,42 @@ def test_corrected_autonomous_film_passes_presentation_audit():
     sim = rt.simulate()
     assert not [c.violation for c in sim.controllers.values() if c.violation]   # physical validation intact
     assert all(c["status"] == "PASS" for c in presentation_audit(rt, sim))
+
+
+# Pair-specific exemptions: synthetic telemetry isolates the audit from
+# choreography. Native simulation tests above still exercise actual records.
+def _overlap_records(xs, events):
+    from types import SimpleNamespace as NS
+    rt = NS(env=NS(room=NS(width=3200)))
+    controllers = {cid: NS(records=[NS(t=1.0, pos=(x, 90), z=0)])
+                   for cid, x in xs.items()}
+    return rt, NS(controllers=controllers, events=events)
+
+
+def test_contact_exemption_cannot_hide_an_unrelated_pair():
+    from types import SimpleNamespace as NS
+    event = NS(t=1.0, type="hand_grab", character="iko", data={"with": "pell"})
+    rt, sim = _overlap_records({"iko": -300, "pell": -290, "vex": -290}, [event])
+    report = check_character_overlap(rt, sim)
+    assert report["status"] == "FAIL"
+    assert report["metric"] == 1.0
+    assert "vex" in report["detail"]
+
+
+def test_same_pair_intentional_contact_retains_exception():
+    from types import SimpleNamespace as NS
+    event = NS(t=1.0, type="hand_grab", character="iko", data={"with": "pell"})
+    rt, sim = _overlap_records({"iko": -300, "pell": -290, "vex": 300}, [event])
+    assert check_character_overlap(rt, sim)["status"] == "PASS"
+
+
+def test_unpaired_prop_interaction_does_not_exempt_character_collision():
+    from types import SimpleNamespace as NS
+    event = NS(t=1.0, type="lift_start", character="iko", data={"prop": "girder"})
+    rt, sim = _overlap_records({"iko": 100, "pell": 100}, [event])
+    assert check_character_overlap(rt, sim)["status"] == "FAIL"
+
+
+def test_overlap_fraction_counts_frames_not_pairs():
+    rt, sim = _overlap_records({"iko": 0, "pell": 0, "vex": 0}, [])
+    assert check_character_overlap(rt, sim)["metric"] == 1.0

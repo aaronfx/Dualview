@@ -37,3 +37,37 @@ full mission-tool integration, proactive multi-actor avoidance, native visual
 regression and live paid E2E remain outside this patch.
 
 No paid AI calls or deployment are required for these regression tests.
+
+
+## Historical CORE RUN audit and second boundary patch
+
+Source checked against the unified tree at de88d32 and the builder history:
+- 9669f014: strikes at props, failed and assisted get-up, City and Tower.
+- d4912dd2: assisted recovery grip/height and blocked strike recoil fixes.
+- fda0ff1d: vault clearance and hand/foot staging; authored lanes and approaches.
+- f5d7d5f2: carried props during aerial motion, faster pacing, depth-aware throws.
+- dff43e8f: carried props through exits and coordinated canyon/drone action.
+
+These capabilities remain visible in examples/build_core_run.py, core_run.json,
+motion/combat.py, motion/interaction.py, motion/rescue.py, motion/controller.py,
+motion/acrobatics.py and SceneRuntime. CORE RUN has five authored action queues
+with explicit movement coordinates, clip choices, strike combinations and
+event waits. The action catalogue already enumerates the native ActionType
+schema. The missing capability is general high-level orchestration: the
+objective planner exposes seven kinds, and CharacterBrain chooses from six
+intents using a snapshot supplied by the caller. This is not yet continuous
+runtime perception or independent combat decision-making.
+
+Existing qa/benchmark.py and test_regression_films.py already cover Last Retry
+and The Rescue. CORE RUN was not in that film registry. The new
+test_core_run_preservation.py freezes independent event obligations for its
+five scenes and ensures the action/clip catalogue covers all three historical
+films. It reuses native simulation, not another choreography engine.
+
+The presentation overlap detector previously waived collisions globally
+within 1.6 seconds of any intentional contact. It now scopes that same window
+to identified actor pairs and counts each bad frame once. Tests reproduce
+unrelated third-party overlap, isolated prop events and intended pair contact.
+This is a detection correction, not new physics or a proof of full silhouette
+clearance. The Local Studio presentation audit is not yet a mandatory gate;
+the physical root causes and rendered reference comparisons still need work.
