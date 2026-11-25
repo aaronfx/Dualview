@@ -285,7 +285,7 @@ class InteractionMixin:
                         bands += oc._props_in_path(oc.s, oc.s + direction * 65.0)
                         lane = oc._free_lane(bands)
                         self.emit(self._ev(t, "nudge", {"with": oc.cid, "point": mid}))
-                        oc._receive(t, self.cid, "nudge", a.reaction, 0.35, direction, "body", mid, push=((1.5, 0.02) if a.note == "forward_crossing" and a.reaction == "knockdown" else (0.65, 0.02)))
+                        oc._receive(t, self.cid, "nudge", a.reaction, 0.35, direction, "body", mid, push=((2.35, 0.02) if a.note == "forward_crossing" and a.reaction == "knockdown" else (0.65, 0.02)))
                         I["push_contact"] = True
                         if lane is not None and a.reaction == "stagger":
                             oc.z_target = lane

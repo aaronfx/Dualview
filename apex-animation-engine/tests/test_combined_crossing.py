@@ -10,7 +10,8 @@ def test_combined_crossing_native(tmp_path, monkeypatch):
     sim = SceneRuntime(ProjectSpec.model_validate_json(p.read_text()), "s").simulate()
     def event(kind, who):
         return next((e for e in sim.events if e.type == kind and e.character == who), None)
-    seq = [event("nudge","iko"),event("settled","ren"),event("adaptive_jump","iko"),event("takeoff","iko")]
+    second_push = next((e for e in sim.events if e.type == "nudge" and e.character == "iko" and e.data.get("with") == "ren"), None)
+    seq = [event("nudge","iko"),event("nudge_clear","iko"),second_push,event("settled","ren"),event("adaptive_jump","iko"),event("takeoff","iko")]
     assert all(seq), [(e.type,e.character,e.data) for e in sim.events if e.type in ("nudge_blocked","settled","adaptive_jump","takeoff")]
     assert all(a.t <= b.t for a,b in zip(seq,seq[1:]))
     rec = sim.controllers["iko"].records

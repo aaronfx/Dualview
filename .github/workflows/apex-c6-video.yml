@@ -25,6 +25,7 @@ jobs:
       - run: python -m pip install -e '.[dev]'
       - run: python -m pytest -q tests/test_character_brain.py tests/test_obstacle_assessment.py -k 'character_brain or opt_in_native_body'
       - run: python -m pytest -q tests/test_live_clearance_jump.py
+      - run: python -m pytest -q tests/test_combined_crossing.py
       - run: |
           mkdir -p out/c6
           python examples/build_adaptive_avoidance.py out/c6/avoidance.json
@@ -35,7 +36,6 @@ jobs:
           python -m pytest -q tests/test_fallen_crossing.py
           apex validate out/c6/fallen.json
           apex render out/c6/fallen.json -o out/c6/fallen.mp4 --scale 1 --samples 1 --qa-json out/c6/fallen-qa.json
-          python -m pytest -q tests/test_combined_crossing.py
           python examples/build_combined_crossing.py out/c6/combined.json
           apex validate out/c6/combined.json
           apex render out/c6/combined.json -o out/c6/combined.mp4 --scale 1 --samples 1 --qa-json out/c6/combined-qa.json
