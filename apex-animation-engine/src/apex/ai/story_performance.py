@@ -10,7 +10,7 @@ def observe_encounter(brain,c,t):
              and abs(enemy.z-c.z)<BODY_PASS_Z and not c._path_blocker(c.s,enemy.s))
     near=visible and gap<1.4*c._strike_reach("jab")
     if near and t-brain.last_encounter>3 and t>brain.encounter_until:
-        brain.encounter_until=t+(1.0+1.2*role.aggression)
+        brain.encounter_until=t+(1.0+1.2*role.aggression+.25*role.resolve)
         brain.last_encounter=t
     engaged=visible and t<brain.encounter_until and gap<2.0*c._strike_reach("jab")
     state=("engage" if role.role=="hunter" else "fight_to_escape") if engaged else ("hunt" if role.role=="hunter" else "escape")

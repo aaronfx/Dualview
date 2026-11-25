@@ -169,3 +169,20 @@ def test_hostile_pursuer_cannot_abandon_scene():
     reports=audit_hostile_liveness(sim,raw["scenes"][0]["placements"])
     assert all(r["passed"] for r in reports.values()), reports
     assert sim.controllers["pell"].records[-1].pos[0]>1000, reports
+
+def test_actor_brief_compiler_preserves_native_scene():
+    import json
+    from apex.ai.actor_brief_compiler import compile_actor_briefs
+    raw=runpy.run_path("examples/build_autonomous_chase.py")["build"](hostile=True)
+    scene=raw["scenes"][0]
+    roles={p["character"]:p["actor_role"] for p in scene["placements"]}
+    prompts={k:v["prompt"] for k,v in roles.items()}
+    class Fake:
+        def complete(self,system,user,max_tokens):
+            assert json.loads(user)["prompts"]==prompts
+            return json.dumps(roles)
+    project=compile_actor_briefs(raw,"s",scene["storyline"],prompts,Fake())
+    assert not project.scene("s").actions
+    assert project.scene("s").placements[1].actor_role.role=="hunter"
+    with pytest.raises(ValueError):
+        compile_actor_briefs(raw,"s",scene["storyline"],prompts,None)

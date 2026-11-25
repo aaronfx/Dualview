@@ -45,4 +45,10 @@ def build(paced=False, hostile=False):
     return raw
 
 if __name__=="__main__":
-    Path(sys.argv[1]).write_text(json.dumps(build(True, hostile='--hostile' in sys.argv)),encoding="utf-8")
+    path=Path(sys.argv[1])
+    if "--hostile" in sys.argv:
+        from apex.ai.hostile_rehearsal import rehearse_hostile
+        raw=rehearse_hostile(build(hostile=True),"s",path.parent)
+    else:
+        raw=build(True)
+    path.write_text(json.dumps(raw),encoding="utf-8")

@@ -41,6 +41,11 @@ def choose_combat_action(brain,c,t):
         return None
     moves=("jab","cross","hook","front_kick","side_kick") if brain.hostile else ("side_kick","cross","front_kick")
     feasible=[move for move in moves if .55*c._strike_reach(move)<=gap<=c._strike_reach(move)]
+    if getattr(brain,"role",None) is not None:
+        # Reserve the swept limb envelope beyond both actors; avoid starting a
+        # contact beside a beam when a recoil or follow-through can graze it.
+        feasible=[move for move in feasible if not c._path_blocker(c.s,c.s+direction*(c._strike_reach(move)+28),top=c.stand_h+c.shoulder_up+25)
+                  and not c._path_blocker(c.s,c.s-direction*35,top=c.stand_h+c.shoulder_up+25)]
     if not feasible:
         return None
     # Preserve variety without selecting a move outside actual reach.

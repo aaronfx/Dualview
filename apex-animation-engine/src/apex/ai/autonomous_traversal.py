@@ -32,6 +32,9 @@ class TraversalBrain:
     tactical_state: str = 'unaware'
     encounter_until: float = -1.0
     last_encounter: float = -10.0
+    outcomes: list = field(default_factory=list)
+    blocked_since: float | None = None
+    last_retry: float = -10.0
 
     def invalidate_after_hit(self,c,t,by):
         """Combat supersedes speculative traversal, never replay a stale queue."""
@@ -77,6 +80,10 @@ class TraversalBrain:
         if self.done or t < self.next_tick or c.mode != "grounded":
             return
         self.next_tick = t + (.035 if self.fast else .10)
+        if self.role is not None and c.lying and c.knocked and c.cur is None and not c.queue:
+            c.queue.append(ActionSpec(character=c.cid,type="get_up"))
+            c.emit(Event(t,"autonomous_decision",c.cid,{"skill":"recover","target":self.role.opponent}))
+            return
         if self.pursuit is not None:
             target=c.others[self.pursuit]
             if self.chase_ceiling is None:
@@ -137,8 +144,13 @@ class TraversalBrain:
             return
         if self.pending is not None:
             key, origin = self.pending
-            if abs(c.s-origin) < 8:
+            delta=abs(c.s-origin)
+            if delta < 8:
                 self.attempts[key] = self.attempts.get(key, 0) + 1
+            if self.role is not None:
+                result={"skill":key[0],"target":key[1],"displacement":round(delta,2),"progress":delta>=8}
+                self.outcomes=(self.outcomes+[result])[-16:]
+                c.emit(Event(t,"actor_action_outcome",c.cid,result))
             self.pending = None
         def emit(kind, **data):
             c.emit(Event(t, kind, c.cid, data))
@@ -324,6 +336,7 @@ class TraversalBrain:
             key, action, proof=contract
             py_trees.composites.Selector(name="traversal",memory=False,children=[Candidate((key,action))]).tick_once()
             key, action=selected[0]
+            self.blocked_since=None
             self.pending=(key,c.s)
             self.active_action=action
             self.progress_x,self.progress_t=c.s,t
@@ -362,3 +375,12 @@ class TraversalBrain:
             if self.last != key:
                 emit("autonomous_blocked",reason="no verified native action",x=c.s,goal=self.goal,obstacle=hit[1].owner if hit else None,attempts=str(self.attempts),tactical_state=self.tactical_state)
             self.last=key
+            if self.role is not None:
+                if self.blocked_since is None:
+                    self.blocked_since=t
+                if t-self.blocked_since>.45 and t-self.last_retry>1.0 and self.attempts:
+                    # Reassess previously failed candidates only after a bounded
+                    # cooldown. Physics remains the authority; no blind retry loop.
+                    self.attempts.clear()
+                    self.last_retry=t
+                    emit("autonomous_replan",reason="blocked; refreshed candidate search",x=c.s,goal=self.goal)

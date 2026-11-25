@@ -721,6 +721,7 @@ class CameraSpec(Strict):
     keep_in_frame: bool = True
     bound_to_room: bool = False  # the view never shows past the room's walls (it slides along them instead)
     include: List[str] = Field(default_factory=list)  # world objects kept in frame with the subject ("bar:rail", "exit:door1", ...)
+    include_distance: Optional[float] = Field(None, gt=0)  # only include a distant actor when relevant
     include_margin: float = Field(45.0, ge=0)  # world units around each included object
     min_subject_frac: Optional[float] = None  # composition: subject height / frame height (default by shot kind)
 
