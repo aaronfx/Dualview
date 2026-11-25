@@ -34,6 +34,7 @@ class Objective:
     prefer_prop_interaction: bool = False
     movable_prop_id: Optional[str] = None
     pacing: PaceName = "active"  # director asks for brisk, decisive acting; measured retains the previous benchmark
+    exclude_tactics: tuple[str, ...] = ()  # tactic names the search must not select (dynamic re-selection fallback)
 
     def __post_init__(self):
         if not 4 <= self.max_trial_seconds <= 60:
@@ -292,6 +293,12 @@ def evaluate(project: ProjectSpec, objective: Objective, candidate: Candidate) -
     picked = _first_event(result.events, "pick_up", actor, prop=objective.goal_prop_id)
     if violation or failed:
         return Trial(candidate.name, False, f"controller rejected: {violation or ', '.join(failed)}", times)
+    # A clean clearance never scrapes the obstacle. A `graze` is an uncontrolled body-vs-structure collision mid-move
+    # (the impulse that otherwise surfaces as a spurious gravity_direction spike): the tactic did NOT clear the body,
+    # so it is rejected and the search adapts to a tactic that does (e.g. climb a pillar too tall/narrow to hurdle).
+    graze = _first_event(result.events, "graze", actor)
+    if graze is not None:
+        return Trial(candidate.name, False, "body grazed the structure (not a clean clearance)", times)
     if candidate.required_event and not _first_event(result.events, candidate.required_event, actor):
         return Trial(candidate.name, False, f"missing physics event {candidate.required_event}", times)
     if picked is None:
@@ -319,7 +326,7 @@ def evaluate(project: ProjectSpec, objective: Objective, candidate: Candidate) -
 
 def search(project: ProjectSpec, objective: Objective) -> SearchResult:
     trials: list[Trial] = []
-    candidates = propose(project, objective)
+    candidates = tuple(c for c in propose(project, objective) if c.name not in objective.exclude_tactics)
     for c in candidates:
         trials.append(evaluate(project, objective, c))
     winners = [(t.score, i) for i, t in enumerate(trials) if t.accepted and t.score is not None]

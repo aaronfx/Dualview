@@ -65,10 +65,11 @@ def parse_brief(brief: str) -> dict:
     """Deterministically map a brief to a world + bounded objectives. Returns the plan skeleton."""
     b = brief.lower()
     partner = any(w in b for w in ("partner", "ally", "together", "friend", "team", "companion", "two "))
-    # Two characters share ONE depth lane so native body collision is active (no pass-through). To stay physically
-    # coherent they traverse flat ground together (lead + trail); single-character and pursuit scenes carry the
-    # climb/jump obstacle work, where one actor crosses with full autochoreo tactic search.
-    has_barrier = (not partner) and any(w in b for w in ("barrier", "wall", "climb", "scale", "obstacle", "gap", "ledge"))
+    # Two characters share ONE depth lane so native body collision is active (no pass-through). The brief's own words
+    # decide whether a barrier exists; when they do and a partner is present, BOTH allies cross the barrier (the lead
+    # via full autochoreo tactic search, the trailing partner via the same native climb), so the depicted film is
+    # faithful to the brief ("one climbs ... then both flee") without any character passing through the structure.
+    has_barrier = any(w in b for w in ("barrier", "wall", "climb", "scale", "obstacle", "gap", "ledge"))
     core_word = next((w for w in ("core", "artifact", "relic", "data", "key", "spark", "sample") if w in b), "core")
     beats = []
     beats.append(("observe", "obstacle:barrier" if has_barrier else "prop:core"))
@@ -155,17 +156,22 @@ def _partner_actions(plan, exit_x):
     sp = plan.get("run_speed", 300.0)
     A = lambda typ, **kw: dict(character="pell", type=typ, **kw)
     watch = plan.get("watch_clip", "peer_down")
-    return [A("notice", target="char:iko", duration=0.5),                            # observe the leader
+    acts = [A("notice", target="char:iko", duration=0.5),                            # observe the leader
             A("act", clip="beckon", emotion="encouraging", duration=0.9),            # urge iko on (lets iko pull ahead)
             A("run_to", target_x=-180, speed=sp),                                    # advance, staying behind iko
             A("act", clip=watch, emotion="anxious", duration=1.2),                   # watch iko work
             A("point", target="prop:core", duration=0.7),                            # communicate the goal
             A("wait_for", until="event:pick_up@iko[prop=core]"),
-            A("act", clip="cheer", emotion="joyful", duration=1.0),                  # react to the recovery
-            A("run_to", target_x=round(exit_x - 640), speed=sp),                     # follow toward the exit, trailing
-            A("wait_for", until="event:exit_reached@iko[exit=airlock]"),             # iko clears the doorway first
-            A("act", clip=plan.get("payoff_clip", "cheer"), emotion="joyful", duration=1.1),   # closing reaction
-            A("reach_exit", target="exit:airlock", speed=sp)]
+            A("act", clip="cheer", emotion="joyful", duration=1.0)]                  # react to the recovery
+    if plan["has_barrier"]:
+        # the partner follows the leader over the SAME barrier via the native climb (iko has already crossed and moved
+        # on, so pell climbs into clear space — no pass-through, no overtake)
+        acts.append(A("climb", target="obstacle:barrier"))
+    acts += [A("run_to", target_x=round(exit_x - 640), speed=sp),                    # follow toward the exit, trailing
+             A("wait_for", until="event:exit_reached@iko[exit=airlock]"),            # iko clears the doorway first
+             A("act", clip=plan.get("payoff_clip", "cheer"), emotion="joyful", duration=1.1),  # closing reaction
+             A("reach_exit", target="exit:airlock", speed=sp)]
+    return acts
 
 
 def _event_cameras(plan, events, duration):

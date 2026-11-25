@@ -11,7 +11,10 @@ from pathlib import Path
 from apex.ai.obstacle_course import plan_course
 from apex.scene.schema import ProjectSpec
 
-# a rooftop course: different heights, gaps and positions
+# A rooftop course of UNFAMILIAR geometry: 80-unit-wide pillars of different heights, gaps and positions. The
+# dimensions are fixed on purpose — the engine must ASSESS each obstacle (height, width, landing space, approach,
+# reach) and adapt its tactic (hurdle the low ones, climb the tall/narrow ones it cannot clear in flight), rather
+# than the course being reshaped to suit one tactic. This is the autonomous-adaptation regression fixture.
 COURSE = [{"id": "roof1", "center": [-200.0, 65.0], "size": [80.0, 130.0]},
           {"id": "roof2", "center": [260.0, 100.0], "size": [80.0, 200.0]},
           {"id": "roof3", "center": [720.0, 80.0], "size": [80.0, 160.0]}]
@@ -22,9 +25,9 @@ TOWER = {"kind": "tower", "art_profile": "industrial_depth", "seed": 42, "weathe
 def main():
     ap = argparse.ArgumentParser(description=__doc__)
     ap.add_argument("output", type=Path)
-    ap.add_argument("--jump-apex", type=float, default=250.0)
+    ap.add_argument("--jump-apex", type=float, default=260.0)
     a = ap.parse_args()
-    scene, report = plan_course(COURSE, start_x=-660.0, width=3400.0, max_jump_apex=a.jump_apex)
+    scene, report = plan_course(COURSE, start_x=-760.0, width=3600.0, max_jump_apex=a.jump_apex)
     scene["environments"][0]["backdrop"] = TOWER
     p = ProjectSpec.model_validate(scene)
     a.output.parent.mkdir(parents=True, exist_ok=True)
