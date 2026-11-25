@@ -320,8 +320,8 @@ class AcroMixin:
             self.s, self.v = best - d * 11.0, 0.0
             self.world.set_kinematic(self.cid, self.frame.to_world(self.s, self.h), self.world.state(self.cid).angle)
 
-    def _adaptive_body_tick(self, t: float, a: ActionSpec, direction: float, speed: float) -> bool:
-        """Opt-in native ground route adaptation; True holds longitudinal travel.
+    def _adaptive_body_tick(self, t: float, a: ActionSpec, direction: float, speed: float) -> float:
+        """Opt-in native ground route adaptation; returns a longitudinal speed cap.
         
         Intent selection reads current controller state. No authored contact,
         explicit lane, carried object or prop sidestep is overridden.
@@ -329,9 +329,9 @@ class AcroMixin:
         if (a.lane is not None or a.target is not None or self.carrying
                 or self.inter_action is not None or self.lying or not self._upright()
                 or self.frame.owner is not None or getattr(self, "_sidestep", None) is not None):
-            return False
+            return speed
         from ..ai.character_brain import CharacterBrain, Intent, Perception, Personality
-        from .controller import Event
+        from .controller import Event, LANE_RATE
         route = getattr(self, "_adaptive_body_route", None)
         # A subsequent targeted interaction owns its approach; do not sidestep its partner.
         intended = {q.target.split(":", 1)[1] for q in self.queue
@@ -349,36 +349,46 @@ class AcroMixin:
                     self.z_target = route["home"]
                     self._adaptive_body_route = None
                     self.emit(Event(t, "adaptive_resume", self.cid, {"reason": "body_clear"}))
-                return False
-            return any(abs(o.z - self.z) < BODY_PASS_Z + 3 for o in tracked)
+                return speed
+            # Keep forward momentum whenever the remaining longitudinal gap
+            # permits the lateral step to finish before a potential contact.
+            # This is a conservative velocity cap, not a full ORCA solver.
+            cap = speed
+            for o in others:
+                gap = (o.s - self.s) * direction
+                if gap <= 0 or abs(o.z - self.z) >= BODY_PASS_Z + 3:
+                    continue
+                lateral_time = (BODY_PASS_Z + 3 - abs(o.z - self.z)) / LANE_RATE + 0.10
+                cap = min(cap, max(0.0, (gap - BODY_GAP - 12) / lateral_time + o.v * direction))
+            return cap
         if t < getattr(self, "_adaptive_body_next", 0.0) or self.z_target is not None:
-            return False
+            return speed
         self._adaptive_body_next = t + 0.1
         # Allow time for a 31-unit lateral step, including the 100ms tick.
-        reach = max(120.0, speed * 0.55 + BODY_GAP)
+        reach = max(160.0, speed * 0.8 + BODY_GAP)
         conflicts = []
         for o in others:
             gap = (o.s - self.s) * direction
             closing = max(0.0, speed - o.v * direction)
-            if (0 < gap <= min(reach + max(0.0, closing - speed) * 0.55,
+            if (0 < gap <= min(reach + max(0.0, closing - speed) * 0.8,
                               abs(a.target_x - self.s) + BODY_GAP)
                     and abs(o.z - self.z) < BODY_PASS_Z + 3):
                 conflicts.append(o)
         if not conflicts:
-            return False
+            return speed
         if not hasattr(self, "_adaptive_brain"):
             self._adaptive_brain = CharacterBrain(Personality())
         decision = self._adaptive_brain.decide(Perception(danger=1.0, goal_visible=True,
                                                          target_id=conflicts[0].cid))
         if decision.intent is not Intent.EVADE:
-            return False
+            return speed
         # Reuse the native depth lane allocator with both actor and prop bands.
         blockers = [(o.cid, o.z, BODY_PASS_Z / 2) for o in others
                     if abs(o.s - self.s) <= reach * 2]
         blockers += self._props_in_path(*sorted((self.s, a.target_x)), lookahead=0.35)
         lane = self._free_lane(blockers)
         if lane is None or abs(lane - self.z) < 1e-6:
-            return True
+            return 0.0
         self._adaptive_body_route = {"ids": tuple(o.cid for o in conflicts),
                                      "home": self.z, "range": reach}
         self.z_target = lane
@@ -386,7 +396,7 @@ class AcroMixin:
                         {"others": list(self._adaptive_body_route["ids"]), "lane": lane,
                          "intent": decision.intent.value,
                          "visited": [i.value for i in decision.visited]}))
-        return True
+        return self._adaptive_body_tick(t, a, direction, speed)
 
     def _enforce_bodies(self, t: float, s_prev: float) -> None:
         """Two standing bodies in the same depth lane cannot pass through each other: whatever moved this body

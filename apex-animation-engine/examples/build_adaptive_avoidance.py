@@ -32,5 +32,8 @@ if __name__ == "__main__":
     raw["title"] = "Anticipate, evade, resume"
     scene = raw["scenes"][0]
     scene["actions"][0]["adaptive_avoidance"] = True
+    scene["duration"] = 4.5
+    scene["shots"][0]["end"] = 4.5
+    scene["shots"][0]["camera"] = {"mode": "follow", "target": "iko", "view_height": 550, "include": ["char:pell"], "keep_in_frame": True}
     scene["goals"] = ["adaptive_evade@iko", "adaptive_resume@iko"]
     Path(sys.argv[1]).write_text(json.dumps(raw), encoding="utf-8")

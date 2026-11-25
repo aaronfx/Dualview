@@ -547,9 +547,7 @@ class CharacterController(InteractionMixin, CombatMixin, AcroMixin, ArcadeMixin,
             self.cur_dir = 1.0 if a.target_x - self.s >= 0 else -1.0
         direction = self.cur_dir  # fixed for the whole action (never re-decided mid-move)
         remaining = (a.target_x - self.s) * direction
-        if a.adaptive_avoidance and self._adaptive_body_tick(t, a, direction, speed):
-            self.v = 0.0
-            return
+        route_cap = self._adaptive_body_tick(t, a, direction, speed) if a.adaptive_avoidance else speed
         nxt = self.queue[0] if self.queue else None
         # A forward jump_to is an active continuation of the run, not a
         # command to brake to zero and launch from a stationary squat.
@@ -572,9 +570,10 @@ class CharacterController(InteractionMixin, CombatMixin, AcroMixin, ArcadeMixin,
                                      (nxt.type in ("walk_to", "run_to") and nxt.target_x is not None
                                       and (nxt.target_x - a.target_x) * direction > 0))
         v_des = speed if carry else min(speed, math.sqrt(2 * dec * max(remaining, 0.0)))
+        v_des = min(v_des, route_cap)
         cur = self.v * direction
         cur = min(cur + acc * dt, v_des) if cur < v_des else max(cur - dec * dt, v_des)
-        self.v = cur * direction
+        self.v = min(cur, route_cap) * direction
         waiting = getattr(self, "_carry_route_wait", None)
         # Require a meaningful clearance margin before restarting; a single
         # tiny acceleration step otherwise emits false resume/wait cycles.
