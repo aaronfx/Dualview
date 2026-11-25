@@ -8,8 +8,7 @@ from copy import deepcopy
 
 from .mission import TOOL_SCHEMA, ObjectiveTool, EnsembleTool
 from .objective_planner import compile_objectives
-from .ensemble_planner import plan_ensemble, topological
-from .smart_director import ordered_evidence
+from .ensemble_planner import plan_ensemble, topological, verify_task_evidence
 from ..scene.schema import ProjectSpec
 
 
@@ -69,8 +68,4 @@ def verify_native_plans(project, contracts):
     from ..scene.runtime import SceneRuntime
     for sid, tasks in contracts:
         sim = SceneRuntime(project, sid).simulate(physics_only=True)
-        by_id = {task.id: task for task in tasks}
-        for task in tasks:
-            ordered_evidence([task.proof], sim.events, sim.duration)
-            for dep in task.after:
-                ordered_evidence([by_id[dep].proof, task.proof], sim.events, sim.duration)
+        verify_task_evidence(tasks, sim.events, sim.duration)

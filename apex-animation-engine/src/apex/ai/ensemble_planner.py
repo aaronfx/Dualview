@@ -9,7 +9,7 @@ from itertools import product, islice
 from pydantic import Field, model_validator
 from .smart_director import Strict, ActionCandidate, rehearse
 from ..scene.schema import ActionSpec, ProjectSpec
-from ..scene.goals import parse_goal, check_event
+from ..scene.goals import parse_goal, check_event, matches
 
 class Task(Strict):
     id: str = Field(pattern=r"^[A-Za-z][A-Za-z0-9_-]{0,39}$")
@@ -46,6 +46,51 @@ def topological(tasks):
             ordered.append(t);done.add(t.id)
     return ordered
 
+def verify_task_evidence(tasks, events, duration, *, budget=20000):
+    """One consistent, injective assignment of actual events to the task DAG.
+
+    Distinct proof strings may overlap in what they match. Independent
+    per-task or per-edge checks can reuse a witness or choose contradictory
+    times for a shared predecessor. Search for a single assignment instead.
+    Same-tick distinct events remain valid (runtime sorts them by type).
+    """
+    ordered = topological(tasks)
+    indexed = sorted(enumerate(e for e in events if 0 <= e.t <= duration),
+                     key=lambda pair: (pair[1].t, pair[0]))
+    options = {task.id: [(i,e) for i,e in indexed if matches(task.proof,e)]
+               for task in ordered}
+    for task in ordered:
+        if not options[task.id]:
+            raise ValueError(f"Missing native task proof: {task.id}: {task.proof}")
+    chosen, used = {}, set()
+    explored = 0
+
+    def assign(k):
+        nonlocal explored
+        if k == len(ordered):
+            return True
+        task = ordered[k]
+        earliest = max((chosen[dep][1].t for dep in task.after), default=0.0)
+        for i,event in options[task.id]:
+            explored += 1
+            if explored > budget:
+                raise ValueError("Native task evidence search budget exhausted")
+            if i in used or event.t + 1e-9 < earliest:
+                continue
+            chosen[task.id] = (i,event)
+            used.add(i)
+            if assign(k+1):
+                return True
+            used.remove(i)
+            del chosen[task.id]
+        return False
+
+    if not assign(0):
+        raise ValueError("No distinct, causally consistent native task witnesses")
+    return [{"task": task.id, "proof": task.proof, "t": float(chosen[task.id][1].t),
+             "event_index": chosen[task.id][0]} for task in ordered]
+
+
 def compile_ensemble(project,request):
     p=ProjectSpec.model_validate(project);r=EnsembleRequest.model_validate(request)
     sc=p.scene(r.scene_id);tasks=topological(r.tasks);by={t.id:t for t in tasks}
@@ -75,17 +120,13 @@ def plan_ensemble(project,request):
     # then use the existing strict Inspector-backed rehearsal selection.
     from ..scene.runtime import SceneRuntime
     from .capabilities import validate_candidate
-    from .smart_director import Trial,Selection,ordered_evidence
+    from .smart_director import Trial,Selection
     accepted=[];rejected=[]
     for candidate in candidates:
         try:
             candidate_project=validate_candidate(p,r.scene_id,candidate.actions)
             sim=SceneRuntime(candidate_project,r.scene_id,strict=False).simulate(physics_only=True)
-            for task in tasks:
-                ordered_evidence([task.proof],sim.events,sim.duration)
-                for dep in task.after:
-                    parent=next(t for t in tasks if t.id==dep)
-                    ordered_evidence([parent.proof,task.proof],sim.events,sim.duration)
+            verify_task_evidence(tasks, sim.events, sim.duration)
             accepted.append(candidate)
         except (ValueError,RuntimeError,KeyError,TypeError,IndexError,ArithmeticError) as e:
             rejected.append(Trial(candidate.name,False,str(e)))

@@ -153,3 +153,26 @@ existing route. This is optional planning delegation, not automatic routing
 for every story or continuous runtime awareness. Style preservation and
 C5/C6/C7 remain separate work. New fake-provider test uses real native
 rehearsal; other tests check scope/queue preservation/rejection.
+
+
+## Causal choreography consolidation increment (M1/M2)
+
+The existing ensemble planner previously checked each task proof and each
+dependency edge independently. Overlapping proof filters could allow one
+native event to count as multiple tasks, or inconsistent witness assignments.
+A bounded backtracking matcher now establishes one distinct native event per
+task, respecting the entire dependency graph. It is shared with the
+post-setup full-story verification. Same-tick distinct witnesses remain
+allowed as the native event stream is sorted by type within a tick.
+
+M1's pickup-before-throw logical sequence is recovered as throw_at, using
+the existing apex_extension.planning uniform-cost search and native actions.
+The projectile is explicit, not guessed. Native proof identifies the actual
+prop and intended recipient on release; it does NOT certify a collision.
+The symbolic initial state is a planning assumption, not a live world
+snapshot. Physical preflight and rehearsal still decide feasibility.
+
+M2's original stationary-hit/dodged-miss counterfactual has not been
+integrated in this increment. No claim of universal projectile avoidance
+or general symbolic world planning. Added causal witness tests and actual
+native pickup/release simulation; CI verification required.

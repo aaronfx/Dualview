@@ -14,8 +14,9 @@ class ActorObjective(Strict):
     id: str = Field(pattern=r"^[A-Za-z][A-Za-z0-9_-]{0,39}$")
     actor:str
     kind:Literal["observe","signal","collect","climb","exit","help_up","attack",
-                 "vault","block","evade","recover","pull_up","celebrate","lift"]
+                 "vault","block","evade","recover","pull_up","celebrate","lift","throw_at"]
     target:str
+    prop:str|None=None  # explicit projectile for throw_at; never guessed
     after:list[str]=Field(default_factory=list,max_length=12)
     urgency:Literal["calm","urgent"]="urgent"
 
@@ -36,6 +37,8 @@ def compile_objectives(project,request,memory=None):
             raise ValueError(f"{task.id}: actor or target does not exist in current scene")
         if kind=="char" and target==task.actor and task.kind!="recover":raise ValueError("Actor cannot target itself")
         actor=task.actor
+        if task.kind != "throw_at" and task.prop is not None:
+            raise ValueError(f"{task.id}: prop is only supported by throw_at")
         brain=memory.actor_brain(p.id,actor) if memory else CharacterBrain(Personality())
         perception=Perception(ally_needs_help=task.kind in ("help_up","pull_up"),
                               recovering=task.kind=="recover",goal_visible=True,target_id=target)
@@ -84,6 +87,29 @@ def compile_objectives(project,request,memory=None):
         elif task.kind=="lift" and kind=="prop":
             proof=f"lift_ok@{actor}[prop={target}]"
             seq=[[a("lift",target=task.target,effort=e)] for e in (1.0,1.4)]
+        elif task.kind=="throw_at" and kind=="char":
+            # Recover the M1 causal contract using the existing symbolic
+            # search implementation. Native pickup/throw and rehearsal
+            # remain the only authority on physical success.
+            from apex_extension.planning import Action, plan
+            if task.prop is None or task.prop not in {"prop:"+pid for pid in props}:
+                raise ValueError(f"{task.id}: throw_at requires an existing explicit prop: target")
+            pid=task.prop.split(":",1)[1]
+            held=f"held:{actor}:{pid}"
+            available=f"available:{pid}"
+            free=f"hand_free:{actor}"
+            released=f"released:{actor}:{pid}:{target}"
+            ops=[Action("acquire",frozenset({available,free}),frozenset({held}),frozenset({available,free})),
+                 Action("release",frozenset({held}),frozenset({released,free}),frozenset({held}))]
+            steps=plan({available,free},{released},ops,budget=32)
+            if steps!=("acquire","release"):
+                raise ValueError(f"{task.id}: causal acquisition plan failed")
+            proof=f"throw@{actor}[prop={pid},target={task.target}]"
+            pickup=a("pick_up",target=task.prop)
+            release=a("throw",target=task.target)
+            seq=[[pickup,release],[a("run_to",target=task.prop,speed=220),pickup,release]]
+            # Native proof is release toward target, not hit or evasion.
+            trace.append({"task":task.id,"causal_steps":list(steps),"proof":proof})
         else:raise ValueError(f"{task.id}: unsupported objective/target combination")
         out.append(Task(id=task.id,actor=actor,after=task.after,proof=proof,alternatives=seq))
         trace.append({"task":task.id,"actor":actor,"intent":intent.value,"target":task.target,"alternatives":len(seq)})
