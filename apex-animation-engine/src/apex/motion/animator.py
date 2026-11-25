@@ -136,6 +136,7 @@ class Animator(InteractionAnimMixin, CombatAnimMixin, AcroAnimMixin):
         self.cuts = [s.t0 for s in segments if s.data.get("cut")]
         self._prepare()
         self._follow_through()
+        self._motion_boundaries = {}
 
     # ------------------------------------------------------------ post-processing (plants, gaits)
     def _rec(self, arr: np.ndarray, t: float, seg: Optional[Segment] = None) -> float:
@@ -441,12 +442,42 @@ class Animator(InteractionAnimMixin, CombatAnimMixin, AcroAnimMixin):
                     self._ground_clamp(pose, self.frames[seg.frame])
                     if self.segments[i - 1].kind == "ragdoll":  # out of a sprawl: the knees never pass through the floor
                         self._knees_above_floor(pose, self.frames[seg.frame], max_raise=30.0)
+        if self.style.motion_intelligence and i>0 and not seg.data.get("cut"):
+            self._inertial_upper(pose,i,t)
         self._overlap(pose, t)
         if pose.state in ("ragdoll", "getup", "prone", "supine", "crawl", "fall"):
             self._limbs_above_floor(pose, self.frames[seg.frame])
         self._hold_carried(pose, t)
         self._hands_in_room(pose)
         return pose
+
+    def _inertial_upper(self, pose, i, t):
+        # Contact-critical skills keep their native IK and exact strike timing.
+        # Smooth only free upper-body channels of ordinary locomotion/idle.
+        from .motion_intelligence import decay_offset, FREE_UPPER
+        seg, prev = self.segments[i], self.segments[i-1]
+        if seg.kind not in ("loco","idle") or prev.kind not in ("loco","idle","guard","hurt","dodge","strike"):
+            return
+        if seg.facing!=prev.facing or seg.frame!=prev.frame or seg.data.get("carry") or seg.data.get("fight"):
+            return
+        dt=max(0.0,t-seg.t0)
+        if dt>.24:
+            return
+        if i not in self._motion_boundaries:
+            q=self._eval(prev,seg.t0)
+            # A short intermediate segment inherits its previous transition.
+            if i>1 and not prev.data.get("cut"):
+                self._inertial_upper(q,i-1,seg.t0)
+            n=self._eval(seg,seg.t0)
+            step=min(.012,max(.001,(prev.t1-prev.t0)*.4))
+            q0=self._eval(prev,max(prev.t0,seg.t0-step))
+            n1=self._eval(seg,min(seg.t1,seg.t0+step))
+            self._motion_boundaries[i]={k:(wrap_angle(q.local[k]-n.local[k]),
+                clamp((wrap_angle(q.local[k]-q0.local[k])-wrap_angle(n1.local[k]-n.local[k]))/step,-12,12))
+                for k in FREE_UPPER}
+        target=self._eval(seg,t)
+        for k,(offset,velocity) in self._motion_boundaries[i].items():
+            pose.local[k]=target.local[k]+decay_offset(offset,velocity,dt,.045)
 
     def _hands_in_room(self, pose: Pose) -> None:
         """Limb-environment constraint: a hand that would pass through a room surface is placed on it instead
@@ -695,6 +726,9 @@ class Animator(InteractionAnimMixin, CombatAnimMixin, AcroAnimMixin):
                     L["upper_arm_" + side] += clamp(delta("arm_" + side) * 0.44, -0.60, 0.60) * blend
                     L["forearm_" + side] += clamp(delta("elbow_" + side) * 0.35, -0.38, 0.38) * blend
                 pose.eye = clamp(pose.eye + delta("eye") * 0.55 * blend, 0.65, 2.0)
+        if self.style.motion_intelligence and not seg.data.get("carry"):
+            from .motion_intelligence import apply_intent
+            apply_intent(pose,self.style.acting_intent,rb,c)
         g, w = self._seg_gaze(seg, t)
         self._gaze(pose, g, 0.75 * w)
         if seg.data.get("carry") and self.prop_at:  # carrying a bar: both hands on it

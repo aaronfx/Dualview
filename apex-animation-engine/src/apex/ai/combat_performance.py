@@ -43,7 +43,11 @@ def choose_combat_action(brain,c,t):
     if not feasible:
         return None
     # Preserve variety without selecting a move outside actual reach.
-    move=min(feasible,key=lambda name:(brain.combat_moves.count(name),moves.index(name)))
+    from ..motion.motion_intelligence import match_attack
+    if getattr(c,"style",None) is not None and getattr(c.style,"motion_intelligence",False):
+        move=match_attack(feasible,brain.combat_moves,gap,(enemy.v-c.v)*direction,c._strike_reach,MOVES)
+    else:
+        move=min(feasible,key=lambda name:(brain.combat_moves.count(name),moves.index(name)))
     brain.combat_moves.append(move)
     if counter:
         brain.countered_at=attack_time

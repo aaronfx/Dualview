@@ -34,6 +34,8 @@ def build(paced=False, hostile=False):
         for ob in env["obstacles"]:
             ob["color"]="#58636e" if ob["id"]=="ground" else "#a58b55"
         raw["characters"][1]["style"].update(body_color="#ed4545",glow_color="#ff3333",limb_width=10.0)
+        raw["characters"][0]["style"].update(motion_intelligence=True,acting_intent="fugitive")
+        raw["characters"][1]["style"].update(motion_intelligence=True,acting_intent="hunter")
     if paced:
         from apex.ai.action_pacing import fit_goal_scene
         raw=fit_goal_scene(raw,"s","iko")

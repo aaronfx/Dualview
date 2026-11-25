@@ -146,3 +146,11 @@ def test_combat_performance_uses_native_variety():
     assert len(set(moves))==5
     enemy.s=300
     assert choose_combat_action(brain,actor,6) is None
+
+def test_advanced_motion_math():
+    from apex.motion.motion_intelligence import decay_offset, match_attack
+    from apex.motion.combat import MOVES
+    assert decay_offset(.5,2.,0,.045)==.5
+    assert abs((decay_offset(.5,2.,1e-6,.045)-.5)/1e-6-2.)<.001
+    assert abs(decay_offset(.5,2.,1.,.045))<.001
+    assert match_attack(["jab","cross"],["jab","jab"],90,0,lambda m:100,MOVES)=="cross"

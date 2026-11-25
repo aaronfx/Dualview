@@ -19,6 +19,8 @@ class Strict(BaseModel):
 class CharacterStyle(Strict):
     visual_profile: Literal["legacy", "apex_ink"] = "legacy"
     performance_profile: Literal["legacy", "continuous"] = "legacy"
+    motion_intelligence: bool = False  # opt-in contact-preserving inertial transitions
+    acting_intent: Literal["neutral", "hunter", "fugitive"] = "neutral"
     body_color: str = "#ffcf3a"
     far_color: str = "#c08f1e"
     visor_color: str = "#5ff6ff"
