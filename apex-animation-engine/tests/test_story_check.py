@@ -23,7 +23,7 @@ def test_real_rescue_film_passes_every_required_beat():
     with open(os.path.join(HERE, "examples", "the_rescue.json")) as f:
         p, events = _sim(json.load(f))
     rep = verify_brief(RESCUE_BRIEF, p, events)
-    assert rep["archetype"] == "rescue" and rep["story_pass"] is True, (rep, [(e.t, e.type, e.character, e.data) for e in events])
+    assert rep["archetype"] == "rescue" and rep["story_pass"] is True, "missing=" + repr([r["id"] for r in rep["requirements"] if not r["met"]]) + "\\nroute_events=" + repr([(e.t, e.type, e.character, e.data) for e in events if e.type in ("route_wait", "route_resume")])
     assert {r["id"] for r in rep["requirements"] if r["met"]} == {
         "two_characters", "trapped", "discovery", "failed_lift", "lever", "release", "recovery", "friendship"}
 
