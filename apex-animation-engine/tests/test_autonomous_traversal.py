@@ -186,3 +186,13 @@ def test_actor_brief_compiler_preserves_native_scene():
     assert project.scene("s").placements[1].actor_role.role=="hunter"
     with pytest.raises(ValueError):
         compile_actor_briefs(raw,"s",scene["storyline"],prompts,None)
+
+def test_camera_releases_distant_opponent():
+    from apex.camera.director import CameraDirector
+    from apex.scene.schema import CameraSpec
+    c=CameraDirector.__new__(CameraDirector)
+    c.bbox=lambda actor,t: (0,0,100,150) if actor=="iko" else (t*500,0,t*500+100,150)
+    c.resolve=lambda ref,t:(t*500+50,75)
+    cam=CameraSpec(target="iko",include=["char:pell"],include_distance=800)
+    assert c._includes(cam,.4)==[(200,0,300,150)]
+    assert c._includes(cam,2)==[]
