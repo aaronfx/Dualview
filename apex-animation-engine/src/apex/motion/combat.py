@@ -302,6 +302,9 @@ class CombatMixin:
         if self.cur is not None and self.cur.type == "wait_for" and not self._event_seen(self.cur.until, t):
             self.queue.appendleft(self.cur)  # still waiting for its event after the reaction (unless this hit was it)
         self.dodging = None
+        brain=getattr(self,'autonomous_brain',None)
+        if brain is not None:
+            brain.invalidate_after_hit(self,t,by)
         if reaction == "knockdown":
             self._knockdown(t, direction, eff, part, point, push)
         elif reaction == "stagger":

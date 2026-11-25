@@ -439,6 +439,7 @@ class SceneRuntime:
             elif pl.destination_x is not None:
                 brains[pl.character] = TraversalBrain(pl.destination_x, fast=pl.action_pace)
         for cid, brain in brains.items():
+            ctrls[cid].autonomous_brain = brain
             if any(a.character == cid for a in self.scene.actions):
                 raise ValueError(f'{cid}: autonomous destination cannot be mixed with authored actions')
             if abs(brain.goal) > hw - 40:

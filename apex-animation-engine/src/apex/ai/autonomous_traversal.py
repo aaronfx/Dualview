@@ -27,6 +27,19 @@ class TraversalBrain:
     last_attack: float = -10.0
     last_threat: float = -10.0
 
+    def invalidate_after_hit(self,c,t,by):
+        """Combat supersedes speculative traversal, never replay a stale queue."""
+        from ..motion.controller import Event
+        c.queue.clear()
+        self.pending=None
+        self.active_action=None
+        self.route_signature=None
+        self.progress_x=None
+        self.attempts.clear()
+        self.done=False
+        self.next_tick=t
+        c.emit(Event(t,"autonomous_replan",c.cid,{"reason":"combat interruption","by":by}))
+
     def _hazards(self,c):
         """Observe approaching same-lane solids using a short swept horizon."""
         d=1 if self.goal>c.s else -1
@@ -86,14 +99,15 @@ class TraversalBrain:
                 self.last_attack=t
                 c.emit(Event(t,"autonomous_decision",c.cid,{"skill":"attack","target":target.cid,"gap":gap}))
                 return
-        if free and not self.pursuit and c._upright() and not c.lying:
+        if not self.pursuit and c._upright() and not c.lying and (free or (c.cur is self.active_action and c.cur.type in ("run_to","walk_to"))):
             for enemy in c.others.values():
                 attack=enemy.cur
                 if attack is None or attack.type!="strike" or attack.target!="char:"+c.cid or enemy.frame is not c.frame or abs(enemy.z-c.z)>=BODY_PASS_Z:
                     continue
-                if attack.move not in ("jab","cross","hook") or t-self.last_threat<.6:
+                if attack.move not in ("jab","cross","hook") or t-self.last_threat<.6 or abs(enemy.s-c.s)>enemy._strike_reach(attack.move)+20 or enemy.inter.get("resolved"):
                     continue
                 action=ActionSpec(character=c.cid,type="dodge",dodge="duck")
+                c.queue.clear()
                 self.pending=None
                 self.active_action=action
                 c.queue.append(action)
