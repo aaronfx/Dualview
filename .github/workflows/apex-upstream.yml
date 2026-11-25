@@ -29,3 +29,15 @@ jobs:
         working-directory: apex-animation-engine/motion-canvas
       - run: npm run build
         working-directory: apex-animation-engine/motion-canvas
+      - run: npx playwright install --with-deps chromium
+        working-directory: apex-animation-engine/motion-canvas
+      - run: npm run render
+        working-directory: apex-animation-engine/motion-canvas
+        timeout-minutes: 10
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apex-motion-canvas-rescue
+          path: |
+            apex-animation-engine/motion-canvas/output/motion-canvas-rescue.mp4
+            apex-animation-engine/motion-canvas/output/render-report.json
+          if-no-files-found: error

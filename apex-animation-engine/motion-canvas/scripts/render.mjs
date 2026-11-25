@@ -1,0 +1,32 @@
+import {chromium} from 'playwright';
+import {createServer} from 'vite';
+import {readFileSync,readdirSync,rmSync,mkdirSync,writeFileSync} from 'node:fs';
+import {spawnSync} from 'node:child_process';
+import assert from 'node:assert/strict';
+const root=new URL('../',import.meta.url);
+const cwd=decodeURIComponent(root.pathname.replace(/^\/(.:\/)/,'$1'));
+const native=JSON.parse(readFileSync(new URL('src/native.json',root),'utf8'));
+const out=new URL('output/apex-rescue/',root);
+rmSync(out,{recursive:true,force:true});
+mkdirSync(out,{recursive:true});
+const server=await createServer({root:cwd,server:{host:'127.0.0.1',port:4178,strictPort:true}});
+let browser;
+try{
+ await server.listen();
+ browser=await chromium.launch({headless:true,args:['--no-sandbox','--enable-webgl','--use-angle=swiftshader','--enable-unsafe-swiftshader']});
+ const page=await browser.newPage();
+ page.on('pageerror',e=>console.error('Browser error:',e));
+ page.on('console',m=>{if(m.type()==='error')console.error(m.text());});
+ await page.goto('http://127.0.0.1:4178/render.html');
+ await page.waitForFunction(()=>typeof window.apexRender==='function',{},{timeout:60000});
+ await page.evaluate(()=>window.apexRender());
+ const frames=readdirSync(out).filter(n=>/^\d{6}\.png$/.test(n)).sort();
+ const expected=Math.floor(native.duration*native.fps)+1;
+ assert.ok(Math.abs(frames.length-expected)<=1,'Unexpected frame count: '+frames.length+' expected '+expected);
+ assert.ok(frames.length>2);
+ frames.forEach((n,i)=>assert.equal(n,String(i).padStart(6,'0')+'.png'));
+ assert.notDeepEqual(readFileSync(new URL(frames[0],out)),readFileSync(new URL(frames[Math.floor(frames.length/2)],out)),'Static render');
+ const ff=spawnSync('ffmpeg',['-y','-framerate',String(native.fps),'-i','output/apex-rescue/%06d.png','-c:v','libx264','-pix_fmt','yuv420p','-movflags','+faststart','output/motion-canvas-rescue.mp4'],{cwd,stdio:'inherit'});
+ if(ff.status!==0)throw new Error('FFmpeg failed');
+ writeFileSync(new URL('output/render-report.json',root),JSON.stringify({frames:frames.length,fps:native.fps,sourceDuration:native.duration,renderer:'Motion Canvas 3.17.2',kind:'diagnostic overview'},null,2));
+}finally{await browser?.close();await server.close();}
