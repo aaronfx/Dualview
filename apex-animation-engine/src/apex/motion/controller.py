@@ -172,6 +172,7 @@ class CharacterController(InteractionMixin, CombatMixin, AcroMixin, ArcadeMixin,
         s_prev = self.s if self.mode in ("grounded", "landing") else None
         self._update(t, dt, g)
         self._step_from = s_prev
+        self._refresh_prop_route(t)
         if self.z_target is not None:  # changing depth lane (e.g. rolling past in front of someone)
             step = LANE_RATE * dt
             self.z += max(-step, min(step, self.z_target - self.z))
@@ -279,6 +280,9 @@ class CharacterController(InteractionMixin, CombatMixin, AcroMixin, ArcadeMixin,
         self.cur = self.queue.popleft() if self.queue else None
         self.cur_t0 = t
         self.cur_dir = None
+        self._carry_route_wait = None
+        self._adaptive_body_route = None
+        self._adaptive_body_next = 0.0
         a = self.cur
         if a is not None and a.lane is not None:
             self.z_target = float(a.lane)
@@ -543,6 +547,7 @@ class CharacterController(InteractionMixin, CombatMixin, AcroMixin, ArcadeMixin,
             self.cur_dir = 1.0 if a.target_x - self.s >= 0 else -1.0
         direction = self.cur_dir  # fixed for the whole action (never re-decided mid-move)
         remaining = (a.target_x - self.s) * direction
+        route_cap = self._adaptive_body_tick(t, a, direction, speed) if a.adaptive_avoidance else speed
         nxt = self.queue[0] if self.queue else None
         # A forward jump_to is an active continuation of the run, not a
         # command to brake to zero and launch from a stationary squat.
@@ -565,9 +570,24 @@ class CharacterController(InteractionMixin, CombatMixin, AcroMixin, ArcadeMixin,
                                      (nxt.type in ("walk_to", "run_to") and nxt.target_x is not None
                                       and (nxt.target_x - a.target_x) * direction > 0))
         v_des = speed if carry else min(speed, math.sqrt(2 * dec * max(remaining, 0.0)))
+        v_des = min(v_des, route_cap)
         cur = self.v * direction
         cur = min(cur + acc * dt, v_des) if cur < v_des else max(cur - dec * dt, v_des)
-        self.v = cur * direction
+        self.v = min(cur, route_cap) * direction
+        waiting = getattr(self, "_carry_route_wait", None)
+        # Require a meaningful clearance margin before restarting; a single
+        # tiny acceleration step otherwise emits false resume/wait cycles.
+        probe = direction * max(abs(self.v * dt), min(8.0, max(0.0, remaining))) if waiting else self.v * dt
+        blocker = self._carry_route_blocker(probe)
+        if blocker is not None:
+            self.v = 0.0
+            if waiting != blocker:
+                self.emit(Event(t, "route_wait", self.cid, {"prop": blocker, "reason": "carried_clearance"}))
+            self._carry_route_wait = blocker
+            return  # retain the action; native state is checked again next step
+        if waiting is not None:
+            self.emit(Event(t, "route_resume", self.cid, {"prop": waiting, "reason": "clearance_available"}))
+            self._carry_route_wait = None
         self.s += self.v * dt
         self.seg.data["run"] = run or self.seg.data.get("run", False)
         if carry and remaining <= 0:

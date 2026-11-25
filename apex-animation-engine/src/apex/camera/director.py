@@ -178,6 +178,22 @@ class CameraDirector:
                 p = self.resolve(tg, t)
                 if p is not None:
                     m = cam.include_margin
+                    if cam.include_distance is not None and cam.target:
+                        a=self.bbox(cam.target,t)
+                        x,y=(a[0]+a[2])/2,(a[1]+a[3])/2
+                        dist=math.hypot(p[0]-x,p[1]-y)
+                        if dist>=cam.include_distance:
+                            continue
+                        # Gradually release a distant opponent; keep the full
+                        # silhouette of a nearby opponent inside the safe frame.
+                        u=clamp((cam.include_distance-dist)/(.35*cam.include_distance),0,1)
+                        weight=u*u*(3-2*u)
+                        if tg.startswith("char:"):
+                            b=self.bbox(tg.split(":",1)[1],t)
+                            out.append(tuple(lerp(v,q,weight) for v,q in zip(a,b)))
+                            continue
+                        p=(lerp(x,p[0],weight),lerp(y,p[1],weight))
+                        m*=weight
                     out.append((p[0] - m, p[1] - m, p[0] + m, p[1] + m))
         return out
 

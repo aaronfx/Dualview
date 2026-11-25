@@ -78,6 +78,7 @@ class PhysicsWorld:
         self.proxy_grace: set = set()
         self.in_flight: set = set()  # thrown props: their hits are resolved by impulse exchange (controller), not here  # (character, prop) pairs already overlapping when the body became solid
         self.space.on_collision(CT_PROXY, CT_PROP, pre_solve=self._proxy_pre, separate=self._proxy_sep)
+        self.space.on_collision(CT_CHARACTER, CT_CHARACTER, pre_solve=self._character_pre)
         # a carried prop is moved kinematically (no mass of its own in the solver): it must not shove other props with
         # unbounded force, so it passes them while carried (structures still stop it: see the controller)
         self.carried: set = set()
@@ -205,6 +206,18 @@ class PhysicsWorld:
         za, ha = self.depth.get(owner, (0.0, 14.0))
         zb, hb = self.depth.get(tb, (0.0, 30.0))
         if abs(za - zb) >= ha + hb:  # in different depth lanes: they pass one in front of the other
+            arb.process_collision = False
+
+    def _character_depth_clear(self, sa, sb):
+        za, ha = self.depth.get(self._tags.get(sa), (0.0, 14.0))
+        zb, hb = self.depth.get(self._tags.get(sb), (0.0, 14.0))
+        return abs(za-zb) >= ha+hb
+
+    def _character_pre(self, arb, space, data):
+        # Use the same depth separation as the grounded controller. A
+        # character flying in a different lane must not receive a 2D impulse.
+        sa, sb = arb.shapes
+        if self._character_depth_clear(sa,sb):
             arb.process_collision = False
 
     def _prop_pre(self, arb: pymunk.Arbiter, space: pymunk.Space, data) -> None:
@@ -441,6 +454,8 @@ class PhysicsWorld:
     def _on_begin(self, arb: pymunk.Arbiter, space: pymunk.Space, data) -> None:
         sa, sb = arb.shapes
         ta, tb = self._tags.get(sa, "?"), self._tags.get(sb, "?")
+        if sa.collision_type == sb.collision_type == CT_CHARACTER and self._character_depth_clear(sa,sb):
+            return
         for own, other in ((ta, tb), (tb, ta)):  # a contact the body rule ignores is not a contact (no event, no sound)
             if own.endswith("~body"):
                 o = own[:-5]

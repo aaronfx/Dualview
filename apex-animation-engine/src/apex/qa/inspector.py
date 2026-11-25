@@ -224,6 +224,7 @@ class Inspector:
                  for cid in self.joints}
         for cid, frames in self.joints.items():
             worst_joint, worst_pel, where = 0.0, 0.0, 0.0
+            joint_name, from_pos, to_pos = '', None, None
             for i in range(1, len(frames)):
                 a, b = frames[i - 1], frames[i]
                 j = next((g for tj, g in jumps[cid] if self.times[i - 1] < tj <= self.times[i]), None)
@@ -233,9 +234,10 @@ class Inspector:
                     sp = math.dist(a[k], b[k]) / dt
                     if sp > worst_joint:
                         worst_joint, where = sp, self.times[i]
+                        joint_name, from_pos, to_pos = k, a[k], b[k]
                 worst_pel = max(worst_pel, math.dist(a["pelvis"], b["pelvis"]) / dt)
             out.append(Check(f"no_teleport_joints[{cid}]", "PASS" if worst_joint <= TOL["joint_speed"] else "FAIL", worst_joint,
-                             TOL["joint_speed"], f"max joint speed (units/s) at t={where:.3f}s"))
+                             TOL["joint_speed"], f"max joint speed (units/s) at t={where:.3f}s; joint={joint_name}; from={from_pos}; to={to_pos}; nearby segments={[(seg.kind, round(seg.t0,3), round(seg.t1,3)) for seg in self.r.controllers[cid].segments if seg.t0 <= where+0.1 and seg.t1 >= where-0.1]}"))
             out.append(Check(f"no_teleport_root[{cid}]", "PASS" if worst_pel <= TOL["pelvis_speed"] else "FAIL", worst_pel, TOL["pelvis_speed"]))
         return out
 
@@ -1149,7 +1151,7 @@ class Inspector:
                 n += 1
                 worst_m = max(worst_m, math.dist(m["v0"], m["v1"]) / (math.hypot(*m["v0"]) + 1.0),
                               abs(m["I0"] * m["w0"] - m["I1"] * m["w1"]) / (abs(m["I0"] * m["w0"]) + m["I0"]))
-                worst_c = max(worst_c, abs(math.dist(m["c0"], m["c1"]) - math.hypot(*m.get("nudge", (0.0, 0.0)))))
+                worst_c = max(worst_c, abs(math.dist(m["c0"], m["c1"]) - math.hypot(*m.get("com_shift", m.get("nudge", (0.0, 0.0))))))
                 # the drawing just before the swap vs just after
                 t0, t1 = m["t_swap"] - 1e-4, m["t_swap"] + 1.0 / 240.0
                 a, b = self.rt.evaluate(t0), self.rt.evaluate(t1)
@@ -1161,7 +1163,8 @@ class Inspector:
                 ea = [W(pa, st[0]) for st in sa] + [W(pa, st[-1]) for st in sa]
                 eb = [W(pb, st[0]) for st in sb] + [W(pb, st[-1]) for st in sb]
                 # every end of the new shape is drawn where the blend left one (small motion over 1/240 s allowed)
-                worst_pop = max(worst_pop, max(min(math.dist(p, q) for q in ea) for p in eb))
+                pop = max(min(math.dist(p, q) for q in ea) for p in eb)
+                worst_pop = max(worst_pop, pop)
         return [Check("morphs_conserve_motion", "PASS" if worst_m <= 1e-6 else "FAIL", worst_m, 1e-6,
                       f"{n} shape change(s): relative change of centre-of-mass velocity or angular momentum"),
                 Check("morphs_hold_centre", "PASS" if worst_c <= 1e-6 else "FAIL", worst_c, 1e-6,

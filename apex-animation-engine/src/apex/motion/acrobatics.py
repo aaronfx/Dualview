@@ -111,16 +111,23 @@ class AcroMixin:
                     best = (face, b)
         return best
 
-    def _props_in_path(self, lo_s: float, hi_s: float, skip=()) -> List[Tuple[str, float, float]]:
+    def _props_in_path(self, lo_s: float, hi_s: float, skip=(), *, lookahead: float = 0.0) -> List[Tuple[str, float, float]]:
         """Props (id, depth z, half depth) standing across the body's height band between lo_s and hi_s."""
         fy = self._feet_y()
         out = []
+        # A held object may extend beyond the actor in both travel directions.
+        if self.carrying:
+            lo_s -= self._carried_front(-1.0)
+            hi_s += self._carried_front(1.0)
         for pid, sp in self.props.items():
             if pid in skip or not sp.collide_characters or pid in self.world.inactive:
                 continue
             st = self.world.state(pid)
             r = max(sp.size) / 2
-            if st.pos[0] + r < lo_s - 11.0 or st.pos[0] - r > hi_s + 11.0:
+            # Short, conservative swept horizontal envelope from native velocity.
+            # This is not a prediction of impacts or arbitrary ballistic motion.
+            future_x = st.pos[0] + st.vel[0] * lookahead
+            if max(st.pos[0], future_x) + r < lo_s - 11.0 or min(st.pos[0], future_x) - r > hi_s + 11.0:
                 continue
             if st.pos[1] + r < fy + KNEE_FRAC * self.stand_h or st.pos[1] - r > fy + 1.9 * self.stand_h:
                 continue
@@ -128,9 +135,44 @@ class AcroMixin:
             out.append((pid, pz, ph))
         return out
 
+    def _carry_route_blocker(self, dx: float) -> Optional[str]:
+        """Conservative swept held-object bounds for grounded locomotion.
+
+        Prop-to-prop impulses remain disabled for carried bodies. This guard
+        prevents advancing a held load into a solid prop in the same depth lane;
+        it does not claim to predict arbitrary impacts or moving-body intrusion.
+        """
+        pid = self.carrying
+        if pid is None or not self._upright() or abs(dx) < 1e-9:
+            return None
+        l, r, b, top = self._target_bounds(f"prop:{pid}")
+        l, r = min(l, l + dx), max(r, r + dx)
+        half = self.props[pid].depth / 2
+        # Native lever staging owns the entire tool approach and seating
+        # trajectory, including deliberate overlap in its 2.5D geometry.
+        # Cargo transit protection must not intercept that authored mechanic.
+        if (self.inter_action is not None and self.inter_action.type == "use_lever"
+                and self.inter.get("phase") == "carry" and self.inter.get("bar") == pid):
+            return None
+        for other, sp in self.props.items():
+            if other == pid or other in self.world.inactive or not sp.solid:
+                continue
+            z, ph = self.world.depth.get(other, (0.0, 30.0))
+            if abs(self.z - z) >= half + ph:
+                continue
+            ol, ore, ob, ot = self._target_bounds(f"prop:{other}")
+            if l < ore and r > ol and b < ot and top > ob:
+                return other
+        return None
+
+    def _route_half_depth(self) -> float:
+        """Depth clearance of the actor plus the carried prop, if any."""
+        return max(14.0, self.props[self.carrying].depth / 2) if self.carrying else 14.0
+
     def _free_lane(self, blockers: List[Tuple[str, float, float]]) -> Optional[float]:
         """The nearest depth lane (to the current one) clear of all the blockers, within the room."""
-        bands = [(pz - ph - 14.0 - 3.0, pz + ph + 14.0 + 3.0) for _, pz, ph in blockers]
+        margin = self._route_half_depth() + 3.0
+        bands = [(pz - ph - margin, pz + ph + margin) for _, pz, ph in blockers]
         cands = [self.z] + [e for b in bands for e in b]
         ok = [z for z in cands if -ROOM_LANE <= z <= ROOM_LANE and all(not (lo < z < hi) for lo, hi in bands)]
         return min(ok, key=lambda z: abs(z - self.z)) if ok else None
@@ -139,18 +181,34 @@ class AcroMixin:
         sd = getattr(self, "_sidestep", None)
         if sd is None or self.z_target is None or abs(self.z - self.z_target) < 1.0:
             return
-        pz, ph = self.world.depth.get(sd["prop"], (0.0, 30.0))
-        if abs(self.z - pz) >= ph + 14.0:
-            return  # already clear in depth
+        # Every prop considered by the lane planner must be clear before
+        # forward motion resumes; the farthest prop alone is insufficient.
+        if all(abs(self.z - pz) >= ph + self._route_half_depth()
+               for pid in sd.get("props", (sd["prop"],))
+               if pid not in self.world.inactive
+               for pz, ph in (self.world.depth.get(pid, (0.0, 30.0)),)):
+            return
         # step aside first, then walk on (no forward motion until clear of it in depth)
         if abs(self.s - s_prev) > 1e-9:
             self.s, self.v = s_prev, 0.0
             self.world.set_kinematic(self.cid, self.frame.to_world(self.s, self.h), self.world.state(self.cid).angle)
 
-    def _plan_around_props(self, t: float, a: ActionSpec) -> None:
-        """Before a walk: props standing in the way at this depth (ones the character is not about to handle) are
-        passed in another depth lane, chosen now and clear of all of them, so the character never bumps into them."""
-        if a.lane is not None or getattr(self, "_sidestep", None) is not None or not self._upright():
+    def _refresh_prop_route(self, t: float) -> None:
+        """Bounded live decision boundary for grounded walks; never overrides explicit lanes."""
+        a = self.cur
+        if (self.mode != "grounded" or self.lying or a is None
+                or a.type not in ("walk_to", "run_to") or a.target_x is None
+                or a.lane is not None or not self._upright()):
+            return
+        if t < getattr(self, "_prop_route_next", 0.0):
+            return
+        self._prop_route_next = t + 0.1
+        self._plan_around_props(t, a, refresh=True)
+
+    def _plan_around_props(self, t: float, a: ActionSpec, *, refresh: bool = False) -> None:
+        """Choose a depth lane from live native prop positions; refresh for newly arriving moving blockers."""
+        sd = getattr(self, "_sidestep", None)
+        if a.lane is not None or (sd is not None and not refresh) or not self._upright():
             return
         lo_s, hi_s = sorted((self.s, a.target_x))
         handled = {self.carrying} | ({self.thrown["prop"]} if self.thrown else set())
@@ -159,17 +217,32 @@ class AcroMixin:
                 if ref and ref.startswith("prop:"):
                     handled.add(ref.split(":", 1)[1])
         x0 = self.frame.to_world(self.s, self.h)[0]
-        blockers = [b for b in self._props_in_path(lo_s, hi_s, handled)
+        blockers = [b for b in self._props_in_path(lo_s, hi_s, handled, lookahead=0.35 if refresh else 0.0)
                     if abs(self.world.state(b[0]).pos[0] - x0) > max(self.props[b[0]].size) / 2 + 11.0]
-        if not any(abs(pz - self.z) < ph + 14.0 for _, pz, ph in blockers):
+        if refresh:
+            known = set(sd.get("props", (sd["prop"],))) if sd else set()
+            # Preserve authored static approaches, and the original sidestep's home lane.
+            # A previously untracked moving prop is evidence that the route has changed.
+            if not any(pid not in known and math.hypot(*self.world.state(pid).vel) > 20.0
+                       and abs(pz - (self.z_target if self.z_target is not None else self.z)) < ph + self._route_half_depth() + 3.0
+                       for pid, pz, ph in blockers):
+                return
+            if sd:
+                # Retain passed-but-still-adjacent props until the original clearance check releases them.
+                present = {pid for pid, _, _ in blockers}
+                blockers.extend((pid, *self.world.depth.get(pid, (0.0, 30.0)))
+                                for pid in known if pid not in present and pid not in self.world.inactive)
+        elif not any(abs(pz - self.z) < ph + self._route_half_depth() for _, pz, ph in blockers):
             return
         z = self._free_lane(blockers)
-        if z is not None and abs(z - self.z) > 1e-6:
+        if z is not None and (abs(z - self.z) > 1e-6 or refresh and self.z_target is not None):
             from .controller import Event
             far = max(blockers, key=lambda b: abs(self.world.state(b[0]).pos[0] - x0))
-            self._sidestep = {"prop": far[0], "home": self.z, "planned": True}
+            self._sidestep = {"prop": far[0], "props": tuple(b[0] for b in blockers),
+                              "home": sd["home"] if sd else self.z, "planned": True}
             self.z_target = z
-            self.emit(Event(t, "sidestep", self.cid, {"prop": far[0], "lane": round(z, 1), "planned": True}))
+            self.emit(Event(t, "sidestep", self.cid, {"prop": far[0], "props": list(self._sidestep["props"]),
+                                                       "lane": round(z, 1), "planned": True, "refreshed": refresh}))
 
     def _check_walk(self, t: float, a: ActionSpec) -> ActionSpec:
         hit = self._path_blocker(self.s, a.target_x)
@@ -246,6 +319,84 @@ class AcroMixin:
         if best is not None:
             self.s, self.v = best - d * 11.0, 0.0
             self.world.set_kinematic(self.cid, self.frame.to_world(self.s, self.h), self.world.state(self.cid).angle)
+
+    def _adaptive_body_tick(self, t: float, a: ActionSpec, direction: float, speed: float) -> float:
+        """Opt-in native ground route adaptation; returns a longitudinal speed cap.
+        
+        Intent selection reads current controller state. No authored contact,
+        explicit lane, carried object or prop sidestep is overridden.
+        """
+        if (a.lane is not None or a.target is not None or self.carrying
+                or self.inter_action is not None or self.lying or not self._upright()
+                or self.frame.owner is not None or getattr(self, "_sidestep", None) is not None):
+            return speed
+        from ..ai.character_brain import CharacterBrain, Intent, Perception, Personality
+        from .controller import Event, LANE_RATE
+        route = getattr(self, "_adaptive_body_route", None)
+        # A subsequent targeted interaction owns its approach; do not sidestep its partner.
+        intended = {q.target.split(":", 1)[1] for q in self.queue
+                    if q.target and q.target.startswith("char:")}
+        others = [o for cid, o in sorted(self.others.items())
+                  if cid != self.cid and cid not in intended and o.frame is self.frame
+                  and not o.lying and not o._gone() and o.mode in ("grounded", "landing")]
+        if route is not None:
+            tracked = [o for o in others if o.cid in route["ids"]]
+            # Remain offset until all tracked actors are behind or safely far
+            # away. Never return through a body, even if the original target moves.
+            if all((o.s - self.s) * direction < -BODY_GAP - 12
+                   or abs(o.s - self.s) > route["range"] * 1.5 for o in tracked):
+                if all(abs(o.s - self.s) > BODY_GAP + 20 for o in others):
+                    self.z_target = route["home"]
+                    self._adaptive_body_route = None
+                    self.emit(Event(t, "adaptive_resume", self.cid, {"reason": "body_clear"}))
+                return speed
+            # Keep forward momentum whenever the remaining longitudinal gap
+            # permits the lateral step to finish before a potential contact.
+            # This is a conservative velocity cap, not a full ORCA solver.
+            cap = speed
+            for o in others:
+                gap = (o.s - self.s) * direction
+                if gap <= 0 or abs(o.z - self.z) >= BODY_PASS_Z + 3:
+                    continue
+                lateral_time = (BODY_PASS_Z + 3 - abs(o.z - self.z)) / LANE_RATE + 0.10
+                cap = min(cap, max(0.0, (gap - BODY_GAP - 12) / lateral_time + o.v * direction))
+            return cap
+        if t < getattr(self, "_adaptive_body_next", 0.0) or self.z_target is not None:
+            return speed
+        self._adaptive_body_next = t + 0.1
+        # Allow time for a 31-unit lateral step, including the 100ms tick.
+        reach = max(160.0, speed * 0.8 + BODY_GAP)
+        conflicts = []
+        for o in others:
+            gap = (o.s - self.s) * direction
+            closing = max(0.0, speed - o.v * direction)
+            if (0 < gap <= min(reach + max(0.0, closing - speed) * 0.8,
+                              abs(a.target_x - self.s) + BODY_GAP)
+                    and abs(o.z - self.z) < BODY_PASS_Z + 3):
+                conflicts.append(o)
+        if not conflicts:
+            return speed
+        if not hasattr(self, "_adaptive_brain"):
+            self._adaptive_brain = CharacterBrain(Personality())
+        decision = self._adaptive_brain.decide(Perception(danger=1.0, goal_visible=True,
+                                                         target_id=conflicts[0].cid))
+        if decision.intent is not Intent.EVADE:
+            return speed
+        # Reuse the native depth lane allocator with both actor and prop bands.
+        blockers = [(o.cid, o.z, BODY_PASS_Z / 2) for o in others
+                    if abs(o.s - self.s) <= reach * 2]
+        blockers += self._props_in_path(*sorted((self.s, a.target_x)), lookahead=0.35)
+        lane = self._free_lane(blockers)
+        if lane is None or abs(lane - self.z) < 1e-6:
+            return 0.0
+        self._adaptive_body_route = {"ids": tuple(o.cid for o in conflicts),
+                                     "home": self.z, "range": reach}
+        self.z_target = lane
+        self.emit(Event(t, "adaptive_evade", self.cid,
+                        {"others": list(self._adaptive_body_route["ids"]), "lane": lane,
+                         "intent": decision.intent.value,
+                         "visited": [i.value for i in decision.visited]}))
+        return self._adaptive_body_tick(t, a, direction, speed)
 
     def _enforce_bodies(self, t: float, s_prev: float) -> None:
         """Two standing bodies in the same depth lane cannot pass through each other: whatever moved this body
@@ -357,12 +508,19 @@ class AcroMixin:
         and ignores the props this character is handling (carried, pushed, levered, just thrown)."""
         sd = getattr(self, "_sidestep", None)
         if sd is not None:  # stepped around a prop in depth: back to the own lane once past it and clear of it
-            st = self.world.state(sd["prop"])
-            sp = self.props[sd["prop"]]
             x = self.frame.to_world(self.s, self.h)[0]
             moving = self.cur is not None and self.cur.type in ("walk_to", "run_to") and self.cur.target_x is not None
-            ahead = moving and (st.pos[0] - x) * (self.cur.target_x - self.s) > 0  # still has it to pass
-            if abs(x - st.pos[0]) > max(sp.size) / 2 + 11.0 + 6.0 and not ahead:
+            clear = True
+            for pid in sd.get("props", (sd["prop"],)):
+                if pid in self.world.inactive:
+                    continue
+                st = self.world.state(pid)
+                sp = self.props[pid]
+                ahead = moving and (st.pos[0] - x) * (self.cur.target_x - self.s) > 0
+                if abs(x - st.pos[0]) <= max(sp.size) / 2 + 17.0 or ahead:
+                    clear = False
+                    break
+            if clear:
                 self.z_target = sd["home"]
                 self._sidestep = None
         active = self._proxy_active()
@@ -439,12 +597,15 @@ class AcroMixin:
                 # a walk blocked by something it cannot move: step around it in depth, if the room allows
                 tgt = self.cur.target_x
                 lo_s, hi_s = sorted((self.s, tgt))
-                blockers = [b for b in self._props_in_path(lo_s, hi_s) if b[0] == prop or True]
-                z = self._free_lane(blockers or [(prop, *self.world.depth.get(prop, (0.0, 30.0)))])
+                blockers = self._props_in_path(lo_s, hi_s)
+                if not any(b[0] == prop for b in blockers):
+                    blockers.append((prop, *self.world.depth.get(prop, (0.0, 30.0))))
+                z = self._free_lane(blockers)
                 if z is not None and abs(z - self.z) > 1e-6:
-                    self._sidestep = {"prop": prop, "home": self.z}
+                    self._sidestep = {"prop": prop, "props": tuple(b[0] for b in blockers), "home": self.z}
                     self.z_target = z
-                    self.emit(Event(t, "sidestep", self.cid, {"prop": prop, "lane": round(z, 1)}))
+                    self.emit(Event(t, "sidestep", self.cid, {"prop": prop, "props": list(self._sidestep["props"]),
+                                                               "lane": round(z, 1)}))
         else:  # the prop pushed the body: the character is displaced with it
             self.s += off
             speed = abs(vx * tan[0] + vy * tan[1])
@@ -890,8 +1051,11 @@ class AcroMixin:
             if u >= 0.55:
                 I["placed"] = True
                 self._release_carry(t, why="place", data={"on": a.target, "point": I["rest"]})
-                if a.target.startswith("obstacle:"):  # a holder seats it: it stays put until someone takes it
+                if a.target.startswith("obstacle:") or a.seat:
                     self.world.set_kinematic(pid, I["rest"], 0.0)
+                    if a.seat:
+                        for shape in self.world.shapes_of(pid):
+                            shape.sensor = True
         if u >= 1.0:
             self.h = self.stand_h
             self._next_action(t)
@@ -924,6 +1088,8 @@ class AcroMixin:
         grip = self.frame.to_world(self.s + f * (20.0 + 0.5 * self.arm_reach * ext), self.h + 16.0 + 10.0 * ext)
         a = 0.35 if ang is None else ang
         wa = self.frame.body_angle + (a if f > 0 else math.pi - a)
+        if sp.kind == "glyph" and sp.glyph[:1] in ("+", "-") and sp.glyph[1:].isdigit() and ang is None:
+            wa = self.frame.body_angle  # keep the signed term legible while walking
         gl = self._grip_local(pid)
         ca, sa = math.cos(wa), math.sin(wa)
         c = (grip[0] - (gl[0] * ca - gl[1] * sa), grip[1] - (gl[0] * sa + gl[1] * ca))

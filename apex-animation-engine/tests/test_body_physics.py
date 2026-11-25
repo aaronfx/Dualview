@@ -91,3 +91,131 @@ def test_walks_plan_around_props_in_depth():
     assert abs(x[-1] - x[0]) < 1e-6  # never touched
     c = r.controllers["kai"]
     assert abs(c.s - -500) < 2.0 and abs(c.z - 10) < 1e-6  # arrived, and back in its own lane
+
+
+def test_planned_sidestep_tracks_every_blocker_and_returns_home():
+    # Opposite depth lanes, same horizontal route. Both are physically passable
+    # via a third lane. The lane choice must remain safe for both containers.
+    box = dict(kind="container", size=[100, 100], mass=110, friction=0.03,
+               static_friction=0.39, depth=40)
+    props = [dict(box, id="near", position=[-200, 51], z=-10),
+             dict(box, id="far", position=[-420, 51], z=30)]
+    r = sim(proj([{"character":"kai","type":"walk_to","target_x":-650}], props,
+                 dur=9.0, placements=[{"character":"kai","x":0,"facing":-1,"z":10}]))
+    steps = ev(r, "sidestep")
+    assert steps and {"near","far"} <= set(steps[0].data["props"])
+    assert not ev(r,"prop_block") and not ev(r,"shoved")
+    for pid in ("near","far"):
+        xs = r.prop_tracks[pid][:,0]
+        assert abs(xs[-1]-xs[0]) < 1e-6
+    c = r.controllers["kai"]
+    assert abs(c.s+650) < 2.0 and abs(c.z-10) < 1e-6
+
+
+def test_avoidance_events_are_available_to_native_story_contracts():
+    from apex.scene.goals import check_event
+    for event in ("sidestep","prop_block","body_block","shoved"):
+        check_event(event,"movement")
+
+
+def test_live_route_refresh_for_new_moving_container(monkeypatch):
+    """A container outside the route at action start later slides into it."""
+    from apex.physics.world import PhysicsWorld
+    box = dict(kind="container", id="late", position=[-650, 51],
+               size=[100, 100], mass=110, friction=0.01, depth=40)
+    original = PhysicsWorld.step
+    launched = False
+
+    def step(world, dt):
+        nonlocal launched
+        if not launched and world.t >= 0.2:
+            world._bodies["late"].velocity = (220.0, 0.0)
+            launched = True
+        return original(world, dt)
+
+    monkeypatch.setattr(PhysicsWorld, "step", step)
+    r = sim(proj([{"character": "kai", "type": "walk_to", "target_x": -500,
+                   "speed": 100}], [box], dur=7))
+    assert launched
+    refreshed = [e for e in ev(r, "sidestep") if e.data.get("refreshed")]
+    assert refreshed and refreshed[0].data["prop"] == "late"
+    assert not ev(r, "prop_block") and not ev(r, "shoved")
+    assert abs(r.controllers["kai"].s + 500) < 2.0
+
+
+def test_moving_container_is_anticipated_before_entering_route(monkeypatch):
+    from apex.physics.world import PhysicsWorld
+    box = dict(kind="container", id="incoming", position=[-680, 51],
+               size=[100, 100], mass=110, friction=0.01, depth=40)
+    original = PhysicsWorld.step
+    launched = False
+
+    def step(world, dt):
+        nonlocal launched
+        if not launched and world.t >= 0.2:
+            world._bodies["incoming"].velocity = (220.0, 0.0)
+            launched = True
+        return original(world, dt)
+
+    monkeypatch.setattr(PhysicsWorld, "step", step)
+    r = sim(proj([{"character": "kai", "type": "walk_to",
+                   "target_x": -500, "speed": 100}], [box], dur=7))
+    event = next(e for e in ev(r, "sidestep") if e.data.get("refreshed"))
+    index = min(round(event.t * 240), len(r.prop_tracks["incoming"]) - 1)
+    # The prop's leading face is still beyond the original route boundary.
+    assert r.prop_tracks["incoming"][index, 0] + 50 < -511
+    assert not ev(r, "prop_block") and not ev(r, "shoved")
+    assert abs(r.controllers["kai"].s + 500) < 2.0
+
+
+def test_carried_depth_expands_existing_lane_clearance():
+    # Native pickup, then inspect the actual controller's lane chooser.
+    item = dict(kind="crate", id="item", position=[-65, 31],
+                size=[60, 60], mass=2, depth=80)
+    r = sim(proj([{"character":"kai","type":"pick_up","target":"prop:item"},
+                  {"character":"kai","type":"idle","duration":2}], [item], dur=4))
+    c = r.controllers["kai"]
+    assert c.carrying == "item"
+    assert c._route_half_depth() == 40
+    lane = c._free_lane([("hypothetical", 0.0, 10.0)])
+    assert lane is not None and abs(lane) >= 53
+
+
+def _carry_blocked_project(duration=8):
+    item = dict(kind="crate", id="item", position=[-65, 31],
+                size=[60, 60], mass=2, depth=80)
+    wall = dict(kind="container", id="wall", position=[-260, 90],
+                size=[90, 180], mass=110, friction=0.5, depth=150)
+    return proj([{"character":"kai","type":"pick_up","target":"prop:item"},
+                 {"character":"kai","type":"walk_to","target_x":-500,"speed":100}],
+                [item, wall], dur=duration)
+
+
+def test_carried_load_waits_if_no_clear_lane():
+    r = sim(_carry_blocked_project())
+    c = r.controllers["kai"]
+    assert c.carrying == "item"
+    assert any(e.data["prop"] == "wall" for e in ev(r, "route_wait"))
+    assert not ev(r, "route_resume")
+    assert c.s > -260
+    # The held load remains outside the wall's horizontal face.
+    assert r.prop_tracks["item"][-1, 0] - 30 >= r.prop_tracks["wall"][-1, 0] + 45 - 1
+
+
+def test_carried_load_resumes_after_native_obstacle_removal(monkeypatch):
+    from apex.physics.world import PhysicsWorld
+    original = PhysicsWorld.step
+    removed = False
+
+    def step(world, dt):
+        nonlocal removed
+        if not removed and world.t >= 4.0:
+            world.deactivate("wall")
+            removed = True
+        return original(world, dt)
+
+    monkeypatch.setattr(PhysicsWorld, "step", step)
+    r = sim(_carry_blocked_project(duration=12))
+    assert removed and ev(r, "route_wait") and ev(r, "route_resume")
+    assert ev(r, "route_resume")[0].t >= 4.0
+    assert abs(r.controllers["kai"].s + 500) < 2

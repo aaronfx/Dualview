@@ -1,0 +1,109 @@
+name: APEX C6 native avoidance video
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/apex-c6-video.yml'
+      - 'apex-animation-engine/examples/build_adaptive_avoidance.py'
+      - 'apex-animation-engine/src/apex/scene/goals.py'
+      - 'apex-animation-engine/src/apex/scene/runtime.py'
+      - 'apex-animation-engine/src/apex/scene/schema.py'
+      - 'apex-animation-engine/examples/build_autonomous_chase.py'
+      - 'apex-animation-engine/src/apex/motion/**'
+      - 'apex-animation-engine/src/apex/physics/**'
+      - 'apex-animation-engine/src/apex/ai/autonomous_traversal.py'
+      - 'apex-animation-engine/src/apex/ai/strategic_planning.py'
+      - 'apex-animation-engine/tests/test_strategic_planning.py'
+      - 'apex-animation-engine/pyproject.toml'
+      - 'apex-animation-engine/tests/test_autonomous_traversal.py'
+      - 'apex-animation-engine/examples/build_autonomous_mixed.py'
+      - 'apex-animation-engine/examples/build_autonomous_extended.py'
+      - 'apex-animation-engine/examples/build_autonomous_acrobatics.py'
+      - 'apex-animation-engine/src/apex/ai/action_pacing.py'
+  workflow_dispatch:
+jobs:
+  render:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apex-animation-engine
+    env:
+      APEX_AI_PAID_ENABLED: '0'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg libegl1 libgl1 libglx0
+      - run: python -m pip install -e '.[dev]'
+      - run: python -m pytest -q tests/test_character_brain.py tests/test_obstacle_assessment.py -k 'character_brain or opt_in_native_body'
+      - run: python -m pytest -q tests/test_live_clearance_jump.py
+      - run: python -m pytest -q tests/test_combined_crossing.py tests/test_autonomous_traversal.py tests/test_strategic_planning.py
+      - name: Render hostile facility chase
+        run: |
+          mkdir -p out/hostile
+          python examples/build_autonomous_chase.py out/hostile/chase.json --hostile
+          apex validate out/hostile/chase.json
+          apex render out/hostile/chase.json -o out/hostile/chase.mp4 --scale 1 --samples 1 --qa-json out/hostile/qa.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: apex-hostile-facility
+          path: apex-animation-engine/out/hostile/
+          if-no-files-found: warn
+      - name: Render continuous autonomous chase
+        run: |
+          mkdir -p out/chase
+          python examples/build_autonomous_chase.py out/chase/chase.json
+          apex validate out/chase/chase.json
+          apex render out/chase/chase.json -o out/chase/chase.mp4 --scale 1 --samples 1 --qa-json out/chase/qa.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: apex-autonomous-chase
+          path: apex-animation-engine/out/chase/
+          if-no-files-found: error
+      - name: Verify all three acrobatics clips first
+        run: |
+          mkdir -p out/c6
+          for skill in slide vault climb; do
+            python examples/build_autonomous_acrobatics.py "$skill" "out/c6/$skill.json"
+            apex validate "out/c6/$skill.json"
+            apex render "out/c6/$skill.json" -o "out/c6/$skill.mp4" --scale 1 --samples 1 --qa-json "out/c6/$skill-qa.json"
+          done
+      - name: Combine verified acrobatics demonstrations
+        run: |
+          printf "file 'slide.mp4'\nfile 'vault.mp4'\nfile 'climb.mp4'\n" > out/c6/acrobatics-list.txt
+          ffmpeg -v error -f concat -safe 0 -i out/c6/acrobatics-list.txt -c copy -movflags +faststart out/c6/autonomous_acrobatics.mp4
+          ffmpeg -v error -xerror -i out/c6/autonomous_acrobatics.mp4 -f null -
+          python -c 'import subprocess; p="out/c6/autonomous_acrobatics.mp4"; n=int(subprocess.check_output(["ffprobe","-v","error","-select_streams","v:0","-count_frames","-show_entries","stream=nb_read_frames","-of","default=nokey=1:noprint_wrappers=1",p])); expected=sum(round(24*__import__("json").load(open(f"out/c6/{k}.json"))["scenes"][0]["duration"]) for k in ("slide","vault","climb")); assert n==expected and n<600, (n,expected); print(f"Combined action cut: {n} decoded frames")'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apex-action-cut
+          path: apex-animation-engine/out/c6/autonomous_acrobatics.mp4
+          if-no-files-found: error
+      - run: |
+          mkdir -p out/c6
+          python examples/build_adaptive_avoidance.py out/c6/avoidance.json
+          apex validate out/c6/avoidance.json
+          apex render out/c6/avoidance.json -o out/c6/avoidance.mp4 --scale 1 --samples 1 --qa-json out/c6/qa.json
+          ffprobe -v error -show_format -show_streams out/c6/avoidance.mp4
+          python examples/build_fallen_crossing.py out/c6/fallen.json
+          python -m pytest -q tests/test_fallen_crossing.py
+          apex validate out/c6/fallen.json
+          apex render out/c6/fallen.json -o out/c6/fallen.mp4 --scale 1 --samples 1 --qa-json out/c6/fallen-qa.json
+          python examples/build_combined_crossing.py out/c6/combined.json
+          apex validate out/c6/combined.json
+          apex render out/c6/combined.json -o out/c6/combined.mp4 --scale 1 --samples 1 --qa-json out/c6/combined-qa.json
+          python examples/build_autonomous_mixed.py out/c6/autonomous.json
+          apex validate out/c6/autonomous.json
+          apex render out/c6/autonomous.json -o out/c6/autonomous.mp4 --scale 1 --samples 1 --qa-json out/c6/autonomous-qa.json
+          python examples/build_autonomous_extended.py out/c6/autonomous_extended.json
+          apex validate out/c6/autonomous_extended.json
+          apex render out/c6/autonomous_extended.json -o out/c6/autonomous_extended.mp4 --scale 1 --samples 1 --qa-json out/c6/autonomous_extended-qa.json
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: apex-c6-native-avoidance
+          path: apex-animation-engine/out/c6/
+          if-no-files-found: warn

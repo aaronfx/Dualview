@@ -65,6 +65,7 @@ def system_prompt() -> str:
     """The planner's contract, generated from the live schema (action list, required fields, names)."""
     from ..audio.sound_director import SOUND_NAMES
     from ..scene.schema import ActionSpec, PropSpec
+    from .objective_planner import ActorObjective
     import typing
     acts = typing.get_args(ActionSpec.model_fields["type"].annotation)
     kinds = typing.get_args(PropSpec.model_fields["kind"].annotation)
@@ -91,7 +92,7 @@ Characters: id, name, proportions, style (colours, cadence/stride/lean/arm_swing
 Targets: "switch:<id>", "exit:<id>", "bar:<id>", "prop:<id>", "char:<id>", "point:x,y". Coordinates: x along the floor, room spans
 [-width/2, width/2]; gravity [0,-1568]; standing pelvis ~95 above the floor; a character is ~175 tall.
 Shots: contiguous, start at 0, end exactly at the scene duration; kinds establishing|wide|medium|close|insert|tracking; camera modes
-static|follow|track_x|dolly; camera.include lists targets to keep in frame (e.g. "char:<id>", "prop:<id>").
+static|follow|track_x|dolly; camera.target is a placed character's bare ID (not char: or prop:); camera.include lists targets to keep in frame (e.g. "char:<id>", "prop:<id>").
 exit_conditions: "event:<type>" with types from: {EVENT_TYPES}.
 sound_cues: {{on_event, sound, gain}}; sound must be one of: {", ".join(SOUND_NAMES)}.
 Keep characters consistent: one CharacterSpec per character, referenced by id everywhere. Include only what the story
@@ -108,6 +109,20 @@ add(args), sub(args), mul(args), div(args), pow(args), eq(args). NEVER invent a 
 operation unless APEX has an implemented action that triggers it. Avoid claims that equations rewrite physically
 until that engine feature exists. If profile=arcade, music beat markers refer to FILM time, including slow motion.
 A creative plan is optional; do not add it to simple projects where it serves no purpose.
+NATIVE PLANNING (optional top-level native_plans, NOT a scene-schema field): for a scene with explicit goals, you may
+delegate actors to existing native planners rather than write all their movement. Up to four entries, at most one per scene.
+Each entry is {{"tool":"objectives","request":{{"scene_id":"s","max_trials":4,"tasks":[{{"id":"find","actor":"a",
+"kind":"observe","target":"prop:core","after":[],"urgency":"urgent"}}]}}}}.
+Objective kinds: {", ".join(typing.get_args(ActorObjective.model_fields["kind"].annotation))}.
+Or use {{"tool":"ensemble","request":{{"scene_id":"s","tasks":[{{"id":"find","actor":"a","after":[],
+"proof":"notice@a[target=prop:core]","alternatives":[[{{"character":"a","type":"notice","target":"prop:core"}}]]}}]}}}}.
+Use actual placed actors, existing targets, explicit outcome goals, and duration <=60 seconds. Each delegated actor must
+have no authored actions in that scene; other actors' actions are retained. Dependencies are task IDs, not timestamps.
+For throw_at or evade_projectile, specify prop as an existing prop:<id> and target as char:<id>.
+An evade_projectile defender has only its independent reaction task and waits for the specified release; no after dependency.
+Allow at least three seconds after release for the native flight observation. A release alone is not a successful hit.
+The native planner chooses and rehearses alternatives; failed plans are rejected, never replaced with a generic story.
+Do not use this for a complex scene whose goals cannot be represented by those tools; use normal native actions instead.
 REPAIRS: when told your previous output was invalid, reply with ONLY {{"patch": [...]}}: RFC 6902 operations
 ({{"op": "replace"|"add"|"remove", "path": "/scenes/0/actions/3/until", "value": ...}}) against your previous JSON, not a full
 rewrite."""
@@ -161,8 +176,10 @@ def apply_patch(doc: dict, ops: list) -> dict:
     if not isinstance(ops, list):
         raise ValueError("patch must be a list of operations")
     for i, op in enumerate(ops):
+        if not isinstance(op, dict):
+            raise ValueError(f"patch op {i}: expected an object")
         kind, path = op.get("op"), op.get("path", "")
-        if kind not in ("add", "replace", "remove") or not path.startswith("/"):
+        if kind not in ("add", "replace", "remove") or not isinstance(path, str) or not path.startswith("/"):
             raise ValueError(f"patch op {i}: need op add|replace|remove and a path starting with '/' (got {op})")
         parts = [p.replace("~1", "/").replace("~0", "~") for p in path[1:].split("/")]
         parent = out
@@ -240,8 +257,15 @@ class StoryDirector:
                 try:
                     data = self._parse_json(raw, prev)
                     prev = data
-                    proj = self._validate(data)
+                    from .plan_compiler import compile_project
+                    from .story_native_plans import split_native_plans, execute_native_plans, verify_native_plans
+                    project_data, native_plans = split_native_plans(data)
+                    proj, repairs = compile_project(project_data)
+                    entry["compiler_repairs"] = [r.as_dict() for r in repairs]
+                    entry["native_planning"] = []
+                    proj, contracts = execute_native_plans(proj, native_plans, entry["native_planning"])
                     proj, report = self.prepare(proj)
+                    verify_native_plans(proj, contracts)
                     entry["engine_adjustments"] = report
                     status = "accepted"
                     self.accepted_ai_plan, self.engine_report = data, report

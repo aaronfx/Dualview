@@ -70,6 +70,9 @@ class World:
         self.lights: Dict[int, Tuple[list, skia.Picture]] = {}  # layer index -> (light chunks, beacons): drawn by power
         self.t_sim = 0.0  # scene time (power cues are placed on the simulation clock)
         self._build()
+        if self.kind == "tower" and self.bd.art_profile == "industrial_depth":
+            from .industrial_art import add_industrial_layers
+            add_industrial_layers(self)
         self._facades: Dict[str, skia.Picture] = {}
 
     # ------------------------------------------------------------ building the layers (once)

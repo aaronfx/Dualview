@@ -17,6 +17,10 @@ class Strict(BaseModel):
 
 # ---------------------------------------------------------------- characters
 class CharacterStyle(Strict):
+    visual_profile: Literal["legacy", "apex_ink"] = "legacy"
+    performance_profile: Literal["legacy", "continuous"] = "legacy"
+    motion_intelligence: bool = False  # opt-in contact-preserving inertial transitions
+    acting_intent: Literal["neutral", "hunter", "fugitive"] = "neutral"
     body_color: str = "#ffcf3a"
     far_color: str = "#c08f1e"
     visor_color: str = "#5ff6ff"
@@ -65,6 +69,7 @@ class RoomSpec(Strict):
     grid_alpha: float = Field(1.0, ge=0, le=1)  # strength of the neon grid (set dressing reads better over a quieter grid)
     style: Literal["box", "open"] = "box"  # "open": no cutaway room is drawn; the environment's backdrop is the world
     # (the room's bounds still hold physically: its walls are the edges of the playable area)
+    road_view: bool = False  # opt-in raised-view projection and marked two-person floor corridor
     void_below: Optional[float] = None  # Milestone 6: drawn as a bottomless void below this height (the floor is still
     # there physically, far below a level built on platforms; a scene's `fail` zone catches a fall before it is reached)
 
@@ -411,6 +416,7 @@ class BackdropSpec(Strict):
     """The world around an open environment (cinematic upgrade): sky, distant layers drawn at depth (so they move
     with real parallax), weather and fog. Drawn only; nothing in it collides."""
     kind: Literal["city", "canyon", "tower", "void", "summit"]
+    art_profile: Literal["legacy", "industrial_depth"] = "legacy"
     seed: int = 1
     sky: Optional[List[str]] = None  # top -> horizon colours (2 or 3); defaults per kind
     sun: Optional[Vec2] = None  # a sun or moon at this (x, y) on the far sky (default per kind; [] none)
@@ -593,12 +599,14 @@ class ActionSpec(Strict):
     lane: Optional[float] = Field(None, ge=-80, le=80)  # move to this depth lane during the action (negative = nearer the camera)
     beats: int = Field(1, ge=1, le=64)  # wait_beat: hold until this many beats from now have started (the next action starts on it)
     clip: Optional[str] = None  # act: full-body clip; run_to/walk_to: upper-body acting overlay while feet keep moving
+    adaptive_avoidance: bool = False  # opt-in proactive body avoidance for untargeted ground locomotion
     notice_while_moving: bool = False  # run_to/walk_to: glance at target during travel; emit causal notice event
     intensity: float = Field(1.0, gt=0, le=2.5)  # act: exaggeration (scales the clip's deviation from neutral)
     tempo: float = Field(1.0, gt=0.2, le=3.0)  # act: playback speed
     tremble: float = Field(0.0, ge=0, le=1.5)  # act: shaking hands, arms and head (fear, exhaustion)
     slip_at: Optional[float] = Field(None, ge=0)  # hang: the near hand slips off this long into the hang (`distance`: the drop)
     # hang with `duration`: after that long the character scrambles up over the edge unaided
+    seat: bool = False  # place at a point as fixed, non-solid equation geometry
     note: str = ""
 
     @model_validator(mode="after")
@@ -615,6 +623,8 @@ class ActionSpec(Strict):
         for f in need.get(self.type, []):
             if getattr(self, f) is None:
                 raise ValueError(f"action '{self.type}' requires '{f}'")
+        if self.seat and (self.type != "place" or not (self.target or "").startswith("point:")):
+            raise ValueError("seat is only valid for place at a point")
         if self.type == "turn" and self.face not in (-1, 1):
             raise ValueError("turn.face must be +1 or -1")
         if self.target is not None:
@@ -667,8 +677,21 @@ class ActionSpec(Strict):
         return self
 
 
+class ActorRole(Strict):
+    role: Literal["hunter","fugitive"]
+    opponent: str
+    prompt: str = Field(min_length=20)
+    objective: Literal["capture","escape"]
+    aggression: float = Field(.8,ge=0,le=1)
+    resolve: float = Field(.8,ge=0,le=1)
+
 class CharacterPlacement(Strict):
     character: str
+    destination_x: Optional[float] = Field(None, allow_inf_nan=False)  # opt-in autonomous floor traversal
+    pursue: Optional[str] = None  # live actor ID; mutually exclusive with destination_x
+    actor_role: Optional[ActorRole] = None
+    hostile_pursuit: bool = False  # opt-in native combat during pursuit
+    action_pace: bool = False  # opt-in faster native decisions and travel
     x: float = 0.0
     at: Optional[str] = None  # a level marker (digit): x comes from the level grid
     on: Optional[str] = None  # start standing on this structure's top ("obstacle:<id>"), not on the floor
@@ -698,6 +721,7 @@ class CameraSpec(Strict):
     keep_in_frame: bool = True
     bound_to_room: bool = False  # the view never shows past the room's walls (it slides along them instead)
     include: List[str] = Field(default_factory=list)  # world objects kept in frame with the subject ("bar:rail", "exit:door1", ...)
+    include_distance: Optional[float] = Field(None, gt=0)  # only include a distant actor when relevant
     include_margin: float = Field(45.0, ge=0)  # world units around each included object
     min_subject_frac: Optional[float] = None  # composition: subject height / frame height (default by shot kind)
 
@@ -850,7 +874,20 @@ class ScoreSpec(Strict):
     cues: List[ScoreCue] = Field(default_factory=list)
 
 
+class MathTransferSpec(Strict):
+    """A bounded, native, proof-carrying additive equation operation."""
+    equation: Dict[str, Any]
+    actor: str
+    name: str = "transpose"
+    center: Vec2 = (0.0, 65.0)
+    glyph_width: float = Field(54.0, gt=0, le=120)
+    height: float = Field(86.0, gt=0, le=180)
+    gap: float = Field(26.0, gt=0, le=100)
+    min_hold: float = Field(1.0, ge=0.75, le=5)
+
+
 class SceneSpec(Strict):
+    storyline: Optional[str] = None
     id: str
     title: str = ""
     environment: str
@@ -861,6 +898,7 @@ class SceneSpec(Strict):
     # the story beats that must happen, in order, e.g. ["push_lost@milo", "pinned@milo[by=post]", "freed@milo"];
     # the dry run checks them and the setup solver tunes the physical setup until they happen
     goals: List[str] = Field(default_factory=list)
+    math_transfer: Optional[MathTransferSpec] = None
     time_fx: Optional[TimeFxSpec] = None  # hit-stop, slow motion, smears and screen effects (Milestone 3)
     music: Optional[MusicSpec] = None  # beat grid: cut snapping, beat waits, beat-locked soundtrack (Milestone 4)
     diagrams: List[DiagramSpec] = Field(default_factory=list)  # annotations from simulation data (Milestone 5)
