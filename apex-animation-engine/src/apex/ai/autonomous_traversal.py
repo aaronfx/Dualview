@@ -15,6 +15,9 @@ class TraversalBrain:
     last: tuple | None = None
     attempts: dict = field(default_factory=dict)
     pending: tuple | None = None
+    progress_x: float | None = None
+    progress_t: float = 0.0
+    active_action: object = None
 
     def tick(self, c, t):
         from ..motion.controller import Event
@@ -22,6 +25,19 @@ class TraversalBrain:
             return
         self.next_tick = t + 0.10
         if c.cur is not None or c.queue:
+            # Never interrupt contact, flight, an authored interaction or recovery.
+            # Only our own ordinary locomotion may be cancelled after a stall.
+            if c.cur is self.active_action and c.cur.type in ("walk_to","run_to") and not c.queue and not c.carrying and not c.lying:
+                if self.progress_x is None or abs(c.s-self.progress_x) >= 8:
+                    self.progress_x, self.progress_t = c.s, t
+                elif t-self.progress_t >= 1.5:
+                    key = self.pending[0] if self.pending else ("travel","goal")
+                    self.attempts[key] = self.attempts.get(key,0)+1
+                    self.pending = None
+                    self.active_action = None
+                    c.v = 0.0
+                    c._next_action(t)
+                    c.emit(Event(t,"autonomous_blocked",c.cid,{"reason":"stalled locomotion; replanning","skill":key[0]}))
             return
         if self.pending is not None:
             key, origin = self.pending
@@ -54,7 +70,8 @@ class TraversalBrain:
             if abs(z-c.z) >= ph+14:
                 continue
             x0,x1,y0,y1 = c._target_bounds("prop:"+pid)
-            if y1 > 12 and (x1-c.s)*d > 0 and (x0-end)*d < 0 if d>0 else y1>12 and x0<c.s and x1>end:
+            lo, hi = sorted((c.s,end))
+            if y1 > 12 and y0 < 2.1*c.stand_h and x1 > lo and x0 < hi:
                 obstacles.append(((x0+x1)/2,Block("prop:"+pid,x0,x1,y0,y1),None))
         obstacles.sort(key=lambda q: (abs(q[0]-c.s),q[1].owner))
         hit = c._path_blocker(c.s,end)
@@ -88,7 +105,7 @@ class TraversalBrain:
                 verdict=select_clearance_jump(c.env,(c.s,0),(landing,0),live_bounds=live,body_height=2.1*c.stand_h,body_half_width=35,max_rise=260)
                 if verdict.feasible:
                     add("jump",b.owner,type="jump_to",target_x=landing,height=verdict.plan.apex_y)
-                elif (approach-c.s)*d>10 and not c._path_blocker(c.s,approach):
+                elif (approach-c.s)*d>10 and not c._path_blocker(c.s,approach) and all((q[1].x0-approach)>35 if d>0 else (approach-q[1].x1)>35 for q in obstacles):
                     add("approach",b.owner,type="run_to",target_x=approach,speed=300,adaptive_avoidance=True)
         selected=[]
         class Candidate(py_trees.behaviour.Behaviour):
@@ -102,6 +119,8 @@ class TraversalBrain:
             py_trees.composites.Selector(name="traversal",memory=False,children=[Candidate(q) for q in candidates]).tick_once()
             key, action=selected[0]
             self.pending=(key,c.s)
+            self.active_action=action
+            self.progress_x,self.progress_t=c.s,t
             c.queue.append(action)
             emit("autonomous_decision",skill=key[0],target=key[1])
         else:
