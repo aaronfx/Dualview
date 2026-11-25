@@ -5,7 +5,7 @@ import py_trees
 from ..scene.schema import ActionSpec
 from ..scene.structures import Block
 from ..scene.route_planner import select_clearance_jump
-from ..motion.acrobatics import BODY_PASS_Z
+from ..motion.acrobatics import BODY_PASS_Z, CARRY_MASS_G
 
 @dataclass
 class TraversalBrain:
@@ -94,6 +94,35 @@ class TraversalBrain:
             if lane is not None and not hit:
                 # Existing native proactive body/prop avoidance owns lane clearance.
                 add("avoid",b.owner,type="run_to",target_x=end,speed=300,adaptive_avoidance=True)
+        relocation = None
+        # Small floor props only: native pickup and placement, not teleportation.
+        if obstacles and not hit and not c.carrying:
+            _, b, actor = obstacles[0]
+            if actor is None:
+                pid = b.owner.split(":",1)[1]
+                sp = c.props[pid]
+                g = math.hypot(*c.gravity.at(t))
+                rest = c.s-d*180
+                tied = any(r.a == b.owner or r.b == b.owner for r in c.env.ropes)
+                held = any(o.carrying == pid for o in c.others.values())
+                clear_back = not c._path_blocker(c.s,rest)
+                for oid, other in c.props.items():
+                    if oid == pid or oid in c.world.inactive or not other.solid:
+                        continue
+                    l,r,_,_ = c._target_bounds("prop:"+oid)
+                    if l < max(c.s,rest)+100 and r > min(c.s,rest)-100:
+                        clear_back = False
+                if any(o is not c and abs(o.z-c.z)<BODY_PASS_Z and min(c.s,rest)-100<o.s<max(c.s,rest)+100 for o in c.others.values()):
+                    clear_back = False
+                if (not tied and not held and clear_back and lane is None
+                        and sp.mass*g <= CARRY_MASS_G*c.strength
+                        and max(sp.size) <= .7*c.stand_h and b.y0 < 8
+                        and math.hypot(*c.world.state(pid).vel)<10
+                        and c.frame.lo+100 < rest < c.frame.hi-100
+                        and (b.x0-c.s if d>0 else c.s-b.x1)>60):
+                    add("relocate",b.owner,type="pick_up",target=b.owner)
+                    if candidates and candidates[-1][0]==("relocate",b.owner):
+                        relocation = ActionSpec(character=c.cid,type="place",target=f"point:{rest},0")
         if obstacles or hit:
             b = hit[1] if hit and (not obstacles or abs(hit[0]-c.s)<abs(obstacles[0][0]-c.s)) else obstacles[0][1]
             near = b.x0 if d>0 else b.x1
@@ -122,6 +151,8 @@ class TraversalBrain:
             self.active_action=action
             self.progress_x,self.progress_t=c.s,t
             c.queue.append(action)
+            if key[0]=="relocate" and relocation is not None:
+                c.queue.append(relocation)
             emit("autonomous_decision",skill=key[0],target=key[1])
         else:
             key=("blocked",tuple(q[1].owner for q in obstacles),hit[1].owner if hit else None)

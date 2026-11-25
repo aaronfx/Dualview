@@ -32,3 +32,22 @@ def test_goal_only_heavy_prop_jump(direction):
     assert any(e.type=="takeoff" for e in sim.events)
     assert any(e.type=="autonomous_reached" for e in sim.events)
     assert abs(sim.controllers["iko"].records[-1].pos[0]-600*direction)<3
+
+@pytest.mark.parametrize("direction", [1,-1])
+def test_goal_only_light_prop_relocation(direction):
+    raw=runpy.run_path("examples/build_combined_crossing.py")["_two_char_scene"](-350*direction,800,600*direction,[])
+    scene=raw["scenes"][0]
+    scene["placements"]=scene["placements"][:1]
+    scene["placements"][0]["facing"]=direction
+    scene["placements"][0]["destination_x"]=600*direction
+    scene["actions"]=[]
+    scene["duration"]=14
+    scene["shots"][0]["end"]=14
+    scene["goals"]=["autonomous_reached@iko"]
+    raw["environments"][0]["props"]=[{"id":"light","kind":"crate","position":[0,20],"size":[40,40],"mass":3,"depth":100}]
+    sim=SceneRuntime(ProjectSpec.model_validate(raw),"s").simulate()
+    assert any(e.type=="autonomous_decision" and e.data.get("skill")=="relocate" for e in sim.events)
+    assert any(e.type=="pick_up" and e.data.get("prop")=="light" for e in sim.events)
+    assert any(e.type=="place" and e.data.get("prop")=="light" for e in sim.events)
+    assert any(e.type=="autonomous_reached" for e in sim.events)
+    assert abs(sim.controllers["iko"].records[-1].pos[0]-600*direction)<3

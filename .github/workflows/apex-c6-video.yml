@@ -6,6 +6,8 @@ on:
       - 'apex-animation-engine/examples/build_adaptive_avoidance.py'
       - 'apex-animation-engine/src/apex/scene/goals.py'
       - 'apex-animation-engine/src/apex/motion/**'
+      - 'apex-animation-engine/src/apex/ai/autonomous_traversal.py'
+      - 'apex-animation-engine/tests/test_autonomous_traversal.py'
   workflow_dispatch:
 jobs:
   render:
