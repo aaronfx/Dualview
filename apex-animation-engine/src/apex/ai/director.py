@@ -65,6 +65,7 @@ def system_prompt() -> str:
     """The planner's contract, generated from the live schema (action list, required fields, names)."""
     from ..audio.sound_director import SOUND_NAMES
     from ..scene.schema import ActionSpec, PropSpec
+    from .objective_planner import ActorObjective
     import typing
     acts = typing.get_args(ActionSpec.model_fields["type"].annotation)
     kinds = typing.get_args(PropSpec.model_fields["kind"].annotation)
@@ -108,6 +109,17 @@ add(args), sub(args), mul(args), div(args), pow(args), eq(args). NEVER invent a 
 operation unless APEX has an implemented action that triggers it. Avoid claims that equations rewrite physically
 until that engine feature exists. If profile=arcade, music beat markers refer to FILM time, including slow motion.
 A creative plan is optional; do not add it to simple projects where it serves no purpose.
+NATIVE PLANNING (optional top-level native_plans, NOT a scene-schema field): for a scene with explicit goals, you may
+delegate actors to existing native planners rather than write all their movement. Up to four entries, at most one per scene.
+Each entry is {{"tool":"objectives","request":{{"scene_id":"s","max_trials":4,"tasks":[{{"id":"find","actor":"a",
+"kind":"observe","target":"prop:core","after":[],"urgency":"urgent"}}]}}}}.
+Objective kinds: {", ".join(typing.get_args(ActorObjective.model_fields["kind"].annotation))}.
+Or use {{"tool":"ensemble","request":{{"scene_id":"s","tasks":[{{"id":"find","actor":"a","after":[],
+"proof":"notice@a[target=prop:core]","alternatives":[[{{"character":"a","type":"notice","target":"prop:core"}}]]}}]}}}}.
+Use actual placed actors, existing targets, explicit outcome goals, and duration <=60 seconds. Each delegated actor must
+have no authored actions in that scene; other actors' actions are retained. Dependencies are task IDs, not timestamps.
+The native planner chooses and rehearses alternatives; failed plans are rejected, never replaced with a generic story.
+Do not use this for a complex scene whose goals cannot be represented by those tools; use normal native actions instead.
 REPAIRS: when told your previous output was invalid, reply with ONLY {{"patch": [...]}}: RFC 6902 operations
 ({{"op": "replace"|"add"|"remove", "path": "/scenes/0/actions/3/until", "value": ...}}) against your previous JSON, not a full
 rewrite."""
@@ -243,9 +255,14 @@ class StoryDirector:
                     data = self._parse_json(raw, prev)
                     prev = data
                     from .plan_compiler import compile_project
-                    proj, repairs = compile_project(data)
+                    from .story_native_plans import split_native_plans, execute_native_plans, verify_native_plans
+                    project_data, native_plans = split_native_plans(data)
+                    proj, repairs = compile_project(project_data)
                     entry["compiler_repairs"] = [r.as_dict() for r in repairs]
+                    entry["native_planning"] = []
+                    proj, contracts = execute_native_plans(proj, native_plans, entry["native_planning"])
                     proj, report = self.prepare(proj)
+                    verify_native_plans(proj, contracts)
                     entry["engine_adjustments"] = report
                     status = "accepted"
                     self.accepted_ai_plan, self.engine_report = data, report

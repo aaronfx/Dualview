@@ -134,3 +134,22 @@ reference-triad creative QA completed successfully. Native math workflow
 was still running at inspection. This is not a rerun of the full native
 suite or proof of Windows rendering. The inventory/catalogue change itself
 requires its own CI verification.
+
+
+## Full-story routing increment
+
+StoryDirector now accepts optional top-level native_plans in the provider
+response. This is planning metadata, not a persisted ProjectSpec field.
+The existing objective and ensemble schema/compilers/rehearsal choose action
+queues for explicitly delegated actors. Unassigned actors and authored
+outcome goals are retained; a delegated actor with a preexisting authored
+queue is rejected. The winning actions are merged into the original scene,
+then the existing setup solver and dry-run run. Task proofs and dependencies
+are checked again after preparation. Native rejection flows back into the
+existing bounded repair loop; no new model call or executor is introduced.
+Only up to four scenes, 60s each, with explicit goals are delegated in a
+single response. Ordinary projects and offline template mode retain their
+existing route. This is optional planning delegation, not automatic routing
+for every story or continuous runtime awareness. Style preservation and
+C5/C6/C7 remain separate work. New fake-provider test uses real native
+rehearsal; other tests check scope/queue preservation/rejection.
