@@ -25,4 +25,8 @@ def fit_goal_scene(raw, scene_id, actor, *, tail=.25, fps=24):
     report=audit_character(check,actor,min_pause=.38,max_waste=.65)
     if not report.passed:
         raise ValueError(f"action pacing failed: {report.to_dict()}")
+    from ..qa.hostile_liveness import audit_hostile_liveness
+    reports=audit_hostile_liveness(check,scene["placements"])
+    if any(not r["passed"] for r in reports.values()):
+        raise ValueError(f"story actor liveness failed: {reports}")
     return result

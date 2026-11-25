@@ -161,3 +161,11 @@ def test_story_roles_are_live_and_reciprocal():
     sim=SceneRuntime(ProjectSpec.model_validate(raw),"s").simulate()
     assert any(e.type=="actor_intent" and e.character=="iko" and e.data["state"]=="fight_to_escape" for e in sim.events)
     assert any(e.type=="actor_intent" and e.character=="pell" and e.data["state"]=="engage" for e in sim.events)
+
+def test_hostile_pursuer_cannot_abandon_scene():
+    from apex.qa.hostile_liveness import audit_hostile_liveness
+    raw=runpy.run_path("examples/build_autonomous_chase.py")["build"](hostile=True)
+    sim=SceneRuntime(ProjectSpec.model_validate(raw),"s").simulate()
+    reports=audit_hostile_liveness(sim,raw["scenes"][0]["placements"])
+    assert all(r["passed"] for r in reports.values()), reports
+    assert sim.controllers["pell"].records[-1].pos[0]>1000, reports

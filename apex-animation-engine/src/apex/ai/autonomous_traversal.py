@@ -202,6 +202,11 @@ class TraversalBrain:
                 obstacles.append(((x0+x1)/2,Block("prop:"+pid,x0,x1,y0,y1),None))
         obstacles.sort(key=lambda q: (abs(q[0]-c.s),q[1].owner))
         hit = c._path_blocker(c.s,end)
+        # For story actors, assess the immediate structure independently of
+        # distant opponents beyond it. Reobserve after crossing the structure.
+        if self.role is not None and hit:
+            face=hit[0]
+            obstacles=[q for q in obstacles if ((q[1].x0 if d>0 else q[1].x1)-face)*d<=50]
         candidates = []
         def add(name, target_id, **kw):
             key=(name,target_id)
@@ -248,6 +253,10 @@ class TraversalBrain:
                             add("slide_approach",b.owner,type="run_to",target_x=start,speed=300,adaptive_avoidance=True)
                         elif (near-c.s)*d>=430*SLIDE_DROP+15:
                             add("slide",b.owner,type="duck_slide",target_x=stop,speed=430)
+                        elif self.role is not None and (c.s-start)*d>5 and c.frame.lo+40<start<c.frame.hi-40 and not c._path_blocker(c.s,start):
+                            # A fight may leave us too close to duck safely.
+                            # Back out to the verified approach instead of stalling.
+                            add("reset_slide_approach",b.owner,type="walk_to",target_x=start,speed=170,adaptive_avoidance=True)
                 elif b.y0<=0 and b.y1<=VAULT_MAX*c.stand_h and (end-far)*d>100 and (near-c.s)*d>.5*c.stand_h:
                     add("vault",b.owner,type="vault",target="obstacle:"+b.owner,speed=300)
                 elif b.y0<=0 and .45*c.stand_h<=b.y1<=c.stand_h+c.shoulder_up+c.arm_reach+120 and (end-far)*d>120 and b.x1-b.x0>100 and b.y1+2.1*c.stand_h+55<c.env.room.height:
@@ -351,5 +360,5 @@ class TraversalBrain:
         else:
             key=("blocked",tuple(q[1].owner for q in obstacles),hit[1].owner if hit else None)
             if self.last != key:
-                emit("autonomous_blocked",reason="no verified native action")
+                emit("autonomous_blocked",reason="no verified native action",x=c.s,goal=self.goal,obstacle=hit[1].owner if hit else None,attempts=str(self.attempts),tactical_state=self.tactical_state)
             self.last=key
