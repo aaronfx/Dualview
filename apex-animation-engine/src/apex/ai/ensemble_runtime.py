@@ -66,6 +66,10 @@ class EnsembleRuntime:
         self.skill_tickets={}
         self.rescue_attempts={}
         self.role_by_ally={a.target:a.character for a in spec.actors if a.objective=="assist"}
+        self.conflict=None
+        if spec.conflict is not None:
+            from .live_conflict import ConflictRuntime
+            self.conflict=ConflictRuntime(self)
 
 
     def hostile(self,a,b):
@@ -157,7 +161,7 @@ class EnsembleRuntime:
                 continue
             st.last_outcome=e.type
             st.memory=(st.memory+[(e.t,e.type,dict(e.data))])[-32:]
-            if self.roles[e.character].objective=="intercept" and e.type=="hit" and e.data.get("target")==st.target and st.target is not None and self.hostile(e.character,st.target):
+            if self.conflict is None and self.roles[e.character].objective=="intercept" and e.type=="hit" and e.data.get("target")==st.target and st.target is not None and self.hostile(e.character,st.target):
                 st.complete=True
                 st.witness={"event":"hit","t":e.t,"target":st.target,"move":e.data.get("move")}
         self.event_cursor=len(events)
@@ -293,6 +297,9 @@ class EnsembleRuntime:
             return
         self.next_tick=t+1/self.spec.coordination_hz
         self._remember(events)
+        if self.conflict is not None:
+            self.conflict.tick(t,events)
+            return
         obs=self.snapshot()
         self.team_alerts={k:v for k,v in self.team_alerts.items() if t-v[0]<=3.0}
         assigned=self.assignments(obs)

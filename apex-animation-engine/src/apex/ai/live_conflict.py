@@ -1,0 +1,112 @@
+"""Sustained asymmetric contest, not a queue of authored attacks.
+
+The hero's goal is an actual escape position. Opponents remain hostile until
+that outcome; a hit is not a capture. Native controllers own all motion,
+contact, ragdoll, recovery, lane clearance and obstacles.
+"""
+from ..motion.controller import Event
+from ..scene.schema import ActionSpec
+from .live_skills import issue_native
+
+class ConflictRuntime:
+    def __init__(self,ensemble):
+        self.en=ensemble
+        self.spec=ensemble.spec.conflict
+        self.hero=self.spec.protagonist
+        self.guards=sorted(set(ensemble.roles)-{self.hero})
+        self.stations={cid:ensemble.ctrls[cid].s for cid in self.guards}
+        self.down_since={}
+        self.active=set()
+        self.finished=False
+        for cid,b in ensemble.brains.items():
+            b.conflict_actor=True
+            b.hostile=True
+            if cid==self.hero:
+                b.ensemble_impact="knockdown"
+
+    def _idle(self,cid,t):
+        c,b=self.en.ctrls[cid],self.en.brains[cid]
+        b.ensemble_target=None
+        # Only interrupt our own uncommitted locomotion. Never cancel a
+        # strike, a vault, a climb, a fall or an interaction.
+        if c.cur is b.active_action and c.cur is not None and c.cur.type in ("walk_to","run_to") and not c.queue:
+            c._next_action(t)
+            b.active_action=None
+            b.pending=None
+        b.done=True
+
+    def _recovery(self,cid,t):
+        c,b=self.en.ctrls[cid],self.en.brains[cid]
+        if c.mode=="ragdoll" or c.lying:
+            self.down_since.setdefault(cid,t)
+            b.done=True
+            b.ensemble_target=None
+            if c.mode=="grounded" and c.lying and c.knocked and c.ragdoll is None and c.cur is None and not c.queue:
+                delay=.45 if cid==self.hero else self.spec.recovery_delay
+                if t-self.down_since[cid]>=delay:
+                    self.en.skill_tickets[cid]=issue_native(c,t,ActionSpec(character=cid,type="get_up"))
+                    c.emit(Event(t,"conflict_recovery",cid,{"kind":"self_recovery"}))
+            return True
+        if cid in self.down_since:
+            self.down_since.pop(cid)
+            b.attempts.clear()
+            b.pending=None
+            b.active_action=None
+            b.last=None
+            b.done=False
+        return False
+
+    def tick(self,t,events):
+        if self.finished:
+            return
+        en=self.en
+        ctrls,brains=en.ctrls,en.brains
+        h,hb=ctrls[self.hero],brains[self.hero]
+        dest=en.roles[self.hero].destination_x
+        unavailable={cid for cid in ctrls if self._recovery(cid,t)}
+        if self.hero not in unavailable and h.mode=="grounded" and h.frame.owner is None and abs(h.s-dest)<4 and h.cur is None and not h.queue:
+            h.emit(Event(t,"conflict_escape",self.hero,{"x":h.s,"opponents":len(self.guards)}))
+            for cid in self.guards:
+                self._idle(cid,t)
+                en._intent(cid,"mission_failed",self.hero,t)
+            hb.done=True
+            en._intent(self.hero,"escaped",None,t)
+            self.finished=True
+            en.finished=True
+            return
+        # Only nearby eligible opponents engage; retain an in-flight strike's
+        # reservation. This limits crowding without scripting attack times.
+        eligible=[cid for cid in self.guards if cid not in unavailable and abs(ctrls[cid].s-h.s)<=self.spec.activation_radius]
+        committed=[cid for cid in eligible if ctrls[cid].cur is not None and ctrls[cid].cur.type=="strike"]
+        ordered=sorted(eligible,key=lambda cid:(0 if cid in committed else 1,abs(ctrls[cid].s-h.s)-(45 if cid in self.active else 0),cid))
+        active=set(ordered[:self.spec.attack_slots]) if self.hero not in unavailable else set()
+        for cid in sorted(active-self.active):
+            ctrls[cid].emit(Event(t,"conflict_engagement",cid,{"target":self.hero}))
+        self.active=active
+        if self.hero not in unavailable:
+            viable=[cid for cid in eligible if ctrls[cid].frame is h.frame and abs(ctrls[cid].z-h.z)<28 and not h._path_blocker(h.s,ctrls[cid].s)]
+            target=min(viable,key=lambda cid:(0 if cid in active else 1,abs(ctrls[cid].s-h.s),cid)) if viable else None
+            hb.ensemble_target=target
+            en._intent(self.hero,"fight_to_escape" if target else "escape",target,t)
+            en._waypoint(self.hero,dest)
+            hb.done=False
+        for cid in self.guards:
+            c,b=ctrls[cid],brains[cid]
+            if cid in unavailable:
+                continue
+            if cid in active:
+                b.ensemble_target=self.hero
+                en._intent(cid,"engage",self.hero,t)
+                side=1 if h.s>=c.s else -1
+                # Stop in striking range, rather than target the hero's body.
+                gap=.88*c._strike_reach("jab")
+                en._waypoint(cid,h.s-side*gap)
+                b.done=False
+            elif cid in eligible:
+                # Reserve space for the active attackers. Do not join the
+                # same melee until an engagement slot becomes free.
+                en._intent(cid,"cover",self.hero,t)
+                self._idle(cid,t)
+            else:
+                en._intent(cid,"watch",self.hero,t)
+                self._idle(cid,t)

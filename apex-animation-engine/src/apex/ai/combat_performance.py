@@ -19,7 +19,7 @@ def choose_combat_action(brain,c,t):
                   and o.autonomous_brain.hostile and o.autonomous_brain.pursuit==c.cid)]
     if not enemies:
         return None
-    enemy=min(enemies,key=lambda o:abs(o.s-c.s))
+    enemy=min(enemies,key=lambda o:(0 if o.cur is not None and o.cur.type=="strike" and o.cur.target=="char:"+c.cid and not o.inter.get("resolved") else 1,abs(o.s-c.s),o.cid))
     gap=abs(enemy.s-c.s)
     direction=1 if enemy.s>=c.s else -1
     incoming=enemy.cur
@@ -48,7 +48,7 @@ def choose_combat_action(brain,c,t):
         return "face_threat",ActionSpec(character=c.cid,type="turn",face=direction),enemy.cid
     moves=("jab","cross","hook","front_kick","side_kick") if brain.hostile else ("side_kick","cross","front_kick")
     feasible=[move for move in moves if .55*c._strike_reach(move)<=gap<=c._strike_reach(move)]
-    if getattr(brain,"role",None) is not None:
+    if getattr(brain,"role",None) is not None or getattr(brain,"conflict_actor",False):
         # Reserve the swept limb envelope beyond both actors; avoid starting a
         # contact beside a beam when a recoil or follow-through can graze it.
         feasible=[move for move in feasible if not c._path_blocker(c.s,c.s+direction*(c._strike_reach(move)+28),top=c.stand_h+c.shoulder_up+25)

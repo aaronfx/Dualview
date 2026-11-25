@@ -720,11 +720,18 @@ class EnsembleActorSpec(Strict):
             raise ValueError("escort requires a teammate and separated formation offset")
         return self
 
+class ConflictSpec(Strict):
+    protagonist: str
+    activation_radius: float = Field(650,ge=200,le=1600)
+    attack_slots: int = Field(2,ge=1,le=3)
+    recovery_delay: float = Field(2.0,ge=.5,le=5)
+
 class EnsembleSpec(Strict):
     actors: List[EnsembleActorSpec] = Field(min_length=1,max_length=100)
     hostile_teams: List[Tuple[str,str]] = Field(default_factory=list)
     coordination_hz: float = Field(5,ge=1,le=10)
     perform_emotions: bool = False
+    conflict: Optional[ConflictSpec] = None
 
     @model_validator(mode="after")
     def _cast(self):
@@ -735,6 +742,12 @@ class EnsembleSpec(Strict):
         pairs={frozenset(p) for p in self.hostile_teams}
         if len(pairs)!=len(self.hostile_teams) or any(len(p)!=2 or not p<=teams for p in pairs):
             raise ValueError("invalid or duplicate hostile team pair")
+        if self.conflict is not None:
+            hero=by.get(self.conflict.protagonist)
+            if hero is None or hero.objective!="reach" or len(by)<2:
+                raise ValueError("conflict needs a destination-driven protagonist")
+            if any(a.objective!="intercept" or a.target!=hero.character or frozenset((a.team,hero.team)) not in pairs for a in self.actors if a is not hero):
+                raise ValueError("conflict opponents must independently target the protagonist")
         slots=set()
         for a in self.actors:
             if a.target is not None and (a.target not in by or a.target==a.character):

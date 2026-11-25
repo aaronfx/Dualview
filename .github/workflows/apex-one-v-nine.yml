@@ -1,0 +1,39 @@
+name: APEX one against nine - 60 second native action film
+on:
+  pull_request:
+    branches: [apex-unified]
+    paths:
+      - 'apex-animation-engine/examples/build_one_vs_nine.py'
+      - 'apex-animation-engine/src/apex/ai/live_conflict.py'
+      - '.github/workflows/apex-one-v-nine.yml'
+  workflow_dispatch:
+jobs:
+  film:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: apex-animation-engine
+    env:
+      APEX_AI_PAID_ENABLED: '0'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg libegl1 libgl1 libglx0
+      - run: python -m pip install -e '.[dev]'
+      - run: python -m pytest -q tests/test_live_conflict.py
+      - name: Rehearse all 60 seconds; reject missing narrative outcomes
+        run: python examples/build_one_vs_nine.py out/one_vs_nine/film.json
+      - name: Render only after narrative acceptance
+        run: |
+          apex validate out/one_vs_nine/film.json
+          apex render out/one_vs_nine/film.json -o out/one_vs_nine/film.mp4 --scale 1 --samples 1 --qa-json out/one_vs_nine/qa.json
+          ffmpeg -v error -xerror -i out/one_vs_nine/film.mp4 -f null -
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: apex-one-v-nine
+          path: apex-animation-engine/out/one_vs_nine/
+          if-no-files-found: warn
