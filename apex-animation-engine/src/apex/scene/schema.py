@@ -677,10 +677,19 @@ class ActionSpec(Strict):
         return self
 
 
+class ActorRole(Strict):
+    role: Literal["hunter","fugitive"]
+    opponent: str
+    prompt: str = Field(min_length=20)
+    objective: Literal["capture","escape"]
+    aggression: float = Field(.8,ge=0,le=1)
+    resolve: float = Field(.8,ge=0,le=1)
+
 class CharacterPlacement(Strict):
     character: str
     destination_x: Optional[float] = Field(None, allow_inf_nan=False)  # opt-in autonomous floor traversal
     pursue: Optional[str] = None  # live actor ID; mutually exclusive with destination_x
+    actor_role: Optional[ActorRole] = None
     hostile_pursuit: bool = False  # opt-in native combat during pursuit
     action_pace: bool = False  # opt-in faster native decisions and travel
     x: float = 0.0
@@ -877,6 +886,7 @@ class MathTransferSpec(Strict):
 
 
 class SceneSpec(Strict):
+    storyline: Optional[str] = None
     id: str
     title: str = ""
     environment: str

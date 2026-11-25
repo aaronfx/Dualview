@@ -28,6 +28,10 @@ class TraversalBrain:
     last_threat: float = -10.0
     combat_moves: list = field(default_factory=list)
     countered_at: float = -10.0
+    role: object = None
+    tactical_state: str = 'unaware'
+    encounter_until: float = -1.0
+    last_encounter: float = -10.0
 
     def invalidate_after_hit(self,c,t,by):
         """Combat supersedes speculative traversal, never replay a stale queue."""
@@ -85,6 +89,9 @@ class TraversalBrain:
             if self.pursuit_last is None or abs(target.s-self.pursuit_last)>180:
                 c.emit(Event(t,'autonomous_decision',c.cid,{'skill':'pursue','target':self.pursuit,'observed_x':target.s,'predicted_x':self.goal}))
                 self.pursuit_last=target.s
+        if self.role is not None:
+            from .story_performance import observe_encounter
+            observe_encounter(self,c,t)
         from .combat_performance import choose_combat_action
         decision=choose_combat_action(self,c,t)
         if decision is not None:

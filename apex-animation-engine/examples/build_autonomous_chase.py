@@ -25,6 +25,9 @@ def build(paced=False, hostile=False):
     if hostile:
         raw["id"]="hostile_facility"
         raw["title"]="Hostile Facility Escape"
+        scene["storyline"]="A fugitive infiltrated a restricted industrial facility. An enraged security enforcer must capture him. The fugitive fights only to create space and escape; the hunter intercepts and presses attacks."
+        scene["placements"][0]["actor_role"]={"role":"fugitive","opponent":"pell","objective":"escape","prompt":"You are a determined fugitive. Defend yourself and counterattack to create separation. Escape the lockdown; do not cooperate with your pursuer.","aggression":.55,"resolve":.9}
+        scene["placements"][1]["actor_role"]={"role":"hunter","opponent":"iko","objective":"capture","prompt":"You are an aggressive security enforcer. Stop the intruder. Intercept if you overtake him, confront him and attack until he escapes your reach.","aggression":.95,"resolve":.95}
         scene["placements"][1].update(x=-1740,z=0,hostile_pursuit=True)
         env["room"].update(road_view=False,style="box",grid_alpha=.03)
         env["theme"]={"accent":"#e5a94b","alert":"#ff3848","back":"#232932","floor":"#161b22","side":"#181e27","background":"#10151b"}

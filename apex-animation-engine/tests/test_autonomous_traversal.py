@@ -154,3 +154,10 @@ def test_advanced_motion_math():
     assert abs((decay_offset(.5,2.,1e-6,.045)-.5)/1e-6-2.)<.001
     assert abs(decay_offset(.5,2.,1.,.045))<.001
     assert match_attack(["jab","cross"],["jab","jab"],90,0,lambda m:100,MOVES)=="cross"
+
+def test_story_roles_are_live_and_reciprocal():
+    raw=runpy.run_path("examples/build_autonomous_chase.py")["build"](hostile=True)
+    assert raw["scenes"][0]["storyline"]
+    sim=SceneRuntime(ProjectSpec.model_validate(raw),"s").simulate()
+    assert any(e.type=="actor_intent" and e.character=="iko" and e.data["state"]=="fight_to_escape" for e in sim.events)
+    assert any(e.type=="actor_intent" and e.character=="pell" and e.data["state"]=="engage" for e in sim.events)

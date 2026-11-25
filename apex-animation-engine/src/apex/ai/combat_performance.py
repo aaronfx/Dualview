@@ -30,13 +30,14 @@ def choose_combat_action(brain,c,t):
             return "defend",ActionSpec(character=c.cid,type="guard",duration=.42),enemy.cid
         if c.facing==direction and not c._path_blocker(c.s,c.s-direction*.8*c.stand_h):
             return "evade_attack",ActionSpec(character=c.cid,type="dodge",dodge="back"),enemy.cid
-    if c.queue or t-brain.last_attack<.8:
+    engaged=getattr(brain,"role",None) is not None and brain.tactical_state in ("engage","fight_to_escape")
+    if (c.queue and not engaged) or t-brain.last_attack<(.48 if engaged else .8):
         return None
     # The escape actor only counters a resolved attack, once per attack.
     resolved=bool(incoming is not None and incoming.type=="strike" and enemy.inter.get("resolved"))
     attack_time=getattr(enemy,"cur_t0",-10.0)
     counter=not brain.hostile and resolved and brain.last_threat>=attack_time-.05 and attack_time>brain.countered_at
-    if not brain.hostile and not counter:
+    if not brain.hostile and not counter and not engaged:
         return None
     moves=("jab","cross","hook","front_kick","side_kick") if brain.hostile else ("side_kick","cross","front_kick")
     feasible=[move for move in moves if .55*c._strike_reach(move)<=gap<=c._strike_reach(move)]
@@ -51,6 +52,6 @@ def choose_combat_action(brain,c,t):
     brain.combat_moves.append(move)
     if counter:
         brain.countered_at=attack_time
-    return ("counterattack" if counter else "attack"),ActionSpec(character=c.cid,type="strike",
+    return ("counterattack" if counter or (engaged and not brain.hostile) else "attack"),ActionSpec(character=c.cid,type="strike",
             target="char:"+enemy.cid,move=move,distance=gap,power=1.0 if counter else .85,
             reaction="stagger" if counter else "flinch"),enemy.cid

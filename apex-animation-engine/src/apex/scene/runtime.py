@@ -438,6 +438,16 @@ class SceneRuntime:
                 brains[pl.character] = TraversalBrain(target.destination_x, pursuit=pl.pursue, fast=pl.action_pace, hostile=pl.hostile_pursuit)
             elif pl.destination_x is not None:
                 brains[pl.character] = TraversalBrain(pl.destination_x, fast=pl.action_pace)
+        for pl in self.scene.placements:
+            if pl.actor_role is None:
+                continue
+            role=pl.actor_role
+            other=next((q for q in self.scene.placements if q.character==role.opponent),None)
+            if not self.scene.storyline or pl.character not in brains or other is None or other.actor_role is None or other.actor_role.opponent!=pl.character or other.actor_role.role==role.role:
+                raise ValueError("story roles require reciprocal autonomous opponents and a storyline")
+            if (role.role=="hunter" and (role.objective!="capture" or pl.pursue!=role.opponent or not pl.hostile_pursuit)) or (role.role=="fugitive" and (role.objective!="escape" or pl.destination_x is None)):
+                raise ValueError("actor role and objective disagree with placement")
+            brains[pl.character].role=role
         for cid, brain in brains.items():
             ctrls[cid].autonomous_brain = brain
             if any(a.character == cid for a in self.scene.actions):
