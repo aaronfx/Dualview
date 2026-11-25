@@ -1,0 +1,35 @@
+name: APEX C6 native avoidance video
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/apex-c6-video.yml'
+      - 'apex-animation-engine/examples/build_adaptive_avoidance.py'
+  workflow_dispatch:
+jobs:
+  render:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apex-animation-engine
+    env:
+      APEX_AI_PAID_ENABLED: '0'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg libegl1 libgl1 libglx0
+      - run: python -m pip install -e '.[dev]'
+      - run: python -m pytest -q tests/test_character_brain.py tests/test_obstacle_assessment.py -k 'character_brain or opt_in_native_body'
+      - run: |
+          mkdir -p out/c6
+          python examples/build_adaptive_avoidance.py out/c6/avoidance.json
+          apex validate out/c6/avoidance.json
+          apex render out/c6/avoidance.json -o out/c6/avoidance.mp4 --scale 1 --samples 1 --qa-json out/c6/qa.json
+          ffprobe -v error -show_format -show_streams out/c6/avoidance.mp4
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apex-c6-native-avoidance
+          path: apex-animation-engine/out/c6/
+          if-no-files-found: error
