@@ -24,7 +24,11 @@ jobs:
           python-version: '3.12'
       - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg libegl1 libgl1 libglx0
       - run: python -m pip install -e '.[dev]'
-      - run: python -m pytest -q tests/test_ensemble_runtime.py tests/test_autonomous_traversal.py tests/test_strategic_planning.py
+      - name: Native ensemble and regression tests
+        run: |
+          mkdir -p out/ensemble
+          set -o pipefail
+          python -m pytest -q --tb=long tests/test_ensemble_runtime.py tests/test_autonomous_traversal.py tests/test_strategic_planning.py | tee out/ensemble/test-results.txt
       - name: Render ten actor native benchmark
         run: |
           mkdir -p out/ensemble

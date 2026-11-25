@@ -158,7 +158,7 @@ class EnsembleRuntime:
     def _waypoint(self,cid,x):
         b,c=self.brains[cid],self.ctrls[cid]
         x=max(-self.hw+40,min(self.hw-40,x))
-        if abs(x-b.goal)>12 or (b.done and abs(x-c.s)>15):
+        if abs(x-b.goal)>12 or (b.done and abs(x-c.s)>3):
             if abs(x-b.goal)>55:
                 b.attempts.clear()
                 b.last=None
@@ -297,7 +297,7 @@ class EnsembleRuntime:
                         b.done=True
                     else:
                         self._waypoint(cid,a.destination_x)
-                        st.complete=b.done and abs(c.s-a.destination_x)<4 and not c.lying
+                        st.complete=b.done and abs(c.s-a.destination_x)<4 and not c.lying and c.mode=="grounded" and c.frame.owner is None and c.cur is None and not c.queue
                 elif a.objective=="escort":
                     leader=obs[a.target]
                     self._intent(cid,"escort",a.target,t)
@@ -326,6 +326,9 @@ class EnsembleRuntime:
                     c.emit(Event(t,"ensemble_objective",cid,{"objective":a.objective,"target":st.target,"team":a.team,"witness":st.witness or st.last_outcome or "native_position"}))
                 b.done=True
                 b.ensemble_target=None
-        if all(st.complete for st in self.state.values()) and all([self._perform(cid,t) for cid in sorted(self.state)]):
+        # A completed actor can express relief immediately; do not require
+        # unrelated actors to finish their own objectives first.
+        performance_done=[self._perform(cid,t) for cid,st in sorted(self.state.items()) if st.complete]
+        if all(st.complete for st in self.state.values()) and all(performance_done):
             self.finished=True
             next(iter(self.ctrls.values())).emit(Event(t,"ensemble_completed",None,{"actors":len(self.state)}))

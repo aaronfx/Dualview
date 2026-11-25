@@ -15,7 +15,9 @@ def finish_ensemble(raw,scene_id,tail=.35):
     witnesses={e.character for e in sim.events if e.type=="ensemble_objective"}
     end=next((e.t for e in sim.events if e.type=="ensemble_completed"),None)
     if end is None or witnesses!=actors:
-        raise ValueError("cannot edit away unfinished ensemble objectives")
+        missing=sorted(actors-witnesses)
+        final={cid:{"x":c.s,"mode":c.mode,"current":c.cur.type if c.cur else None,"goal":c.autonomous_brain.goal,"done":c.autonomous_brain.done} for cid,c in sim.controllers.items()}
+        raise ValueError(f"cannot edit away unfinished ensemble objectives; missing={missing}; final={final}")
     if len(sc["shots"])!=1:
         raise ValueError("automatic trim currently requires a single shot")
     duration=min(sc["duration"],ceil((end+tail)*p.fps)/p.fps)
