@@ -252,6 +252,13 @@ class TraversalBrain:
             self.progress_x,self.progress_t=c.s,t
             self.route_signature=self._hazards(c)
             c.queue.append(action)
+            if key[0]=="slide":
+                # Continue directly into a short clear-floor recovery run, not
+                # a one-tick idle which resets the pose history. Reassess after it.
+                d=1 if action.target_x>c.s else -1
+                recovery=action.target_x+d*min(140,abs(self.goal-action.target_x))
+                if (recovery-action.target_x)*d>5 and not c._path_blocker(action.target_x,recovery) and not obstacles:
+                    c.queue.append(ActionSpec(character=c.cid,type="run_to",target_x=recovery,speed=280,adaptive_avoidance=True))
             if key[0]=="relocate" and relocation is not None:
                 c.queue.append(relocation)
             emit("autonomous_decision",skill=key[0],target=key[1],symbolic_plan=list(proof))
