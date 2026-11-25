@@ -285,7 +285,7 @@ class InteractionMixin:
                         bands += oc._props_in_path(oc.s, oc.s + direction * 65.0)
                         lane = oc._free_lane(bands)
                         self.emit(self._ev(t, "nudge", {"with": oc.cid, "point": mid}))
-                        oc._receive(t, self.cid, "nudge", a.reaction, 0.35, direction, "body", mid, push=(0.65, 0.02))
+                        oc._receive(t, self.cid, "nudge", a.reaction, 0.35, direction, "body", mid, push=((1.5, 0.02) if a.note == "forward_crossing" and a.reaction == "knockdown" else (0.65, 0.02)))
                         I["push_contact"] = True
                         if lane is not None and a.reaction == "stagger":
                             oc.z_target = lane
@@ -326,6 +326,7 @@ class InteractionMixin:
         # Floor-only, fixed-gravity initial implementation. The settled
         # posture can extend on either side of the pelvis.
         direction = self.facing
+        forward_only = self.cur is not None and self.cur.note == "forward_crossing"
         radius = 1.65 * oc.stand_h + 20.0
         body = Block("char:" + oc.cid, oc.s-radius, oc.s+radius, 0.0, 0.75*oc.stand_h+20.0)
         end = body.x1 + 110 if direction > 0 else body.x0 - 110
@@ -335,13 +336,18 @@ class InteractionMixin:
                 or abs(oc.z-self.z) >= BODY_PASS_Z
                 or (oc.s-start)*direction <= 0
                 or self.carrying
-                or any(o is not self and o is not oc for o in self.others.values())
+                or any(o is not self and o is not oc and abs(o.z-self.z) < BODY_PASS_Z
+                       and min(start,end)-180 < o.s < max(start,end)+180 for o in self.others.values())
                 or self.props):
             verdict = None
         else:
             near = body.x0 if direction > 0 else body.x1
             desired = near - direction * 130.0
-            if (start - desired) * direction > 8.0:
+            if forward_only:
+                self.v = 0.0
+                verdict = select_clearance_jump(self.env, (start,0.0),(end,0.0),
+                    live_bounds=(body,), body_height=2.1*self.stand_h, body_half_width=35.0, max_rise=260.0)
+            elif (start - desired) * direction > 8.0:
                 # Retreat away from the body, never approach through it.
                 if not self.frame.lo + 40 <= desired <= self.frame.hi - 40:
                     verdict = None

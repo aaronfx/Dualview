@@ -35,6 +35,10 @@ jobs:
           python -m pytest -q tests/test_fallen_crossing.py
           apex validate out/c6/fallen.json
           apex render out/c6/fallen.json -o out/c6/fallen.mp4 --scale 1 --samples 1 --qa-json out/c6/fallen-qa.json
+          python -m pytest -q tests/test_combined_crossing.py
+          python examples/build_combined_crossing.py out/c6/combined.json
+          apex validate out/c6/combined.json
+          apex render out/c6/combined.json -o out/c6/combined.mp4 --scale 1 --samples 1 --qa-json out/c6/combined-qa.json
       - uses: actions/upload-artifact@v4
         with:
           name: apex-c6-native-avoidance
