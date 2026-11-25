@@ -9,6 +9,8 @@ from .autonomous_traversal import TraversalBrain
 from ..motion.controller import Event
 from ..scene.schema import ActionSpec
 import math
+from .live_skills import issue_native, observe_skill_outcome
+from .actor_emotion import affect_after_event, completion_performance
 
 @dataclass(frozen=True)
 class Observation:
@@ -26,6 +28,11 @@ class ActorState:
     last_outcome: str=""
     witness: dict|None=None
     memory: list=field(default_factory=list)
+    fear: float=0.
+    tension: float=0.
+    relief: float=0.
+    performed: bool=False
+    announced: bool=False
 
 class EnsembleRuntime:
     def __init__(self,spec,controllers,half_width):
@@ -41,6 +48,7 @@ class EnsembleRuntime:
             b.ensemble_actor=True
             b.ensemble_target=None
             b.ensemble_aggression=self.roles[cid].aggression
+            b.ensemble_impact=self.roles[cid].impact
             b.hostile=self.roles[cid].objective=="intercept"
         self.next_tick=0.
         self.event_cursor=0
@@ -53,6 +61,11 @@ class EnsembleRuntime:
         self.pickup_witnesses={}
         self.team_alerts={}
         self.alert_cursor=0
+        self.assistance={}
+        self.grips=set()
+        self.skill_tickets={}
+        self.rescue_attempts={}
+        self.role_by_ally={a.target:a.character for a in spec.actors if a.objective=="assist"}
 
 
     def hostile(self,a,b):
@@ -91,6 +104,24 @@ class EnsembleRuntime:
 
     def _remember(self,events):
         for e in events[self.event_cursor:]:
+            for cid,ticket in list(self.skill_tickets.items()):
+                outcome=observe_skill_outcome(ticket,e)
+                if outcome is not None:
+                    self.ctrls[cid].emit(Event(e.t,"ensemble_skill_outcome",cid,{"skill":ticket.action.type,"result":outcome,"native_event":e.type}))
+                    self.skill_tickets.pop(cid,None)
+            if e.character in self.roles:
+                affect_after_event(self.state[e.character],self.roles[e.character],e)
+            if e.type=="hand_grab":
+                other=e.data.get("with")
+                if other in self.roles and e.character in self.roles:
+                    self.grips.add((e.character,other))
+                    self.grips.add((other,e.character))
+            if e.type=="stood_up":
+                helper=e.data.get("helper")
+                if helper in self.roles and self.roles[helper].objective=="assist" and self.roles[helper].target==e.character and (e.character,helper) in self.grips:
+                    st=self.state[helper]
+                    st.complete=True
+                    st.witness={"event":"stood_up","t":e.t,"ally":e.character,"helper":helper}
             if e.type=="pick_up" and e.character in self.roles:
                 pid=e.data.get("prop")
                 self.resource_owners[pid]=e.character
@@ -183,11 +214,66 @@ class EnsembleRuntime:
         stand=ps+side*(.74 if ph>.45*c.stand_h else .42)*c.stand_h
         if c.cur is None and not c.queue and c.mode=="grounded" and c._upright() and abs(c.s-stand)<8 and not c.carrying:
             b.done=True
-            c.queue.append(ActionSpec(character=cid,type="pick_up",target="prop:"+pid))
+            self.skill_tickets[cid]=issue_native(c,t,ActionSpec(character=cid,type="pick_up",target="prop:"+pid))
             self.pickup_started[cid]=pid
         else:
             # Native traversal handles obstacles on the way to the resource.
             self._waypoint(cid,stand)
+
+    def _assist(self,cid,t):
+        a=self.roles[cid]
+        ally=a.target
+        c,oc=self.ctrls[cid],self.ctrls[ally]
+        b,ob=self.brains[cid],self.brains[ally]
+        # Wait for a real, settled fall; never fabricate incapacity.
+        if not oc.lying or oc.mode!="grounded" or oc.ragdoll is not None:
+            b.done=True
+            self._intent(cid,"watch_ally",ally,t)
+            return
+        self._intent(cid,"assist",ally,t)
+        ob.done=True
+        if c.cur is not None or c.queue or c.lying or c.mode!="grounded":
+            return
+        if oc.cur is not None or oc.queue:
+            return
+        if self.rescue_attempts.get(cid,0)>=2:
+            return
+        if c.frame is not oc.frame or abs(c.z-oc.z)>=28:
+            return
+        side=1 if c.s>=oc.s else -1
+        dest=oc.s+side*.95*c.stand_h*.85
+        if oc.posture=="supine":
+            side=oc.facing
+            dest=oc.s+side*(.95*c.stand_h*.85+.53*oc.p_leg)
+        if c._path_blocker(c.s,dest):
+            self._waypoint(cid,dest)
+            return
+        if abs(c.s-dest)>8:
+            # Approach the required native contact pose before starting the
+            # paired action, so the injured actor never waits for a distant hand.
+            self._waypoint(cid,dest)
+            return
+        b.done=True
+        self.skill_tickets[cid]=issue_native(c,t,ActionSpec(character=cid,type="offer_hand",target="char:"+ally))
+        self.skill_tickets[ally]=issue_native(oc,t,ActionSpec(character=ally,type="get_up",target="char:"+cid))
+        self.rescue_attempts[cid]=self.rescue_attempts.get(cid,0)+1
+        self.assistance[ally]=cid
+
+    def _perform(self,cid,t):
+        st,c=self.state[cid],self.ctrls[cid]
+        if not self.spec.perform_emotions:
+            return True
+        if st.performed:
+            return c.cur is None and not c.queue
+        if c.cur is not None or c.queue or c.mode!="grounded" or c.lying:
+            return False
+        if c.carrying or c.hang:
+            st.performed=True
+            return True
+        action=completion_performance(cid,st,self.roles[cid])
+        self.skill_tickets[cid]=issue_native(c,t,action)
+        st.performed=True
+        return False
 
     def tick(self,t,events):
         if self.finished or t+1e-9<self.next_tick:
@@ -203,8 +289,15 @@ class EnsembleRuntime:
             if not st.complete:
                 if a.objective=="reach":
                     self._intent(cid,"reach",None,t)
-                    self._waypoint(cid,a.destination_x)
-                    st.complete=b.done and abs(c.s-a.destination_x)<4
+                    helper=self.role_by_ally.get(cid)
+                    if helper and (c.lying or c.mode=="ragdoll" or (cid in self.assistance and not self.state[helper].complete)):
+                        b.done=True
+                    elif c.lying and c.knocked and c.mode=="grounded" and c.cur is None and not c.queue:
+                        self.skill_tickets[cid]=issue_native(c,t,ActionSpec(character=cid,type="get_up"))
+                        b.done=True
+                    else:
+                        self._waypoint(cid,a.destination_x)
+                        st.complete=b.done and abs(c.s-a.destination_x)<4 and not c.lying
                 elif a.objective=="escort":
                     leader=obs[a.target]
                     self._intent(cid,"escort",a.target,t)
@@ -212,6 +305,8 @@ class EnsembleRuntime:
                     st.complete=self.state[a.target].complete and abs(c.s-(leader.x+a.offset))<18 and c.cur is None and not c.queue
                 elif a.objective=="acquire":
                     self._acquire(cid,resources.get(cid),t)
+                elif a.objective=="assist":
+                    self._assist(cid,t)
                 else:
                     target=assigned.get(cid)
                     self._intent(cid,"intercept" if target else "search",target,t)
@@ -225,11 +320,12 @@ class EnsembleRuntime:
                         if b.done and abs(c.s-o.x)<=1.3*c._strike_reach("jab"):
                             b.done=False
             if st.complete:
-                if st.intent!="complete":
+                if not st.announced:
+                    st.announced=True
                     self._intent(cid,"complete",st.target,t)
                     c.emit(Event(t,"ensemble_objective",cid,{"objective":a.objective,"target":st.target,"team":a.team,"witness":st.witness or st.last_outcome or "native_position"}))
                 b.done=True
                 b.ensemble_target=None
-        if all(st.complete for st in self.state.values()):
+        if all(st.complete for st in self.state.values()) and all([self._perform(cid,t) for cid in sorted(self.state)]):
             self.finished=True
             next(iter(self.ctrls.values())).emit(Event(t,"ensemble_completed",None,{"actors":len(self.state)}))

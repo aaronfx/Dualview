@@ -66,4 +66,4 @@ def choose_combat_action(brain,c,t):
         brain.countered_at=attack_time
     return ("counterattack" if counter or (engaged and not brain.hostile) else "attack"),ActionSpec(character=c.cid,type="strike",
             target="char:"+enemy.cid,move=move,distance=gap,power=1.0 if counter else .85,
-            reaction="stagger" if counter else "flinch"),enemy.cid
+            reaction="stagger" if counter else getattr(brain,"ensemble_impact","flinch")),enemy.cid

@@ -689,7 +689,8 @@ class EnsembleActorSpec(Strict):
     character: str
     team: str = Field(min_length=1)
     prompt: str = Field(min_length=20)
-    objective: Literal["reach","escort","intercept","acquire"]
+    objective: Literal["reach","escort","intercept","acquire","assist"]
+    impact: Literal["flinch","knockdown"] = "flinch"
     resources: List[str] = Field(default_factory=list,max_length=32)
     destination_x: Optional[float] = Field(None,allow_inf_nan=False)
     target: Optional[str] = None
@@ -706,6 +707,10 @@ class EnsembleActorSpec(Strict):
                 raise ValueError("reach requires a destination and no target")
         elif self.destination_x is not None:
             raise ValueError("dynamic objective must not supply a static destination")
+        if self.impact!="flinch" and self.objective!="intercept":
+            raise ValueError("impact applies only to intercept")
+        if self.objective=="assist" and not self.target:
+            raise ValueError("assist requires a teammate target")
         if self.objective=="acquire":
             if not self.resources or len(set(self.resources))!=len(self.resources) or self.target is not None:
                 raise ValueError("acquire requires a unique resource pool, not a character target")
@@ -719,6 +724,7 @@ class EnsembleSpec(Strict):
     actors: List[EnsembleActorSpec] = Field(min_length=1,max_length=100)
     hostile_teams: List[Tuple[str,str]] = Field(default_factory=list)
     coordination_hz: float = Field(5,ge=1,le=10)
+    perform_emotions: bool = False
 
     @model_validator(mode="after")
     def _cast(self):
@@ -741,6 +747,11 @@ class EnsembleSpec(Strict):
                 if any(k==a.target and abs(o-a.offset)<75 for k,o in slots):
                     raise ValueError("overlapping escort formation slots")
                 slots.add(slot)
+            if a.objective=="assist":
+                if by[a.target].team!=a.team or by[a.target].objective not in ("reach","escort"):
+                    raise ValueError("assist requires a same-team moving ally")
+                if sum(b.objective=="assist" and b.target==a.target for b in self.actors)>1:
+                    raise ValueError("only one designated helper per ally")
             if a.objective=="intercept":
                 if not any(frozenset((a.team,b.team)) in pairs and (a.target is None or a.target==b.character) for b in self.actors):
                     raise ValueError("intercept requires hostile target")

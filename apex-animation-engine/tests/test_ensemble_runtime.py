@@ -95,3 +95,35 @@ def test_ten_actor_hostile_native_contact_and_no_friendly_fire():
     assert len({e.character for e in hits if e.character.startswith("amber")})>=3, [(e.t,e.character,e.type,e.data) for e in sim.events if e.type in ("hit","strike_start","ensemble_intent","autonomous_blocked")]
     assert all(e.character.split("_")[0]!=e.data["target"].split("_")[0] for e in hits)
     assert len({e.character for e in sim.events if e.type=="ensemble_intent" and e.data["intent"]=="intercept"})==5
+
+def test_native_skill_registry_covers_action_schema():
+    from apex.ai.live_skills import registry,observe_skill_outcome,Ticket
+    from apex.scene.schema import ActionType,ActionSpec
+    from apex.motion.controller import Event
+    from typing import get_args
+    assert set(registry())==set(get_args(ActionType))
+    ticket=Ticket(ActionSpec(character="ren",type="offer_hand",target="char:iko"),1.)
+    assert observe_skill_outcome(ticket,Event(.9,"hand_grab","iko",{"with":"ren"})) is None
+    assert observe_skill_outcome(ticket,Event(1.2,"hand_grab","iko",{"with":"pell"})) is None
+    assert observe_skill_outcome(ticket,Event(1.2,"hand_grab","iko",{"with":"ren"}))=="success"
+
+def test_emotion_is_event_driven_and_native():
+    from apex.ai.actor_emotion import affect_after_event,completion_performance
+    from apex.ai.ensemble_runtime import ActorState
+    from apex.motion.controller import Event
+    from types import SimpleNamespace as NS
+    role=NS(courage=.3,objective="reach")
+    st=ActorState()
+    affect_after_event(st,role,Event(1,"hurt","iko",{}))
+    assert st.fear>0
+    assert completion_performance("iko",st,role).clip=="recover_relief"
+
+def test_cooperative_rescue_requires_actual_grip_and_assisted_stand():
+    raw=runpy.run_path("examples/build_ensemble_rescue.py")["build"]()
+    assert raw["scenes"][0]["actions"]==[]
+    sim=SceneRuntime(ProjectSpec.model_validate(raw),"s").simulate(physics_only=True)
+    assert any(e.type=="knockdown" and e.character=="iko" for e in sim.events)
+    assert any(e.type=="hand_grab" and e.character=="iko" and e.data.get("with")=="ren" for e in sim.events), [(e.t,e.type,e.character,e.data) for e in sim.events if e.type in ("ensemble_intent","autonomous_blocked","hand_offered","help_missed","stood_up","settled","hit","knockdown")]
+    assert any(e.type=="stood_up" and e.character=="iko" and e.data.get("helper")=="ren" for e in sim.events)
+    assert any(e.type=="act" and e.character=="ren" and e.data.get("emotion")=="relieved" for e in sim.events)
+    assert any(e.type=="ensemble_completed" for e in sim.events)
