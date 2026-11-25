@@ -22,6 +22,7 @@ class ActorState:
     complete: bool=False
     intent: str=""
     last_outcome: str=""
+    witness: dict|None=None
     memory: list=field(default_factory=list)
 
 class EnsembleRuntime:
@@ -61,6 +62,11 @@ class EnsembleRuntime:
             if not candidates:
                 continue
             old=self.state[cid].target
+            ctrl=self.ctrls[cid]
+            if old in candidates and getattr(getattr(ctrl,"cur",None),"type",None)=="strike":
+                out[cid]=old
+                load[old]=load.get(old,0)+1
+                continue
             def cost(k):
                 distance=abs(obs[k].x-obs[cid].x)+2*abs(obs[k].z-obs[cid].z)
                 return (load.get(k,0),distance-(80 if k==old else 0),k)
@@ -76,8 +82,9 @@ class EnsembleRuntime:
                 continue
             st.last_outcome=e.type
             st.memory=(st.memory+[(e.t,e.type,dict(e.data))])[-32:]
-            if self.roles[e.character].objective=="intercept" and e.type=="hit" and e.data.get("target")==st.target:
+            if self.roles[e.character].objective=="intercept" and e.type=="hit" and e.data.get("target")==st.target and st.target is not None and self.hostile(e.character,st.target):
                 st.complete=True
+                st.witness={"event":"hit","t":e.t,"target":st.target,"move":e.data.get("move")}
         self.event_cursor=len(events)
 
     def _intent(self,cid,intent,target,t):

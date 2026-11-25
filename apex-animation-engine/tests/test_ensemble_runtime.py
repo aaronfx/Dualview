@@ -51,3 +51,20 @@ def test_target_reservations_distribute_across_hostile_team():
     choices=en.assignments(obs)
     assert len(choices)==5 and len(set(choices.values()))==5
     assert all(en.hostile(k,v) for k,v in choices.items())
+
+def test_ensemble_compiler_ten_roles_preserves_world_and_cast():
+    import json
+    from apex.ai.ensemble_brief_compiler import compile_ensemble_brief
+    raw=build()
+    sc=raw["scenes"][0]
+    briefs={a["character"]:a["prompt"] for a in sc["ensemble"]["actors"]}
+    class Fake:
+        def complete(self,system,user,max_tokens):
+            assert json.loads(user)["briefs"]==briefs
+            return json.dumps(sc["ensemble"])
+    p=compile_ensemble_brief(raw,"s",sc["storyline"],briefs,Fake())
+    assert len(p.scene("s").ensemble.actors)==10
+    assert p.environment("e")==ProjectSpec.model_validate(raw).environment("e")
+    assert p.scene("s").placements==ProjectSpec.model_validate(raw).scene("s").placements
+    with pytest.raises(ValueError):
+        compile_ensemble_brief(raw,"s",sc["storyline"],briefs,None)

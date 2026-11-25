@@ -2,6 +2,11 @@ name: APEX live ensemble benchmark
 on:
   push:
     branches: [apex-ensemble]
+  pull_request:
+    branches: [apex-unified]
+    paths:
+      - 'apex-animation-engine/**'
+      - '.github/workflows/apex-ensemble.yml'
   workflow_dispatch:
 jobs:
   ensemble:
