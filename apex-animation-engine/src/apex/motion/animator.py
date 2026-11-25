@@ -33,7 +33,7 @@ def _ramp(t: float, a: float, b: float, blend: float) -> float:
 KNEE_CLEARANCE = 2.0  # knee may rest on a surface (kneeling) but not pass through it
 
 BLEND_IN = {"airborne": 0.16, "landing": 0.12, "loco": 0.18, "idle": 0.2, "press": 0.18, "turn": 0.06, "point": 0.12,
-            "slide": 0.1, "crouch": 0.14, "swing": 0.08, "push": 0.28, "fall": 0.06, "prone": 0.22, "crawl": 0.2, "getup": 0.12,
+            "slide": 0.19, "crouch": 0.14, "swing": 0.08, "push": 0.28, "fall": 0.06, "prone": 0.22, "crawl": 0.2, "getup": 0.12,
             "lift": 0.25, "lever": 0.22, "offer": 0.25, "gesture": 0.2,
             "strike": 0.07, "guard": 0.14, "dodge": 0.06, "hurt": 0.03, "ragdoll": 0.06, "supine": 0.3,
             "roll": 0.08, "vault": 0.08, "climb": 0.1, "wall_run": 0.06, "pick_up": 0.18, "throw": 0.12, "rescue": 0.2}
@@ -782,7 +782,7 @@ class Animator(InteractionAnimMixin, CombatAnimMixin, AcroAnimMixin):
         d = seg.data["dir"]
         s, h = self._rec(self.S, tc), self._rec(self.H, tc)
         pose.root = F.to_world(s, h)
-        e = smoothstep(0.0, SLIDE_DROP + 0.05, tau)
+        e = smoothstep(0.0, SLIDE_DROP + 0.12, tau)
         L = pose.local
         set_lean(L, lerp(0.3, -1.22, e), chest=-0.12 * e, head=0.8 * e)
         lead = s + d * lerp(30.0, 80.0, e)
