@@ -221,7 +221,7 @@ class InteractionMixin:
             if self._go(t, a, dest) or self._face(t, a, -side):
                 return
             I.update(other=other)
-            self._open("gesture", t, other=other, gesture=a.gesture, push=(a.gesture == "nudge" and a.reaction == "stagger"))
+            self._open("gesture", t, other=other, gesture=a.gesture, push=(a.gesture == "nudge" and a.reaction in ("stagger", "knockdown")))
             self.emit(self._ev(t, "gesture_start", {"gesture": a.gesture, "with": other}))
 
     # ------------------------------------------------------------ per-step behaviour
@@ -259,7 +259,7 @@ class InteractionMixin:
                 oc = self.others[I["other"]]
                 mid = ((self.world.state(self.cid).pos[0] + self.world.state(oc.cid).pos[0]) / 2,
                        self.frame.to_world(self.s, self.stand_h + self.shoulder_up * 0.7)[1])
-                if a.gesture == "nudge" and a.reaction == "stagger":
+                if a.gesture == "nudge" and a.reaction in ("stagger", "knockdown"):
                     # Deliberate push: only a nearby upright, unoccupied actor
                     # can yield. A missed contact must not fabricate a reaction.
                     from .acrobatics import BODY_PASS_Z, BODY_GAP
@@ -277,18 +277,25 @@ class InteractionMixin:
                         bands += oc._props_in_path(oc.s, oc.s + direction * 65.0)
                         lane = oc._free_lane(bands)
                         self.emit(self._ev(t, "nudge", {"with": oc.cid, "point": mid}))
-                        oc._receive(t, self.cid, "nudge", "stagger", 0.35, direction, "body", mid)
+                        oc._receive(t, self.cid, "nudge", a.reaction, 0.35, direction, "body", mid, push=(0.65, 0.02))
                         I["push_contact"] = True
-                        if lane is not None:
+                        if lane is not None and a.reaction == "stagger":
                             oc.z_target = lane
                         oc.emit(oc._ev(t, "nudge_reaction", {"by": self.cid, "lane": lane}))
                     else:
                         self.emit(self._ev(t, "nudge_missed", {"with": oc.cid}))
                 else:
                     self.emit(self._ev(t, a.gesture, {"with": I["other"], "point": mid}))
-            if a.gesture == "nudge" and a.reaction == "stagger":
+            if a.gesture == "nudge" and a.reaction in ("stagger", "knockdown"):
                 if tau >= 1.05:
                     oc = self.others[I["other"]]
+                    if a.reaction == "knockdown":
+                        if I.get("push_contact") and oc.lying and oc.ragdoll is None and oc.mode == "grounded":
+                            self._plan_fallen_crossing(t, oc)
+                        elif tau >= 5.0 and not I.get("clearance_failed"):
+                            I["clearance_failed"] = True
+                            self.emit(self._ev(t, "nudge_blocked", {"with": oc.cid, "reason": "not settled"}))
+                        return
                     if (I.get("push_contact") and abs(oc.z - self.z) >= 54.0
                             and (oc.cur is None or oc.cur.type == "idle")):
                         self.emit(self._ev(t, "nudge_clear", {"with": oc.cid, "depth_gap": abs(oc.z - self.z)}))
@@ -299,6 +306,44 @@ class InteractionMixin:
                         self.emit(self._ev(t, "nudge_blocked", {"with": oc.cid}))
             elif tau >= GESTURE_T:
                 self._next_action(t)
+
+    def _plan_fallen_crossing(self, t, oc):
+        """Use conservative live settled-body bounds and the native jump executor."""
+        I = self.inter
+        if I.get("clearance_failed"):
+            return
+        from ..scene.structures import Block
+        from ..scene.route_planner import select_clearance_jump
+        from .acrobatics import BODY_PASS_Z
+        # Floor-only, fixed-gravity initial implementation. The settled
+        # posture can extend on either side of the pelvis.
+        direction = self.facing
+        radius = 1.65 * oc.stand_h + 20.0
+        body = Block("char:" + oc.cid, oc.s-radius, oc.s+radius, 0.0, 0.75*oc.stand_h+20.0)
+        end = body.x1 + 110 if direction > 0 else body.x0 - 110
+        start = self.s
+        # No unchecked approach through a prone body: start from current position.
+        if (self.frame is not self.frames["floor"] or oc.frame is not self.frame
+                or abs(oc.z-self.z) >= BODY_PASS_Z
+                or (oc.s-start)*direction <= 0
+                or abs(self.v) > 5
+                or self.carrying
+                or any(o is not self and o is not oc for o in self.others.values())
+                or self.props):
+            verdict = None
+        else:
+            verdict = select_clearance_jump(self.env, (start,0.0),(end,0.0),
+                                            live_bounds=(body,), body_height=2.1*self.stand_h,
+                                            body_half_width=35.0, max_rise=260.0)
+        if verdict is None or not verdict.feasible:
+            I["clearance_failed"] = True
+            self.emit(self._ev(t, "nudge_blocked", {"with": oc.cid, "reason": "no safe fallen-body arc"}))
+            return
+        self.emit(self._ev(t, "adaptive_jump", {"target": "char:"+oc.cid,
+                        "start": start, "end": end, "apex": verdict.plan.apex_y}))
+        self.queue.appendleft(ActionSpec(type="jump_to", character=self.cid,
+                                        target_x=end, height=verdict.plan.apex_y))
+        self._next_action(t)
 
     # -- push: brace, strain (bounded force), follow; losing contact -> stumble and fall
     def _push_tick(self, t: float, dt: float, a: ActionSpec, tau: float) -> None:

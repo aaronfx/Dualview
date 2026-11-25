@@ -31,6 +31,9 @@ jobs:
           apex validate out/c6/avoidance.json
           apex render out/c6/avoidance.json -o out/c6/avoidance.mp4 --scale 1 --samples 1 --qa-json out/c6/qa.json
           ffprobe -v error -show_format -show_streams out/c6/avoidance.mp4
+          python examples/build_fallen_crossing.py out/c6/fallen.json
+          apex validate out/c6/fallen.json
+          apex render out/c6/fallen.json -o out/c6/fallen.mp4 --scale 1 --samples 1 --qa-json out/c6/fallen-qa.json
       - uses: actions/upload-artifact@v4
         with:
           name: apex-c6-native-avoidance
