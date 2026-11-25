@@ -415,7 +415,14 @@ class Animator(InteractionAnimMixin, CombatAnimMixin, AcroAnimMixin):
                 prev = self._eval(pseg, t)
                 root, ang = pose.root, pose.body_angle
                 w = smoothstep(0, 1, u)
-                pose = blend_poses(prev, pose, w)
+                if self.style.performance_profile == "continuous":
+                    from .performance_profile import can_blend_travel, blend_travel_upper
+                    if can_blend_travel(pseg, seg, prev, pose):
+                        pose = blend_travel_upper(prev, pose, w)
+                    else:
+                        pose = blend_poses(prev, pose, w)
+                else:
+                    pose = blend_poses(prev, pose, w)
                 if seg.kind == "airborne" and pseg.kind == "airborne":
                     # one flight carrying on (an orb's mid-air jump): the limbs blend, the body stays where the physics has it
                     pose.root, pose.body_angle = root, ang
