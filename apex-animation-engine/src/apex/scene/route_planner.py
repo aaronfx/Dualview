@@ -10,7 +10,7 @@ from dataclasses import dataclass
 import math
 from typing import Optional, Tuple
 
-from .structures import blocks
+from .structures import Block, blocks
 
 Point = Tuple[float, float]
 
@@ -37,12 +37,12 @@ class RouteVerdict:
 def check_jump(env, start: Point, end: Point, *, horizontal_speed: float,
                body_height: float = 165.0, body_half_width: float = 12.0,
                max_rise: float = 420.0, max_launch_speed: float = 1250.0,
-               samples: int = 101) -> RouteVerdict:
+               samples: int = 101, live_bounds: tuple[Block, ...] = ()) -> RouteVerdict:
     """Test a forward ballistic jump in a fixed downward-gravity environment.
 
     The collision check uses conservative body envelopes against existing APEX
-    static structures; it is a *rejection preflight*, not proof that joints,
-    camera, collectibles, moving props or enemy hits will be safe.
+    static structures and caller-supplied same-lane live bounds; moving obstacles
+    need conservative swept bounds. Native simulation remains authoritative.
     """
     gx, gy = env.gravity
     if abs(gx) > 1e-6 or gy >= -1e-6:
@@ -68,7 +68,10 @@ def check_jump(env, start: Point, end: Point, *, horizontal_speed: float,
         return RouteVerdict(False, "required apex exceeds allowed jump rise")
     height, half_width = env.room.height, env.room.width / 2
     path = []
-    solids = blocks(env)
+    for b in live_bounds:
+        if not all(math.isfinite(v) for v in (b.x0,b.x1,b.y0,b.y1)) or b.x0 >= b.x1 or b.y0 >= b.y1:
+            return RouteVerdict(False, f"invalid live obstacle bounds: {b.owner}")
+    solids = [*blocks(env), *live_bounds]
     for i in range(samples):
         t = duration * i / (samples - 1)
         x = start[0] + horizontal_speed * t
@@ -84,3 +87,23 @@ def check_jump(env, start: Point, end: Point, *, horizontal_speed: float,
                 return RouteVerdict(False, f"body would cross solid obstacle {solid.owner!r}")
     return RouteVerdict(True, "conservative trajectory envelope is clear; full simulation still required",
                         JumpPlan(start, end, horizontal_speed, vy, duration, apex_y, tuple(path)))
+
+
+def select_clearance_jump(env, start: Point, end: Point, *, live_bounds: tuple[Block, ...],
+                          body_height: float = 165.0, body_half_width: float = 25.0,
+                          max_rise: float = 260.0) -> RouteVerdict:
+    """Search bounded launch speeds, preferring the lowest feasible apex.
+    Start and landing must be supplied from the current support geometry.
+    No unchecked jump is returned when the available arc is insufficient.
+    """
+    candidates = []
+    for speed in (180, 220, 260, 300, 360, 420, 480, 540):
+        verdict = check_jump(env, start, end,
+                             horizontal_speed=math.copysign(speed, end[0] - start[0]),
+                             body_height=body_height, body_half_width=body_half_width,
+                             max_rise=max_rise, live_bounds=live_bounds, samples=241)
+        if verdict.feasible:
+            candidates.append(verdict)
+    if not candidates:
+        return RouteVerdict(False, "no feasible jump across current obstacle envelope")
+    return min(candidates, key=lambda v: (v.plan.apex_y, v.plan.duration))

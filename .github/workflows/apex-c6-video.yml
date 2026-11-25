@@ -24,6 +24,7 @@ jobs:
       - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg libegl1 libgl1 libglx0
       - run: python -m pip install -e '.[dev]'
       - run: python -m pytest -q tests/test_character_brain.py tests/test_obstacle_assessment.py -k 'character_brain or opt_in_native_body'
+      - run: python -m pytest -q tests/test_live_clearance_jump.py
       - run: |
           mkdir -p out/c6
           python examples/build_adaptive_avoidance.py out/c6/avoidance.json
