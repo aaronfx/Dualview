@@ -22,7 +22,7 @@ def file_hash(path):
 def engine_hash():
     root=Path(__file__).resolve().parents[1]
     return digest([(str(p.relative_to(root)),file_hash(p)) for p in sorted(root.rglob("*"))
-                   if p.is_file() and p.suffix in (".py",".json")])
+                   if p.is_file() and "__pycache__" not in p.parts and p.suffix != ".pyc"])
 def safe_project(p):
     p=ProjectSpec.model_validate(p)
     if not 1<=len(p.scenes)<=12 or sum(s.duration for s in p.scenes)>300:
@@ -50,6 +50,9 @@ def create_from_brief(brief,directory,*,offline=False,reason=""):
     for ch in raw["characters"]:
         ch["style"].update(visual_profile="apex_ink",performance_profile="continuous",has_scarf=False)
     project=safe_project(raw)
+    from .cinematic_staging import stage_cinematics
+    project, staging = stage_cinematics(project)
+    atomic(directory/"cinematic_trace.json",staging)
     atomic(directory/"story_trace.json",trace)
     atomic(directory/"project.json",project.model_dump(mode="json"))
     return project
@@ -107,14 +110,22 @@ def run_production(directory,*,final=False,progress=None):
         seg=work/f"{i:02d}_{s.id}.mp4";meta=Path(str(seg)+".json")
         qa=Path(str(seg)+".qa.json")
         prior=old.get(s.id,{})
-        if not (prior.get("fingerprint")==fingerprint and seg.exists() and meta.exists() and qa.exists()
+        if (prior.get("fingerprint")==fingerprint and seg.exists() and meta.exists() and qa.exists()
                 and prior.get("video_hash")==file_hash(seg) and prior.get("qa_hash")==file_hash(qa)
                 and prior.get("meta_hash")==file_hash(meta) and read(qa).get("passed") is True):
+            cache[s.id]=prior
+        else:
             dirty.append(s.id)
-        cache[s.id]={"fingerprint":fingerprint}
+            cache[s.id]={"fingerprint":fingerprint}
     video=directory/(mode+".mp4")
+    def checkpoint(i,s,m):
+        seg=work/f"{i:02d}_{s.id}.mp4";meta=Path(str(seg)+".json");qa=Path(str(seg)+".qa.json")
+        if not m.failed and qa.exists() and read(qa).get("passed") is True:
+            cache[s.id].update(video_hash=file_hash(seg),qa_hash=file_hash(qa),meta_hash=file_hash(meta))
+            # Carry forward only validated cache entries for untouched scenes.
+            atomic(cache_path,{**old,**{k:v for k,v in cache.items() if "video_hash" in v}})
     res=render_film(p,str(video),samples=settings["samples"],preview_scale=settings["scale"],
-                    work_dir=str(work),qa=True,only=dirty,progress=say)
+                    work_dir=str(work),qa=True,only=dirty,progress=say,on_scene=checkpoint)
     bad=[m.scene for m in res.scenes if m.failed or "FAIL" in m.gates.values() or not m.gates]
     bad += [c["name"] for c in res.film_checks if c["status"]=="FAIL"]
     for i,s in enumerate(p.scenes):

@@ -26,18 +26,46 @@ def main():
     c.add_argument("--out",type=Path,required=True)
     c.add_argument("--render",action="store_true")
     c.add_argument("--final",action="store_true")
+    c=sub.add_parser("produce",help="Local native preview/final production from a brief or saved project")
+    c.add_argument("source",type=Path)
+    c.add_argument("--out",type=Path,required=True)
+    c.add_argument("--offline",action="store_true")
+    c.add_argument("--reason",default="")
+    c.add_argument("--project",action="store_true")
+    c=sub.add_parser("resume")
+    c.add_argument("--out",type=Path,required=True)
+    c=sub.add_parser("approve")
+    c.add_argument("--out",type=Path,required=True)
+    c.add_argument("--review",required=True)
+    c=sub.add_parser("revise")
+    c.add_argument("scene")
+    c.add_argument("--out",type=Path,required=True)
+    c.add_argument("--revision",type=Path,required=True)
     c=sub.add_parser("story")
     c.add_argument("brief",type=Path)
     c.add_argument("--out",type=Path,required=True)
     c.add_argument("--offline",action="store_true")
     c.add_argument("--reason",default="")
     args=p.parse_args()
-    if args.command!="capabilities" and args.out.exists() and any(args.out.iterdir()):
+    if args.command not in ("capabilities","resume","approve","revise") and args.out.exists() and any(args.out.iterdir()):
         p.error("Use a new empty output directory for every production run")
     if args.command=="capabilities":
         data=json.dumps(catalogue(),indent=2)
         if args.out: args.out.write_text(data,encoding="utf-8")
         else: print(data)
+        return 0
+    if args.command in ("produce","resume","approve","revise"):
+        from .local_production import create_from_brief,stage_project,run_production,approve_preview
+        def progress(stage,fraction,message):print(f"{stage} {fraction:.0%} {message}",flush=True)
+        if args.command=="produce":
+            if args.project:stage_project(ProjectSpec.model_validate_json(args.source.read_text(encoding="utf-8")),args.out)
+            else:create_from_brief(args.source.read_text(encoding="utf-8"),args.out,offline=args.offline,reason=args.reason)
+        if args.command=="revise":
+            from .scene_revision import revise_scene
+            revise_scene(args.out,args.scene,args.revision)
+            args.out=args.revision
+        if args.command=="approve":approve_preview(args.out,args.review)
+        run_production(args.out,final=args.command=="approve",progress=progress)
         return 0
     if args.command=="mission":
         from .mission import run_mission

@@ -40,7 +40,7 @@ def status(p,**changes):
         f=p/"status.json";s=read(f) if f.exists() else {};s.update(changes);atomic(f,s)
 def worker(p,mode,brief=None,offline=True,project=None):
     try:
-        status(p,state="running",stage=mode,error=None)
+        status(p,state="running",stage=mode,mode=mode,error=None)
         if mode=="preview" and not (p/"project.json").exists():
             if project is not None:stage_project(project,p)
             else:create_from_brief(brief,p,offline=offline,reason="Local Studio owner requested production")
@@ -49,7 +49,7 @@ def worker(p,mode,brief=None,offline=True,project=None):
         status(p,state="done",stage=mode,progress=1)
     except Exception as exc:status(p,state="failed",error=f"{type(exc).__name__}: {exc}")
 def submit(p,mode,**kw):
-    status(p,state="queued",stage=mode,progress=0,error=None)
+    status(p,state="queued",stage=mode,mode=mode,progress=0,error=None)
     POOL.submit(worker,p,mode,**kw)
 
 class Brief(BaseModel):
@@ -84,15 +84,18 @@ def resume(jid):
         if state["state"] not in ("failed","interrupted"):raise HTTPException(409,"Not resumable")
         atomic(p/"status.json",{**state,"state":"queued"})
     b=read(p/"brief.json") if (p/"brief.json").exists() else {}
-    POOL.submit(worker,p,state.get("stage") if state.get("stage") in ("preview","final") else "preview",brief=b.get("story"),offline=b.get("offline",True))
+    POOL.submit(worker,p,state.get("mode") if state.get("mode") in ("preview","final") else "preview",brief=b.get("story"),offline=b.get("offline",True))
     return {"id":jid}
 @app.post("/jobs/{jid}/approve")
 def approve(jid,r:Review):
     p=folder(jid)
-    if read(p/"status.json")["state"]!="done":raise HTTPException(409)
-    try:approve_preview(p,r.review)
-    except (ValueError,OSError) as e:raise HTTPException(422,str(e))
-    submit(p,"final");return {"id":jid}
+    with LOCK:
+        state=read(p/"status.json")
+        if state["state"]!="done" or state.get("mode")=="final":raise HTTPException(409)
+        try:approve_preview(p,r.review)
+        except (ValueError,OSError) as e:raise HTTPException(422,str(e))
+        atomic(p/"status.json",{**state,"state":"queued","mode":"final","stage":"final","progress":0})
+    POOL.submit(worker,p,"final");return {"id":jid}
 @app.get("/jobs/{jid}/video/{mode}")
 def video(jid,mode):
     p=folder(jid)

@@ -85,3 +85,18 @@ reports native pacing, overlap and missed actions plus decoded near-black
 and static runs. It is not a learned image/video critic. No unrestricted
 improvisation or reference-quality acceptance claim. Actual paid model tests,
 Windows smoke, complete benchmark films and visual acceptance remain required.
+
+## Local CLI production and revision
+
+    python -m apex.ai.director_local produce brief.txt --offline --out out/local_001
+    python -m apex.ai.director_local resume --out out/local_001
+    python -m apex.ai.director_local revise scene_id --out out/local_001 --revision out/local_002
+    python -m apex.ai.director_local approve --out out/local_001 --review "Watched and approved"
+
+A revision is separate from the original production, changes only one scene's
+native actions, and only accepts a strict QA-passing candidate with improved
+measured pacing. Identical scene files are copied for hash-checked reuse; the
+owner must review the new preview. For natural-language generation without
+--offline the existing provider requires explicit approved credentials and
+budget. Automatic staging adds only absent score cues and optional visual
+profiles; it never removes story goals or changes physical layout.
