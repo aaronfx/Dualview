@@ -1149,7 +1149,7 @@ class Inspector:
                 n += 1
                 worst_m = max(worst_m, math.dist(m["v0"], m["v1"]) / (math.hypot(*m["v0"]) + 1.0),
                               abs(m["I0"] * m["w0"] - m["I1"] * m["w1"]) / (abs(m["I0"] * m["w0"]) + m["I0"]))
-                worst_c = max(worst_c, abs(math.dist(m["c0"], m["c1"]) - math.hypot(*m.get("nudge", (0.0, 0.0)))))
+                worst_c = max(worst_c, abs(math.dist(m["c0"], m["c1"]) - math.hypot(*m.get("com_shift", m.get("nudge", (0.0, 0.0))))))
                 # the drawing just before the swap vs just after
                 t0, t1 = m["t_swap"] - 1e-4, m["t_swap"] + 1.0 / 240.0
                 a, b = self.rt.evaluate(t0), self.rt.evaluate(t1)

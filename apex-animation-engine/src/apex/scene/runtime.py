@@ -112,7 +112,7 @@ class SimulationResult:
                 break
             if m["t_swap"] is None or t < m["t_swap"]:
                 end = m["t_swap"] if m["t_swap"] is not None else m["t0"] + m["duration"]
-                blend = (m["from"], m["to"], min(1.0, (t - m["t0"]) / max(1e-6, end - m["t0"])), m.get("draw_shift", m.get("nudge", (0.0, 0.0))))
+                blend = (m["from"], m["to"], min(1.0, (t - m["t0"]) / max(1e-6, end - m["t0"])), m.get("nudge", (0.0, 0.0)))
                 break
             g = m["to"]
         return g, blend
@@ -294,10 +294,15 @@ class SceneRuntime:
                 segs = glyphs.segments(rec["to"], sp.size)
                 com, masses = glyphs.mass_props(rec["to"], sp.size, wgt, sp.mass)
                 b = world._bodies[pid]
-                # where the new shape goes: the centre of mass stays put (the origin moves by the change in centre)
+                # where the new shape goes: normally the centre of mass stays put (the origin moves by the change in
+                # centre). A signed-term inversion (+n -> -n) instead keeps the glyph origin fixed so the digit geometry
+                # never moves (only the sign flips in place); the small centre-of-mass shift from the sign's own mass
+                # change is expected and recorded, not a visible jump.
                 ca_, sa_ = math.cos(b.angle), math.sin(b.angle)
                 cg0, cg1 = b.center_of_gravity, com
-                base = ((cg0.x - cg1[0]) * ca_ - (cg0.y - cg1[1]) * sa_, (cg0.x - cg1[0]) * sa_ + (cg0.y - cg1[1]) * ca_)
+                inv = glyphs.is_sign_inversion(rec["from"], rec["to"])
+                base = (0.0, 0.0) if inv else (
+                    (cg0.x - cg1[0]) * ca_ - (cg0.y - cg1[1]) * sa_, (cg0.x - cg1[0]) * sa_ + (cg0.y - cg1[1]) * ca_)
                 hit = world.blockers(pid, segs, wgt / 2, base)
                 nudge = (0.0, 0.0)
                 if hit and not any(h in ctrls for h in hit):
@@ -314,15 +319,15 @@ class SceneRuntime:
                         rec["blocked"] = tn
                         events.append(Event(tn, "morph_blocked", pid, {"prop": pid, "by": sorted(set(hit))}))
                     continue
+                # cancel the centre-of-mass recentre for an inversion so the body origin (and the digit) stays put
+                recentre = (0.0, 0.0) if not inv else (
+                    (cg1[0] - cg0.x) * ca_ - (cg1[1] - cg0.y) * sa_, (cg1[0] - cg0.x) * sa_ + (cg1[1] - cg0.y) * ca_)
+                reshape_nudge = (nudge[0] + recentre[0], nudge[1] + recentre[1])
                 c0, v0, w0 = b.local_to_world(b.center_of_gravity), (b.velocity.x, b.velocity.y), b.angular_velocity
-                origin_before = tuple(b.position)
-                I0, I1 = world.reshape(pid, segs, wgt / 2, masses, com, nudge)
-                # Blend destination is in the glyph LOCAL frame, not world
-                # nudge alone. Include the actual origin shift required to
-                # preserve COM, rotated back to local coordinates.
-                dx, dy = b.position.x - origin_before[0], b.position.y - origin_before[1]
-                rec["draw_shift"] = (dx * ca_ + dy * sa_, -dx * sa_ + dy * ca_)
+                I0, I1 = world.reshape(pid, segs, wgt / 2, masses, com, reshape_nudge)
                 rec["nudge"] = nudge
+                # the blend draws the new shape where it will actually be: no visible translation for an inversion
+                rec["com_shift"] = reshape_nudge
                 prop_cuts.setdefault(pid, []).append(i_sample)  # the body's origin jumps (centre kept, or nudged): a cut
                 c1 = b.local_to_world(b.center_of_gravity)
                 world.glyph_now[pid] = rec["to"]
@@ -618,17 +623,14 @@ class SceneRuntime:
             y = interp_track(r.prop_times, tr[:, 1], t, cu)
             a = interp_track(r.prop_times, np.unwrap(tr[:, 2]), t, cu)
             g, bl = r.glyph_at(pr.id, t, pr.glyph) if pr.kind == "glyph" else (None, None)
-            if bl is not None:  # completed swaps have the actual native local-origin shift
-                # glyph_at now returns the recorded draw_shift for completed
-                # morphs. Do not add the COM delta a second time.
-                active = next((m for m in r.morphs.get(pr.id, ()) if m["t0"] <= t
-                               and (m["t_swap"] is None or t < m["t_swap"])), None)
-                if active is None or "draw_shift" not in active:
-                    w_ = pr.weight or glyphs.default_weight(pr.size)
-                    ca_, cb_ = glyphs.mass_props(bl[0], pr.size, w_, pr.mass)[0], glyphs.mass_props(bl[1], pr.size, w_, pr.mass)[0]
-                    nx, ny = bl[3]
-                    cs, sn = math.cos(a), math.sin(a)
-                    bl = bl[:3] + ((ca_[0] - cb_[0] + nx * cs + ny * sn, ca_[1] - cb_[1] - nx * sn + ny * cs),)
+            if bl is not None:  # the physical swap keeps the centre of mass still: end the blend where the new shape will sit
+                w_ = pr.weight or glyphs.default_weight(pr.size)
+                # a signed-term inversion keeps the glyph origin fixed (digit preserved), so there is no centroid recentre
+                ca_, cb_ = ((0.0, 0.0), (0.0, 0.0)) if glyphs.is_sign_inversion(bl[0], bl[1]) else (
+                    glyphs.mass_props(bl[0], pr.size, w_, pr.mass)[0], glyphs.mass_props(bl[1], pr.size, w_, pr.mass)[0])
+                nx, ny = bl[3]
+                cs, sn = math.cos(a), math.sin(a)  # the nudge (world) in the prop's own frame
+                bl = bl[:3] + ((ca_[0] - cb_[0] + nx * cs + ny * sn, ca_[1] - cb_[1] - nx * sn + ny * cs),)
             props.append(PropState(pr.id, pr.kind, pr.size, (x, y), a, pr.z, pr.depth, pr.z < -5.0, g, bl))
         ropes = []
         for rp in self.env.ropes:
