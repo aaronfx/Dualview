@@ -17,6 +17,8 @@ class Strict(BaseModel):
 
 # ---------------------------------------------------------------- characters
 class CharacterStyle(Strict):
+    visual_profile: Literal["legacy", "apex_ink"] = "legacy"
+    performance_profile: Literal["legacy", "continuous"] = "legacy"
     body_color: str = "#ffcf3a"
     far_color: str = "#c08f1e"
     visor_color: str = "#5ff6ff"
@@ -411,6 +413,7 @@ class BackdropSpec(Strict):
     """The world around an open environment (cinematic upgrade): sky, distant layers drawn at depth (so they move
     with real parallax), weather and fog. Drawn only; nothing in it collides."""
     kind: Literal["city", "canyon", "tower", "void", "summit"]
+    art_profile: Literal["legacy", "industrial_depth"] = "legacy"
     seed: int = 1
     sky: Optional[List[str]] = None  # top -> horizon colours (2 or 3); defaults per kind
     sun: Optional[Vec2] = None  # a sun or moon at this (x, y) on the far sky (default per kind; [] none)

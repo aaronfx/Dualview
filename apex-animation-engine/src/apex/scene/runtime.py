@@ -112,7 +112,7 @@ class SimulationResult:
                 break
             if m["t_swap"] is None or t < m["t_swap"]:
                 end = m["t_swap"] if m["t_swap"] is not None else m["t0"] + m["duration"]
-                blend = (m["from"], m["to"], min(1.0, (t - m["t0"]) / max(1e-6, end - m["t0"])), m.get("nudge", (0.0, 0.0)))
+                blend = (m["from"], m["to"], min(1.0, (t - m["t0"]) / max(1e-6, end - m["t0"])), m.get("draw_shift", m.get("nudge", (0.0, 0.0))))
                 break
             g = m["to"]
         return g, blend
@@ -315,7 +315,13 @@ class SceneRuntime:
                         events.append(Event(tn, "morph_blocked", pid, {"prop": pid, "by": sorted(set(hit))}))
                     continue
                 c0, v0, w0 = b.local_to_world(b.center_of_gravity), (b.velocity.x, b.velocity.y), b.angular_velocity
+                origin_before = tuple(b.position)
                 I0, I1 = world.reshape(pid, segs, wgt / 2, masses, com, nudge)
+                # Blend destination is in the glyph LOCAL frame, not world
+                # nudge alone. Include the actual origin shift required to
+                # preserve COM, rotated back to local coordinates.
+                dx, dy = b.position.x - origin_before[0], b.position.y - origin_before[1]
+                rec["draw_shift"] = (dx * ca_ + dy * sa_, -dx * sa_ + dy * ca_)
                 rec["nudge"] = nudge
                 prop_cuts.setdefault(pid, []).append(i_sample)  # the body's origin jumps (centre kept, or nudged): a cut
                 c1 = b.local_to_world(b.center_of_gravity)
@@ -612,12 +618,17 @@ class SceneRuntime:
             y = interp_track(r.prop_times, tr[:, 1], t, cu)
             a = interp_track(r.prop_times, np.unwrap(tr[:, 2]), t, cu)
             g, bl = r.glyph_at(pr.id, t, pr.glyph) if pr.kind == "glyph" else (None, None)
-            if bl is not None:  # the physical swap keeps the centre of mass still: end the blend where the new shape will sit
-                w_ = pr.weight or glyphs.default_weight(pr.size)
-                ca_, cb_ = glyphs.mass_props(bl[0], pr.size, w_, pr.mass)[0], glyphs.mass_props(bl[1], pr.size, w_, pr.mass)[0]
-                nx, ny = bl[3]
-                cs, sn = math.cos(a), math.sin(a)  # the nudge (world) in the prop's own frame
-                bl = bl[:3] + ((ca_[0] - cb_[0] + nx * cs + ny * sn, ca_[1] - cb_[1] - nx * sn + ny * cs),)
+            if bl is not None:  # completed swaps have the actual native local-origin shift
+                # glyph_at now returns the recorded draw_shift for completed
+                # morphs. Do not add the COM delta a second time.
+                active = next((m for m in r.morphs.get(pr.id, ()) if m["t0"] <= t
+                               and (m["t_swap"] is None or t < m["t_swap"])), None)
+                if active is None or "draw_shift" not in active:
+                    w_ = pr.weight or glyphs.default_weight(pr.size)
+                    ca_, cb_ = glyphs.mass_props(bl[0], pr.size, w_, pr.mass)[0], glyphs.mass_props(bl[1], pr.size, w_, pr.mass)[0]
+                    nx, ny = bl[3]
+                    cs, sn = math.cos(a), math.sin(a)
+                    bl = bl[:3] + ((ca_[0] - cb_[0] + nx * cs + ny * sn, ca_[1] - cb_[1] - nx * sn + ny * cs),)
             props.append(PropState(pr.id, pr.kind, pr.size, (x, y), a, pr.z, pr.depth, pr.z < -5.0, g, bl))
         ropes = []
         for rp in self.env.ropes:

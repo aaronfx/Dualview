@@ -989,6 +989,10 @@ class SkiaRenderer:
             elif dzc < 0:
                 near, far = mix(near, (255, 255, 255), 0.14 * -dzc), mix(far, (255, 255, 255), 0.1 * -dzc)
         lw = st.limb_width * k
+        if st.visual_profile == "apex_ink":
+            from .ink_character import draw_ink
+            draw_ink(c, rig, st, pose, j, S, k, near, far, alpha, col, reflection=mirror_y is not None)
+            return
 
         def stroke(pts, rgb, w):
             path = skia.Path()

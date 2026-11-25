@@ -136,7 +136,8 @@ def _concat(parts: List[str], out: str, fps: int, size, fades: List[bool], crf: 
 
 
 def render_film(project, out_path: str, samples: int = 1, preview_scale: float = 1.0, work_dir: Optional[str] = None,
-                qa: bool = True, only: Optional[List[str]] = None, progress: Optional[Callable] = None) -> FilmResult:
+                qa: bool = True, only: Optional[List[str]] = None, progress: Optional[Callable] = None,
+                on_scene: Optional[Callable] = None) -> FilmResult:
     """Render every scene (or the ones in `only`, reusing earlier renders of the rest from `work_dir`) and join them."""
     from ..qa.film import check_film
     from .pipeline import render_scene
@@ -164,6 +165,8 @@ def render_film(project, out_path: str, samples: int = 1, preview_scale: float =
                          len(rep.checks) if rep else 0, sorted(c.name for c in rep.checks if c.status == "FAIL") if rep else [],
                          round(_rss_mb(), 1))
         json.dump(vars(m), open(meta, "w"), indent=1)
+        if on_scene is not None:
+            on_scene(i, sc, m)
         result.scenes.append(m)
         segs.append(seg)
     parts, fades = [], []
