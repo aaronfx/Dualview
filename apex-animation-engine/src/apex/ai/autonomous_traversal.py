@@ -1,0 +1,111 @@
+"""Goal-only floor traversal. Native controllers retain execution authority."""
+from dataclasses import dataclass, field
+import math
+import py_trees
+from ..scene.schema import ActionSpec
+from ..scene.structures import Block
+from ..scene.route_planner import select_clearance_jump
+from ..motion.acrobatics import BODY_PASS_Z
+
+@dataclass
+class TraversalBrain:
+    goal: float
+    done: bool = False
+    next_tick: float = 0.0
+    last: tuple | None = None
+    attempts: dict = field(default_factory=dict)
+    pending: tuple | None = None
+
+    def tick(self, c, t):
+        from ..motion.controller import Event
+        if self.done or t < self.next_tick or c.mode != "grounded":
+            return
+        self.next_tick = t + 0.10
+        if c.cur is not None or c.queue:
+            return
+        if self.pending is not None:
+            key, origin = self.pending
+            if abs(c.s-origin) < 8:
+                self.attempts[key] = self.attempts.get(key, 0) + 1
+            self.pending = None
+        def emit(kind, **data):
+            c.emit(Event(t, kind, c.cid, data))
+        if abs(c.s-self.goal) < 3 and not c.lying:
+            self.done = True
+            emit("autonomous_reached", x=c.s)
+            return
+        if c.lying or c.frame.owner is not None or not c._upright():
+            return
+        d = 1 if self.goal > c.s else -1
+        end = self.goal
+        obstacles = []
+        for o in c.others.values():
+            if o is c or o._gone() or o.frame is not c.frame or abs(o.z-c.z) >= BODY_PASS_Z:
+                continue
+            if not 0 < (o.s-c.s)*d < (end-c.s)*d:
+                continue
+            radius = 1.65*o.stand_h+20 if o.lying else 35
+            height = .75*o.stand_h+20 if o.lying else 2.1*o.stand_h
+            obstacles.append((o.s, Block("char:"+o.cid,o.s-radius,o.s+radius,0,height), o))
+        for pid, sp in c.props.items():
+            if pid in c.world.inactive or not sp.collide_characters or not sp.solid:
+                continue
+            z, ph = c.world.depth.get(pid,(0,30))
+            if abs(z-c.z) >= ph+14:
+                continue
+            x0,x1,y0,y1 = c._target_bounds("prop:"+pid)
+            if y1 > 12 and (x1-c.s)*d > 0 and (x0-end)*d < 0 if d>0 else y1>12 and x0<c.s and x1>end:
+                obstacles.append(((x0+x1)/2,Block("prop:"+pid,x0,x1,y0,y1),None))
+        obstacles.sort(key=lambda q: (abs(q[0]-c.s),q[1].owner))
+        hit = c._path_blocker(c.s,end)
+        candidates = []
+        def add(name, target, **kw):
+            key=(name,target)
+            if self.attempts.get(key,0)<2:
+                candidates.append((key,ActionSpec(character=c.cid,**kw)))
+        if not hit and not obstacles:
+            add("travel","goal",type="run_to",target_x=end,speed=360,adaptive_avoidance=True)
+        elif obstacles:
+            _, b, actor = obstacles[0]
+            bands = []
+            for _, ob, other in obstacles:
+                if other is not None:
+                    bands.append((ob.owner,other.z, BODY_PASS_Z/2))
+                else:
+                    bands.append((ob.owner,*c.world.depth.get(ob.owner.split(":",1)[1],(0,30))))
+            lane = c._free_lane(bands)
+            if lane is not None and not hit:
+                # Existing native proactive body/prop avoidance owns lane clearance.
+                add("avoid",b.owner,type="run_to",target_x=end,speed=300,adaptive_avoidance=True)
+        if obstacles or hit:
+            b = hit[1] if hit and (not obstacles or abs(hit[0]-c.s)<abs(obstacles[0][0]-c.s)) else obstacles[0][1]
+            near = b.x0 if d>0 else b.x1
+            far = b.x1 if d>0 else b.x0
+            landing = far+d*110
+            approach = near-d*130
+            if (landing-end)*d <= 0 and c.frame.lo+40 <= landing <= c.frame.hi-40:
+                live=tuple(q[1] for q in obstacles)
+                verdict=select_clearance_jump(c.env,(c.s,0),(landing,0),live_bounds=live,body_height=2.1*c.stand_h,body_half_width=35,max_rise=260)
+                if verdict.feasible:
+                    add("jump",b.owner,type="jump_to",target_x=landing,height=verdict.plan.apex_y)
+                elif (approach-c.s)*d>10 and not c._path_blocker(c.s,approach):
+                    add("approach",b.owner,type="run_to",target_x=approach,speed=300,adaptive_avoidance=True)
+        selected=[]
+        class Candidate(py_trees.behaviour.Behaviour):
+            def __init__(self,item):
+                super().__init__(name=item[0][0])
+                self.item=item
+            def update(self):
+                selected.append(self.item)
+                return py_trees.common.Status.SUCCESS
+        if candidates:
+            py_trees.composites.Selector(name="traversal",memory=False,children=[Candidate(q) for q in candidates]).tick_once()
+            key, action=selected[0]
+            self.pending=(key,c.s)
+            c.queue.append(action)
+            emit("autonomous_decision",skill=key[0],target=key[1])
+        else:
+            key=("blocked",tuple(q[1].owner for q in obstacles),hit[1].owner if hit else None)
+            if self.last != key:
+                emit("autonomous_blocked",reason="no verified native action")
+            self.last=key

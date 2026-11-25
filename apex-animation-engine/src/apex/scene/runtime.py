@@ -427,6 +427,13 @@ class SceneRuntime:
             c.arcade = shared
             if clock is not None:
                 c.beat_clock = clock
+        from ..ai.autonomous_traversal import TraversalBrain
+        brains = {pl.character: TraversalBrain(pl.destination_x) for pl in self.scene.placements if pl.destination_x is not None}
+        for cid, brain in brains.items():
+            if any(a.character == cid for a in self.scene.actions):
+                raise ValueError(f'{cid}: autonomous destination cannot be mixed with authored actions')
+            if abs(brain.goal) > hw - 40:
+                raise ValueError(f'{cid}: autonomous destination outside safe room bounds')
         from ..motion.arcade import portal_maps
         pmaps = portal_maps(self.env)
         roped = {r.a.split(":", 1)[1] for r in self.env.ropes} | {r.b.split(":", 1)[1] for r in self.env.ropes if r.b.startswith("prop:")}
@@ -467,6 +474,8 @@ class SceneRuntime:
                 go = go or (cs.at is not None and t >= cs.at) or (cs.on is not None and any(_matches(cs.on, e) for e in events))
                 if go and oid in collapsing:  # the first of its triggers
                     collapse(oid, t)
+            for cid, brain in brains.items():
+                brain.tick(ctrls[cid], t)
             for c in ctrls.values():
                 c.update(t, dt)
             for dv in drivers:
