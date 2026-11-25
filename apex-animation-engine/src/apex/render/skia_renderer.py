@@ -75,6 +75,9 @@ class SkiaRenderer:
         self.Fd = cam.view_h * FOV_K
 
     def P(self, x: float, y: float, z: float = 0.0) -> Tuple[float, float, float]:
+        if self.env.room.road_view:
+            k = self.focal / self.Fd
+            return ((x - self.cam.cx) * k, (self.cam.cy - y - 1.15 * z) * k, k)
         d = max(z + self.Fd, 20.0)
         k = self.focal / d
         return ((x - self.cam.cx) * k, -(y - self.cam.cy) * k, k)
@@ -130,6 +133,8 @@ class SkiaRenderer:
             self._shafts(c, fs)
         self._switches(c, fs)
         self._obstacles(c, back=True)
+        if self.env.room.road_view:
+            self._road_corridor(c)
         if self.env.decor:
             self._decor(c, fs, front=True)
         if self.env.portals:
@@ -640,12 +645,31 @@ class SkiaRenderer:
             h = self.P(*SP(x, sw.height, 34))
             self._glow(c, (h[0], h[1]), (40 + 45 * min(glow, 2.5)) * h[2], (255, 70, 80), 0.42 * min(1.0, glow))
 
+    def _road_corridor(self, c: skia.Canvas) -> None:
+        """Draw the same world-depth lanes the native controllers actually occupy."""
+        lo, hi = -self.hw, self.hw
+        def strip(a, b, rgb):
+            c.drawPath(self.poly([(lo, 0, a), (hi, 0, a), (hi, 0, b), (lo, 0, b)]),
+                       skia.Paint(AntiAlias=True, Color=col(rgb)))
+        strip(-85, 85, (55, 62, 68))
+        strip(-80, -27, (67, 75, 82))
+        strip(-27, 80, (81, 89, 95))
+        for z in (-80, 80):
+            self.line3(c, (lo, 0, z), (hi, 0, z), (224, 229, 220), 1.0, 2.6, glow=False)
+        for x in range(int(lo), int(hi), 100):
+            self.line3(c, (x, 0, -27), (min(x+50, hi), 0, -27),
+                       (212, 218, 216), 0.95, 2.0, glow=False)
+
     def _obstacles(self, c: skia.Canvas, back: bool) -> None:
         """Beams / rails spanning the room depth. Long faces are drawn behind the characters (back=True); the front
         cap and near edge are drawn in front (back=False) only for the part nearer than the character plane."""
         nr, bk = self.near + 2, self.back
         cam = (self.cam.cx, self.cam.cy)
         for ob in self.env.obstacles:
+            if (self.env.room.road_view and ob.kind == "platform"
+                    and abs(ob.center[1] + ob.size[1] / 2) < 1e-6
+                    and ob.size[0] >= self.env.room.width - 1):
+                continue  # road surface is drawn explicitly; physics platform unchanged
             if ob.id in getattr(self, "_collapsed", ()):
                 continue  # it gave way: its falling planks are drawn as props
             cx_, cy_ = ob.center
@@ -969,7 +993,11 @@ class SkiaRenderer:
         j = rig.world_joints(pose)
         dz = self.depth.get(cid, 0.0)  # depth lane: nearer characters draw slightly larger
         k = self.focal / max(self.Fd + dz, 20.0) if dz else self._zfn()
-        S = lambda p: ((p[0] - self.cam.cx) * k, -(p[1] - self.cam.cy) * k)
+        if self.env.room.road_view:
+            k = self.focal / self.Fd
+            S = lambda p: self.P(p[0], p[1], dz)[:2]
+        else:
+            S = lambda p: ((p[0] - self.cam.cx) * k, -(p[1] - self.cam.cy) * k)
         return rig, st, j, k, S
 
     def _character(self, c: skia.Canvas, cid: str, pose: Pose, alpha: float = 1.0, mirror_y: Optional[float] = None, scarf=None,
@@ -1334,6 +1362,10 @@ class SkiaRenderer:
     def _contact_shadow(self, c: skia.Canvas, cid: str, pose: Pose) -> None:
         px, py = pose.root
         dz = self.depth.get(cid, 0.0)  # the shadow lies at the character's own depth lane (a depth cue)
+        if self.env.room.road_view and 0 <= py < 260:
+            p = self.P(px, 0, dz)
+            self._shadow(c, p, 50 * p[2], 0.55 * (1 - py / 260), squash=0.28)
+            return
         if self.open:  # in an open world: on the top below the character, if it is close
             top = self.world.contact_shadow_y(px, py) if self.world is not None else None
             if top is not None:

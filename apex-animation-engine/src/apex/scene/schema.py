@@ -67,6 +67,7 @@ class RoomSpec(Strict):
     grid_alpha: float = Field(1.0, ge=0, le=1)  # strength of the neon grid (set dressing reads better over a quieter grid)
     style: Literal["box", "open"] = "box"  # "open": no cutaway room is drawn; the environment's backdrop is the world
     # (the room's bounds still hold physically: its walls are the edges of the playable area)
+    road_view: bool = False  # opt-in raised-view projection and marked two-person floor corridor
     void_below: Optional[float] = None  # Milestone 6: drawn as a bottomless void below this height (the floor is still
     # there physically, far below a level built on platforms; a scene's `fail` zone catches a fall before it is reached)
 
