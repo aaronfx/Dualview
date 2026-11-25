@@ -13,10 +13,13 @@ syntactic/reference only; feasibility and artistry remain the authority of nativ
 """
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import dataclass, field
 from typing import Any, Optional
 
-from ..scene.schema import ActionSpec, ProjectSpec
+from pydantic import ValidationError
+
+from ..scene.schema import ActionSpec, CharacterPlacement, EnvironmentSpec, ProjectSpec
 from .capabilities import REQUIRED, catalogue
 
 
@@ -49,7 +52,11 @@ class SceneIndex:
     def build(cls, project: ProjectSpec, scene_id: str) -> "SceneIndex":
         sc = next(s for s in project.scenes if s.id == scene_id)
         env = next(e for e in project.environments if e.id == sc.environment)
-        chars = {pl.character for pl in sc.placements}
+        return cls.from_parts(sc.placements, env)
+
+    @classmethod
+    def from_parts(cls, placements, env) -> "SceneIndex":
+        chars = {pl.character for pl in placements}
         props = {p.id for p in env.props}
         heavy = {p.id for p in env.props if (getattr(p, "mass", 0) or 0) >= 5 or getattr(p, "solid", False)}
         return cls(chars=chars, props=props, obstacles={o.id for o in env.obstacles},
@@ -222,3 +229,84 @@ def compiler_report(repairs) -> dict:
     return {"method": "deterministic schema + reference resolver; no model call, no physics change",
             "repairs": [r.as_dict() for r in repairs], "count": len(repairs),
             "catalogue_version": catalogue()["version"]}
+
+
+def compile_project(raw: dict):
+    """Repair the two observed raw-planner boundary failures before native validation.
+
+    Already-valid projects pass unchanged. Only the explicitly supported repairs
+    are attempted; unknown or ambiguous instructions still go back to the planner.
+    Validate environment/placements separately because a broken action or camera
+    otherwise makes it impossible to construct a ProjectSpec in the first place.
+    This is not a physics repair and does not change any action order or story goal.
+    """
+    try:
+        return ProjectSpec.model_validate(raw), []
+    except ValidationError as original:
+        if not isinstance(raw, dict):
+            raise
+        data = deepcopy(raw)
+        repairs = []
+        if not isinstance(data.get("environments"), list) or not isinstance(data.get("scenes"), list):
+            raise
+        envs = [EnvironmentSpec.model_validate(e) for e in data["environments"]]
+        for scene in data["scenes"]:
+            if not isinstance(scene, dict) or not all(isinstance(scene.get(k, []), list)
+                                                       for k in ("placements", "actions", "shots")):
+                raise
+            sid = scene["id"]
+            matches = [e for e in envs if e.id == scene["environment"]]
+            if len(matches) != 1:
+                raise CompileError(f"scene {sid}: environment is missing or ambiguous") from original
+            env = matches[0]
+            index = SceneIndex.from_parts(
+                [CharacterPlacement.model_validate(p) for p in scene.get("placements", [])], env)
+            for i, action in enumerate(scene.get("actions", [])):
+                if not isinstance(action, dict):
+                    raise
+                if action.get("type") != "lift" or action.get("target") is not None:
+                    continue
+                where = f"scene[{sid}].actions[{i}]"
+                # The presence of several objects is not evidence of which one
+                # the writer meant, even if only one is labelled heavy.
+                if len(index.props) != 1:
+                    raise CompileError(f"{where}: lift has no target; refusing to guess among "
+                                       f"{sorted(index.props)}") from original
+                name = next(iter(index.props))
+                if name in index.chars or name in index.obstacles or name in index.exits:
+                    raise CompileError(f"{where}: ambiguous object id {name!r}") from original
+                _infer_missing(action, "target", index, where, repairs)
+            for shot in scene.get("shots", []):
+                if not isinstance(shot, dict) or not isinstance(shot.get("camera", {}), dict):
+                    raise
+                cam = shot.get("camera", {})
+                target = cam.get("target")
+                if target is not None and not isinstance(target, str):
+                    raise
+                if not target or target in index.chars:
+                    continue
+                where = f"scene[{sid}].shot[{shot['id']}]"
+                kind, name = _split(target)
+                memberships = [k for k, names in (
+                    ("char", index.chars), ("prop", index.props),
+                    ("obstacle", index.obstacles), ("exit", index.exits)) if name in names]
+                if len(memberships) != 1:
+                    raise CompileError(f"{where}: unknown or ambiguous camera target {target!r}") from original
+                if memberships[0] == "char" and kind not in (None, "char"):
+                    raise CompileError(f"{where}: camera object reference {target!r} names a character") from original
+                fixed = repair_camera(cam, index, where, repairs)
+                # Static framing of a known object must start at its location,
+                # not an arbitrary world origin when there are multiple actors.
+                if fixed.get("mode") == "static" and cam.get("center") is None:
+                    obj = next((p for p in env.props if p.id == name), None)
+                    obstacle = next((o for o in env.obstacles if o.id == name), None)
+                    center = list(obj.position) if obj is not None else (
+                        list(obstacle.center) if obstacle is not None else None)
+                    if center is not None and fixed.get("center") != center:
+                        repairs.append(Repair(where, "camera.center", fixed.get("center"), center,
+                                              "frame the actual object position"))
+                        fixed["center"] = center
+                shot["camera"] = fixed
+        if not repairs:
+            raise
+        return ProjectSpec.model_validate(data), repairs

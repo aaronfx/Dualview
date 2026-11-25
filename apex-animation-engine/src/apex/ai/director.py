@@ -91,7 +91,7 @@ Characters: id, name, proportions, style (colours, cadence/stride/lean/arm_swing
 Targets: "switch:<id>", "exit:<id>", "bar:<id>", "prop:<id>", "char:<id>", "point:x,y". Coordinates: x along the floor, room spans
 [-width/2, width/2]; gravity [0,-1568]; standing pelvis ~95 above the floor; a character is ~175 tall.
 Shots: contiguous, start at 0, end exactly at the scene duration; kinds establishing|wide|medium|close|insert|tracking; camera modes
-static|follow|track_x|dolly; camera.include lists targets to keep in frame (e.g. "char:<id>", "prop:<id>").
+static|follow|track_x|dolly; camera.target is a placed character's bare ID (not char: or prop:); camera.include lists targets to keep in frame (e.g. "char:<id>", "prop:<id>").
 exit_conditions: "event:<type>" with types from: {EVENT_TYPES}.
 sound_cues: {{on_event, sound, gain}}; sound must be one of: {", ".join(SOUND_NAMES)}.
 Keep characters consistent: one CharacterSpec per character, referenced by id everywhere. Include only what the story
@@ -161,8 +161,10 @@ def apply_patch(doc: dict, ops: list) -> dict:
     if not isinstance(ops, list):
         raise ValueError("patch must be a list of operations")
     for i, op in enumerate(ops):
+        if not isinstance(op, dict):
+            raise ValueError(f"patch op {i}: expected an object")
         kind, path = op.get("op"), op.get("path", "")
-        if kind not in ("add", "replace", "remove") or not path.startswith("/"):
+        if kind not in ("add", "replace", "remove") or not isinstance(path, str) or not path.startswith("/"):
             raise ValueError(f"patch op {i}: need op add|replace|remove and a path starting with '/' (got {op})")
         parts = [p.replace("~1", "/").replace("~0", "~") for p in path[1:].split("/")]
         parent = out
@@ -240,7 +242,9 @@ class StoryDirector:
                 try:
                     data = self._parse_json(raw, prev)
                     prev = data
-                    proj = self._validate(data)
+                    from .plan_compiler import compile_project
+                    proj, repairs = compile_project(data)
+                    entry["compiler_repairs"] = [r.as_dict() for r in repairs]
                     proj, report = self.prepare(proj)
                     entry["engine_adjustments"] = report
                     status = "accepted"
