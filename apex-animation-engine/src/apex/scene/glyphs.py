@@ -161,13 +161,20 @@ def _resample(st: List[Pt], n: int) -> List[Pt]:
     return out
 
 
+def is_sign_inversion(a: str, b: str) -> bool:
+    """A signed-term inversion (+n <-> -n): same digits, opposite leading sign. The digit geometry is preserved and
+    only the sign flips in place, so such a morph must not translate the glyph (no centre-of-mass recentre)."""
+    a, b = canonical(a), canonical(b)
+    return (len(a) > 1 and len(a) == len(b) and a[0] in "+-" and
+            b[0] in "+-" and a[0] != b[0] and a[1:] == b[1:] and a[1:].isdigit())
+
+
 def blend(a: str, b: str, u: float, size: Sequence[float], n: int = 18, shift: Pt = (0.0, 0.0)) -> List[List[Pt]]:
     """Strokes part way through a morph from glyph a to glyph b (u = 0..1): strokes are paired in order (a glyph with
     fewer strokes grows the extra ones out of its last stroke's end) and each pair is blended point by point."""
     a, b = canonical(a), canonical(b)
     # A signed term inversion changes the sign, never the digit geometry.
-    if (len(a) > 1 and len(a) == len(b) and a[0] in "+-" and
-            b[0] in "+-" and a[0] != b[0] and a[1:] == b[1:] and a[1:].isdigit()):
+    if is_sign_inversion(a, b):
         e = u * u * (3 - 2 * u)
         sx, sy = size
         cell = 1.0 / len(a)
