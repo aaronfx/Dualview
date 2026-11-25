@@ -2,7 +2,7 @@
 import json,sys,runpy
 from pathlib import Path
 
-def build(kind):
+def build(kind, *, paced=False):
     raw=runpy.run_path("examples/build_combined_crossing.py")["_two_char_scene"](-450,800,650,[])
     scene=raw["scenes"][0]
     scene["placements"]=scene["placements"][:1]
@@ -16,7 +16,10 @@ def build(kind):
     geom={"slide":([0,140],[150,50]),"vault":([0,25],[65,50]),"climb":([0,125],[180,250])}
     center,size=geom[kind]
     env["obstacles"].append({"id":"challenge","kind":"beam" if kind=="slide" else "platform","style":"girder","color":"#8197a8","center":center,"size":size})
+    if paced:
+        from apex.ai.action_pacing import fit_goal_scene
+        raw=fit_goal_scene(raw, "s", "iko")
     return raw
 
 if __name__=="__main__":
-    Path(sys.argv[2]).write_text(json.dumps(build(sys.argv[1])),encoding="utf-8")
+    Path(sys.argv[2]).write_text(json.dumps(build(sys.argv[1],paced=True)),encoding="utf-8")

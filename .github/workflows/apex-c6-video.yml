@@ -14,6 +14,7 @@ on:
       - 'apex-animation-engine/examples/build_autonomous_mixed.py'
       - 'apex-animation-engine/examples/build_autonomous_extended.py'
       - 'apex-animation-engine/examples/build_autonomous_acrobatics.py'
+      - 'apex-animation-engine/src/apex/ai/action_pacing.py'
   workflow_dispatch:
 jobs:
   render:
@@ -47,7 +48,12 @@ jobs:
           printf "file 'slide.mp4'\nfile 'vault.mp4'\nfile 'climb.mp4'\n" > out/c6/acrobatics-list.txt
           ffmpeg -v error -f concat -safe 0 -i out/c6/acrobatics-list.txt -c copy -movflags +faststart out/c6/autonomous_acrobatics.mp4
           ffmpeg -v error -xerror -i out/c6/autonomous_acrobatics.mp4 -f null -
-          python -c 'import subprocess; p="out/c6/autonomous_acrobatics.mp4"; n=int(subprocess.check_output(["ffprobe","-v","error","-select_streams","v:0","-count_frames","-show_entries","stream=nb_read_frames","-of","default=nokey=1:noprint_wrappers=1",p])); assert n==720, n; print("Combined video: 720 decoded frames")'
+          python -c 'import subprocess; p="out/c6/autonomous_acrobatics.mp4"; n=int(subprocess.check_output(["ffprobe","-v","error","-select_streams","v:0","-count_frames","-show_entries","stream=nb_read_frames","-of","default=nokey=1:noprint_wrappers=1",p])); expected=sum(round(24*__import__("json").load(open(f"out/c6/{k}.json"))["scenes"][0]["duration"]) for k in ("slide","vault","climb")); assert n==expected and n<600, (n,expected); print(f"Combined action cut: {n} decoded frames")'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apex-action-cut
+          path: apex-animation-engine/out/c6/autonomous_acrobatics.mp4
+          if-no-files-found: error
       - run: |
           mkdir -p out/c6
           python examples/build_adaptive_avoidance.py out/c6/avoidance.json

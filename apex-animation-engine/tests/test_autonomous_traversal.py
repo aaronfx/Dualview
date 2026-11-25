@@ -89,3 +89,11 @@ def test_climb_descends_directly_to_floor():
     assert len(flights)==1
     records=sim.controllers["iko"].records
     assert all(r.frame=="floor" for r in records if r.t>flights[0].t+2)
+
+@pytest.mark.parametrize("kind",["slide","vault","climb"])
+def test_goal_paced_acrobatics(kind):
+    raw=runpy.run_path("examples/build_autonomous_acrobatics.py")["build"](kind,paced=True)
+    sim=SceneRuntime(ProjectSpec.model_validate(raw),"s").simulate()
+    reached=next(e.t for e in sim.events if e.type=="autonomous_reached")
+    assert 0<=sim.duration-reached<=.3
+    assert sim.duration<10
