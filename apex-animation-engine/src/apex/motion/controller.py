@@ -570,8 +570,11 @@ class CharacterController(InteractionMixin, CombatMixin, AcroMixin, ArcadeMixin,
         cur = self.v * direction
         cur = min(cur + acc * dt, v_des) if cur < v_des else max(cur - dec * dt, v_des)
         self.v = cur * direction
-        blocker = self._carry_route_blocker(self.v * dt)
         waiting = getattr(self, "_carry_route_wait", None)
+        # Require a meaningful clearance margin before restarting; a single
+        # tiny acceleration step otherwise emits false resume/wait cycles.
+        probe = direction * max(abs(self.v * dt), min(8.0, max(0.0, remaining))) if waiting else self.v * dt
+        blocker = self._carry_route_blocker(probe)
         if blocker is not None:
             self.v = 0.0
             if waiting != blocker:
