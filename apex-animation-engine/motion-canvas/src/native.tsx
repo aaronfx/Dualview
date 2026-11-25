@@ -2,12 +2,9 @@ import {Circle, Line, Rect, Txt, Node, makeScene2D} from '@motion-canvas/2d';
 import {createSignal, tween} from '@motion-canvas/core';
 import raw from './native.json';
 
-type Point = [number, number];
-type Actor = {joints: Record<string, Point>; depth: number};
-type Prop = {id:string; kind:string; pos:Point; size:Point; angle:number; glyph:string|null; z:number};
-type Frame = {t:number; actors:Record<string,Actor>; props:Prop[]};
-type Export = {version:number; fps:number; width:number; height:number; duration:number; frames:Frame[]};
-const data = raw as Export;
+import {parseNativeExport, type Point} from './interchange';
+
+const data = parseNativeExport(raw);
 const chains = [
   ['pelvis','spine_mid','neck_base','neck_top'],
   ...['f','n'].flatMap(s => [

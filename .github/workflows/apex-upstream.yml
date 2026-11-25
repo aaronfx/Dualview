@@ -23,6 +23,8 @@ jobs:
       - run: python -m apex.scene.presentation_export examples/the_rescue.json --scene rescue -o motion-canvas/src/native.json
       - run: npm install
         working-directory: apex-animation-engine/motion-canvas
+      - run: node --experimental-strip-types tests/interchange.mjs
+        working-directory: apex-animation-engine/motion-canvas
       - run: npm run check
         working-directory: apex-animation-engine/motion-canvas
       - run: npm run build
