@@ -1,0 +1,30 @@
+name: APEX upstream presentation and generated QA
+on:
+  push:
+    branches: [apex-unified]
+    paths: ['apex-animation-engine/**', '.github/workflows/apex-upstream.yml']
+  workflow_dispatch:
+jobs:
+  upstream:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apex-animation-engine
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg libegl1 libgl1 libglx0
+      - run: python -m pip install -e '.[dev]'
+      - run: python -m pytest -q tests/test_presentation_export.py tests/test_generated_route_properties.py
+      - run: python -m apex.scene.presentation_export examples/the_rescue.json --scene rescue -o motion-canvas/src/native.json
+      - run: npm install
+        working-directory: apex-animation-engine/motion-canvas
+      - run: npm run check
+        working-directory: apex-animation-engine/motion-canvas
+      - run: npm run build
+        working-directory: apex-animation-engine/motion-canvas
