@@ -41,14 +41,23 @@ def main():
     c.add_argument("scene")
     c.add_argument("--out",type=Path,required=True)
     c.add_argument("--revision",type=Path,required=True)
+    c=sub.add_parser("vision-review")
+    c.add_argument("video",type=Path)
+    c.add_argument("--model",required=True)
+    c.add_argument("--out",type=Path,required=True)
     c=sub.add_parser("story")
     c.add_argument("brief",type=Path)
     c.add_argument("--out",type=Path,required=True)
     c.add_argument("--offline",action="store_true")
     c.add_argument("--reason",default="")
     args=p.parse_args()
-    if args.command not in ("capabilities","resume","approve","revise") and args.out.exists() and any(args.out.iterdir()):
+    if args.command not in ("capabilities","resume","approve","revise","vision-review") and args.out.exists() and any(args.out.iterdir()):
         p.error("Use a new empty output directory for every production run")
+    if args.command=="vision-review":
+        from ..qa.local_vision_critic import review_video
+        args.out.parent.mkdir(parents=True,exist_ok=True)
+        args.out.write_text(json.dumps(review_video(args.video,args.model),indent=2),encoding="utf-8")
+        return 0
     if args.command=="capabilities":
         data=json.dumps(catalogue(),indent=2)
         if args.out: args.out.write_text(data,encoding="utf-8")

@@ -100,3 +100,20 @@ owner must review the new preview. For natural-language generation without
 --offline the existing provider requires explicit approved credentials and
 budget. Automatic staging adds only absent score cues and optional visual
 profiles; it never removes story goals or changes physical layout.
+
+## High-level actor objectives and optional image critic
+
+The new objectives mission tool compiles observe, signal, collect, climb,
+exit, help_up and attack into bounded native alternatives. The ensemble DAG
+checks scene dependencies and actual completion events; unsupported intents
+are refused. This is not unrestricted in-scene improvisation.
+
+Optional local vision review: install and run an appropriate Ollama vision
+model yourself, then run:
+
+    python -m apex.ai.director_local vision-review out/local_001/preview.mp4 --model YOUR_INSTALLED_VISION_MODEL --out out/local_001/vision.json
+
+Only a fixed loopback Ollama endpoint is used. Six timestamped actual frames
+are reviewed as advisory findings; no cloud video upload and no automatic
+model installation. No tested model or hardware speed is asserted. Human
+artistic approval and native QA remain mandatory.
