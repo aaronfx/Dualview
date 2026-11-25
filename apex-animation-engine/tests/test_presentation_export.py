@@ -19,5 +19,7 @@ def test_native_export_contains_real_joint_motion():
                                "camera": {"mode": "follow", "target": "kai"}}]}]})
     data = export_scene(p, "s")
     json.dumps(data, allow_nan=False)
+    assert all(f["camera"]["view_h"] > 0 for f in data["frames"])
+    assert data["styles"]["kai"]["body_color"] == p.character("kai").style.body_color
     assert data["version"] == 1 and len(data["frames"]) == 73
     assert data["frames"][0]["actors"]["kai"]["joints"] != data["frames"][-1]["actors"]["kai"]["joints"]

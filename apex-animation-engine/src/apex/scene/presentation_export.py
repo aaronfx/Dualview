@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+from dataclasses import asdict
 import json
 from pathlib import Path
 
@@ -12,12 +13,16 @@ from .schema import ProjectSpec
 def export_scene(project: ProjectSpec, scene_id: str) -> dict:
     runtime = SceneRuntime(project, scene_id)
     result = runtime.simulate()
+    from ..render.pipeline import build_camera, shot_fade
+    camera = build_camera(runtime, project.width / project.height)
     frames = []
     for index in range(int(result.duration * project.fps) + 1):
         t = index / project.fps
         state = runtime.evaluate(t)
         frames.append({
             "t": t,
+            "camera": asdict(camera.at(t)),
+            "fade": shot_fade(camera, t),
             "actors": {cid: {"joints": {k: [float(v[0]), float(v[1])]
                                        for k, v in runtime.rigs[cid].world_joints(pose).items()},
                              "depth": float(state.depth.get(cid, 0))}
@@ -29,6 +34,9 @@ def export_scene(project: ProjectSpec, scene_id: str) -> dict:
     return {"version": 1, "scene": scene_id, "fps": project.fps,
             "width": project.width, "height": project.height,
             "duration": result.duration, "frames": frames,
+            "styles": {cid: project.character(cid).style.model_dump(mode="json") for cid in runtime.rigs},
+            "room": runtime.env.room.model_dump(mode="json"),
+            "theme": runtime.env.theme.model_dump(mode="json"),
             "events": [{"t": e.t, "type": e.type, "actor": e.character} for e in result.events]}
 
 

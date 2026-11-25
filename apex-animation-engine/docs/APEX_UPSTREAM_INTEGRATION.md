@@ -3,7 +3,7 @@ Native APEX owns physics, mathematical proof, choreography and acceptance. No re
 
 | Project | Intended scope | Status |
 |---|---|---|
-| Motion Canvas | Optional TS presentation backend consuming native frame export | Initial export implemented; renderer not yet verified |
+| Motion Canvas | Optional TS presentation backend consuming native frame export | Diagnostic MP4 verified on 17d6ac9; native camera/style/room bridge added, visual QA pending |
 | Hypothesis | Generated native regression scenarios | Dev dependency added; property tests pending |
 | Py Trees | Reactive intent arbitration, existing CharacterBrain | Candidate |
 | RVO2 | Reciprocal avoidance concepts adapted to depth lanes | Candidate |
@@ -16,4 +16,4 @@ Native APEX owns physics, mathematical proof, choreography and acceptance. No re
 | CommonRoad | Independent trajectory-check concepts | Candidate |
 | AI4AnimationPy | Research only | Candidate |
 
-Motion Canvas MC1–MC8: isolated package, native interchange, joint/prop rendering, math glyph fidelity, camera/audio/effects, Director adapter, automated export, reference comparisons. The interchange v1 is deliberately limited: sampled world joints, props and event labels; camera/warp, joint connectivity, full glyph paths, styling and audio remain to be added. No visual parity claim.
+Motion Canvas MC1–MC8: isolated package, native interchange, joint/prop rendering, math glyph fidelity, camera/audio/effects, Director adapter, automated export, reference comparisons. The interchange v1 is deliberately limited: sampled world joints, props and event labels; native camera and basic styling now added; time warp, full glyph paths, detailed geometry, audio and effects remain to be added. No visual parity claim.

@@ -17,3 +17,8 @@ const timing=structuredClone(source);
 timing.frames[1].t+=1;
 assert.throws(()=>parseNativeExport(timing),/\.t/);
 console.log('APEX interchange: real native scene accepted; malformed geometry and timing rejected');
+
+const badCamera=structuredClone(source); badCamera.frames[0].camera.view_h=0;
+assert.throws(()=>parseNativeExport(badCamera),/view_h/);
+const badStyle=structuredClone(source); delete badStyle.styles[Object.keys(source.frames[0].actors)[0]];
+assert.throws(()=>parseNativeExport(badStyle),/missing style/);
