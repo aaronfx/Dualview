@@ -95,3 +95,20 @@ automatic high-level objective selection for every free-form story.
 The added tests exercise all seven new compiler mappings, reject unsupported
 target combinations and simulate a real native block with a retained opponent
 action. No existing motion controller, authored film, or QA threshold is changed.
+
+
+## Fourth patch: shared controller multi-prop awareness
+
+The existing native Acro mixin already checks structure paths, guards against
+body/prop intersections, and selects alternate depth lanes around props.
+The planner selected a lane against all obstacles but the hold/release logic
+tracked only one. Both preplanned and reactive sidesteps now retain every
+blocker; forward motion waits for depth clearance of all and the home lane
+is restored only when all active blockers are safely past. The reactive path
+also explicitly includes the actual contact prop. Avoidance events already
+emitted by the engine are now recognized by the native event contract.
+
+Added a real two-container native simulation and event-contract regression.
+This is physical 2.5D avoidance, not a claim that all screen-space overlaps
+are eliminated. Existing authored lane choices and structure traversal
+semantics remain unchanged. No new controller or physics engine.

@@ -139,9 +139,13 @@ class AcroMixin:
         sd = getattr(self, "_sidestep", None)
         if sd is None or self.z_target is None or abs(self.z - self.z_target) < 1.0:
             return
-        pz, ph = self.world.depth.get(sd["prop"], (0.0, 30.0))
-        if abs(self.z - pz) >= ph + 14.0:
-            return  # already clear in depth
+        # Every prop considered by the lane planner must be clear before
+        # forward motion resumes; the farthest prop alone is insufficient.
+        if all(abs(self.z - pz) >= ph + 14.0
+               for pid in sd.get("props", (sd["prop"],))
+               if pid not in self.world.inactive
+               for pz, ph in (self.world.depth.get(pid, (0.0, 30.0)),)):
+            return
         # step aside first, then walk on (no forward motion until clear of it in depth)
         if abs(self.s - s_prev) > 1e-9:
             self.s, self.v = s_prev, 0.0
@@ -167,9 +171,11 @@ class AcroMixin:
         if z is not None and abs(z - self.z) > 1e-6:
             from .controller import Event
             far = max(blockers, key=lambda b: abs(self.world.state(b[0]).pos[0] - x0))
-            self._sidestep = {"prop": far[0], "home": self.z, "planned": True}
+            self._sidestep = {"prop": far[0], "props": tuple(b[0] for b in blockers),
+                              "home": self.z, "planned": True}
             self.z_target = z
-            self.emit(Event(t, "sidestep", self.cid, {"prop": far[0], "lane": round(z, 1), "planned": True}))
+            self.emit(Event(t, "sidestep", self.cid, {"prop": far[0], "props": list(self._sidestep["props"]),
+                                                       "lane": round(z, 1), "planned": True}))
 
     def _check_walk(self, t: float, a: ActionSpec) -> ActionSpec:
         hit = self._path_blocker(self.s, a.target_x)
@@ -357,12 +363,19 @@ class AcroMixin:
         and ignores the props this character is handling (carried, pushed, levered, just thrown)."""
         sd = getattr(self, "_sidestep", None)
         if sd is not None:  # stepped around a prop in depth: back to the own lane once past it and clear of it
-            st = self.world.state(sd["prop"])
-            sp = self.props[sd["prop"]]
             x = self.frame.to_world(self.s, self.h)[0]
             moving = self.cur is not None and self.cur.type in ("walk_to", "run_to") and self.cur.target_x is not None
-            ahead = moving and (st.pos[0] - x) * (self.cur.target_x - self.s) > 0  # still has it to pass
-            if abs(x - st.pos[0]) > max(sp.size) / 2 + 11.0 + 6.0 and not ahead:
+            clear = True
+            for pid in sd.get("props", (sd["prop"],)):
+                if pid in self.world.inactive:
+                    continue
+                st = self.world.state(pid)
+                sp = self.props[pid]
+                ahead = moving and (st.pos[0] - x) * (self.cur.target_x - self.s) > 0
+                if abs(x - st.pos[0]) <= max(sp.size) / 2 + 17.0 or ahead:
+                    clear = False
+                    break
+            if clear:
                 self.z_target = sd["home"]
                 self._sidestep = None
         active = self._proxy_active()
@@ -439,12 +452,15 @@ class AcroMixin:
                 # a walk blocked by something it cannot move: step around it in depth, if the room allows
                 tgt = self.cur.target_x
                 lo_s, hi_s = sorted((self.s, tgt))
-                blockers = [b for b in self._props_in_path(lo_s, hi_s) if b[0] == prop or True]
-                z = self._free_lane(blockers or [(prop, *self.world.depth.get(prop, (0.0, 30.0)))])
+                blockers = self._props_in_path(lo_s, hi_s)
+                if not any(b[0] == prop for b in blockers):
+                    blockers.append((prop, *self.world.depth.get(prop, (0.0, 30.0))))
+                z = self._free_lane(blockers)
                 if z is not None and abs(z - self.z) > 1e-6:
-                    self._sidestep = {"prop": prop, "home": self.z}
+                    self._sidestep = {"prop": prop, "props": tuple(b[0] for b in blockers), "home": self.z}
                     self.z_target = z
-                    self.emit(Event(t, "sidestep", self.cid, {"prop": prop, "lane": round(z, 1)}))
+                    self.emit(Event(t, "sidestep", self.cid, {"prop": prop, "props": list(self._sidestep["props"]),
+                                                               "lane": round(z, 1)}))
         else:  # the prop pushed the body: the character is displaced with it
             self.s += off
             speed = abs(vx * tan[0] + vy * tan[1])

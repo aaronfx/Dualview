@@ -91,3 +91,28 @@ def test_walks_plan_around_props_in_depth():
     assert abs(x[-1] - x[0]) < 1e-6  # never touched
     c = r.controllers["kai"]
     assert abs(c.s - -500) < 2.0 and abs(c.z - 10) < 1e-6  # arrived, and back in its own lane
+
+
+def test_planned_sidestep_tracks_every_blocker_and_returns_home():
+    # Opposite depth lanes, same horizontal route. Both are physically passable
+    # via a third lane. The lane choice must remain safe for both containers.
+    box = dict(kind="container", size=[100, 100], mass=110, friction=0.03,
+               static_friction=0.39, depth=40)
+    props = [dict(box, id="near", position=[-200, 51], z=-10),
+             dict(box, id="far", position=[-420, 51], z=30)]
+    r = sim(proj([{"character":"kai","type":"walk_to","target_x":-650}], props,
+                 dur=9.0, placements=[{"character":"kai","x":0,"facing":-1,"z":10}]))
+    steps = ev(r, "sidestep")
+    assert steps and {"near","far"} <= set(steps[0].data["props"])
+    assert not ev(r,"prop_block") and not ev(r,"shoved")
+    for pid in ("near","far"):
+        xs = r.prop_tracks[pid][:,0]
+        assert abs(xs[-1]-xs[0]) < 1e-6
+    c = r.controllers["kai"]
+    assert abs(c.s+650) < 2.0 and abs(c.z-10) < 1e-6
+
+
+def test_avoidance_events_are_available_to_native_story_contracts():
+    from apex.scene.goals import check_event
+    for event in ("sidestep","prop_block","body_block","shoved"):
+        check_event(event,"movement")
