@@ -5,7 +5,7 @@ import py_trees
 from ..scene.schema import ActionSpec
 from ..scene.structures import Block
 from ..scene.route_planner import select_clearance_jump
-from ..motion.acrobatics import BODY_PASS_Z, CARRY_MASS_G
+from ..motion.acrobatics import BODY_PASS_Z, CARRY_MASS_G, VAULT_MAX
 
 @dataclass
 class TraversalBrain:
@@ -85,11 +85,33 @@ class TraversalBrain:
             self.pending = None
         def emit(kind, **data):
             c.emit(Event(t, kind, c.cid, data))
-        if abs(c.s-self.goal) < 3 and not c.lying:
+        if abs(c.s-self.goal) < 3 and not c.lying and c.frame.owner is None:
             self.done = True
             emit("autonomous_reached", x=c.s)
             return
-        if c.lying or c.frame.owner is not None or not c._upright():
+        if c.lying or not c._upright():
+            return
+        if c.frame.owner is not None:
+            # Isolated platform descent: native ballistic jump to clear floor.
+            d=1 if self.goal>c.s else -1
+            edge=c.frame.hi if d>0 else c.frame.lo
+            landing=edge+d*100
+            if (self.goal-landing)*d<0 or c.props or any(o is not c and not o._gone() for o in c.others.values()):
+                return
+            if any(b.owner!=c.frame.owner and b.y1>0 and b.x0<max(c.s,landing)+35 and b.x1>min(c.s,landing)-35 for b in c.blocks):
+                return
+            if not c.frame.lo+10<=c.s<=c.frame.hi-10:
+                return
+            if c.frame.origin[1]+2.1*c.stand_h+55>c.env.room.height:
+                return
+            key=("descend",c.frame.owner)
+            if self.attempts.get(key,0)>=2:
+                return
+            action=ActionSpec(character=c.cid,type="jump_to",target_x=landing,height=45)
+            self.pending=(key,c.s)
+            self.active_action=action
+            c.queue.append(action)
+            emit("autonomous_decision",skill=key[0],target=key[1])
             return
         d = 1 if self.goal > c.s else -1
         end = self.goal
@@ -142,6 +164,26 @@ class TraversalBrain:
                 band=(first.owner,actor.z,BODY_PASS_Z/2) if actor is not None else (first.owner,*c.world.depth.get(first.owner.split(":",1)[1],(0,30)))
                 if gap>150 and c._free_lane([band]) is not None:
                     add("avoid_segment",first.owner,type="run_to",target_x=mid,speed=300,adaptive_avoidance=True)
+        # Native static obstacle acrobatics with conservative geometry bands.
+        if hit and not obstacles:
+            from ..motion.controller import SLIDE_DROP, SLIDE_H
+            face,b=hit
+            near=b.x0 if d>0 else b.x1
+            far=b.x1 if d>0 else b.x0
+            spec=next((o for o in c.env.obstacles if o.id==b.owner),None)
+            if spec is not None and spec.kind in ("beam","platform"):
+                if b.y0>SLIDE_H+.72*c.stand_h+10 and b.y0<c.stand_h+40:
+                    start=near-d*(430*SLIDE_DROP+45)
+                    stop=far+d*80
+                    if (end-stop)*d>=0 and not c._path_blocker(c.s,start) and not c._path_blocker(start,stop,top=SLIDE_H+.72*c.stand_h+5):
+                        if (start-c.s)*d>5:
+                            add("slide_approach",b.owner,type="run_to",target_x=start,speed=300,adaptive_avoidance=True)
+                        elif (near-c.s)*d>=430*SLIDE_DROP+15:
+                            add("slide",b.owner,type="duck_slide",target_x=stop,speed=430)
+                elif b.y0<=0 and b.y1<=VAULT_MAX*c.stand_h and (end-far)*d>100 and (near-c.s)*d>.5*c.stand_h:
+                    add("vault",b.owner,type="vault",target="obstacle:"+b.owner,speed=300)
+                elif b.y0<=0 and .45*c.stand_h<=b.y1<=c.stand_h+c.shoulder_up+c.arm_reach+120 and (end-far)*d>120 and b.x1-b.x0>100 and b.y1+2.1*c.stand_h+55<c.env.room.height:
+                    add("climb",b.owner,type="climb",target="obstacle:"+b.owner,tempo=1.2)
         relocation = None
         # Small floor props only: native pickup and placement, not teleportation.
         if obstacles and not hit and not c.carrying:

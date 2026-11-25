@@ -13,6 +13,7 @@ on:
       - 'apex-animation-engine/tests/test_autonomous_traversal.py'
       - 'apex-animation-engine/examples/build_autonomous_mixed.py'
       - 'apex-animation-engine/examples/build_autonomous_extended.py'
+      - 'apex-animation-engine/examples/build_autonomous_acrobatics.py'
   workflow_dispatch:
 jobs:
   render:
@@ -52,6 +53,11 @@ jobs:
           python examples/build_autonomous_extended.py out/c6/autonomous_extended.json
           apex validate out/c6/autonomous_extended.json
           apex render out/c6/autonomous_extended.json -o out/c6/autonomous_extended.mp4 --scale 1 --samples 1 --qa-json out/c6/autonomous_extended-qa.json
+          for skill in slide vault climb; do
+            python examples/build_autonomous_acrobatics.py "$skill" "out/c6/$skill.json"
+            apex validate "out/c6/$skill.json"
+            apex render "out/c6/$skill.json" -o "out/c6/$skill.mp4" --scale 1 --samples 1 --qa-json "out/c6/$skill-qa.json"
+          done
       - uses: actions/upload-artifact@v4
         with:
           name: apex-c6-native-avoidance

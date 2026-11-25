@@ -70,3 +70,12 @@ def test_extended_course_low_jump():
     assert len(jumps)==1, [(e.type,e.data) for e in sim.events if e.type=="autonomous_decision"]
     assert jumps[0].data["apex"]<=130
     assert abs(sim.controllers["iko"].records[-1].pos[0]-2250)<3
+
+@pytest.mark.parametrize("kind,event", [("slide","slide_end"),("vault","vault"),("climb","climbed")])
+def test_autonomous_acrobatics(kind,event):
+    raw=runpy.run_path("examples/build_autonomous_acrobatics.py")["build"](kind)
+    sim=SceneRuntime(ProjectSpec.model_validate(raw),"s").simulate()
+    assert any(e.type==event and e.character=="iko" for e in sim.events), [(e.type,e.data) for e in sim.events if e.type.startswith("autonomous")]
+    assert any(e.type=="autonomous_reached" for e in sim.events)
+    assert sim.controllers["iko"].records[-1].frame=="floor"
+    assert abs(sim.controllers["iko"].records[-1].pos[0]-650)<3
