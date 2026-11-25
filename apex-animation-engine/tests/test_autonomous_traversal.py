@@ -124,3 +124,11 @@ def test_airborne_depth_separation():
                 # Native contact/transition boundaries are verified by the
                 # full inspector in render QA; record finite physical states.
                 assert all(math.isfinite(x) for x in b.pos+b.vel)
+
+def test_hostile_chase_native_attack():
+    raw=runpy.run_path("examples/build_autonomous_chase.py")["build"](hostile=True)
+    sim=SceneRuntime(ProjectSpec.model_validate(raw),"s").simulate()
+    assert not raw["scenes"][0]["actions"]
+    assert any(e.character=="pell" and e.type=="strike_start" for e in sim.events)
+    assert any(e.character=="iko" and e.type=="autonomous_decision" and e.data.get("skill")=="evade_attack" for e in sim.events)
+    assert any(e.character=="pell" and e.type=="whiff" for e in sim.events)

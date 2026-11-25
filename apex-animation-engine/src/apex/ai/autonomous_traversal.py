@@ -23,6 +23,9 @@ class TraversalBrain:
     fast: bool = False
     chase_ceiling: float | None = None
     pursuit_last: float | None = None
+    hostile: bool = False
+    last_attack: float = -10.0
+    last_threat: float = -10.0
 
     def _hazards(self,c):
         """Observe approaching same-lane solids using a short swept horizon."""
@@ -67,6 +70,38 @@ class TraversalBrain:
             if self.pursuit_last is None or abs(target.s-self.pursuit_last)>180:
                 c.emit(Event(t,'autonomous_decision',c.cid,{'skill':'pursue','target':self.pursuit,'observed_x':target.s,'predicted_x':self.goal}))
                 self.pursuit_last=target.s
+        # Only preempt unqueued locomotion, never committed contact or flight.
+        free = not c.queue and (c.cur is None or (c.cur is self.active_action and c.cur.type in ("run_to","walk_to")))
+        if self.hostile and self.pursuit and free and c._upright() and not c.lying:
+            target=c.others[self.pursuit]
+            gap=abs(target.s-c.s)
+            reach=c._strike_reach("jab")
+            if target.mode=="grounded" and not target.lying and target.frame is c.frame and abs(target.z-c.z)<BODY_PASS_Z and .55*reach<=gap<=reach and t-self.last_attack>.8 and not c._path_blocker(c.s,target.s):
+                action=ActionSpec(character=c.cid,type="strike",target="char:"+target.cid,move="jab",distance=gap,power=.8,reaction="flinch")
+                self.pending=None
+                self.active_action=action
+                c.queue.append(action)
+                if c.cur is not None:
+                    c._next_action(t)
+                self.last_attack=t
+                c.emit(Event(t,"autonomous_decision",c.cid,{"skill":"attack","target":target.cid,"gap":gap}))
+                return
+        if free and not self.pursuit and c._upright() and not c.lying:
+            for enemy in c.others.values():
+                attack=enemy.cur
+                if attack is None or attack.type!="strike" or attack.target!="char:"+c.cid or enemy.frame is not c.frame or abs(enemy.z-c.z)>=BODY_PASS_Z:
+                    continue
+                if attack.move not in ("jab","cross","hook") or t-self.last_threat<.6:
+                    continue
+                action=ActionSpec(character=c.cid,type="dodge",dodge="duck")
+                self.pending=None
+                self.active_action=action
+                c.queue.append(action)
+                if c.cur is not None:
+                    c._next_action(t)
+                self.last_threat=t
+                c.emit(Event(t,"autonomous_decision",c.cid,{"skill":"evade_attack","target":enemy.cid}))
+                return
         if c.cur is not None or c.queue:
             # Never interrupt contact, flight, an authored interaction or recovery.
             # Only our own ordinary locomotion may be cancelled after a stall.
@@ -166,7 +201,7 @@ class TraversalBrain:
             key=(name,target_id)
             if self.attempts.get(key,0)<2:
                 if self.fast and kw.get("type")=="run_to":
-                    kw["speed"]=min(430,kw.get("speed",300)*1.15)
+                    kw["speed"]=min(480 if self.hostile else 430,kw.get("speed",300)*(1.28 if self.hostile else 1.15))
                 candidates.append((key,ActionSpec(character=c.cid,**kw)))
         if not hit and not obstacles:
             add("travel","goal",type="run_to",target_x=end,speed=360,adaptive_avoidance=True)
