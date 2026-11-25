@@ -8,7 +8,7 @@ from copy import deepcopy
 
 from .mission import TOOL_SCHEMA, ObjectiveTool, EnsembleTool
 from .objective_planner import compile_objectives
-from .ensemble_planner import plan_ensemble, topological, verify_task_evidence
+from .ensemble_planner import plan_ensemble, topological, verify_task_evidence, verify_reactions
 from ..scene.schema import ProjectSpec
 
 
@@ -69,3 +69,4 @@ def verify_native_plans(project, contracts):
     for sid, tasks in contracts:
         sim = SceneRuntime(project, sid).simulate(physics_only=True)
         verify_task_evidence(tasks, sim.events, sim.duration)
+        verify_reactions(project, sid, tasks, sim)

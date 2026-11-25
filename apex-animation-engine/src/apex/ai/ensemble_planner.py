@@ -11,11 +11,17 @@ from .smart_director import Strict, ActionCandidate, rehearse
 from ..scene.schema import ActionSpec, ProjectSpec
 from ..scene.goals import parse_goal, check_event, matches
 
+class ProjectileReaction(Strict):
+    thrower: str
+    prop: str
+
+
 class Task(Strict):
     id: str = Field(pattern=r"^[A-Za-z][A-Za-z0-9_-]{0,39}$")
     actor: str
     after: list[str] = Field(default_factory=list,max_length=12)
     proof: str
+    projectile_reaction: ProjectileReaction | None = None
     alternatives: list[list[ActionSpec]] = Field(min_length=1,max_length=4)
     @model_validator(mode="after")
     def valid(self):
@@ -26,6 +32,11 @@ class Task(Strict):
             raise ValueError("duplicate or self dependency")
         if any(not seq or len(seq)>32 or any(a.character!=self.actor for a in seq) for seq in self.alternatives):
             raise ValueError("each alternative must contain 1..32 actions for the task actor")
+        if self.projectile_reaction is not None:
+            if self.projectile_reaction.thrower == self.actor or self.after:
+                raise ValueError("projectile reaction requires independent defender and distinct thrower")
+            if typ != "dodge" or who != self.actor:
+                raise ValueError("projectile reaction proof must identify the defender's dodge")
         return self
 
 class EnsembleRequest(Strict):
@@ -113,6 +124,14 @@ def compile_ensemble(project,request):
         candidates.append(ActionCandidate(name=f"ensemble_{i+1}",actions=actions))
     return ProjectSpec.model_validate(raw),candidates,tasks
 
+def verify_reactions(project, scene_id, tasks, sim):
+    from .reaction_proof import verify_projectile_reaction
+    return [verify_projectile_reaction(project, scene_id, task.actor,
+                                      task.projectile_reaction.thrower,
+                                      task.projectile_reaction.prop, sim)
+            for task in tasks if task.projectile_reaction is not None]
+
+
 def plan_ensemble(project,request):
     r=EnsembleRequest.model_validate(request)
     p,candidates,tasks=compile_ensemble(project,r)
@@ -121,16 +140,20 @@ def plan_ensemble(project,request):
     from ..scene.runtime import SceneRuntime
     from .capabilities import validate_candidate
     from .smart_director import Trial,Selection
-    accepted=[];rejected=[]
+    accepted=[];rejected=[];reaction_reports={}
     for candidate in candidates:
         try:
             candidate_project=validate_candidate(p,r.scene_id,candidate.actions)
             sim=SceneRuntime(candidate_project,r.scene_id,strict=False).simulate(physics_only=True)
             verify_task_evidence(tasks, sim.events, sim.duration)
+            reaction_reports[candidate.name] = verify_reactions(candidate_project, r.scene_id, tasks, sim)
             accepted.append(candidate)
         except (ValueError,RuntimeError,KeyError,TypeError,IndexError,ArithmeticError) as e:
             rejected.append(Trial(candidate.name,False,str(e)))
     if not accepted:return Selection(None,r.scene_id,rejected)
     selection=rehearse(p,r.scene_id,accepted,max_trials=r.max_trials)
+    for trial in selection.trials:
+        trial.checks.extend({"name":"projectile_counterfactual", "status":"PASS", "evidence":proof}
+                            for proof in reaction_reports.get(trial.name, []))
     selection.trials=rejected+selection.trials
     return selection

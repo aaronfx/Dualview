@@ -118,6 +118,9 @@ Or use {{"tool":"ensemble","request":{{"scene_id":"s","tasks":[{{"id":"find","ac
 "proof":"notice@a[target=prop:core]","alternatives":[[{{"character":"a","type":"notice","target":"prop:core"}}]]}}]}}}}.
 Use actual placed actors, existing targets, explicit outcome goals, and duration <=60 seconds. Each delegated actor must
 have no authored actions in that scene; other actors' actions are retained. Dependencies are task IDs, not timestamps.
+For throw_at or evade_projectile, specify prop as an existing prop:<id> and target as char:<id>.
+An evade_projectile defender has only its independent reaction task and waits for the specified release; no after dependency.
+Allow at least three seconds after release for the native flight observation. A release alone is not a successful hit.
 The native planner chooses and rehearses alternatives; failed plans are rejected, never replaced with a generic story.
 Do not use this for a complex scene whose goals cannot be represented by those tools; use normal native actions instead.
 REPAIRS: when told your previous output was invalid, reply with ONLY {{"patch": [...]}}: RFC 6902 operations

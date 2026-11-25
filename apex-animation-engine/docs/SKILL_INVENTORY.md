@@ -176,3 +176,19 @@ M2's original stationary-hit/dodged-miss counterfactual has not been
 integrated in this increment. No claim of universal projectile avoidance
 or general symbolic world planning. Added causal witness tests and actual
 native pickup/release simulation; CI verification required.
+
+
+## M2 controlled reaction increment
+
+The existing typed objective planner now supports evade_projectile with
+explicit thrower and prop. It generates a release-triggered native dodge
+with alternative depth lanes. The ensemble preflight invokes a shared
+native control verification; StoryDirector repeats it after setup solving.
+A stationary copy removes only the isolated defender's wait/dodge queue
+and substitutes idle. Both runs must have one matching pickup/release,
+matched release time/position/speed, a full three-second flight window,
+and no controller violations. Actual defender contact rejects the dodge;
+stationary contact is mandatory. This is a narrow 2.5D projectile control
+contract, not a general fight planner, moving-world perception or visual
+quality certification. Tests use native simulation and include a naturally
+missing projectile in a different depth lane. No engine physics changes.

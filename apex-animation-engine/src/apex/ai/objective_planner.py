@@ -6,7 +6,7 @@ and targets must exist. Native rehearsal selects feasible alternatives.
 from typing import Literal
 from pydantic import Field
 from .smart_director import Strict
-from .ensemble_planner import Task,EnsembleRequest,plan_ensemble
+from .ensemble_planner import Task,EnsembleRequest,ProjectileReaction,plan_ensemble
 from .character_brain import CharacterBrain,Personality,Perception,Intent
 from ..scene.schema import ProjectSpec
 
@@ -14,9 +14,9 @@ class ActorObjective(Strict):
     id: str = Field(pattern=r"^[A-Za-z][A-Za-z0-9_-]{0,39}$")
     actor:str
     kind:Literal["observe","signal","collect","climb","exit","help_up","attack",
-                 "vault","block","evade","recover","pull_up","celebrate","lift","throw_at"]
+                 "vault","block","evade","recover","pull_up","celebrate","lift","throw_at","evade_projectile"]
     target:str
-    prop:str|None=None  # explicit projectile for throw_at; never guessed
+    prop:str|None=None  # explicit projectile for throw_at / evade_projectile
     after:list[str]=Field(default_factory=list,max_length=12)
     urgency:Literal["calm","urgent"]="urgent"
 
@@ -37,8 +37,9 @@ def compile_objectives(project,request,memory=None):
             raise ValueError(f"{task.id}: actor or target does not exist in current scene")
         if kind=="char" and target==task.actor and task.kind!="recover":raise ValueError("Actor cannot target itself")
         actor=task.actor
-        if task.kind != "throw_at" and task.prop is not None:
-            raise ValueError(f"{task.id}: prop is only supported by throw_at")
+        reaction=None
+        if task.kind not in ("throw_at","evade_projectile") and task.prop is not None:
+            raise ValueError(f"{task.id}: prop is only supported by projectile objectives")
         brain=memory.actor_brain(p.id,actor) if memory else CharacterBrain(Personality())
         perception=Perception(ally_needs_help=task.kind in ("help_up","pull_up"),
                               recovering=task.kind=="recover",goal_visible=True,target_id=target)
@@ -87,6 +88,19 @@ def compile_objectives(project,request,memory=None):
         elif task.kind=="lift" and kind=="prop":
             proof=f"lift_ok@{actor}[prop={target}]"
             seq=[[a("lift",target=task.target,effort=e)] for e in (1.0,1.4)]
+        elif task.kind=="evade_projectile" and kind=="char":
+            if task.prop not in {"prop:"+pid for pid in props}:
+                raise ValueError(f"{task.id}: evade_projectile requires an existing explicit prop: target")
+            pid=task.prop.split(":",1)[1]
+            if task.after:
+                raise ValueError(f"{task.id}: projectile defender waits on release, not task completion")
+            reaction=ProjectileReaction(thrower=target,prop=pid)
+            proof=f"dodge@{actor}"
+            wait=a("wait_for",until=f"event:throw@{target}[prop={pid},target=char:{actor}]")
+            # Native dodge with alternative depth lanes. Control removes only
+            # the defender's reaction, and must hit the original defender.
+            seq=[[wait,a("dodge",dodge="back",lane=z)] for z in (-60,60)]
+            seq.append([wait,a("dodge",dodge="duck")])
         elif task.kind=="throw_at" and kind=="char":
             # Recover the M1 causal contract using the existing symbolic
             # search implementation. Native pickup/throw and rehearsal
@@ -111,7 +125,7 @@ def compile_objectives(project,request,memory=None):
             # Native proof is release toward target, not hit or evasion.
             trace.append({"task":task.id,"causal_steps":list(steps),"proof":proof})
         else:raise ValueError(f"{task.id}: unsupported objective/target combination")
-        out.append(Task(id=task.id,actor=actor,after=task.after,proof=proof,alternatives=seq))
+        out.append(Task(id=task.id,actor=actor,after=task.after,proof=proof,alternatives=seq,projectile_reaction=reaction))
         trace.append({"task":task.id,"actor":actor,"intent":intent.value,"target":task.target,"alternatives":len(seq)})
     return EnsembleRequest(scene_id=r.scene_id,tasks=out,max_trials=r.max_trials),trace
 
