@@ -83,7 +83,7 @@ def relay():
     sc['shots']=event_shots(sim.events,d,[
         BeatShot('approach','tracking',dict(mode='follow',target='iko',view_height=580,offset=[80,45]),description='Courier observes and clears the station barrier.'),
         BeatShot('core','medium',dict(mode='follow',target='iko',view_height=430,offset=[55,30]),'pick_up@iko[prop=spark]',-.20,'Core retrieved, partner responds.'),
-        BeatShot('together','wide',dict(mode='static',center=[right-165,140],view_height=390,include=['char:iko','char:pell']),'exit_together',-.20,'Both actors reach the sealed airlock.'),
+        BeatShot('together','wide',dict(mode='static',center=[right-95,180],view_height=680,include=['char:iko','char:pell']),'exit_together',-.20,'Both actors reach the sealed airlock.'),
     ])
     sc['shots'][-1]['fade_out']=.5
     final=ProjectSpec.model_validate(data)
