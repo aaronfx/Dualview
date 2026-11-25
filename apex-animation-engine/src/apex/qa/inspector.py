@@ -1161,7 +1161,8 @@ class Inspector:
                 ea = [W(pa, st[0]) for st in sa] + [W(pa, st[-1]) for st in sa]
                 eb = [W(pb, st[0]) for st in sb] + [W(pb, st[-1]) for st in sb]
                 # every end of the new shape is drawn where the blend left one (small motion over 1/240 s allowed)
-                worst_pop = max(worst_pop, max(min(math.dist(p, q) for q in ea) for p in eb))
+                pop = max(min(math.dist(p, q) for q in ea) for p in eb)
+                worst_pop = max(worst_pop, pop)
         return [Check("morphs_conserve_motion", "PASS" if worst_m <= 1e-6 else "FAIL", worst_m, 1e-6,
                       f"{n} shape change(s): relative change of centre-of-mass velocity or angular momentum"),
                 Check("morphs_hold_centre", "PASS" if worst_c <= 1e-6 else "FAIL", worst_c, 1e-6,

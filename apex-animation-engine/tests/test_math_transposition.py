@@ -93,3 +93,17 @@ def test_native_transfer_and_intermediate_frame(n, c, op):
     last = {p.id: p for p in runtime.evaluate(13.5).props}
     assert set(last) == {"transpose_variable", "transpose_equals", "transpose_evaluation"}
     assert last["transpose_evaluation"].glyph.split(":")[1] == str(plan.result)
+
+
+@pytest.mark.parametrize("n,c,op", [(2,5,"add"),(4,9,"add"),(4,9,"sub")])
+def test_signed_morph_render_continuity(n,c,op):
+    import runpy
+    from pathlib import Path
+    from apex.scene.schema import ProjectSpec
+    from apex.scene.runtime import SceneRuntime
+    from apex.render.pipeline import build_camera
+    from apex.qa.inspector import Inspector
+    build=runpy.run_path(str(Path(__file__).parents[1]/"examples/build_semantic_transposition.py"))["project"]
+    p=ProjectSpec.model_validate(build(n,c,op));rt=SceneRuntime(p,"solve");sim=rt.simulate()
+    checks=Inspector(rt,build_camera(rt,p.width/p.height),p.fps,(p.width,p.height)).check_morphs()
+    assert all(c.status=="PASS" for c in checks), [(c.name,c.metric) for c in checks]
