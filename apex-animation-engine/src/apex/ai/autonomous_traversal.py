@@ -76,8 +76,8 @@ class TraversalBrain:
         obstacles.sort(key=lambda q: (abs(q[0]-c.s),q[1].owner))
         hit = c._path_blocker(c.s,end)
         candidates = []
-        def add(name, target, **kw):
-            key=(name,target)
+        def add(name, target_id, **kw):
+            key=(name,target_id)
             if self.attempts.get(key,0)<2:
                 candidates.append((key,ActionSpec(character=c.cid,**kw)))
         if not hit and not obstacles:
