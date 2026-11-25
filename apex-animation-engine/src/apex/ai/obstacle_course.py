@@ -13,6 +13,7 @@ from copy import deepcopy
 from ..scene.schema import ProjectSpec
 from ..scene.autochoreo import Objective, search
 from ..scene.runtime import SceneRuntime
+from ..scene.goals import matches
 
 _GROUND = {"kind": "platform", "style": "girder", "color": "#3b4b57"}
 
@@ -120,7 +121,13 @@ def plan_course(obstacles, *, actor="iko", start_x=-640.0, goal_x=None, width=32
     structure, the grazing tactic is excluded for that obstacle and the segment is re-planned with the next feasible
     native tactic (dynamic strategy re-selection). This repeats until the full traversal is graze-free, or raises if
     an obstacle has no clean tactic left (honest failure — never a walk-through or a concealed scrape)."""
+    if max_replans < 0:
+        raise ValueError("max_replans must be nonnegative")
     obstacles = sorted(obstacles, key=lambda o: o["center"][0])
+    if not obstacles:
+        raise ValueError("course requires at least one obstacle")
+    # Assign stable identifiers before both segment search and graze attribution.
+    obstacles = [dict(o, id=o.get("id", f"roof{i+1}")) for i, o in enumerate(obstacles)]
     xs = [o["center"][0] for o in obstacles]
     goal_x = goal_x if goal_x is not None else (max(xs) + 320.0)
     duration = max(16.0, len(obstacles) * 5.5 + 8.0)
@@ -133,8 +140,6 @@ def plan_course(obstacles, *, actor="iko", start_x=-640.0, goal_x=None, width=32
                              goals=[f"climbed@{actor}" if any("climb" in (s["tactic"] or "") for s in segments)
                                     else f"takeoff@{actor}", f"pick_up@{actor}[prop=core]"])
         sim = SceneRuntime(ProjectSpec.model_validate(scene), "s").simulate()
-        if replans >= max_replans:
-            break
         # A graze is an uncontrolled body-vs-structure collision: the tactic did not clear the body, so it is the
         # wrong tactic for this (chained) approach. Exclude it for that obstacle and re-plan with the next feasible
         # native tactic. (A marginal foot-plant penetration is handled by the per-tactic clearance checks, not by
@@ -142,7 +147,10 @@ def plan_course(obstacles, *, actor="iko", start_x=-640.0, goal_x=None, width=32
         offenses = [_graze_x(sim, actor, g) for g in sim.events
                     if g.type == "graze" and getattr(g, "character", None) == actor]
         if not offenses:
+            _require_clean_completion(sim, actor)
             break
+        if replans >= max_replans:
+            raise ValueError(f"unsafe traversal: graze remains after {replans} replans")
         tac_by_oid = {s["obstacle"]: s["tactic"] for s in segments}
         changed = False
         for ox in offenses:
@@ -152,7 +160,7 @@ def plan_course(obstacles, *, actor="iko", start_x=-640.0, goal_x=None, width=32
                 excluded[oid].add(tac)
                 changed = True
         if not changed:
-            break
+            raise ValueError("unsafe traversal: no new native tactic to exclude after graze")
         replans += 1
     # event-derived duration: end the film shortly after the recovery payoff, not on a fixed clock. The last
     # meaningful beat is the cheer after the core pickup; hold a short settle tail, then stop — no dead air.
@@ -164,11 +172,25 @@ def plan_course(obstacles, *, actor="iko", start_x=-640.0, goal_x=None, width=32
             scene["scenes"][0]["duration"] = trimmed
             for sh in scene["scenes"][0].get("shots", []):
                 sh["end"] = min(sh.get("end", trimmed), trimmed)
+    # The returned (possibly trimmed) project must itself meet the same native gate.
+    final_sim = SceneRuntime(ProjectSpec.model_validate(scene), "s").simulate()
+    _require_clean_completion(final_sim, actor)
     report = {"method": "chained native autochoreo tactic search with full-plan graze validation and dynamic "
               "re-selection; engine-selected per obstacle", "obstacles": len(obstacles), "segments": segments,
               "replans": replans, "excluded": {k: sorted(v) for k, v in excluded.items() if v},
               "duration": scene["scenes"][0]["duration"]}
     return scene, report
+
+ 
+def _require_clean_completion(sim, actor):
+    """Never return a route whose native rehearsal failed its physical or goal contract."""
+    violations = [c.violation for c in sim.controllers.values() if c.violation]
+    if violations:
+        raise ValueError(f"unsafe traversal: controller violations: {violations}")
+    if any(e.type == "graze" and e.character == actor for e in sim.events):
+        raise ValueError("unsafe traversal: uncontrolled graze")
+    if not any(matches(f"pick_up@{actor}[prop=core]", e) for e in sim.events):
+        raise ValueError("incomplete traversal: core not collected")
 
 
 def _graze_x(sim, actor, graze_event):

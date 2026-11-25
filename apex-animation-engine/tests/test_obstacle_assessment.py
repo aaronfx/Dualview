@@ -173,3 +173,30 @@ def test_multichar_course_collision_prevention_is_not_intelligent_avoidance():
     # NOT intelligent avoidance: iko is stopped by pell near x=-300 and does not reroute around it to the core
     iko_max_x = max(r.pos[0] for r in sim.controllers["iko"].records)
     assert iko_max_x < -300.0 + 40.0, "unexpected: actor advanced past the blocker (no avoidance planning exists)"
+
+
+def test_zero_replan_budget_requires_native_clean_completion():
+    # Native simulation is authoritative even when no retries are permitted.
+    obstacles = [{"id": "r1", "center": [-200, 65], "size": [80, 130]},
+                 {"id": "r2", "center": [260, 100], "size": [80, 200]},
+                 {"id": "r3", "center": [720, 80], "size": [80, 160]}]
+    try:
+        scene, _ = plan_course(obstacles, start_x=-660, width=3600,
+                               max_jump_apex=250, max_replans=0)
+    except ValueError as exc:
+        assert any(reason in str(exc) for reason in
+                   ("unsafe traversal", "incomplete traversal", "no native tactic"))
+    else:
+        sim = SceneRuntime(ProjectSpec.model_validate(scene), "s").simulate()
+        assert not any(e.type == "graze" for e in sim.events)
+        assert not any(c.violation for c in sim.controllers.values())
+        assert any(matches("pick_up@iko[prop=core]", e) for e in sim.events)
+
+
+def test_native_incomplete_course_rejected():
+    from apex.ai.obstacle_course import course_scene, _require_clean_completion
+    scene = course_scene([{"id": "barrier", "center": [0, 65], "size": [80, 130]}],
+                         actions=[], duration=2)
+    sim = SceneRuntime(ProjectSpec.model_validate(scene), "s").simulate()
+    with pytest.raises(ValueError, match="core not collected"):
+        _require_clean_completion(sim, "iko")
