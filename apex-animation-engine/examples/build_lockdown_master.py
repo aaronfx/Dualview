@@ -17,8 +17,31 @@ def build():
     raw.update(id="lockdown_master",title=spec["title"])
     sc=raw["scenes"][0]
     sc["duration"]=spec["duration"]
+    # The original 17,000-unit route ended after 62.7 seconds. Expand
+    # the playable corridor, not the motion duration or actor speed.
+    scale=2.65
+    env=raw["environments"][0]
+    env["room"]["width"]*=scale
+    env["obstacles"][0]["size"][0]*=scale
+    for obstacle in env["obstacles"][1:]:
+        obstacle["center"][0]*=scale
+    # Intermediate traversal challenges keep the new route playable.
+    for i,x in enumerate((-7700,-4200,-1100,2100,4800,7600)):
+        env["obstacles"].append({"id":f"extended_hazard_{i}","kind":"beam" if i%2==0 else "platform",
+            "style":"girder","color":"#a58b55","center":[x*scale,140 if i%2==0 else 25],
+            "size":[150,50] if i%2==0 else [65,50]})
+    env["decor"]=[{"kind":"pipe","x":-24900,"y":440,"x2":24900,"y2":440,"color":"#7c8791"}]
+    for i,x in enumerate(range(-24500,24900,420)):
+        env["decor"] += [{"kind":"panel","x":x,"y":250,"w":230,"h":145,"color":"#58616c"},
+                         {"kind":"lamp","x":x,"y":650,"color":"#e8ae70"},
+                         {"kind":"screen","x":x+120,"y":330,"w":130,"h":70,"text":"LOCKDOWN" if i%2==0 else "SECURITY","color":"#d74d46"}]
+    # Keep opening contact distance intact; distribute the remaining cast.
+    for placement in sc["placements"]:
+        placement["x"]*=scale
+    sc["placements"][1]["x"]=sc["placements"][0]["x"]+90
+    sc["ensemble"]["actors"][0]["destination_x"]*=scale
     sc["storyline"]=" ".join(f'{a["title"]}: '+", ".join(a["dramatic_requirements"]) for a in spec["acts"])
-    sc["ensemble"]["conflict"].update(attack_slots=3,require_distinct_contacts=True)
+    sc["ensemble"]["conflict"].update(attack_slots=3,require_distinct_contacts=True,activation_radius=1100)
     for role,style in zip(sc["ensemble"]["actors"][1:],spec["actors"]):
         role["combat_style"]=style
         role["prompt"]+=f" Your combat specialty is {style}; choose native feasible techniques."
@@ -66,8 +89,8 @@ def audit(raw,sim):
     targets={e.data.get("target") for e in events if e.type=="hit" and e.character=="iko"}
     friendly=[e for e in events if e.type=="hit" and (e.character=="iko")== (e.data.get("target")=="iko")]
     escape=next((e.t for e in events if e.type=="conflict_escape"),None)
-    passed=all(a["passed"] for a in results) and len(foes)==9 and len(targets)>=spec["minimum_distinct_hero_targets"] and not friendly and not idle and escape is not None and 152<=escape<=160
-    return {"duration":160,"actor_count":len(sim.controllers),"authored_actions":len(raw["scenes"][0]["actions"]),"acts":results,"hero_idle_segments":idle,"enemy_engagements":sorted(foes),"hero_targets":sorted(targets),"friendly_fire":len(friendly),"escape_time":escape,"native_acceptance":passed,"creative_review":"not performed","final":{k:{"x":v.s,"mode":v.mode,"lying":v.lying,"action":v.cur.type if v.cur else None} for k,v in sim.controllers.items()}}
+    passed=all(a["passed"] for a in results) and len(foes)==9 and len(targets)>=spec["minimum_distinct_hero_targets"] and not friendly and not idle and escape is not None and spec["acts"][-1]["start"]<=escape<=spec["duration"]
+    return {"duration":spec["duration"],"actor_count":len(sim.controllers),"authored_actions":len(raw["scenes"][0]["actions"]),"acts":results,"hero_idle_segments":idle,"enemy_engagements":sorted(foes),"hero_targets":sorted(targets),"friendly_fire":len(friendly),"escape_time":escape,"native_acceptance":passed,"creative_review":"not performed","final":{k:{"x":v.s,"mode":v.mode,"lying":v.lying,"action":v.cur.type if v.cur else None} for k,v in sim.controllers.items()}}
 
 if __name__=="__main__":
     from apex.scene.schema import ProjectSpec

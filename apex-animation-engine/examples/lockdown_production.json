@@ -1,6 +1,6 @@
 {
   "title": "LOCKDOWN: One Against Nine",
-  "duration": 160,
+  "duration": 180,
   "fps": 24,
   "hero": "iko",
   "guard_count": 9,
@@ -89,7 +89,7 @@
     {
       "id": "comeback",
       "start": 90,
-      "end": 125,
+      "end": 140,
       "title": "Adaptive comeback",
       "required_events": [
         "hit",
@@ -104,8 +104,8 @@
     },
     {
       "id": "commander",
-      "start": 125,
-      "end": 152,
+      "start": 140,
+      "end": 172,
       "title": "Final confrontation",
       "required_events": [
         "hit",
@@ -119,8 +119,8 @@
     },
     {
       "id": "twist",
-      "start": 152,
-      "end": 160,
+      "start": 172,
+      "end": 180,
       "title": "Escape and new threat",
       "required_events": [
         "conflict_escape"
@@ -132,5 +132,5 @@
       ]
     }
   ],
-  "production_notes": "Native events are necessary but not sufficient for each dramatic requirement. Human creative review mandatory. Grappling, machinery interaction, closing exit and final shadow are not verified."
+  "production_notes": "Native events are necessary but not sufficient for each dramatic requirement. Human creative review mandatory. Grappling, machinery interaction, closing exit and final shadow are not verified. Extended native route and encounter persistence are rehearsal hypotheses, not proof of accepted choreography."
 }

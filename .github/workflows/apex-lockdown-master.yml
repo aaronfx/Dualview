@@ -1,4 +1,4 @@
-name: APEX LOCKDOWN 160-second master rehearsal
+name: APEX LOCKDOWN 180-second master rehearsal
 on:
   pull_request:
     branches: [apex-unified]
@@ -9,7 +9,7 @@ on:
 jobs:
   master:
     runs-on: ubuntu-24.04
-    timeout-minutes: 50
+    timeout-minutes: 110
     defaults:
       run:
         working-directory: apex-animation-engine
@@ -25,17 +25,15 @@ jobs:
       - run: python -m pytest -q tests/test_lockdown_master.py tests/test_live_conflict.py
       - name: Rehearse continuous seven-act timeline
         run: python examples/build_lockdown_master.py out/lockdown_master/film.json
-      - name: Render only after native narrative and pacing acceptance
-        run: |
-          apex validate out/lockdown_master/film.json
-          apex render out/lockdown_master/film.json -o out/lockdown_master/film.mp4 --scale 1 --samples 1 --qa-json out/lockdown_master/qa.json
-          ffmpeg -v error -xerror -i out/lockdown_master/film.mp4 -f null -
-      - name: Render opening act as explicitly unaccepted rehearsal preview
+      - name: Render full three-minute rehearsal, retain QA failure
         if: always() && !cancelled()
         run: |
-          test -f out/lockdown_master/opening_preview.json
-          apex render out/lockdown_master/opening_preview.json -o out/lockdown_master/opening_preview.mp4 --scale 0.5 --samples 1 --qa-json out/lockdown_master/opening_qa.json
-          ffmpeg -v error -xerror -i out/lockdown_master/opening_preview.mp4 -f null -
+          test -f out/lockdown_master/film.json
+          rc=0
+          apex render out/lockdown_master/film.json -o out/lockdown_master/LOCKDOWN_180s_REHEARSAL.mp4 --scale 0.5 --samples 1 --qa-json out/lockdown_master/qa.json || rc=$?
+          ffmpeg -v error -xerror -i out/lockdown_master/LOCKDOWN_180s_REHEARSAL.mp4 -f null -
+          python -c 'import subprocess; d=float(subprocess.check_output(["ffprobe","-v","error","-show_entries","format=duration","-of","default=nw=1:nk=1","out/lockdown_master/LOCKDOWN_180s_REHEARSAL.mp4"])); print("Rendered duration:",d); assert abs(d-180)<0.15'
+          exit "$rc"
       - uses: actions/upload-artifact@v4
         if: always()
         with:

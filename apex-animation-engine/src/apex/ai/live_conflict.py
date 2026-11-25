@@ -17,6 +17,7 @@ class ConflictRuntime:
         self.stations={cid:ensemble.ctrls[cid].s for cid in self.guards}
         self.down_since={}
         self.active=set()
+        self.engaged_once=set()
         self.finished=False
         self.hero_hit_times={}
         self.event_cursor=0
@@ -101,6 +102,7 @@ class ConflictRuntime:
         committed=[cid for cid in eligible if ctrls[cid].cur is not None and ctrls[cid].cur.type=="strike"]
         ordered=sorted(eligible,key=lambda cid:(0 if cid in committed else 1,abs(ctrls[cid].s-h.s)-(45 if cid in self.active else 0),cid))
         active=set(ordered[:self.spec.attack_slots]) if self.hero not in unavailable else set()
+        self.engaged_once.update(active)
         for cid in sorted(active-self.active):
             ctrls[cid].emit(Event(t,"conflict_engagement",cid,{"target":self.hero}))
         self.active=active
@@ -140,7 +142,7 @@ class ConflictRuntime:
             if self.spec.require_distinct_contacts and target is not None and target not in self.hero_hit_times and not hb.conflict_travel:
                 oc=ctrls[target]
                 direction=1 if oc.s>=h.s else -1
-                candidate=oc.s-direction*.85*h._strike_reach("jab")
+                candidate=oc.s-direction*.90*h._strike_reach("jab")
                 # Never reverse a long escape merely to chase a guard who
                 # has already moved behind us. Nearby threats remain valid.
                 if (candidate-h.s)*(1 if dest>h.s else -1)>=-100:
@@ -170,6 +172,15 @@ class ConflictRuntime:
                     en._waypoint(cid,goal)
                 else:
                     self._idle(cid,t)
+            elif self.spec.require_distinct_contacts and cid in self.engaged_once and abs(c.s-h.s)<=self.spec.activation_radius*2:
+                # A fighter who has already made contact can pursue a nearby
+                # escaping hero instead of freezing just beyond attack range.
+                # Physical traversal still owns the path; reserve attack slots.
+                b.ensemble_target=None
+                side=1 if c.s>=h.s else -1
+                en._intent(cid,"pursue",self.hero,t)
+                en._waypoint(cid,h.s+side*(self.spec.activation_radius*.7))
+                b.done=False
             else:
                 en._intent(cid,"watch",self.hero,t)
                 self._idle(cid,t)
