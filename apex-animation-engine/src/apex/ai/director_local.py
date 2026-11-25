@@ -18,16 +18,39 @@ def main():
         c.add_argument("--out",type=Path,required=True)
         c.add_argument("--render",action="store_true")
         c.add_argument("--final",action="store_true")
+    c=sub.add_parser("mission",help="Use budgeted AI to select a typed native tool from a brief")
+    c.add_argument("project",type=Path)
+    c.add_argument("brief",type=Path)
+    c.add_argument("--scene",required=True)
+    c.add_argument("--reason",required=True)
+    c.add_argument("--out",type=Path,required=True)
+    c.add_argument("--render",action="store_true")
+    c.add_argument("--final",action="store_true")
     c=sub.add_parser("story")
     c.add_argument("brief",type=Path)
     c.add_argument("--out",type=Path,required=True)
     c.add_argument("--offline",action="store_true")
     c.add_argument("--reason",default="")
     args=p.parse_args()
+    if args.command!="capabilities" and args.out.exists() and any(args.out.iterdir()):
+        p.error("Use a new empty output directory for every production run")
     if args.command=="capabilities":
         data=json.dumps(catalogue(),indent=2)
         if args.out: args.out.write_text(data,encoding="utf-8")
         else: print(data)
+        return 0
+    if args.command=="mission":
+        from .mission import run_mission
+        from .providers import provider_from_env
+        project=ProjectSpec.model_validate_json(args.project.read_text(encoding="utf-8"))
+        provider=provider_from_env(reason=args.reason)
+        if provider is None: raise ValueError("Configure an explicitly approved AI provider for mission mode")
+        selection, trace=run_mission(project,args.scene,args.brief.read_text(encoding="utf-8"),provider)
+        args.out.mkdir(parents=True,exist_ok=True)
+        (args.out/"mission_trace.json").write_text(json.dumps(trace,indent=2,default=str),encoding="utf-8")
+        write_selection(selection,args.out)
+        if selection.project is None: print("No mission passed; see mission_trace.json"); return 2
+        if args.render: print(render_selection(selection,args.out,final=args.final))
         return 0
     if args.command=="story":
         project, trace=plan_story(args.brief.read_text(encoding="utf-8"),offline=args.offline,reason=args.reason)

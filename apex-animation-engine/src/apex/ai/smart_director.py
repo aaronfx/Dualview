@@ -202,7 +202,7 @@ def write_selection(selection: Selection, directory: Path):
         (directory/"project.json").write_text(selection.project.model_dump_json(indent=2), encoding="utf-8")
 
 def render_selection(selection: Selection, directory: Path, *, final=False):
-    if selection.project is None:
+    if selection.project is None or not any(t.name==selection.selected and t.accepted for t in selection.trials):
         raise ValueError("No native rehearsal accepted; render refused")
     from ..render.pipeline import render_scene
     import subprocess

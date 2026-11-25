@@ -8,7 +8,7 @@ on:
 jobs:
   director:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     defaults:
       run:
         working-directory: apex-animation-engine
@@ -17,12 +17,50 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: sudo apt-get update && sudo apt-get install -y ffmpeg
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg libegl1
       - run: python -m pip install -e '.[dev]'
-      - run: python -m pytest -q tests/test_smart_director.py tests/test_autochoreo.py tests/test_apex_extension_native.py
-      - run: python examples/smart_director_crossing.py --out out/smart_director --render
+      - name: Director, action and visual-profile tests
+        run: |
+          mkdir -p out/smart_director_tests
+          set -o pipefail
+          python -m pytest -q tests/test_smart_director.py tests/test_smart_mission.py tests/test_smart_visual_profiles.py tests/test_autochoreo.py tests/test_apex_extension_native.py | tee out/smart_director_tests/tests.txt
+      - name: Native objective-to-preview
+        run: python examples/smart_director_crossing.py --out out/smart_director --render
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: apex-smart-director-native-proof
-          path: apex-animation-engine/out/smart_director/
+          path: |
+            apex-animation-engine/out/smart_director/
+            apex-animation-engine/out/smart_director_tests/
+  math:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: apex-animation-engine
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: sudo apt-get update && sudo apt-get install -y ffmpeg libegl1
+      - run: python -m pip install -e '.[dev]'
+      - name: Original math assertions retained
+        run: |
+          mkdir -p out/math_proof
+          set -o pipefail
+          python -m pytest -q tests/test_math_transposition.py tests/test_math_stage.py tests/test_math_balance.py | tee out/math_proof/tests.txt
+      - name: Render signed transposition proofs
+        run: |
+          set -e
+          for case in add_2_5 add_4_9 sub_4_9; do
+            IFS=_ read -r op n c <<< "$case"
+            python examples/build_semantic_transposition.py "out/math_proof/$case.json" --n "$n" --c "$c" --op "$op"
+            apex render "out/math_proof/$case.json" -o "out/math_proof/$case.mp4" --preset draft --qa-json "out/math_proof/${case}_qa.json" --review-dir "out/math_proof/${case}_review"
+          done
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: apex-smart-director-math-proof
+          path: apex-animation-engine/out/math_proof/

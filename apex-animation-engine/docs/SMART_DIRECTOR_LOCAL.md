@@ -47,3 +47,19 @@ do not weaken the original assertions. The opt-in ink renderer, continuous locom
 visual prop diagnostic and signed-term rehearsal have now been wired into
 this branch. The prior package's broader ensemble and movie acceptance
 suite is not yet fully integrated. Fresh Windows validation is still required before a consolidated D0 acceptance.
+
+## Budgeted AI mission execution
+
+Configure your approved provider using the existing APEX AI environment variables
+and spending policy (see docs/AI_SPEND.md). Start with a small objective and an
+existing scene. Do not put keys in project JSON or briefs. Paid calls are off by
+default. Use a fresh output directory on every run.
+
+    .\.venv\Scripts\python.exe -m apex.ai.director_local mission out\world.json brief.txt --scene cross --reason "Evaluate native mission direction" --out out\mission_001 --render
+
+The model sees the current scene and a capability catalogue, and selects either
+cross_and_collect, rehearse, or unsupported. Unknown tools, scene switches and
+unproved results are rejected. Up to two provider calls are allowed, subject to
+the pre-existing tighter budget limits. Native execution, not model text,
+provides the acceptance evidence. This first mission interface requires an
+existing world; it does not yet build a whole multi-scene movie from scratch.
