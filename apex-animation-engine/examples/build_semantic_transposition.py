@@ -6,7 +6,7 @@ from apex.scene.schema import MathTransferSpec, ProjectSpec
 from apex.scene.transposition_stage import compile_native_transfer
 
 
-def project(n: int = 2, c: int = 5, op: str = "add"):
+def _base_project(n: int = 2, c: int = 5, op: str = "add"):
     actor = "iko"
     raw = {"op": "eq", "args": [{"op": op, "args": [
         {"op": "var", "value": "x"}, {"op": "int", "value": n}]},
@@ -52,6 +52,11 @@ def project(n: int = 2, c: int = 5, op: str = "add"):
                     "shots": [{"id": "whole_equation", "kind": "establishing", "start": 0, "end": duration,
                                "camera": {"mode": "static", "center": [center_x, 145],
                                           "view_height": max(480, (dest_x - term.position[0] + 420) / 1.7)}}]}]}
+
+
+def project(n: int = 2, c: int = 5, op: str = "add"):
+    from apex.scene.math_rehearsal import rehearse
+    return rehearse(_base_project(n, c, op))[0]
 
 
 if __name__ == "__main__":

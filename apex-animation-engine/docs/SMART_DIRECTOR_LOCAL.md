@@ -43,5 +43,7 @@ planning still uses the existing StoryDirector; no new autonomous LLM tool
 calling or visual critic is claimed. No cloud deployment.
 
 The semantic-transposition branch has known final-evaluation failures;
-do not weaken the original assertions. P1–P5 package integration and fresh
-Windows validation are still required before a consolidated D0 acceptance.
+do not weaken the original assertions. The opt-in ink renderer, continuous locomotion profile, industrial depth,
+visual prop diagnostic and signed-term rehearsal have now been wired into
+this branch. The prior package's broader ensemble and movie acceptance
+suite is not yet fully integrated. Fresh Windows validation is still required before a consolidated D0 acceptance.

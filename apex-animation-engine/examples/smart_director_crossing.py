@@ -11,8 +11,16 @@ def main():
     p.add_argument("--out",type=Path,default=Path("out/smart_director"))
     p.add_argument("--render",action="store_true")
     p.add_argument("--final",action="store_true")
+    p.add_argument("--legacy",action="store_true",help="Preserve original character and environment appearance")
     args=p.parse_args()
-    project=ProjectSpec.model_validate(world())
+    raw=world()
+    if not args.legacy:
+        for ch in raw["characters"]:
+            ch["style"].update(visual_profile="apex_ink",performance_profile="continuous",has_scarf=False)
+        env=raw["environments"][0]
+        env["room"].update(style="open",entry_door=False)
+        env["backdrop"]={"kind":"tower","art_profile":"industrial_depth","seed":92,"weather":"motes","weather_amount":0.3}
+    project=ProjectSpec.model_validate(raw)
     objective=CrossRequest(scene_id="cross",actor="iko",obstacle_id="barrier",
                            goal_prop_id="spark",movable_prop_id="crate")
     selection=cross_and_collect(project,objective)

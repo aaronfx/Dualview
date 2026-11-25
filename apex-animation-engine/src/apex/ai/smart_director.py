@@ -92,6 +92,9 @@ def _audit(project, scene_id, name, *, extra_goal=None, trim=False, actor=None):
     if failures:
         raise ValueError("; ".join(failures))
     payoff = proof[-1]["t"]
+    # This diagnostic is advisory; do not convert intentional occlusion into fake physics failures.
+    from ..qa.visual_prop_audit import inspect_visual_props
+    visual_warnings = inspect_visual_props(rt)
     if trim:
         # Never shorten a required actor's physical action: cross mission only.
         from ..scene.pacing import actor_pace
@@ -126,6 +129,7 @@ def _audit(project, scene_id, name, *, extra_goal=None, trim=False, actor=None):
                        project.fps, (project.width, project.height)).run(check_determinism=False)
     bad = [c.name for c in report.checks if c.status == "FAIL"]
     checks = [{"name": c.name, "status": c.status, "gate": gate_of(c.name)} for c in report.checks]
+    checks += [{"name": "visual_prop_overlap", "status": "WARN", "gate": "cinematic", "details": w} for w in visual_warnings]
     if bad:
         return None, Trial(name, False, "Native Inspector rejected: " + ", ".join(bad),
                            proof, checks, payoff)
