@@ -689,7 +689,8 @@ class EnsembleActorSpec(Strict):
     character: str
     team: str = Field(min_length=1)
     prompt: str = Field(min_length=20)
-    objective: Literal["reach","escort","intercept"]
+    objective: Literal["reach","escort","intercept","acquire"]
+    resources: List[str] = Field(default_factory=list,max_length=32)
     destination_x: Optional[float] = Field(None,allow_inf_nan=False)
     target: Optional[str] = None
     offset: float = Field(140,ge=-1200,le=1200)
@@ -705,6 +706,11 @@ class EnsembleActorSpec(Strict):
                 raise ValueError("reach requires a destination and no target")
         elif self.destination_x is not None:
             raise ValueError("dynamic objective must not supply a static destination")
+        if self.objective=="acquire":
+            if not self.resources or len(set(self.resources))!=len(self.resources) or self.target is not None:
+                raise ValueError("acquire requires a unique resource pool, not a character target")
+        elif self.resources:
+            raise ValueError("resource pool requires acquire objective")
         if self.objective=="escort" and (not self.target or abs(self.offset)<75):
             raise ValueError("escort requires a teammate and separated formation offset")
         return self
@@ -1026,6 +1032,9 @@ class ProjectSpec(Strict):
                     raise ValueError("ensemble requires complete cast, storyline and no authored actions")
                 if any(pl.destination_x is not None or pl.pursue is not None or pl.actor_role is not None for pl in sc.placements):
                     raise ValueError("ensemble owns objectives exclusively; legacy goals cannot be mixed")
+                prop_ids={p.id for p in envs[sc.environment].props}
+                if any(not set(a.resources)<=prop_ids for a in sc.ensemble.actors):
+                    raise ValueError("unknown ensemble resource")
                 hw=envs[sc.environment].room.width/2
                 if any(a.destination_x is not None and abs(a.destination_x)>hw-40 for a in sc.ensemble.actors):
                     raise ValueError("ensemble destination outside room")

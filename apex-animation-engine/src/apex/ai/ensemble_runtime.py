@@ -7,6 +7,8 @@ snapshot before native physics advances; outcomes come from native events.
 from dataclasses import dataclass,field
 from .autonomous_traversal import TraversalBrain
 from ..motion.controller import Event
+from ..scene.schema import ActionSpec
+import math
 
 @dataclass(frozen=True)
 class Observation:
@@ -42,6 +44,13 @@ class EnsembleRuntime:
         self.next_tick=0.
         self.event_cursor=0
         self.finished=False
+        self.relationships={}
+        self.reservations={}
+        self.pickup_failures={}
+        self.pickup_started={}
+        self.resource_owners={}
+        self.pickup_witnesses={}
+
 
     def hostile(self,a,b):
         return frozenset((self.roles[a].team,self.roles[b].team)) in self.hostility
@@ -68,7 +77,7 @@ class EnsembleRuntime:
                 load[old]=load.get(old,0)+1
                 continue
             def cost(k):
-                distance=abs(obs[k].x-obs[cid].x)+2*abs(obs[k].z-obs[cid].z)
+                distance=abs(obs[k].x-obs[cid].x)+2*abs(obs[k].z-obs[cid].z)-40*self.relationships.get((cid,k),{}).get("threat",0)
                 return (load.get(k,0),distance-(80 if k==old else 0),k)
             target=min(candidates,key=cost)
             out[cid]=target
@@ -77,8 +86,22 @@ class EnsembleRuntime:
 
     def _remember(self,events):
         for e in events[self.event_cursor:]:
+            if e.type=="pick_up" and e.character in self.roles:
+                pid=e.data.get("prop")
+                self.resource_owners[pid]=e.character
+                self.pickup_witnesses[(e.character,pid)]=e.t
+            if e.type in ("place","throw") and self.resource_owners.get(e.data.get("prop"))==e.character:
+                self.resource_owners.pop(e.data["prop"],None)
+            if e.type in ("hurt","block_hit","evaded","hand_grab"):
+                other=e.data.get("by") or e.data.get("with")
+                if e.character in self.roles and other in self.roles and other!=e.character:
+                    rel=self.relationships.setdefault((e.character,other),{"threat":0.0,"trust":0.0})
+                    if e.type=="hand_grab":
+                        rel["trust"]=min(1.,rel["trust"]+.2)
+                    else:
+                        rel["threat"]=min(1.,rel["threat"]+.2)
             st=self.state.get(e.character)
-            if st is None or e.type not in ("hit","hurt","whiff","blocked","autonomous_blocked","autonomous_reached","stood_up"):
+            if st is None or e.type not in ("hit","hurt","whiff","blocked","autonomous_blocked","autonomous_reached","stood_up","pick_up","place","action_impossible"):
                 continue
             st.last_outcome=e.type
             st.memory=(st.memory+[(e.t,e.type,dict(e.data))])[-32:]
@@ -105,6 +128,59 @@ class EnsembleRuntime:
         # Do not interrupt native acrobatics, attacks, or other contact skills.
         # The current leg completes, then the executor adopts the new waypoint.
 
+    def _resources(self,t):
+        """Allocate available resources exclusively, preserving active reservations."""
+        active={}
+        used=set(self.resource_owners)
+        for cid,a in sorted(self.roles.items(),key=lambda q:(-q[1].priority,q[0])):
+            if a.objective!="acquire" or self.state[cid].complete:
+                continue
+            c=self.ctrls[cid]
+            if c.carrying in a.resources:
+                continue
+            old=self.reservations.get(cid)
+            def eligible(pid):
+                if pid in used or pid in c.world.inactive or pid not in c.props or self.pickup_failures.get((cid,pid),0)>=2:
+                    return False
+                if c.props[pid].mass*math.hypot(*c.gravity.at(t))>.9*c.strength:
+                    return False
+                return not any(r.a=="prop:"+pid or r.b=="prop:"+pid for r in c.env.ropes)
+            options=[pid for pid in a.resources if eligible(pid)]
+            if not options:
+                continue
+            pid=old if old in options else min(options,key=lambda k:(abs(c.world.state(k).pos[0]-c.s),k))
+            active[cid]=pid
+            used.add(pid)
+        self.reservations=active
+        return active
+
+    def _acquire(self,cid,pid,t):
+        st,b,c=self.state[cid],self.brains[cid],self.ctrls[cid]
+        if c.carrying in self.roles[cid].resources and (cid,c.carrying) in self.pickup_witnesses:
+            st.complete=True
+            st.witness={"event":"pick_up","t":self.pickup_witnesses[(cid,c.carrying)],"prop":c.carrying}
+            return
+        self._intent(cid,"acquire" if pid else "await_resource",pid,t)
+        if cid in self.pickup_started:
+            old=self.pickup_started[cid]
+            if c.cur is not None or c.queue:
+                return
+            self.pickup_failures[(cid,old)]=self.pickup_failures.get((cid,old),0)+1
+            self.pickup_started.pop(cid)
+        if pid is None:
+            b.done=True
+            return
+        ps,ph=c.frame.to_frame(c.world.state(pid).pos)
+        side=1 if c.s>=ps else -1
+        stand=ps+side*(.74 if ph>.45*c.stand_h else .42)*c.stand_h
+        if c.cur is None and not c.queue and c.mode=="grounded" and c._upright() and abs(c.s-stand)<8 and not c.carrying:
+            b.done=True
+            c.queue.append(ActionSpec(character=cid,type="pick_up",target="prop:"+pid))
+            self.pickup_started[cid]=pid
+        else:
+            # Native traversal handles obstacles on the way to the resource.
+            self._waypoint(cid,stand)
+
     def tick(self,t,events):
         if self.finished or t+1e-9<self.next_tick:
             return
@@ -112,6 +188,7 @@ class EnsembleRuntime:
         self._remember(events)
         obs=self.snapshot()
         assigned=self.assignments(obs)
+        resources=self._resources(t)
         for cid,a in sorted(self.roles.items()):
             st,b,c=self.state[cid],self.brains[cid],self.ctrls[cid]
             if not st.complete:
@@ -124,6 +201,8 @@ class EnsembleRuntime:
                     self._intent(cid,"escort",a.target,t)
                     self._waypoint(cid,leader.x+a.offset)
                     st.complete=self.state[a.target].complete and abs(c.s-(leader.x+a.offset))<18 and c.cur is None and not c.queue
+                elif a.objective=="acquire":
+                    self._acquire(cid,resources.get(cid),t)
                 else:
                     target=assigned.get(cid)
                     self._intent(cid,"intercept" if target else "search",target,t)
@@ -139,7 +218,7 @@ class EnsembleRuntime:
             if st.complete:
                 if st.intent!="complete":
                     self._intent(cid,"complete",st.target,t)
-                    c.emit(Event(t,"ensemble_objective",cid,{"objective":a.objective,"target":st.target,"team":a.team,"witness":st.last_outcome or "native_position"}))
+                    c.emit(Event(t,"ensemble_objective",cid,{"objective":a.objective,"target":st.target,"team":a.team,"witness":st.witness or st.last_outcome or "native_position"}))
                 b.done=True
                 b.ensemble_target=None
         if all(st.complete for st in self.state.values()):

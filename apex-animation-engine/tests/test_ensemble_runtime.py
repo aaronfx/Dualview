@@ -68,3 +68,16 @@ def test_ensemble_compiler_ten_roles_preserves_world_and_cast():
     assert p.scene("s").placements==ProjectSpec.model_validate(raw).scene("s").placements
     with pytest.raises(ValueError):
         compile_ensemble_brief(raw,"s",sc["storyline"],briefs,None)
+
+def test_shared_resources_are_acquired_once_by_native_actors():
+    raw=runpy.run_path("examples/build_combined_crossing.py")["_two_char_scene"](-300,300,0,[])
+    scene=raw["scenes"][0]
+    scene.update(duration=8,actions=[],storyline="Two teammates collect distinct emergency supply kits.",goals=["ensemble_completed"])
+    scene["shots"][0]["end"]=8
+    raw["environments"][0]["props"]=[{"id":k,"kind":"toolbox","position":[x,20],"size":[30,30],"mass":2,"solid":False,"collide_characters":False} for k,x in (("kit_a",-120),("kit_b",120))]
+    scene["ensemble"]={"actors":[{"character":cid,"team":"rescue","prompt":"Collect one available emergency kit without taking your teammate's kit.","objective":"acquire","resources":["kit_a","kit_b"]} for cid in ("iko","pell")]}
+    sim=SceneRuntime(ProjectSpec.model_validate(raw),"s").simulate(physics_only=True)
+    pickups=[e for e in sim.events if e.type=="pick_up"]
+    assert len(pickups)==2 and len({e.data["prop"] for e in pickups})==2
+    assert {c.carrying for c in sim.controllers.values()}=={"kit_a","kit_b"}
+    assert any(e.type=="ensemble_completed" for e in sim.events)
