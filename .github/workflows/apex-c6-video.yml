@@ -12,6 +12,7 @@ on:
       - 'apex-animation-engine/pyproject.toml'
       - 'apex-animation-engine/tests/test_autonomous_traversal.py'
       - 'apex-animation-engine/examples/build_autonomous_mixed.py'
+      - 'apex-animation-engine/examples/build_autonomous_extended.py'
   workflow_dispatch:
 jobs:
   render:
@@ -48,6 +49,9 @@ jobs:
           python examples/build_autonomous_mixed.py out/c6/autonomous.json
           apex validate out/c6/autonomous.json
           apex render out/c6/autonomous.json -o out/c6/autonomous.mp4 --scale 1 --samples 1 --qa-json out/c6/autonomous-qa.json
+          python examples/build_autonomous_extended.py out/c6/autonomous_extended.json
+          apex validate out/c6/autonomous_extended.json
+          apex render out/c6/autonomous_extended.json -o out/c6/autonomous_extended.mp4 --scale 1 --samples 1 --qa-json out/c6/autonomous_extended-qa.json
       - uses: actions/upload-artifact@v4
         with:
           name: apex-c6-native-avoidance

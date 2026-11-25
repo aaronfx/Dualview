@@ -136,10 +136,11 @@ class TraversalBrain:
         if len(obstacles)>1 and not hit:
             _, first, actor=obstacles[0]
             _, second, _=obstacles[1]
-            if actor is not None and not actor.lying:
+            if actor is None or not actor.lying:
                 mid=first.x1+140 if d>0 else first.x0-140
                 gap=(second.x0-mid) if d>0 else (mid-second.x1)
-                if gap>150 and c._free_lane([(first.owner,actor.z,BODY_PASS_Z/2)]) is not None:
+                band=(first.owner,actor.z,BODY_PASS_Z/2) if actor is not None else (first.owner,*c.world.depth.get(first.owner.split(":",1)[1],(0,30)))
+                if gap>150 and c._free_lane([band]) is not None:
                     add("avoid_segment",first.owner,type="run_to",target_x=mid,speed=300,adaptive_avoidance=True)
         relocation = None
         # Small floor props only: native pickup and placement, not teleportation.
@@ -179,10 +180,14 @@ class TraversalBrain:
             if (landing-end)*d <= 0 and c.frame.lo+40 <= landing <= c.frame.hi-40:
                 live=tuple(q[1] for q in obstacles)
                 verdict=select_clearance_jump(c.env,(c.s,0),(landing,0),live_bounds=live,body_height=2.1*c.stand_h,body_half_width=35,max_rise=260)
+                can_approach=(approach-c.s)*d>10 and not c._path_blocker(c.s,approach) and all((q[1].x0-approach)>35 if d>0 else (approach-q[1].x1)>35 for q in obstacles)
+                # Do not launch a long, high arc just because it is feasible.
+                # Compare a closer takeoff using identical clearance budgets.
+                closer=select_clearance_jump(c.env,(approach,0),(landing,0),live_bounds=live,body_height=2.1*c.stand_h,body_half_width=35,max_rise=260) if can_approach else None
+                if can_approach and (not verdict.feasible or (closer.feasible and closer.plan.apex_y+15<verdict.plan.apex_y)):
+                    add("approach",b.owner,type="run_to",target_x=approach,speed=300,adaptive_avoidance=True)
                 if verdict.feasible:
                     add("jump",b.owner,type="jump_to",target_x=landing,height=verdict.plan.apex_y)
-                elif (approach-c.s)*d>10 and not c._path_blocker(c.s,approach) and all((q[1].x0-approach)>35 if d>0 else (approach-q[1].x1)>35 for q in obstacles):
-                    add("approach",b.owner,type="run_to",target_x=approach,speed=300,adaptive_avoidance=True)
         selected=[]
         class Candidate(py_trees.behaviour.Behaviour):
             def __init__(self,item):

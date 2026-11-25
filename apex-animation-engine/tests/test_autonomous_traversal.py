@@ -60,3 +60,13 @@ def test_goal_only_mixed_course():
     assert "jump" in skills
     assert any(e.type=="autonomous_reached" for e in sim.events)
     assert abs(sim.controllers["iko"].records[-1].pos[0]-1050)<3
+
+def test_extended_course_low_jump():
+    raw=runpy.run_path("examples/build_autonomous_extended.py")["build"]()
+    assert raw["scenes"][0]["actions"]==[]
+    sim=SceneRuntime(ProjectSpec.model_validate(raw),"s").simulate()
+    assert any(e.type=="autonomous_reached" and e.character=="iko" for e in sim.events)
+    jumps=[e for e in sim.events if e.type=="takeoff" and e.character=="iko"]
+    assert len(jumps)==1, [(e.type,e.data) for e in sim.events if e.type=="autonomous_decision"]
+    assert jumps[0].data["apex"]<=130
+    assert abs(sim.controllers["iko"].records[-1].pos[0]-2250)<3
