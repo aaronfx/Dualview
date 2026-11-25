@@ -375,7 +375,7 @@ class TraversalBrain:
             if self.last != key:
                 emit("autonomous_blocked",reason="no verified native action",x=c.s,goal=self.goal,obstacle=hit[1].owner if hit else None,attempts=str(self.attempts),tactical_state=self.tactical_state)
             self.last=key
-            if self.role is not None:
+            if self.role is not None or getattr(self,"ensemble_actor",False):
                 if self.blocked_since is None:
                     self.blocked_since=t
                 if t-self.blocked_since>.45 and t-self.last_retry>1.0 and self.attempts:

@@ -122,6 +122,19 @@ class EnsembleRuntime:
                     st=self.state[helper]
                     st.complete=True
                     st.witness={"event":"stood_up","t":e.t,"ally":e.character,"helper":helper}
+                    # Recovered actor resumes its mission with a fresh native route.
+                    b=self.brains[e.character]
+                    b.done=False
+                    b.pending=None
+                    b.active_action=None
+                    b.route_signature=None
+                    b.progress_x=None
+                    b.attempts.clear()
+                    b.last=None
+                    b.blocked_since=None
+                    b.next_tick=e.t
+                    self.assistance.pop(e.character,None)
+                    self.ctrls[e.character].emit(Event(e.t,"autonomous_replan",e.character,{"reason":"assisted recovery; resume objective","helper":helper}))
             if e.type=="pick_up" and e.character in self.roles:
                 pid=e.data.get("prop")
                 self.resource_owners[pid]=e.character

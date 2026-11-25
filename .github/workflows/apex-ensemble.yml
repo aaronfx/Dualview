@@ -28,8 +28,9 @@ jobs:
         run: |
           mkdir -p out/ensemble
           set -o pipefail
-          python -m pytest -q --tb=long tests/test_ensemble_runtime.py tests/test_autonomous_traversal.py tests/test_strategic_planning.py | tee out/ensemble/test-results.txt
+          python -m pytest -q --tb=long --showlocals tests/test_ensemble_runtime.py tests/test_autonomous_traversal.py tests/test_strategic_planning.py | tee out/ensemble/test-results.txt
       - name: Render ten actor native benchmark
+        if: always() && !cancelled()
         run: |
           mkdir -p out/ensemble
           python examples/build_ensemble_ten.py out/ensemble/ten.json
@@ -37,6 +38,7 @@ jobs:
           apex render out/ensemble/ten.json -o out/ensemble/ten.mp4 --scale 1 --samples 1 --qa-json out/ensemble/qa.json
           ffmpeg -v error -xerror -i out/ensemble/ten.mp4 -f null -
       - name: Render cooperative rescue with event-directed camera
+        if: always() && !cancelled()
         run: |
           mkdir -p out/ensemble/rescue
           python examples/build_ensemble_rescue.py out/ensemble/rescue/rescue.json
