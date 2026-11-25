@@ -47,6 +47,9 @@ ALTERNATIVES = {
     "strike": ["guard", "dodge"], "pull_up": ["climb", "offer_hand"],
 }
 def catalogue() -> dict:
+    # Lazy imports: the typed planners themselves import this catalogue.
+    from .objective_planner import ObjectiveRequest
+    from .ensemble_planner import EnsembleRequest
     names = sorted(get_args(ActionType))
     return {
         "version": 1,
@@ -62,9 +65,15 @@ def catalogue() -> dict:
         "action_schema": ActionSpec.model_json_schema(),
         "events": sorted(KNOWN_EVENTS),
         "motion_clips": sorted(list_clips()),
+        "typed_planner_schemas": {
+            "objectives": ObjectiveRequest.model_json_schema(),
+            "ensemble": EnsembleRequest.model_json_schema(),
+        },
         "tools": {
             "cross_and_collect": "Bounded native downward-gravity obstacle route proposals",
             "rehearse": "Compare typed action candidates in the same native scene",
+            "objectives": "Compile bounded actor objectives to native alternatives and event proofs",
+            "ensemble": "Coordinate native action queues with explicit causal dependencies",
             "story_plan": "Existing budgeted StoryDirector with native setup solver",
             "render": "Native APEX renderer; accepted rehearsals only",
         },

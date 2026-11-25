@@ -51,3 +51,15 @@ def test_same_tick_distinct_events_are_not_alphabetical_causality():
     events=[ev("act",1,clip="doubt_to_dash"),ev("notice",1)]
     proof=ordered_evidence(["notice@iko","act@iko[clip=doubt_to_dash]"],events,2)
     assert [p["t"] for p in proof]==[1,1]
+
+
+def test_catalogue_discloses_existing_typed_planners():
+    from apex.ai.objective_planner import ObjectiveRequest
+    from apex.ai.ensemble_planner import EnsembleRequest
+    from apex.ai.mission import TOOL_SCHEMA
+    cat = catalogue()
+    assert {"objectives", "ensemble"} <= set(cat["tools"])
+    assert cat["typed_planner_schemas"]["objectives"] == ObjectiveRequest.model_json_schema()
+    assert cat["typed_planner_schemas"]["ensemble"] == EnsembleRequest.model_json_schema()
+    schema = TOOL_SCHEMA.json_schema()
+    assert {"objectives", "ensemble"} <= set(schema["discriminator"]["mapping"])

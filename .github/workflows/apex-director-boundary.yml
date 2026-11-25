@@ -22,4 +22,5 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y ffmpeg libegl1 libgl1 libglx0
       - run: python -m pip install -e '.[dev]'
       - run: python -m pytest -q tests/test_plan_compiler.py tests/test_plan_revision.py tests/test_story_check.py
+      - run: python -m pytest -q tests/test_smart_director.py -k catalogue
       - run: python -m pytest -q tests/test_presentation_audit.py tests/test_core_run_preservation.py tests/test_objective_planner.py tests/test_body_physics.py
