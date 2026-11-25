@@ -18,11 +18,16 @@ class ConflictRuntime:
         self.down_since={}
         self.active=set()
         self.finished=False
+        self.hero_hit_times={}
+        self.event_cursor=0
+        self.hero_escape_until=0.
+        self.hero_attack_failures={}
         for cid,b in ensemble.brains.items():
             b.conflict_actor=True
             b.hostile=True
             if cid==self.hero:
                 b.ensemble_impact="knockdown"
+                b.conflict_hero=True
 
     def _idle(self,cid,t):
         c,b=self.en.ctrls[cid],self.en.brains[cid]
@@ -63,6 +68,16 @@ class ConflictRuntime:
         ctrls,brains=en.ctrls,en.brains
         h,hb=ctrls[self.hero],brains[self.hero]
         dest=en.roles[self.hero].destination_x
+        for ev in events[self.event_cursor:]:
+            if ev.character==self.hero and ev.type=="hit":
+                self.hero_hit_times[ev.data.get("target")]=ev.t
+                self.hero_escape_until=max(self.hero_escape_until,ev.t+2.0)
+            elif ev.character==self.hero and ev.type in ("whiff","blocked"):
+                target=ev.data.get("target") or hb.ensemble_target
+                self.hero_attack_failures[target]=self.hero_attack_failures.get(target,0)+1
+                if self.hero_attack_failures[target]%2==0:
+                    self.hero_escape_until=max(self.hero_escape_until,ev.t+1.2)
+        self.event_cursor=len(events)
         unavailable={cid for cid in ctrls if self._recovery(cid,t)}
         if self.hero not in unavailable and h.mode=="grounded" and h.frame.owner is None and abs(h.s-dest)<4 and h.cur is None and not h.queue:
             h.emit(Event(t,"conflict_escape",self.hero,{"x":h.s,"opponents":len(self.guards)}))
@@ -85,7 +100,8 @@ class ConflictRuntime:
         self.active=active
         if self.hero not in unavailable:
             viable=[cid for cid in eligible if ctrls[cid].frame is h.frame and abs(ctrls[cid].z-h.z)<28 and not h._path_blocker(h.s,ctrls[cid].s)]
-            target=min(viable,key=lambda cid:(0 if cid in active else 1,abs(ctrls[cid].s-h.s),cid)) if viable else None
+            target=min(viable,key=lambda cid:(0 if cid not in self.hero_hit_times else 1,0 if cid in active else 1,abs(ctrls[cid].s-h.s),cid)) if viable else None
+            hb.conflict_travel=t<self.hero_escape_until
             hb.ensemble_target=target
             en._intent(self.hero,"fight_to_escape" if target else "escape",target,t)
             en._waypoint(self.hero,dest)

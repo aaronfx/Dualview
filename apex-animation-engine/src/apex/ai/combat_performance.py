@@ -23,6 +23,10 @@ def choose_combat_action(brain,c,t):
     gap=abs(enemy.s-c.s)
     direction=1 if enemy.s>=c.s else -1
     incoming=enemy.cur
+    # Escape is an actual tactical objective: protect the next native
+    # movement leg instead of entering endless reciprocal guard/dodge loops.
+    if getattr(brain,"conflict_hero",False) and getattr(brain,"conflict_travel",False):
+        return None
     if (incoming is not None and incoming.type=="strike" and incoming.target=="char:"+c.cid
             and incoming.move in MOVES and not enemy.inter.get("resolved")
             and gap<=enemy._strike_reach(incoming.move)+20 and t-brain.last_threat>=.45):
@@ -47,6 +51,8 @@ def choose_combat_action(brain,c,t):
     if engaged and c.facing!=direction:
         return "face_threat",ActionSpec(character=c.cid,type="turn",face=direction),enemy.cid
     moves=("jab","cross","hook","front_kick","side_kick") if brain.hostile else ("side_kick","cross","front_kick")
+    if getattr(brain,"conflict_hero",False):
+        moves=("sweep","side_kick","front_kick","jab","cross","hook")
     feasible=[move for move in moves if .55*c._strike_reach(move)<=gap<=c._strike_reach(move)]
     if getattr(brain,"role",None) is not None or getattr(brain,"conflict_actor",False):
         # Reserve the swept limb envelope beyond both actors; avoid starting a
@@ -61,6 +67,8 @@ def choose_combat_action(brain,c,t):
         move=match_attack(feasible,brain.combat_moves,gap,(enemy.v-c.v)*direction,c._strike_reach,MOVES)
     else:
         move=min(feasible,key=lambda name:(brain.combat_moves.count(name),moves.index(name)))
+    if getattr(brain,"conflict_hero",False) and enemy.cur is not None and enemy.cur.type=="guard" and "sweep" in feasible:
+        move="sweep"
     brain.combat_moves.append(move)
     if counter:
         brain.countered_at=attack_time

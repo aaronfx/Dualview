@@ -21,3 +21,15 @@ def test_sustained_conflict_does_not_end_on_first_strike():
     assert not any(e.type=="ensemble_completed" for e in sim.events)
     assert not any(e.type=="conflict_escape" for e in sim.events)
     assert not any(e.type=="hit" and (e.character=="iko")== (e.data.get("target")=="iko") for e in sim.events)
+
+def test_long_conflict_replans_locally_without_reducing_mission_goal():
+    from apex.ai.autonomous_traversal import TraversalBrain
+    raw=runpy.run_path("examples/build_one_vs_nine.py")["build"]()
+    sc=raw["scenes"][0]
+    sc["duration"]=8
+    sc["shots"][0]["end"]=8
+    sc["goals"]=[]
+    sim=SceneRuntime(ProjectSpec.model_validate(raw),"s").simulate(physics_only=True)
+    h=sim.controllers["iko"]
+    assert h.autonomous_brain.goal==8600
+    assert h.s>-8100, [(e.t,e.type,e.data) for e in sim.events if e.character=="iko" and e.type in ("autonomous_blocked","autonomous_decision","hit")]
