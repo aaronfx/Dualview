@@ -65,7 +65,10 @@ def parse_brief(brief: str) -> dict:
     """Deterministically map a brief to a world + bounded objectives. Returns the plan skeleton."""
     b = brief.lower()
     partner = any(w in b for w in ("partner", "ally", "together", "friend", "team", "companion", "two "))
-    has_barrier = any(w in b for w in ("barrier", "wall", "climb", "scale", "obstacle", "gap", "ledge"))
+    # Two characters share ONE depth lane so native body collision is active (no pass-through). To stay physically
+    # coherent they traverse flat ground together (lead + trail); single-character and pursuit scenes carry the
+    # climb/jump obstacle work, where one actor crosses with full autochoreo tactic search.
+    has_barrier = (not partner) and any(w in b for w in ("barrier", "wall", "climb", "scale", "obstacle", "gap", "ledge"))
     core_word = next((w for w in ("core", "artifact", "relic", "data", "key", "spark", "sample") if w in b), "core")
     beats = []
     beats.append(("observe", "obstacle:barrier" if has_barrier else "prop:core"))
@@ -114,8 +117,9 @@ def _base_world(plan: dict, width: float = 2200.0):
     placements = [dict(character="iko", x=-640.0, facing=1, z=0)]
     if plan["partner"]:
         chars.append(_actor("pell", "PELL", "#59d6ed", "#2e8399", "#76e4f4"))
-        # deepest legal back depth lane (z=60) so the two silhouettes read at clearly different depths
-        placements.append(dict(character="pell", x=600.0, facing=-1, z=60))
+        # SAME depth lane as iko (z=0) so native body collision is active and the two can never pass through each
+        # other; pell starts behind iko and trails, so they stay spatially separated without any depth trick.
+        placements.append(dict(character="pell", x=-880.0, facing=1, z=0))
     return chars, env, placements
 
 
@@ -144,29 +148,24 @@ def _objectives(plan: dict):
 
 # --- camera + score ---------------------------------------------------------
 def _partner_actions(plan, exit_x):
-    """A cooperating partner (authored, preserved by the planner) who acts concurrently throughout and lands a
-    closing reaction, in a deep separate depth lane."""
+    """A cooperating partner who shares iko's depth lane (native body collision active) and always TRAILS it, so the
+    two can never pass through each other while pell stays active and finally follows iko out."""
     if not plan["partner"]:
         return []
     sp = plan.get("run_speed", 300.0)
-    # The partner performs CONCURRENTLY while iko works: it urges iko on, watches the climb, signals the goal and
-    # anticipates — meaningful observation, communication and cooperation rather than standing idle. It stays in a
-    # deep back lane (no silhouette overlap) and follows iko out after iko clears the airlock.
     A = lambda typ, **kw: dict(character="pell", type=typ, **kw)
     watch = plan.get("watch_clip", "peer_down")
-    return [A("act", clip="beckon", emotion="encouraging", duration=0.9),            # urge iko forward
-            A("notice", target="char:iko", duration=0.5),                            # observe the climber
-            A("act", clip=watch, emotion="anxious", duration=1.3),                   # watch the ascent
+    return [A("notice", target="char:iko", duration=0.5),                            # observe the leader
+            A("act", clip="beckon", emotion="encouraging", duration=0.9),            # urge iko on (lets iko pull ahead)
+            A("run_to", target_x=-180, speed=sp),                                    # advance, staying behind iko
+            A("act", clip=watch, emotion="anxious", duration=1.2),                   # watch iko work
             A("point", target="prop:core", duration=0.7),                            # communicate the goal
-            A("act", clip="reach_out", emotion="urgent", duration=1.1),              # anticipate / reach toward iko
-            A("act", clip=watch, emotion="anxious", duration=1.2),
-            A("wait_for", until="event:pick_up@iko[prop=core]"),                     # short beat at most
+            A("wait_for", until="event:pick_up@iko[prop=core]"),
             A("act", clip="cheer", emotion="joyful", duration=1.0),                  # react to the recovery
-            A("run_to", target_x=round(exit_x - 520), speed=sp, lane=60),            # move up near the exit, deep lane
-            A("act", clip=watch, emotion="urgent", duration=1.2),                    # watch iko reach safety
-            A("wait_for", until="event:exit_reached@iko[exit=airlock]"),             # brief: iko clears first
+            A("run_to", target_x=round(exit_x - 640), speed=sp),                     # follow toward the exit, trailing
+            A("wait_for", until="event:exit_reached@iko[exit=airlock]"),             # iko clears the doorway first
             A("act", clip=plan.get("payoff_clip", "cheer"), emotion="joyful", duration=1.1),   # closing reaction
-            A("reach_exit", target="exit:airlock", speed=sp, lane=60)]
+            A("reach_exit", target="exit:airlock", speed=sp)]
 
 
 def _event_cameras(plan, events, duration):

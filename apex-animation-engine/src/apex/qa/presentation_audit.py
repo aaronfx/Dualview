@@ -60,37 +60,40 @@ def check_ground_consistency(rt, sim=None, margin=170.0, tol_frac=0.02):
             + (f"; e.g. {worst[0]}" if worst else "")}
 
 
-def check_character_overlap(rt, sim=None, lane_gap=58.0, body=66.0, tol_frac=0.0):
-    """Two characters sharing a depth lane must not have overlapping silhouettes. Characters separated by close to the
-    engine's full depth range (max placement z is 60) are drawn at clearly different depths and may cross in screen x;
-    `lane_gap` is therefore just under that maximum so full depth separation is credited."""
+def check_character_overlap(rt, sim=None, penetrate=26.0, y_gap=120.0, tol_frac=0.0):
+    """Two character bodies must never occupy the same screen position — a true silhouette penetration. Depth is NOT
+    credited: two stick figures at the same screen x read as passing through each other whatever their depth lane, so
+    a depth offset does not excuse it. Native same-lane body collision (BODY_GAP ~30u) keeps characters apart, so a
+    corrected film clears this; a depth-separated pair standing at the same x fails."""
     sim = _result(sim, rt)
     cids = list(sim.controllers)
     if len(cids) < 2:
         return {"name": "visible_character_overlap", "status": "PASS", "metric": 0.0, "threshold": tol_frac,
                 "detail": "single character"}
-    # align records by time index (controllers share the sample grid)
+    wall = rt.env.room.width / 2 + 40            # past this a character has gone through an exit (faded off screen)
     recs = {c: sim.controllers[c].records for c in cids}
     n = min(len(recs[c]) for c in cids)
     total = bad = 0
     worst = None
-    for i in range(0, n, 3):
+    for i in range(0, n, 2):
         total += 1
         for a in range(len(cids)):
             for b in range(a + 1, len(cids)):
                 ra, rb = recs[cids[a]][i], recs[cids[b]][i]
-                if abs(ra.z - rb.z) < lane_gap and abs(ra.pos[0] - rb.pos[0]) < body and abs(ra.pos[1] - rb.pos[1]) < 140:
+                if abs(ra.pos[0]) > wall or abs(rb.pos[0]) > wall:   # one has exited; not on screen
+                    continue
+                dx, dy = abs(ra.pos[0] - rb.pos[0]), abs(ra.pos[1] - rb.pos[1])
+                if dx < penetrate and dy < y_gap:        # bodies interpenetrate on screen (any depth)
                     bad += 1
-                    sep = abs(ra.pos[0] - rb.pos[0])
-                    if worst is None or sep < worst[0]:
-                        worst = (sep, cids[a], cids[b], round(ra.t, 2), round(abs(ra.z - rb.z)))
+                    if worst is None or dx < worst[0]:
+                        worst = (dx, cids[a], cids[b], round(ra.t, 2), round(abs(ra.z - rb.z)))
                     break
     frac = bad / total if total else 0.0
     ok = frac <= tol_frac
     return {"name": "visible_character_overlap", "status": "PASS" if ok else "FAIL", "metric": round(frac, 3),
-            "threshold": tol_frac, "detail": (f"{bad}/{total} frames with same-lane silhouette overlap; worst "
-            f"sep={worst[0]:.0f}u between {worst[1]}/{worst[2]} at t={worst[3]} (lane gap {worst[4]})" if worst
-            else "no same-lane overlap")}
+            "threshold": tol_frac, "detail": (f"{bad}/{total} frames with silhouette penetration; worst "
+            f"dx={worst[0]:.0f}u between {worst[1]}/{worst[2]} at t={worst[3]} (depth gap {worst[4]}u — not credited)"
+            if worst else "no silhouette penetration")}
 
 
 def check_inactivity(rt, sim=None, max_idle=6.0):

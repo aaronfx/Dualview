@@ -48,14 +48,23 @@ def test_ground_closed_room_draws_its_floor():
 
 
 # ---- issue 2: visible character overlap ----------------------------------------------------------------------
-def test_overlap_defect_same_lane_fails():
+def test_overlap_defect_same_screen_position_fails():
+    # two bodies at the same screen x = silhouette penetration, whatever their depth lane
     p = _proj([GROUND], [{"character": "iko", "x": -100, "z": 0}, {"character": "pell", "x": -100, "z": 10}],
               [], chars=("iko", "pell"))
     assert check_character_overlap(*_rt(p))["status"] == "FAIL"
 
 
-def test_overlap_fixed_deep_lane_passes():
+def test_overlap_depth_offset_is_not_credited():
+    # a deep depth lane does NOT excuse occupying the same screen x — the hiding this regression relied on
     p = _proj([GROUND], [{"character": "iko", "x": -100, "z": 0}, {"character": "pell", "x": -100, "z": 60}],
+              [], chars=("iko", "pell"))
+    assert check_character_overlap(*_rt(p))["status"] == "FAIL"
+
+
+def test_overlap_fixed_spatial_separation_passes():
+    # genuinely separated in screen x (native same-lane body collision keeps characters apart) -> no penetration
+    p = _proj([GROUND], [{"character": "iko", "x": -300, "z": 0}, {"character": "pell", "x": 300, "z": 0}],
               [], chars=("iko", "pell"))
     assert check_character_overlap(*_rt(p))["status"] == "PASS"
 
