@@ -61,16 +61,34 @@ so a planted foot never hangs past the edge), **approach velocity** (the chained
 | Other character blocking the path (stationary) | runner stops at the body gap, no pass-through | tested |
 | Two moving characters converging | never interpenetrate (native body collision) | tested |
 
-## Current capability boundaries (stated honestly)
+## Collision prevention vs. intelligent avoidance (multi-character)
 
-- **Characters carrying objects across an obstacle.** The actor picks up and carries a prop correctly, and when it
-  meets an obstacle while carrying it **stops safely (bumps, no pass-through)** rather than hurdling with its hands
-  full. Autonomous *carry-aware* tactic selection (set the prop down, or choose an alternate route, then continue)
-  is not yet wired into the obstacle assessment — it is a defined next step, not a silent gap.
-- **Self-propelled / drifting moving obstacles.** A prop cannot be given an initial drift velocity through the
-  scene schema (props move only under physics — gravity or being pushed), so a self-propelled moving *obstacle* is
-  not yet expressible. Dynamic prop-vs-body non-penetration **is** covered natively (`props_not_through_bodies`), and
-  moving *characters* in the path are handled by body collision (tested above).
+The engine has **collision prevention** (reactive): a character in another's lane is never passed through — the
+mover stops at the body gap (`body_block`). It does **not** yet have **intelligent avoidance** (proactive): a
+blocked actor does not re-plan a path *around* the obstruction, it stops. `tests/test_obstacle_assessment.py`
+(`test_multichar_course_collision_prevention_is_not_intelligent_avoidance`) asserts both halves of that boundary so
+it is documented in code, not implied.
+
+## Unresolved limitations (stated honestly, QA unweakened)
+
+These are real and are **not** hidden by relaxing a threshold, a camera angle, a depth offset or an effect. The QA
+thresholds are unchanged; where a limitation would show, the check still fails rather than being silenced.
+
+1. **Marginal surface penetration on some synthetic chained geometries.** A clean single climb penetrates the
+   structure by 0.0 units, and the shipped 80-wide fixtures and the example film pass `surface_penetration`
+   cleanly. On certain *synthetic* back-to-back layouts a planted toe can dip ~0.8 units past the 4.0-unit
+   threshold during a fast plant on the approach to a climb (e.g. a 120-tall pillar immediately after a long run).
+   This is a foot-plant easing issue in the approach, not a walk-through, and the QA check correctly reports it.
+   The principled fix (easing the approach-plant, or a stricter per-tactic landing-space check) is a defined next
+   step; it is **not** patched by loosening `surface_penetration`.
+2. **Carried-object clearance.** The actor picks up and carries a prop correctly, and when it meets an obstacle
+   while carrying it **stops safely (bumps, no pass-through, `held_props_outside_structures` holds)** rather than
+   hurdling with its hands full. Autonomous *carry-aware* tactic selection (set the prop down, or reroute, then
+   continue) is not yet wired into the assessment.
+3. **Self-propelled / drifting moving obstacles.** A prop cannot be given an initial drift velocity through the
+   scene schema (props move only under physics — gravity or being pushed), so a self-propelled moving *obstacle* is
+   not yet expressible. Dynamic prop-vs-body non-penetration **is** covered natively (`props_not_through_bodies`),
+   and moving *characters* in the path are handled by body collision (tested).
 
 Nothing above weakens a QA threshold, conceals penetration behind camera angles / depth offsets / effects, or
 discards a difficult fixture.

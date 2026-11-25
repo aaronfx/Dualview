@@ -99,8 +99,11 @@ def _assemble(obstacles, actor, start_x, goal_x, width, max_jump_apex, excluded)
                              + repr([(t.candidate, t.reason) for t in res.trials]))
         traverse = [dict(a) for a in res.actions if a.get("type") not in ("pick_up", "act", "wait_grounded")]
         actions.extend(traverse)
-        segments.append({"obstacle": oid, "height": round(o["size"][1]), "tactic": res.chosen,
-                         "actions": len(traverse)})
+        # full decision trace: every tactic the engine considered for this obstacle and why it was accepted/rejected
+        considered = [{"tactic": t.candidate, "accepted": t.accepted, "reason": t.reason} for t in res.trials]
+        segments.append({"obstacle": oid, "height": round(o["size"][1]), "width": round(o["size"][0]),
+                         "chosen": res.chosen, "tactic": res.chosen, "actions": len(traverse),
+                         "excluded_before": sorted(excluded.get(oid, ())), "considered": considered})
         pos = seg_goal
     # final: the last segment already delivered the actor to the core's vicinity moving forward, so recover the core
     # in place (an extra backward approach would force a face-flip turn that whips a limb) and a triumphant beat.
@@ -151,9 +154,20 @@ def plan_course(obstacles, *, actor="iko", start_x=-640.0, goal_x=None, width=32
         if not changed:
             break
         replans += 1
+    # event-derived duration: end the film shortly after the recovery payoff, not on a fixed clock. The last
+    # meaningful beat is the cheer after the core pickup; hold a short settle tail, then stop — no dead air.
+    meaningful = [e.t for e in sim.events if getattr(e, "character", None) == actor
+                  and e.type in ("pick_up", "act", "takeoff", "climbed", "impact")]
+    if meaningful:
+        trimmed = round(max(8.0, max(meaningful) + 2.6), 2)
+        if trimmed < scene["scenes"][0]["duration"]:
+            scene["scenes"][0]["duration"] = trimmed
+            for sh in scene["scenes"][0].get("shots", []):
+                sh["end"] = min(sh.get("end", trimmed), trimmed)
     report = {"method": "chained native autochoreo tactic search with full-plan graze validation and dynamic "
               "re-selection; engine-selected per obstacle", "obstacles": len(obstacles), "segments": segments,
-              "replans": replans, "excluded": {k: sorted(v) for k, v in excluded.items() if v}}
+              "replans": replans, "excluded": {k: sorted(v) for k, v in excluded.items() if v},
+              "duration": scene["scenes"][0]["duration"]}
     return scene, report
 
 

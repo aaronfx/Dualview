@@ -33,8 +33,14 @@ def main():
     a.output.parent.mkdir(parents=True, exist_ok=True)
     a.output.write_text(p.model_dump_json(indent=2, exclude_defaults=True), encoding="utf-8")
     a.output.with_suffix(".plan.json").write_text(json.dumps(report, indent=2), encoding="utf-8")
-    print(f"wrote {a.output}: {report['obstacles']} obstacles, engine-selected tactics "
-          + ", ".join(f"{s['obstacle']}(h{s['height']})={s['tactic']}" for s in report["segments"]))
+    print(f"wrote {a.output}: {report['obstacles']} obstacles, {report['replans']} re-plan(s), "
+          f"duration {report['duration']}s")
+    print("autonomous decision trace:")
+    for s in report["segments"]:
+        print(f"  {s['obstacle']} (h{s['height']} w{s['width']}) -> {s['chosen']}"
+              + (f"  [excluded first: {', '.join(s['excluded_before'])}]" if s["excluded_before"] else ""))
+        for c in s["considered"]:
+            print(f"      {'accept' if c['accepted'] else 'reject'}  {c['tactic']:16} {c['reason'][:76]}")
 
 
 if __name__ == "__main__":

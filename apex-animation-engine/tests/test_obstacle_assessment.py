@@ -142,3 +142,34 @@ def test_converging_moving_characters_do_not_interpenetrate():
         {"character": "pell", "type": "run_to", "target_x": -400, "speed": 360}]))
     sim = SceneRuntime(p, "s").simulate()
     assert _min_same_lane_gap(sim) >= 24.0, "two moving characters interpenetrated"
+
+
+def test_multichar_course_collision_prevention_is_not_intelligent_avoidance():
+    """A multi-character obstacle course distinguishes the two behaviours the engine actually has vs. not:
+
+    * COLLISION PREVENTION (present, reactive): a second character standing in the traversing actor's lane is never
+      passed through — the actor stops at the body gap (body_block). This is what keeps characters physically honest.
+    * INTELLIGENT AVOIDANCE (absent, proactive): the actor does NOT re-plan a path *around* the blocker — it stops
+      rather than rerouting. The test asserts that boundary explicitly so the capability is documented, not implied.
+    """
+    from apex.ai.obstacle_course import course_scene, plan_course
+
+    obstacles = [{"id": "o1", "center": [0, 65], "size": [80, 130]},
+                 {"id": "o2", "center": [480, 80], "size": [80, 160]}]
+    scene, _ = plan_course(obstacles, actor="iko", start_x=-640.0, width=3200.0, max_jump_apex=260.0)
+    actions = scene["scenes"][0]["actions"]
+    # add a second character standing in the lane, just before the first obstacle, on iko's route
+    full = course_scene(obstacles, actor="iko", start_x=-640.0, width=3200.0, duration=scene["scenes"][0]["duration"],
+                        actions=actions, goals=scene["scenes"][0]["goals"])
+    pell = dict(full["characters"][0]); pell["id"] = "pell"; pell["name"] = "PELL"
+    full["characters"].append(pell)
+    full["scenes"][0]["placements"].append({"character": "pell", "x": -300.0, "facing": -1, "z": 0})
+    p = ProjectSpec.model_validate(full)
+    sim = SceneRuntime(p, "s").simulate()
+
+    # collision prevention: the two bodies never interpenetrate, and a block is registered
+    assert _min_same_lane_gap(sim) >= 24.0, "the traversing actor passed through the other character"
+    assert any(e.type == "body_block" for e in sim.events), "no body_block registered in the shared lane"
+    # NOT intelligent avoidance: iko is stopped by pell near x=-300 and does not reroute around it to the core
+    iko_max_x = max(r.pos[0] for r in sim.controllers["iko"].records)
+    assert iko_max_x < -300.0 + 40.0, "unexpected: actor advanced past the blocker (no avoidance planning exists)"
