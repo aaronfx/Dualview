@@ -34,8 +34,8 @@ if __name__ == "__main__":
     scene = raw["scenes"][0]
     scene["actions"].insert(0, {"character": "iko", "type": "gesture", "gesture": "nudge", "target": "char:pell", "reaction": "knockdown", "distance": 65, "speed": 300})
     scene["actions"][1]["adaptive_avoidance"] = True
-    scene["duration"] = 9.0
-    scene["shots"][0]["end"] = 9.0
-    scene["shots"][0]["camera"] = {"mode": "follow", "target": "iko", "view_height": 480, "include": ["char:pell"], "keep_in_frame": True, "offset": [0, 0]}
+    scene["duration"] = 12.0
+    scene["shots"][0]["end"] = 12.0
+    scene["shots"][0]["camera"] = {"mode": "follow", "target": "iko", "view_height": 650, "include": ["char:pell"], "keep_in_frame": True, "offset": [0, 0]}
     scene["goals"] = ["nudge@iko[with=pell]", "nudge_reaction@pell[by=iko]", "settled@pell", "adaptive_jump@iko", "takeoff@iko"]
     Path(sys.argv[1]).write_text(json.dumps(raw), encoding="utf-8")

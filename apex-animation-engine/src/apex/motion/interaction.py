@@ -144,6 +144,14 @@ class InteractionMixin:
     def _start_interaction(self, t: float, a: ActionSpec) -> None:
         self.inter = {"t0": t}
         I = self.inter
+        if a.type == "gesture" and a.note == "resume_fallen_crossing":
+            oc = self.others[a.target.split(":",1)[1]]
+            if self._face(t, a, 1 if oc.s > self.s else -1):
+                return
+            I.update(other=oc.cid, push_contact=True)
+            self._open("idle", t, waiting=True)
+            self._plan_fallen_crossing(t, oc)
+            return
         bad = None
         if self.lying and a.type not in ("struggle", "crawl_out", "get_up", "wait_for"):
             bad = f"{self.cid}: action '{a.type}' is not possible while lying down (use crawl_out / get_up first)"
@@ -323,21 +331,37 @@ class InteractionMixin:
         end = body.x1 + 110 if direction > 0 else body.x0 - 110
         start = self.s
         # No unchecked approach through a prone body: start from current position.
-        if (self.frame is not self.frames["floor"] or oc.frame is not self.frame
+        if (self.frame.owner is not None or oc.frame is not self.frame
                 or abs(oc.z-self.z) >= BODY_PASS_Z
                 or (oc.s-start)*direction <= 0
-                or abs(self.v) > 5
                 or self.carrying
                 or any(o is not self and o is not oc for o in self.others.values())
                 or self.props):
             verdict = None
         else:
-            verdict = select_clearance_jump(self.env, (start,0.0),(end,0.0),
+            near = body.x0 if direction > 0 else body.x1
+            desired = near - direction * 130.0
+            if (start - desired) * direction > 8.0:
+                # Retreat away from the body, never approach through it.
+                if not self.frame.lo + 40 <= desired <= self.frame.hi - 40:
+                    verdict = None
+                else:
+                    self.v = 0.0
+                    resume = ActionSpec(type="gesture", character=self.cid, gesture="nudge",
+                        target="char:"+oc.cid, reaction="knockdown", note="resume_fallen_crossing", speed=180)
+                    self._go(t, resume, desired)
+                    return
+            else:
+                self.v = 0.0
+                verdict = select_clearance_jump(self.env, (start,0.0),(end,0.0),
                                             live_bounds=(body,), body_height=2.1*self.stand_h,
                                             body_half_width=35.0, max_rise=260.0)
         if verdict is None or not verdict.feasible:
             I["clearance_failed"] = True
-            self.emit(self._ev(t, "nudge_blocked", {"with": oc.cid, "reason": "no safe fallen-body arc"}))
+            self.emit(self._ev(t, "nudge_blocked", {"with": oc.cid, "reason": "no safe fallen-body arc",
+                       "start": start, "body": (body.x0,body.x1,body.y1), "end": end}))
+            self.queue.clear()
+            self._next_action(t)
             return
         self.emit(self._ev(t, "adaptive_jump", {"target": "char:"+oc.cid,
                         "start": start, "end": end, "apex": verdict.plan.apex_y}))
