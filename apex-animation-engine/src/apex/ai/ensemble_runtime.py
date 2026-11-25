@@ -65,6 +65,8 @@ class EnsembleRuntime:
         self.grips=set()
         self.skill_tickets={}
         self.rescue_attempts={}
+        self.rescue_clearance={}
+        self.rescue_yield_started=set()
         self.role_by_ally={a.target:a.character for a in spec.actors if a.objective=="assist"}
         self.conflict=None
         if spec.conflict is not None:
@@ -138,6 +140,7 @@ class EnsembleRuntime:
                     b.blocked_since=None
                     b.next_tick=e.t
                     self.assistance.pop(e.character,None)
+                    self.rescue_clearance[e.character]=helper
                     self.ctrls[e.character].emit(Event(e.t,"autonomous_replan",e.character,{"reason":"assisted recovery; resume objective","helper":helper}))
             if e.type=="pick_up" and e.character in self.roles:
                 pid=e.data.get("prop")
@@ -276,8 +279,32 @@ class EnsembleRuntime:
         self.rescue_attempts[cid]=self.rescue_attempts.get(cid,0)+1
         self.assistance[ally]=cid
 
+    def _clear_rescue_space(self,t):
+        """The helper steps away from the recovered actor before either resumes.
+        This is a native movement, not a relocation or a QA exemption.
+        """
+        for ally,helper in list(self.rescue_clearance.items()):
+            c,h=self.ctrls[ally],self.ctrls[helper]
+            b=self.brains[ally]
+            if abs(c.s-h.s)>=105 and h.cur is None and not h.queue:
+                self.rescue_clearance.pop(ally,None)
+                self.rescue_yield_started.discard(helper)
+                b.done=False
+                continue
+            b.done=True
+            if helper in self.rescue_yield_started or h.cur is not None or h.queue or h.mode!="grounded" or h.lying:
+                continue
+            direction=1 if h.s>=c.s else -1
+            dest=h.s+direction*115
+            if h.frame.lo+40<=dest<=h.frame.hi-40 and not h._path_blocker(h.s,dest):
+                h.queue.append(ActionSpec(character=helper,type="walk_to",target_x=dest,speed=220,adaptive_avoidance=True))
+                self.rescue_yield_started.add(helper)
+                h.emit(Event(t,"autonomous_decision",helper,{"skill":"yield_rescue_space","target":ally}))
+
     def _perform(self,cid,t):
         st,c=self.state[cid],self.ctrls[cid]
+        if cid in self.rescue_clearance.values():
+            return False
         if not self.spec.perform_emotions:
             return True
         if st.performed:
@@ -302,6 +329,7 @@ class EnsembleRuntime:
             return
         obs=self.snapshot()
         self.team_alerts={k:v for k,v in self.team_alerts.items() if t-v[0]<=3.0}
+        self._clear_rescue_space(t)
         assigned=self.assignments(obs)
         resources=self._resources(t)
         for cid,a in sorted(self.roles.items()):
@@ -310,7 +338,7 @@ class EnsembleRuntime:
                 if a.objective=="reach":
                     self._intent(cid,"reach",None,t)
                     helper=self.role_by_ally.get(cid)
-                    if helper and (c.lying or c.mode=="ragdoll" or (cid in self.assistance and not self.state[helper].complete)):
+                    if cid in self.rescue_clearance or (helper and (c.lying or c.mode=="ragdoll" or (cid in self.assistance and not self.state[helper].complete))):
                         b.done=True
                     elif c.lying and c.knocked and c.mode=="grounded" and c.cur is None and not c.queue:
                         self.skill_tickets[cid]=issue_native(c,t,ActionSpec(character=cid,type="get_up"))

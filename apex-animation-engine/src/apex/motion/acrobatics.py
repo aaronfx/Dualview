@@ -359,7 +359,10 @@ class AcroMixin:
                 if gap <= 0 or abs(o.z - self.z) >= BODY_PASS_Z + 3:
                     continue
                 lateral_time = (BODY_PASS_Z + 3 - abs(o.z - self.z)) / LANE_RATE + 0.10
-                cap = min(cap, max(0.0, (gap - BODY_GAP - 12) / lateral_time + o.v * direction))
+                # Ensemble actors may start next to a recently recovered ally.
+                # Reserve a larger swept core envelope before crossing lanes.
+                clearance = BODY_GAP + (45 if getattr(getattr(self,"autonomous_brain",None),"ensemble_actor",False) else 12)
+                cap = min(cap, max(0.0, (gap - clearance) / lateral_time + o.v * direction))
             return cap
         if t < getattr(self, "_adaptive_body_next", 0.0) or self.z_target is not None:
             return speed

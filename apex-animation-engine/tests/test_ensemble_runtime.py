@@ -125,6 +125,7 @@ def test_cooperative_rescue_requires_actual_grip_and_assisted_stand():
     assert any(e.type=="knockdown" and e.character=="iko" for e in sim.events)
     assert any(e.type=="hand_grab" and e.character=="iko" and e.data.get("with")=="ren" for e in sim.events), [(e.t,e.type,e.character,e.data) for e in sim.events if e.type in ("ensemble_intent","autonomous_blocked","hand_offered","help_missed","stood_up","settled","hit","knockdown")]
     assert any(e.type=="stood_up" and e.character=="iko" and e.data.get("helper")=="ren" for e in sim.events)
+    assert any(e.type=="autonomous_decision" and e.character=="ren" and e.data.get("skill")=="yield_rescue_space" for e in sim.events)
     evidence=[(e.t,e.type,e.character,e.data) for e in sim.events if e.type in ("ensemble_intent","ensemble_objective","ensemble_completed","ensemble_skill_outcome","autonomous_blocked","autonomous_reached","hand_offered","help_missed","stood_up","act")]
     final={cid:{"x":c.s,"mode":c.mode,"lying":c.lying,"current":c.cur.type if c.cur else None,"queue":[a.type for a in c.queue],"goal":c.autonomous_brain.goal,"done":c.autonomous_brain.done} for cid,c in sim.controllers.items()}
     assert any(e.type=="act" and e.character=="ren" and e.data.get("emotion")=="relieved" for e in sim.events), (evidence,final)
