@@ -52,21 +52,25 @@ class Selection:
                 "scope": "native rehearsal; artistic approval is separate"}
 
 def ordered_evidence(goals, events, duration):
-    """Distinct, chronological, actual events only; no tolerant out-of-order matches."""
+    """Distinct chronological native events; simultaneous events may share a timestamp."""
     if not goals:
         raise ValueError("Explicit outcome goals required")
     indexed = sorted(enumerate(e for e in events if 0 <= e.t <= duration),
                      key=lambda pair: (pair[1].t, pair[0]))
-    cursor, proof = 0, []
+    # Runtime sorts simultaneous events by type, not causality. Distinct
+    # events within one tick may satisfy either ordering; time must never
+    # move backwards and the same event cannot prove two goals.
+    previous = -1.0
+    used, proof = set(), []
     for g in goals:
         typ, _, _ = parse_goal(g)
         check_event(typ, "Smart Director goal")
-        for i in range(cursor, len(indexed)):
-            e = indexed[i][1]
-            if matches(g, e):
+        for i, e in indexed:
+            if i not in used and e.t + 1e-9 >= previous and matches(g, e):
                 proof.append({"goal": g, "t": float(e.t), "event": e.type,
                               "actor": e.character, "data": dict(e.data)})
-                cursor = i + 1
+                used.add(i)
+                previous = max(previous, e.t)
                 break
         else:
             raise ValueError(f"Missing ordered native goal: {g}")

@@ -45,3 +45,9 @@ def test_native_rehearsal_known_crossing():
     assert not result.trials[0].accepted
     assert result.trials[1].accepted
     assert project.model_dump_json()==before
+
+
+def test_same_tick_distinct_events_are_not_alphabetical_causality():
+    events=[ev("act",1,clip="doubt_to_dash"),ev("notice",1)]
+    proof=ordered_evidence(["notice@iko","act@iko[clip=doubt_to_dash]"],events,2)
+    assert [p["t"] for p in proof]==[1,1]

@@ -112,7 +112,7 @@ class SimulationResult:
                 break
             if m["t_swap"] is None or t < m["t_swap"]:
                 end = m["t_swap"] if m["t_swap"] is not None else m["t0"] + m["duration"]
-                blend = (m["from"], m["to"], min(1.0, (t - m["t0"]) / max(1e-6, end - m["t0"])), m.get("nudge", (0.0, 0.0)))
+                blend = (m["from"], m["to"], min(1.0, (t - m["t0"]) / max(1e-6, end - m["t0"])), m.get("draw_shift", m.get("nudge", (0.0, 0.0))))
                 break
             g = m["to"]
         return g, blend
@@ -315,7 +315,13 @@ class SceneRuntime:
                         events.append(Event(tn, "morph_blocked", pid, {"prop": pid, "by": sorted(set(hit))}))
                     continue
                 c0, v0, w0 = b.local_to_world(b.center_of_gravity), (b.velocity.x, b.velocity.y), b.angular_velocity
+                origin_before = tuple(b.position)
                 I0, I1 = world.reshape(pid, segs, wgt / 2, masses, com, nudge)
+                # Blend destination is in the glyph LOCAL frame, not world
+                # nudge alone. Include the actual origin shift required to
+                # preserve COM, rotated back to local coordinates.
+                dx, dy = b.position.x - origin_before[0], b.position.y - origin_before[1]
+                rec["draw_shift"] = (dx * ca_ + dy * sa_, -dx * sa_ + dy * ca_)
                 rec["nudge"] = nudge
                 prop_cuts.setdefault(pid, []).append(i_sample)  # the body's origin jumps (centre kept, or nudged): a cut
                 c1 = b.local_to_world(b.center_of_gravity)
