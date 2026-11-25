@@ -428,7 +428,16 @@ class SceneRuntime:
             if clock is not None:
                 c.beat_clock = clock
         from ..ai.autonomous_traversal import TraversalBrain
-        brains = {pl.character: TraversalBrain(pl.destination_x) for pl in self.scene.placements if pl.destination_x is not None}
+        placements = {pl.character: pl for pl in self.scene.placements}
+        brains = {}
+        for pl in self.scene.placements:
+            if pl.pursue is not None:
+                target = placements.get(pl.pursue)
+                if pl.destination_x is not None or target is None or target is pl or target.destination_x is None or target.pursue is not None:
+                    raise ValueError(f'{pl.character}: pursuit requires a different destination-driven actor')
+                brains[pl.character] = TraversalBrain(target.destination_x, pursuit=pl.pursue, fast=pl.action_pace)
+            elif pl.destination_x is not None:
+                brains[pl.character] = TraversalBrain(pl.destination_x, fast=pl.action_pace)
         for cid, brain in brains.items():
             if any(a.character == cid for a in self.scene.actions):
                 raise ValueError(f'{cid}: autonomous destination cannot be mixed with authored actions')

@@ -19,6 +19,10 @@ class TraversalBrain:
     progress_t: float = 0.0
     active_action: object = None
     route_signature: tuple | None = None
+    pursuit: str | None = None
+    fast: bool = False
+    chase_ceiling: float | None = None
+    pursuit_last: float | None = None
 
     def _hazards(self,c):
         """Observe approaching same-lane solids using a short swept horizon."""
@@ -50,7 +54,19 @@ class TraversalBrain:
         from ..motion.controller import Event
         if self.done or t < self.next_tick or c.mode != "grounded":
             return
-        self.next_tick = t + 0.10
+        self.next_tick = t + (.035 if self.fast else .10)
+        if self.pursuit is not None:
+            target=c.others[self.pursuit]
+            if self.chase_ceiling is None:
+                self.chase_ceiling=self.goal
+            d=1 if self.chase_ceiling>c.s else -1
+            # Intercept the predicted route, not a hardcoded copy of its actions.
+            # Long enough horizon to reason about the entire next obstacle.
+            prediction=target.s+d*max(480,abs(target.v)*1.2)
+            self.goal=min(self.chase_ceiling,prediction) if d>0 else max(self.chase_ceiling,prediction)
+            if self.pursuit_last is None or abs(target.s-self.pursuit_last)>180:
+                c.emit(Event(t,'autonomous_decision',c.cid,{'skill':'pursue','target':self.pursuit,'observed_x':target.s,'predicted_x':self.goal}))
+                self.pursuit_last=target.s
         if c.cur is not None or c.queue:
             # Never interrupt contact, flight, an authored interaction or recovery.
             # Only our own ordinary locomotion may be cancelled after a stall.
@@ -86,6 +102,8 @@ class TraversalBrain:
         def emit(kind, **data):
             c.emit(Event(t, kind, c.cid, data))
         if abs(c.s-self.goal) < 3 and not c.lying and c.frame.owner is None:
+            if self.pursuit is not None and abs(self.goal-self.chase_ceiling)>3:
+                return
             self.done = True
             emit("autonomous_reached", x=c.s)
             return
@@ -96,7 +114,7 @@ class TraversalBrain:
             d=1 if self.goal>c.s else -1
             edge=c.frame.hi if d>0 else c.frame.lo
             landing=edge+d*100
-            if (self.goal-landing)*d<0 or c.props or any(o is not c and not o._gone() for o in c.others.values()):
+            if (self.goal-landing)*d<0 or c.props or any(o is not c and not o._gone() and abs(o.z-c.z)<BODY_PASS_Z and min(c.s,landing)-100<o.s<max(c.s,landing)+100 for o in c.others.values()):
                 return
             if any(b.owner!=c.frame.owner and b.y1>0 and b.x0<max(c.s,landing)+35 and b.x1>min(c.s,landing)-35 for b in c.blocks):
                 return
@@ -147,6 +165,8 @@ class TraversalBrain:
         def add(name, target_id, **kw):
             key=(name,target_id)
             if self.attempts.get(key,0)<2:
+                if self.fast and kw.get("type")=="run_to":
+                    kw["speed"]=min(430,kw.get("speed",300)*1.15)
                 candidates.append((key,ActionSpec(character=c.cid,**kw)))
         if not hit and not obstacles:
             add("travel","goal",type="run_to",target_x=end,speed=360,adaptive_avoidance=True)
@@ -259,6 +279,16 @@ class TraversalBrain:
             self.progress_x,self.progress_t=c.s,t
             self.route_signature=self._hazards(c)
             c.queue.append(action)
+            if key[0]=="slide_approach" and self.fast:
+                # Native run->slide chaining preserves velocity and avoids a
+                # decision-frame idle; the approach already proved clearance.
+                d=1 if action.target_x>c.s else -1
+                b=hit[1]
+                stop=(b.x1 if d>0 else b.x0)+d*80
+                c.queue.append(ActionSpec(character=c.cid,type="duck_slide",target_x=stop,speed=430))
+                recovery=stop+d*140
+                if (self.goal-recovery)*d>=0 and not c._path_blocker(stop,recovery) and not obstacles:
+                    c.queue.append(ActionSpec(character=c.cid,type="run_to",target_x=recovery,speed=320,adaptive_avoidance=True))
             if key[0]=="climb":
                 top=c._top_of(action.target,c.s)
                 d=1 if self.goal>c.s else -1

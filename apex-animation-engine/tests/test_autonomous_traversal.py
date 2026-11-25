@@ -97,3 +97,17 @@ def test_goal_paced_acrobatics(kind):
     reached=next(e.t for e in sim.events if e.type=="autonomous_reached")
     assert 0<=sim.duration-reached<=.3
     assert sim.duration<10
+
+def test_continuous_pursuit():
+    raw=runpy.run_path("examples/build_autonomous_chase.py")["build"]()
+    assert raw["scenes"][0]["actions"]==[]
+    sim=SceneRuntime(ProjectSpec.model_validate(raw),"s").simulate()
+    for actor in ("iko","pell"):
+        ev=[e for e in sim.events if e.character==actor]
+        for kind in ("slide_end","vault","climbed"):
+            assert any(e.type==kind for e in ev), (actor,kind,[(e.type,e.data) for e in ev if e.type.startswith("autonomous")])
+    assert any(e.type=="autonomous_reached" and e.character=="iko" for e in sim.events)
+    updates=[e for e in sim.events if e.character=="pell" and e.type=="autonomous_decision" and e.data.get("skill")=="pursue"]
+    assert len(updates)>=3
+    assert len({e.data["observed_x"] for e in updates})>=3
+    assert sim.controllers["pell"].records[-1].pos[0]>1000

@@ -678,6 +678,8 @@ class ActionSpec(Strict):
 class CharacterPlacement(Strict):
     character: str
     destination_x: Optional[float] = Field(None, allow_inf_nan=False)  # opt-in autonomous floor traversal
+    pursue: Optional[str] = None  # live actor ID; mutually exclusive with destination_x
+    action_pace: bool = False  # opt-in faster native decisions and travel
     x: float = 0.0
     at: Optional[str] = None  # a level marker (digit): x comes from the level grid
     on: Optional[str] = None  # start standing on this structure's top ("obstacle:<id>"), not on the floor
