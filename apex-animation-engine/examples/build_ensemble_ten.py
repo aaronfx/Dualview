@@ -33,8 +33,9 @@ def build():
                 role.update(target=leader,offset=offset)
             roles.append(role)
     scene["ensemble"]={"actors":roles,"coordination_hz":5}
-    scene["shots"][0].update(end=9,camera={"mode":"static","center":[0,200],"view_height":1700})
+    scene["shots"][0].update(end=9,camera={"mode":"static","center":[0,200],"view_height":1500})
     return raw
 
 if __name__=="__main__":
-    Path(sys.argv[1]).write_text(json.dumps(build(),indent=2),encoding="utf-8")
+    from apex.ai.ensemble_editor import finish_ensemble
+    Path(sys.argv[1]).write_text(json.dumps(finish_ensemble(build(),"s"),indent=2),encoding="utf-8")

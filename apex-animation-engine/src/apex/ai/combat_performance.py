@@ -33,7 +33,10 @@ def choose_combat_action(brain,c,t):
         if c.facing==direction and not c._path_blocker(c.s,c.s-direction*.8*c.stand_h):
             return "evade_attack",ActionSpec(character=c.cid,type="dodge",dodge="back"),enemy.cid
     engaged=getattr(brain,"role",None) is not None and brain.tactical_state in ("engage","fight_to_escape")
-    if (c.queue and not engaged) or t-brain.last_attack<(.48 if engaged else .8):
+    cooldown=.48 if engaged else .8
+    if getattr(brain,"ensemble_actor",False):
+        cooldown=.95-.4*getattr(brain,"ensemble_aggression",.6)
+    if (c.queue and not engaged) or t-brain.last_attack<cooldown:
         return None
     # The escape actor only counters a resolved attack, once per attack.
     resolved=bool(incoming is not None and incoming.type=="strike" and enemy.inter.get("resolved"))

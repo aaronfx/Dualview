@@ -81,3 +81,17 @@ def test_shared_resources_are_acquired_once_by_native_actors():
     assert len(pickups)==2 and len({e.data["prop"] for e in pickups})==2
     assert {c.carrying for c in sim.controllers.values()}=={"kit_a","kit_b"}
     assert any(e.type=="ensemble_completed" for e in sim.events)
+
+def test_ensemble_editor_uses_actual_completion():
+    from apex.ai.ensemble_editor import finish_ensemble
+    raw=finish_ensemble(build(),"s")
+    assert raw["scenes"][0]["duration"]<9
+    assert raw["scenes"][0]["actions"]==[]
+
+def test_ten_actor_hostile_native_contact_and_no_friendly_fire():
+    raw=runpy.run_path("examples/build_ensemble_combat.py")["build"]()
+    sim=SceneRuntime(ProjectSpec.model_validate(raw),"s").simulate(physics_only=True)
+    hits=[e for e in sim.events if e.type=="hit"]
+    assert len({e.character for e in hits if e.character.startswith("amber")})>=3, [(e.t,e.character,e.type,e.data) for e in sim.events if e.type in ("hit","strike_start","ensemble_intent","autonomous_blocked")]
+    assert all(e.character.split("_")[0]!=e.data["target"].split("_")[0] for e in hits)
+    assert len({e.character for e in sim.events if e.type=="ensemble_intent" and e.data["intent"]=="intercept"})==5

@@ -40,6 +40,7 @@ class EnsembleRuntime:
         for cid,b in self.brains.items():
             b.ensemble_actor=True
             b.ensemble_target=None
+            b.ensemble_aggression=self.roles[cid].aggression
             b.hostile=self.roles[cid].objective=="intercept"
         self.next_tick=0.
         self.event_cursor=0
@@ -50,6 +51,8 @@ class EnsembleRuntime:
         self.pickup_started={}
         self.resource_owners={}
         self.pickup_witnesses={}
+        self.team_alerts={}
+        self.alert_cursor=0
 
 
     def hostile(self,a,b):
@@ -78,6 +81,8 @@ class EnsembleRuntime:
                 continue
             def cost(k):
                 distance=abs(obs[k].x-obs[cid].x)+2*abs(obs[k].z-obs[cid].z)-40*self.relationships.get((cid,k),{}).get("threat",0)
+                if (a.team,k) in self.team_alerts:
+                    distance-=60*a.empathy
                 return (load.get(k,0),distance-(80 if k==old else 0),k)
             target=min(candidates,key=cost)
             out[cid]=target
@@ -92,6 +97,9 @@ class EnsembleRuntime:
                 self.pickup_witnesses[(e.character,pid)]=e.t
             if e.type in ("place","throw") and self.resource_owners.get(e.data.get("prop"))==e.character:
                 self.resource_owners.pop(e.data["prop"],None)
+            if e.type=="hurt" and e.character in self.roles and e.data.get("by") in self.roles and self.hostile(e.character,e.data["by"]):
+                team=self.roles[e.character].team
+                self.team_alerts[(team,e.data["by"])]=(e.t,e.character)
             if e.type in ("hurt","block_hit","evaded","hand_grab"):
                 other=e.data.get("by") or e.data.get("with")
                 if e.character in self.roles and other in self.roles and other!=e.character:
@@ -187,6 +195,7 @@ class EnsembleRuntime:
         self.next_tick=t+1/self.spec.coordination_hz
         self._remember(events)
         obs=self.snapshot()
+        self.team_alerts={k:v for k,v in self.team_alerts.items() if t-v[0]<=3.0}
         assigned=self.assignments(obs)
         resources=self._resources(t)
         for cid,a in sorted(self.roles.items()):
