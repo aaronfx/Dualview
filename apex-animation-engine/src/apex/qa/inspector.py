@@ -224,6 +224,7 @@ class Inspector:
                  for cid in self.joints}
         for cid, frames in self.joints.items():
             worst_joint, worst_pel, where = 0.0, 0.0, 0.0
+            joint_name, from_pos, to_pos = '', None, None
             for i in range(1, len(frames)):
                 a, b = frames[i - 1], frames[i]
                 j = next((g for tj, g in jumps[cid] if self.times[i - 1] < tj <= self.times[i]), None)
@@ -233,9 +234,10 @@ class Inspector:
                     sp = math.dist(a[k], b[k]) / dt
                     if sp > worst_joint:
                         worst_joint, where = sp, self.times[i]
+                        joint_name, from_pos, to_pos = k, a[k], b[k]
                 worst_pel = max(worst_pel, math.dist(a["pelvis"], b["pelvis"]) / dt)
             out.append(Check(f"no_teleport_joints[{cid}]", "PASS" if worst_joint <= TOL["joint_speed"] else "FAIL", worst_joint,
-                             TOL["joint_speed"], f"max joint speed (units/s) at t={where:.3f}s"))
+                             TOL["joint_speed"], f"max joint speed (units/s) at t={where:.3f}s; joint={joint_name}; from={from_pos}; to={to_pos}; nearby segments={[(seg.kind, round(seg.t0,3), round(seg.t1,3)) for seg in self.r.controllers[cid].segments if seg.t0 <= where+0.1 and seg.t1 >= where-0.1]}"))
             out.append(Check(f"no_teleport_root[{cid}]", "PASS" if worst_pel <= TOL["pelvis_speed"] else "FAIL", worst_pel, TOL["pelvis_speed"]))
         return out
 

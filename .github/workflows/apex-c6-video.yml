@@ -34,6 +34,11 @@ jobs:
       - run: python -m pytest -q tests/test_character_brain.py tests/test_obstacle_assessment.py -k 'character_brain or opt_in_native_body'
       - run: python -m pytest -q tests/test_live_clearance_jump.py
       - run: python -m pytest -q tests/test_combined_crossing.py tests/test_autonomous_traversal.py tests/test_strategic_planning.py
+      - name: Fast slide diagnosis before full regression rendering
+        run: |
+          mkdir -p out/c6
+          python examples/build_autonomous_acrobatics.py slide out/c6/slide.json
+          apex render out/c6/slide.json -o out/c6/slide.mp4 --scale 1 --samples 1 --qa-json out/c6/slide-qa.json
       - run: |
           mkdir -p out/c6
           python examples/build_adaptive_avoidance.py out/c6/avoidance.json
@@ -65,6 +70,7 @@ jobs:
           ffmpeg -v error -xerror -i out/c6/autonomous_acrobatics.mp4 -f null -
           python -c 'import subprocess; p="out/c6/autonomous_acrobatics.mp4"; n=int(subprocess.check_output(["ffprobe","-v","error","-select_streams","v:0","-count_frames","-show_entries","stream=nb_read_frames","-of","default=nokey=1:noprint_wrappers=1",p])); assert n==720, n; print("Combined video: 720 decoded frames")'
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
           name: apex-c6-native-avoidance
           path: apex-animation-engine/out/c6/
