@@ -111,16 +111,23 @@ class AcroMixin:
                     best = (face, b)
         return best
 
-    def _props_in_path(self, lo_s: float, hi_s: float, skip=()) -> List[Tuple[str, float, float]]:
+    def _props_in_path(self, lo_s: float, hi_s: float, skip=(), *, lookahead: float = 0.0) -> List[Tuple[str, float, float]]:
         """Props (id, depth z, half depth) standing across the body's height band between lo_s and hi_s."""
         fy = self._feet_y()
         out = []
+        # A held object may extend beyond the actor in both travel directions.
+        if self.carrying:
+            lo_s -= self._carried_front(-1.0)
+            hi_s += self._carried_front(1.0)
         for pid, sp in self.props.items():
             if pid in skip or not sp.collide_characters or pid in self.world.inactive:
                 continue
             st = self.world.state(pid)
             r = max(sp.size) / 2
-            if st.pos[0] + r < lo_s - 11.0 or st.pos[0] - r > hi_s + 11.0:
+            # Short, conservative swept horizontal envelope from native velocity.
+            # This is not a prediction of impacts or arbitrary ballistic motion.
+            future_x = st.pos[0] + st.vel[0] * lookahead
+            if max(st.pos[0], future_x) + r < lo_s - 11.0 or min(st.pos[0], future_x) - r > hi_s + 11.0:
                 continue
             if st.pos[1] + r < fy + KNEE_FRAC * self.stand_h or st.pos[1] - r > fy + 1.9 * self.stand_h:
                 continue
@@ -128,9 +135,14 @@ class AcroMixin:
             out.append((pid, pz, ph))
         return out
 
+    def _route_half_depth(self) -> float:
+        """Depth clearance of the actor plus the carried prop, if any."""
+        return max(14.0, self.props[self.carrying].depth / 2) if self.carrying else 14.0
+
     def _free_lane(self, blockers: List[Tuple[str, float, float]]) -> Optional[float]:
         """The nearest depth lane (to the current one) clear of all the blockers, within the room."""
-        bands = [(pz - ph - 14.0 - 3.0, pz + ph + 14.0 + 3.0) for _, pz, ph in blockers]
+        margin = self._route_half_depth() + 3.0
+        bands = [(pz - ph - margin, pz + ph + margin) for _, pz, ph in blockers]
         cands = [self.z] + [e for b in bands for e in b]
         ok = [z for z in cands if -ROOM_LANE <= z <= ROOM_LANE and all(not (lo < z < hi) for lo, hi in bands)]
         return min(ok, key=lambda z: abs(z - self.z)) if ok else None
@@ -141,7 +153,7 @@ class AcroMixin:
             return
         # Every prop considered by the lane planner must be clear before
         # forward motion resumes; the farthest prop alone is insufficient.
-        if all(abs(self.z - pz) >= ph + 14.0
+        if all(abs(self.z - pz) >= ph + self._route_half_depth()
                for pid in sd.get("props", (sd["prop"],))
                if pid not in self.world.inactive
                for pz, ph in (self.world.depth.get(pid, (0.0, 30.0)),)):
@@ -175,14 +187,14 @@ class AcroMixin:
                 if ref and ref.startswith("prop:"):
                     handled.add(ref.split(":", 1)[1])
         x0 = self.frame.to_world(self.s, self.h)[0]
-        blockers = [b for b in self._props_in_path(lo_s, hi_s, handled)
+        blockers = [b for b in self._props_in_path(lo_s, hi_s, handled, lookahead=0.35 if refresh else 0.0)
                     if abs(self.world.state(b[0]).pos[0] - x0) > max(self.props[b[0]].size) / 2 + 11.0]
         if refresh:
             known = set(sd.get("props", (sd["prop"],))) if sd else set()
             # Preserve authored static approaches, and the original sidestep's home lane.
             # A previously untracked moving prop is evidence that the route has changed.
             if not any(pid not in known and math.hypot(*self.world.state(pid).vel) > 20.0
-                       and abs(pz - (self.z_target if self.z_target is not None else self.z)) < ph + 17.0
+                       and abs(pz - (self.z_target if self.z_target is not None else self.z)) < ph + self._route_half_depth() + 3.0
                        for pid, pz, ph in blockers):
                 return
             if sd:
@@ -190,7 +202,7 @@ class AcroMixin:
                 present = {pid for pid, _, _ in blockers}
                 blockers.extend((pid, *self.world.depth.get(pid, (0.0, 30.0)))
                                 for pid in known if pid not in present and pid not in self.world.inactive)
-        elif not any(abs(pz - self.z) < ph + 14.0 for _, pz, ph in blockers):
+        elif not any(abs(pz - self.z) < ph + self._route_half_depth() for _, pz, ph in blockers):
             return
         z = self._free_lane(blockers)
         if z is not None and (abs(z - self.z) > 1e-6 or refresh and self.z_target is not None):

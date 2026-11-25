@@ -141,3 +141,41 @@ def test_live_route_refresh_for_new_moving_container(monkeypatch):
     assert refreshed and refreshed[0].data["prop"] == "late"
     assert not ev(r, "prop_block") and not ev(r, "shoved")
     assert abs(r.controllers["kai"].s + 500) < 2.0
+
+
+def test_moving_container_is_anticipated_before_entering_route(monkeypatch):
+    from apex.physics.world import PhysicsWorld
+    box = dict(kind="container", id="incoming", position=[-680, 51],
+               size=[100, 100], mass=110, friction=0.01, depth=40)
+    original = PhysicsWorld.step
+    launched = False
+
+    def step(world, dt):
+        nonlocal launched
+        if not launched and world.t >= 0.2:
+            world._bodies["incoming"].velocity = (220.0, 0.0)
+            launched = True
+        return original(world, dt)
+
+    monkeypatch.setattr(PhysicsWorld, "step", step)
+    r = sim(proj([{"character": "kai", "type": "walk_to",
+                   "target_x": -500, "speed": 100}], [box], dur=7))
+    event = next(e for e in ev(r, "sidestep") if e.data.get("refreshed"))
+    index = min(round(event.t * 240), len(r.prop_tracks["incoming"]) - 1)
+    # The prop's leading face is still beyond the original route boundary.
+    assert r.prop_tracks["incoming"][index, 0] + 50 < -511
+    assert not ev(r, "prop_block") and not ev(r, "shoved")
+    assert abs(r.controllers["kai"].s + 500) < 2.0
+
+
+def test_carried_depth_expands_existing_lane_clearance():
+    # Native pickup, then inspect the actual controller's lane chooser.
+    item = dict(kind="crate", id="item", position=[-65, 31],
+                size=[60, 60], mass=2, depth=80)
+    r = sim(proj([{"character":"kai","type":"pick_up","target":"prop:item"},
+                  {"character":"kai","type":"idle","duration":2}], [item], dur=4))
+    c = r.controllers["kai"]
+    assert c.carrying == "item"
+    assert c._route_half_depth() == 40
+    lane = c._free_lane([("hypothetical", 0.0, 10.0)])
+    assert lane is not None and abs(lane) >= 53
