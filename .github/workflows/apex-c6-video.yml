@@ -7,6 +7,9 @@ on:
       - 'apex-animation-engine/src/apex/scene/goals.py'
       - 'apex-animation-engine/src/apex/motion/**'
       - 'apex-animation-engine/src/apex/ai/autonomous_traversal.py'
+      - 'apex-animation-engine/src/apex/ai/strategic_planning.py'
+      - 'apex-animation-engine/tests/test_strategic_planning.py'
+      - 'apex-animation-engine/pyproject.toml'
       - 'apex-animation-engine/tests/test_autonomous_traversal.py'
   workflow_dispatch:
 jobs:
@@ -27,7 +30,7 @@ jobs:
       - run: python -m pip install -e '.[dev]'
       - run: python -m pytest -q tests/test_character_brain.py tests/test_obstacle_assessment.py -k 'character_brain or opt_in_native_body'
       - run: python -m pytest -q tests/test_live_clearance_jump.py
-      - run: python -m pytest -q tests/test_combined_crossing.py tests/test_autonomous_traversal.py
+      - run: python -m pytest -q tests/test_combined_crossing.py tests/test_autonomous_traversal.py tests/test_strategic_planning.py
       - run: |
           mkdir -p out/c6
           python examples/build_adaptive_avoidance.py out/c6/avoidance.json

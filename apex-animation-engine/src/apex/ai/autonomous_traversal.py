@@ -145,7 +145,13 @@ class TraversalBrain:
                 selected.append(self.item)
                 return py_trees.common.Status.SUCCESS
         if candidates:
-            py_trees.composites.Selector(name="traversal",memory=False,children=[Candidate(q) for q in candidates]).tick_once()
+            from .strategic_planning import select_native_contract
+            contract=select_native_contract(candidates,relocation)
+            if contract is None:
+                emit("autonomous_blocked",reason="symbolic subgoal infeasible")
+                return
+            key, action, proof=contract
+            py_trees.composites.Selector(name="traversal",memory=False,children=[Candidate((key,action))]).tick_once()
             key, action=selected[0]
             self.pending=(key,c.s)
             self.active_action=action
@@ -153,7 +159,7 @@ class TraversalBrain:
             c.queue.append(action)
             if key[0]=="relocate" and relocation is not None:
                 c.queue.append(relocation)
-            emit("autonomous_decision",skill=key[0],target=key[1])
+            emit("autonomous_decision",skill=key[0],target=key[1],symbolic_plan=list(proof))
         else:
             key=("blocked",tuple(q[1].owner for q in obstacles),hit[1].owner if hit else None)
             if self.last != key:
