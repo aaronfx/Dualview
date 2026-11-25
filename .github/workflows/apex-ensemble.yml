@@ -32,6 +32,13 @@ jobs:
           apex validate out/ensemble/ten.json
           apex render out/ensemble/ten.json -o out/ensemble/ten.mp4 --scale 1 --samples 1 --qa-json out/ensemble/qa.json
           ffmpeg -v error -xerror -i out/ensemble/ten.mp4 -f null -
+      - name: Render cooperative rescue with event-directed camera
+        run: |
+          mkdir -p out/ensemble/rescue
+          python examples/build_ensemble_rescue.py out/ensemble/rescue/rescue.json
+          apex validate out/ensemble/rescue/rescue.json
+          apex render out/ensemble/rescue/rescue.json -o out/ensemble/rescue/rescue.mp4 --scale 1 --samples 1 --qa-json out/ensemble/rescue/qa.json
+          ffmpeg -v error -xerror -i out/ensemble/rescue/rescue.mp4 -f null -
       - uses: actions/upload-artifact@v4
         if: always()
         with:

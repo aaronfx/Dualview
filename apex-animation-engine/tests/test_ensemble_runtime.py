@@ -127,3 +127,21 @@ def test_cooperative_rescue_requires_actual_grip_and_assisted_stand():
     assert any(e.type=="stood_up" and e.character=="iko" and e.data.get("helper")=="ren" for e in sim.events)
     assert any(e.type=="act" and e.character=="ren" and e.data.get("emotion")=="relieved" for e in sim.events)
     assert any(e.type=="ensemble_completed" for e in sim.events)
+
+def test_ensemble_director_preserves_scene_and_native_actions():
+    from apex.ai.ensemble_editor import event_camera_candidates
+    from apex.motion.controller import Event
+    from types import SimpleNamespace as NS
+    raw=build()
+    sim=NS(events=[Event(2.5,"hit","amber_0",{"target":"cyan_0"}),Event(4.5,"act","cyan_0",{"clip":"cheer"})],
+           controllers={cid:NS(records=[NS(t=3.,pos=(0.,0.)),NS(t=4.,pos=(0.,0.))]) for cid in ("amber_0","cyan_0")})
+    result=event_camera_candidates(raw,"s",sim)[0]
+    a=result["scenes"][0]
+    b=raw["scenes"][0]
+    assert a["actions"]==b["actions"]==[]
+    assert a["placements"]==b["placements"]
+    assert result["environments"]==raw["environments"]
+    assert a["shots"][0]["start"]==0 and a["shots"][-1]["end"]==a["duration"]
+    assert all(x["end"]-x["start"]>=.5 for x in a["shots"])
+    assert all(x["end"]==y["start"] for x,y in zip(a["shots"],a["shots"][1:]))
+    ProjectSpec.model_validate(result)

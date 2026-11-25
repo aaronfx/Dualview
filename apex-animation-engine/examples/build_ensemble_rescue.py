@@ -24,4 +24,6 @@ def build():
     return raw
 
 if __name__=="__main__":
-    Path(sys.argv[1]).write_text(json.dumps(build(),indent=2),encoding="utf-8")
+    from apex.ai.ensemble_editor import rehearse_ensemble
+    path=Path(sys.argv[1])
+    path.write_text(json.dumps(rehearse_ensemble(build(),"s",path.parent),indent=2),encoding="utf-8")
