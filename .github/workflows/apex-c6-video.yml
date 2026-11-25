@@ -58,6 +58,12 @@ jobs:
             apex validate "out/c6/$skill.json"
             apex render "out/c6/$skill.json" -o "out/c6/$skill.mp4" --scale 1 --samples 1 --qa-json "out/c6/$skill-qa.json"
           done
+      - name: Combine verified acrobatics demonstrations
+        run: |
+          printf "file 'slide.mp4'\nfile 'vault.mp4'\nfile 'climb.mp4'\n" > out/c6/acrobatics-list.txt
+          ffmpeg -v error -f concat -safe 0 -i out/c6/acrobatics-list.txt -c copy -movflags +faststart out/c6/autonomous_acrobatics.mp4
+          ffmpeg -v error -xerror -i out/c6/autonomous_acrobatics.mp4 -f null -
+          python -c 'import subprocess; p="out/c6/autonomous_acrobatics.mp4"; n=int(subprocess.check_output(["ffprobe","-v","error","-select_streams","v:0","-count_frames","-show_entries","stream=nb_read_frames","-of","default=nokey=1:noprint_wrappers=1",p])); assert n==720, n; print("Combined video: 720 decoded frames")'
       - uses: actions/upload-artifact@v4
         with:
           name: apex-c6-native-avoidance
