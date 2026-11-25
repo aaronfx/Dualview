@@ -63,3 +63,25 @@ unproved results are rejected. Up to two provider calls are allowed, subject to
 the pre-existing tighter budget limits. Native execution, not model text,
 provides the acceptance evidence. This first mission interface requires an
 existing world; it does not yet build a whole multi-scene movie from scratch.
+
+## Local production studio (incremental D2–D8)
+
+Launch from apex-animation-engine:
+
+    .\.venv\Scripts\python.exe -m apex.api.local_studio
+
+Open http://127.0.0.1:8078/ . The loopback-only app queues one production
+at a time. Offline mode uses existing templates; the paid mode uses the
+existing budgeted StoryDirector. Projects can also be submitted as native
+ProjectSpec JSON to POST /projects. Preview, native QA, decoded-pixel and
+pacing reports are generated locally. Final rendering requires an explicit
+owner review of the exact preview. An interrupted job can be resumed;
+unchanged, passing native scene segments are content-fingerprinted and reused.
+
+Ensemble mission tool: bounded causal task DAG with native event waits,
+validated alternative action queues and independently verified dependencies.
+Actor evidence and approvals are stored per production in SQLite. The critic
+reports native pacing, overlap and missed actions plus decoded near-black
+and static runs. It is not a learned image/video critic. No unrestricted
+improvisation or reference-quality acceptance claim. Actual paid model tests,
+Windows smoke, complete benchmark films and visual acceptance remain required.

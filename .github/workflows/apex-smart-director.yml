@@ -23,7 +23,7 @@ jobs:
         run: |
           mkdir -p out/smart_director_tests
           set -o pipefail
-          python -m pytest -q tests/test_smart_director.py tests/test_smart_mission.py tests/test_smart_visual_profiles.py tests/test_autochoreo.py tests/test_apex_extension_native.py | tee out/smart_director_tests/tests.txt
+          python -m pytest -q tests/test_smart_director.py tests/test_smart_mission.py tests/test_smart_visual_profiles.py tests/test_director_ensemble_memory.py tests/test_local_production.py tests/test_autochoreo.py tests/test_apex_extension_native.py | tee out/smart_director_tests/tests.txt
       - name: Native objective-to-preview
         run: python examples/smart_director_crossing.py --out out/smart_director --render
       - uses: actions/upload-artifact@v4
