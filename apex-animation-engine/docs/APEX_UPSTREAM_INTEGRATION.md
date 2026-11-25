@@ -3,9 +3,9 @@ Native APEX owns physics, mathematical proof, choreography and acceptance. No re
 
 | Project | Intended scope | Status |
 |---|---|---|
-| Motion Canvas | Optional TS presentation backend consuming native frame export | Diagnostic MP4 verified on 17d6ac9; native camera/style/room bridge added, visual QA pending |
-| Hypothesis | Generated native regression scenarios | Dev dependency added; property tests pending |
-| Py Trees | Reactive intent arbitration, existing CharacterBrain | Candidate |
+| Motion Canvas | Optional TS presentation backend consuming native frame export | Two diagnostic MP4s rendered; optional presentation only, native renderer remains primary |
+| Hypothesis | Generated native regression scenarios | Dev dependency and generated lane tests verified |
+| Py Trees | Reactive intent arbitration, existing CharacterBrain | Pinned selector adapter committed; live perception/action integration and tests pending |
 | RVO2 | Reciprocal avoidance concepts adapted to depth lanes | Candidate |
 | Unified Planning | Independent goal-plan validation | Candidate |
 | Spring-It-On | Damping and motion transitions | Candidate |

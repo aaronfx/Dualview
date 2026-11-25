@@ -74,3 +74,28 @@ def test_failure_memory_is_bounded():
         brain.record_outcome(str(i), Intent.APPROACH, succeeded=False)
     assert len(brain.failed_attempts) == 128
     assert ("0", Intent.APPROACH) not in brain.failed_attempts
+
+
+def test_reactive_priority_trace_and_resume():
+    brain = CharacterBrain(Personality(courage=0.9, empathy=0.9))
+    stimuli = [
+        Perception(goal_visible=True),
+        Perception(goal_visible=True, danger=0.95, ally_needs_help=True),
+        Perception(goal_visible=True, ally_needs_help=True),
+        Perception(goal_visible=True),
+    ]
+    assert [brain.choose(p) for p in stimuli] == [
+        Intent.APPROACH, Intent.EVADE, Intent.HELP, Intent.APPROACH]
+    decision = brain.decide(stimuli[1])
+    assert decision.visited == (Intent.RECOVER, Intent.EVADE)
+    assert brain.snapshot() == {"approach": 2, "evade": 1, "help": 1}
+
+
+def test_tree_isolates_actor_state():
+    first = CharacterBrain(Personality(curiosity=1))
+    second = CharacterBrain(Personality(curiosity=1))
+    p = Perception(novelty=1, target_id="crate")
+    first.record_outcome("crate", Intent.EXPLORE, succeeded=False)
+    first.record_outcome("crate", Intent.EXPLORE, succeeded=False)
+    assert first.choose(p) == Intent.OBSERVE
+    assert second.choose(p) == Intent.EXPLORE
