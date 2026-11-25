@@ -30,6 +30,12 @@ jobs:
           apex validate out/lockdown_master/film.json
           apex render out/lockdown_master/film.json -o out/lockdown_master/film.mp4 --scale 1 --samples 1 --qa-json out/lockdown_master/qa.json
           ffmpeg -v error -xerror -i out/lockdown_master/film.mp4 -f null -
+      - name: Render opening act as explicitly unaccepted rehearsal preview
+        if: always() && !cancelled()
+        run: |
+          test -f out/lockdown_master/opening_preview.json
+          apex render out/lockdown_master/opening_preview.json -o out/lockdown_master/opening_preview.mp4 --scale 0.5 --samples 1 --qa-json out/lockdown_master/opening_qa.json
+          ffmpeg -v error -xerror -i out/lockdown_master/opening_preview.mp4 -f null -
       - uses: actions/upload-artifact@v4
         if: always()
         with:

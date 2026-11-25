@@ -16,3 +16,14 @@ def test_master_plan_and_continuity():
 def test_progress_gaps_fail_closed():
     assert module["longest_gap"]([],0,15)==15
     assert module["longest_gap"]([2,5,9],0,12)==4
+
+
+def test_opening_preview_preserves_native_initial_state():
+    raw=module["build"]()
+    preview=module["opening_preview"](raw)
+    p=ProjectSpec.model_validate(preview)
+    sc=p.scene("s")
+    assert sc.duration==15 and len(sc.shots)==1 and not sc.actions
+    assert preview["environments"]==raw["environments"]
+    assert preview["scenes"][0]["placements"]==raw["scenes"][0]["placements"]
+    assert preview["scenes"][0]["ensemble"]==raw["scenes"][0]["ensemble"]

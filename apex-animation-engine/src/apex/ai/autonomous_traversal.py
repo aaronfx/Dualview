@@ -197,6 +197,14 @@ class TraversalBrain:
         # plan a short local leg and reobserve. Keep the actual mission goal.
         if getattr(self,"conflict_actor",False):
             end=c.s+d*min(abs(self.goal-c.s),1300)
+            # A local horizon can end inside the first structure, leaving no
+            # valid landing even though the actual mission has ample space.
+            # Expand only through that structure's landing envelope.
+            edge_hit=c._path_blocker(c.s,end)
+            if edge_hit:
+                block=edge_hit[1]
+                far=block.x1 if d>0 else block.x0
+                end=c.s+d*min(abs(self.goal-c.s),max(abs(end-c.s),(far-c.s)*d+260))
         obstacles = []
         for o in c.others.values():
             if o is c or o._gone() or o.frame is not c.frame or abs(o.z-c.z) >= BODY_PASS_Z:

@@ -22,6 +22,11 @@ class ConflictRuntime:
         self.event_cursor=0
         self.hero_escape_until=0.
         self.hero_attack_failures={}
+        self.encounter_target=None
+        self.encounter_started=0.
+        self.encounter_cooldowns={}
+        self.last_progress_x=ensemble.ctrls[self.hero].s
+        self.last_progress_t=0.
         for cid,b in ensemble.brains.items():
             b.conflict_actor=True
             b.conflict_style=ensemble.roles[cid].combat_style
@@ -101,7 +106,30 @@ class ConflictRuntime:
         self.active=active
         if self.hero not in unavailable:
             viable=[cid for cid in eligible if ctrls[cid].frame is h.frame and abs(ctrls[cid].z-h.z)<28 and not h._path_blocker(h.s,ctrls[cid].s)]
+            if self.spec.require_distinct_contacts:
+                viable=[cid for cid in viable if t>=self.encounter_cooldowns.get(cid,0.)]
+                if abs(h.s-self.last_progress_x)>=25 or h.cur is not None and h.cur.type in ("strike","dodge","guard","climb","vault","duck_slide","get_up"):
+                    self.last_progress_x,self.last_progress_t=h.s,t
+                if t-self.last_progress_t>1.2:
+                    # Repeated failure at a temporary combat waypoint is not a
+                    # reason to halt the entire movie. Release it and replan.
+                    if self.encounter_target is not None:
+                        self.encounter_cooldowns[self.encounter_target]=t+5.
+                    self.hero_escape_until=max(self.hero_escape_until,t+2.5)
+                    hb.attempts.clear()
+                    hb.last=None
+                    hb.blocked_since=None
+                    h.emit(Event(t,"autonomous_replan",self.hero,{"reason":"conflict progress watchdog","target":self.encounter_target,"x":h.s}))
+                    self.last_progress_t=t
             target=min(viable,key=lambda cid:(0 if cid not in self.hero_hit_times else 1,0 if cid in active else 1,abs(ctrls[cid].s-h.s),cid)) if viable else None
+            if self.spec.require_distinct_contacts:
+                if target!=self.encounter_target:
+                    self.encounter_target,self.encounter_started=target,t
+                if target is not None and t-self.encounter_started>3.5:
+                    self.encounter_cooldowns[target]=t+6.
+                    self.hero_escape_until=max(self.hero_escape_until,t+2.5)
+                    self.encounter_target=None
+                    target=None
             hb.conflict_travel=t<self.hero_escape_until
             hb.ensemble_target=target
             en._intent(self.hero,"fight_to_escape" if target else "escape",target,t)
@@ -112,7 +140,11 @@ class ConflictRuntime:
             if self.spec.require_distinct_contacts and target is not None and target not in self.hero_hit_times and not hb.conflict_travel:
                 oc=ctrls[target]
                 direction=1 if oc.s>=h.s else -1
-                goal=oc.s-direction*.85*h._strike_reach("jab")
+                candidate=oc.s-direction*.85*h._strike_reach("jab")
+                # Never reverse a long escape merely to chase a guard who
+                # has already moved behind us. Nearby threats remain valid.
+                if (candidate-h.s)*(1 if dest>h.s else -1)>=-100:
+                    goal=candidate
             en._waypoint(self.hero,goal)
             hb.done=False
         for cid in self.guards:

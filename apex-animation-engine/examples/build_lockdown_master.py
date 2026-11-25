@@ -30,6 +30,16 @@ def build():
                   "lead":.14,"keep_in_frame":True,"shake":.35}} for a in spec["acts"]]
     return raw
 
+def opening_preview(raw):
+    result=deepcopy(raw)
+    scene=result["scenes"][0]
+    scene["duration"]=15
+    scene["shots"]=scene["shots"][:1]
+    scene["goals"]=[]
+    result["id"]="lockdown_opening_rehearsal"
+    result["title"]="LOCKDOWN opening rehearsal (unaccepted draft)"
+    return result
+
 def longest_gap(times,start,end):
     ordered=[start,*sorted(set(t for t in times if start<=t<=end)),end]
     return max((b-a for a,b in zip(ordered,ordered[1:])),default=0.)
@@ -68,6 +78,8 @@ if __name__=="__main__":
     path.write_text(json.dumps(raw,indent=2),encoding="utf-8")
     sim=SceneRuntime(ProjectSpec.model_validate(raw),"s").simulate(physics_only=True)
     evidence=audit(raw,sim)
+    (path.parent/"opening_preview.json").write_text(json.dumps(opening_preview(raw),indent=2),encoding="utf-8")
+    (path.parent/"native_trace.json").write_text(json.dumps([{"t":e.t,"actor":e.character,"event":e.type,"data":e.data} for e in sim.events if e.type in ("autonomous_decision","autonomous_blocked","autonomous_replan","autonomous_reached","conflict_engagement","hit","whiff","blocked","knockdown","stood_up","slide_end","vault","climbed","takeoff","ensemble_intent","body_block","adaptive_evade","adaptive_resume","action_impossible","conflict_escape")],indent=2,default=str),encoding="utf-8")
     (path.parent/"production_evidence.json").write_text(json.dumps(evidence,indent=2,default=str),encoding="utf-8")
     print(json.dumps(evidence,indent=2,default=str))
     if not evidence["native_acceptance"]:
