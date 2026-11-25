@@ -107,7 +107,14 @@ class TraversalBrain:
             key=("descend",c.frame.owner)
             if self.attempts.get(key,0)>=2:
                 return
-            action=ActionSpec(character=c.cid,type="jump_to",target_x=landing,height=45)
+            # Advance to a stable launch position before descending. A jump
+            # from the entry edge can land back on the same platform.
+            launch=edge-d*60
+            if (launch-c.s)*d>5:
+                key=("platform_traverse",c.frame.owner)
+                action=ActionSpec(character=c.cid,type="walk_to",target_x=launch,speed=120)
+            else:
+                action=ActionSpec(character=c.cid,type="jump_to",target_x=landing,height=45)
             self.pending=(key,c.s)
             self.active_action=action
             c.queue.append(action)
@@ -252,6 +259,14 @@ class TraversalBrain:
             self.progress_x,self.progress_t=c.s,t
             self.route_signature=self._hazards(c)
             c.queue.append(action)
+            if key[0]=="climb":
+                top=c._top_of(action.target,c.s)
+                d=1 if self.goal>c.s else -1
+                edge=top.hi if d>0 else top.lo
+                launch=edge-d*60
+                entry=(top.lo if d>0 else top.hi)+d*.42*c.stand_h
+                if (launch-entry)*d>10 and top.lo+35<launch<top.hi-35:
+                    c.queue.append(ActionSpec(character=c.cid,type="walk_to",target_x=launch,speed=120))
             if key[0]=="slide":
                 # Continue directly into a short clear-floor recovery run, not
                 # a one-tick idle which resets the pose history. Reassess after it.

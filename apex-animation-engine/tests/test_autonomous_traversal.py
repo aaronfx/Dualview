@@ -79,3 +79,13 @@ def test_autonomous_acrobatics(kind,event):
     assert any(e.type=="autonomous_reached" for e in sim.events)
     assert sim.controllers["iko"].records[-1].frame=="floor"
     assert abs(sim.controllers["iko"].records[-1].pos[0]-650)<3
+
+def test_climb_descends_directly_to_floor():
+    raw=runpy.run_path("examples/build_autonomous_acrobatics.py")["build"]("climb")
+    sim=SceneRuntime(ProjectSpec.model_validate(raw),"s").simulate()
+    ev=[e for e in sim.events if e.character=="iko"]
+    climbed=next(e for e in ev if e.type=="climbed")
+    flights=[e for e in ev if e.type=="takeoff" and e.t>climbed.t]
+    assert len(flights)==1
+    records=sim.controllers["iko"].records
+    assert all(r.frame=="floor" for r in records if r.t>flights[0].t+2)

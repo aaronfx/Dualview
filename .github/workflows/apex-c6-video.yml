@@ -34,11 +34,20 @@ jobs:
       - run: python -m pytest -q tests/test_character_brain.py tests/test_obstacle_assessment.py -k 'character_brain or opt_in_native_body'
       - run: python -m pytest -q tests/test_live_clearance_jump.py
       - run: python -m pytest -q tests/test_combined_crossing.py tests/test_autonomous_traversal.py tests/test_strategic_planning.py
-      - name: Fast slide diagnosis before full regression rendering
+      - name: Verify all three acrobatics clips first
         run: |
           mkdir -p out/c6
-          python examples/build_autonomous_acrobatics.py slide out/c6/slide.json
-          apex render out/c6/slide.json -o out/c6/slide.mp4 --scale 1 --samples 1 --qa-json out/c6/slide-qa.json
+          for skill in slide vault climb; do
+            python examples/build_autonomous_acrobatics.py "$skill" "out/c6/$skill.json"
+            apex validate "out/c6/$skill.json"
+            apex render "out/c6/$skill.json" -o "out/c6/$skill.mp4" --scale 1 --samples 1 --qa-json "out/c6/$skill-qa.json"
+          done
+      - name: Combine verified acrobatics demonstrations
+        run: |
+          printf "file 'slide.mp4'\nfile 'vault.mp4'\nfile 'climb.mp4'\n" > out/c6/acrobatics-list.txt
+          ffmpeg -v error -f concat -safe 0 -i out/c6/acrobatics-list.txt -c copy -movflags +faststart out/c6/autonomous_acrobatics.mp4
+          ffmpeg -v error -xerror -i out/c6/autonomous_acrobatics.mp4 -f null -
+          python -c 'import subprocess; p="out/c6/autonomous_acrobatics.mp4"; n=int(subprocess.check_output(["ffprobe","-v","error","-select_streams","v:0","-count_frames","-show_entries","stream=nb_read_frames","-of","default=nokey=1:noprint_wrappers=1",p])); assert n==720, n; print("Combined video: 720 decoded frames")'
       - run: |
           mkdir -p out/c6
           python examples/build_adaptive_avoidance.py out/c6/avoidance.json
@@ -58,17 +67,6 @@ jobs:
           python examples/build_autonomous_extended.py out/c6/autonomous_extended.json
           apex validate out/c6/autonomous_extended.json
           apex render out/c6/autonomous_extended.json -o out/c6/autonomous_extended.mp4 --scale 1 --samples 1 --qa-json out/c6/autonomous_extended-qa.json
-          for skill in slide vault climb; do
-            python examples/build_autonomous_acrobatics.py "$skill" "out/c6/$skill.json"
-            apex validate "out/c6/$skill.json"
-            apex render "out/c6/$skill.json" -o "out/c6/$skill.mp4" --scale 1 --samples 1 --qa-json "out/c6/$skill-qa.json"
-          done
-      - name: Combine verified acrobatics demonstrations
-        run: |
-          printf "file 'slide.mp4'\nfile 'vault.mp4'\nfile 'climb.mp4'\n" > out/c6/acrobatics-list.txt
-          ffmpeg -v error -f concat -safe 0 -i out/c6/acrobatics-list.txt -c copy -movflags +faststart out/c6/autonomous_acrobatics.mp4
-          ffmpeg -v error -xerror -i out/c6/autonomous_acrobatics.mp4 -f null -
-          python -c 'import subprocess; p="out/c6/autonomous_acrobatics.mp4"; n=int(subprocess.check_output(["ffprobe","-v","error","-select_streams","v:0","-count_frames","-show_entries","stream=nb_read_frames","-of","default=nokey=1:noprint_wrappers=1",p])); assert n==720, n; print("Combined video: 720 decoded frames")'
       - uses: actions/upload-artifact@v4
         if: always()
         with:
