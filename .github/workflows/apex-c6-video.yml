@@ -4,6 +4,8 @@ on:
     paths:
       - '.github/workflows/apex-c6-video.yml'
       - 'apex-animation-engine/examples/build_adaptive_avoidance.py'
+      - 'apex-animation-engine/src/apex/scene/goals.py'
+      - 'apex-animation-engine/src/apex/motion/**'
   workflow_dispatch:
 jobs:
   render:
