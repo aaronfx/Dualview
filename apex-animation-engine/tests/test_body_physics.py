@@ -179,3 +179,43 @@ def test_carried_depth_expands_existing_lane_clearance():
     assert c._route_half_depth() == 40
     lane = c._free_lane([("hypothetical", 0.0, 10.0)])
     assert lane is not None and abs(lane) >= 53
+
+
+def _carry_blocked_project(duration=8):
+    item = dict(kind="crate", id="item", position=[-65, 31],
+                size=[60, 60], mass=2, depth=80)
+    wall = dict(kind="container", id="wall", position=[-260, 90],
+                size=[90, 180], mass=110, friction=0.5, depth=150)
+    return proj([{"character":"kai","type":"pick_up","target":"prop:item"},
+                 {"character":"kai","type":"walk_to","target_x":-500,"speed":100}],
+                [item, wall], dur=duration)
+
+
+def test_carried_load_waits_if_no_clear_lane():
+    r = sim(_carry_blocked_project())
+    c = r.controllers["kai"]
+    assert c.carrying == "item"
+    assert any(e.data["prop"] == "wall" for e in ev(r, "route_wait"))
+    assert not ev(r, "route_resume")
+    assert c.s > -260
+    # The held load remains outside the wall's horizontal face.
+    assert r.prop_tracks["item"][-1, 0] - 30 >= r.prop_tracks["wall"][-1, 0] + 45 - 1
+
+
+def test_carried_load_resumes_after_native_obstacle_removal(monkeypatch):
+    from apex.physics.world import PhysicsWorld
+    original = PhysicsWorld.step
+    removed = False
+
+    def step(world, dt):
+        nonlocal removed
+        if not removed and world.t >= 4.0:
+            world.deactivate("wall")
+            removed = True
+        return original(world, dt)
+
+    monkeypatch.setattr(PhysicsWorld, "step", step)
+    r = sim(_carry_blocked_project(duration=12))
+    assert removed and ev(r, "route_wait") and ev(r, "route_resume")
+    assert ev(r, "route_resume")[0].t >= 4.0
+    assert abs(r.controllers["kai"].s + 500) < 2

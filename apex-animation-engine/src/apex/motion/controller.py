@@ -280,6 +280,7 @@ class CharacterController(InteractionMixin, CombatMixin, AcroMixin, ArcadeMixin,
         self.cur = self.queue.popleft() if self.queue else None
         self.cur_t0 = t
         self.cur_dir = None
+        self._carry_route_wait = None
         a = self.cur
         if a is not None and a.lane is not None:
             self.z_target = float(a.lane)
@@ -569,6 +570,17 @@ class CharacterController(InteractionMixin, CombatMixin, AcroMixin, ArcadeMixin,
         cur = self.v * direction
         cur = min(cur + acc * dt, v_des) if cur < v_des else max(cur - dec * dt, v_des)
         self.v = cur * direction
+        blocker = self._carry_route_blocker(self.v * dt)
+        waiting = getattr(self, "_carry_route_wait", None)
+        if blocker is not None:
+            self.v = 0.0
+            if waiting != blocker:
+                self.emit(Event(t, "route_wait", self.cid, {"prop": blocker, "reason": "carried_clearance"}))
+            self._carry_route_wait = blocker
+            return  # retain the action; native state is checked again next step
+        if waiting is not None:
+            self.emit(Event(t, "route_resume", self.cid, {"prop": waiting, "reason": "clearance_available"}))
+            self._carry_route_wait = None
         self.s += self.v * dt
         self.seg.data["run"] = run or self.seg.data.get("run", False)
         if carry and remaining <= 0:

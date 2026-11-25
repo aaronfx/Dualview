@@ -135,6 +135,30 @@ class AcroMixin:
             out.append((pid, pz, ph))
         return out
 
+    def _carry_route_blocker(self, dx: float) -> Optional[str]:
+        """Conservative swept held-object bounds for grounded locomotion.
+
+        Prop-to-prop impulses remain disabled for carried bodies. This guard
+        prevents advancing a held load into a solid prop in the same depth lane;
+        it does not claim to predict arbitrary impacts or moving-body intrusion.
+        """
+        pid = self.carrying
+        if pid is None or not self._upright() or abs(dx) < 1e-9:
+            return None
+        l, r, b, top = self._target_bounds(f"prop:{pid}")
+        l, r = min(l, l + dx), max(r, r + dx)
+        half = self.props[pid].depth / 2
+        for other, sp in self.props.items():
+            if other == pid or other in self.world.inactive or not sp.solid:
+                continue
+            z, ph = self.world.depth.get(other, (0.0, 30.0))
+            if abs(self.z - z) >= half + ph:
+                continue
+            ol, ore, ob, ot = self._target_bounds(f"prop:{other}")
+            if l < ore and r > ol and b < ot and top > ob:
+                return other
+        return None
+
     def _route_half_depth(self) -> float:
         """Depth clearance of the actor plus the carried prop, if any."""
         return max(14.0, self.props[self.carrying].depth / 2) if self.carrying else 14.0
