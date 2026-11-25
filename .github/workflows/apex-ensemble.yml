@@ -1,0 +1,35 @@
+name: APEX live ensemble benchmark
+on:
+  push:
+    branches: [apex-ensemble]
+  workflow_dispatch:
+jobs:
+  ensemble:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: apex-animation-engine
+    env:
+      APEX_AI_PAID_ENABLED: '0'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg libegl1 libgl1 libglx0
+      - run: python -m pip install -e '.[dev]'
+      - run: python -m pytest -q tests/test_ensemble_runtime.py tests/test_autonomous_traversal.py tests/test_strategic_planning.py
+      - name: Render ten actor native benchmark
+        run: |
+          mkdir -p out/ensemble
+          python examples/build_ensemble_ten.py out/ensemble/ten.json
+          apex validate out/ensemble/ten.json
+          apex render out/ensemble/ten.json -o out/ensemble/ten.mp4 --scale 1 --samples 1 --qa-json out/ensemble/qa.json
+          ffmpeg -v error -xerror -i out/ensemble/ten.mp4 -f null -
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: apex-ten-actor-benchmark
+          path: apex-animation-engine/out/ensemble/
+          if-no-files-found: warn

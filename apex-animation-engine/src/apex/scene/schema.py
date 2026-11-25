@@ -685,6 +685,61 @@ class ActorRole(Strict):
     aggression: float = Field(.8,ge=0,le=1)
     resolve: float = Field(.8,ge=0,le=1)
 
+class EnsembleActorSpec(Strict):
+    character: str
+    team: str = Field(min_length=1)
+    prompt: str = Field(min_length=20)
+    objective: Literal["reach","escort","intercept"]
+    destination_x: Optional[float] = Field(None,allow_inf_nan=False)
+    target: Optional[str] = None
+    offset: float = Field(140,ge=-1200,le=1200)
+    aggression: float = Field(.6,ge=0,le=1)
+    courage: float = Field(.7,ge=0,le=1)
+    empathy: float = Field(.7,ge=0,le=1)
+    priority: int = Field(5,ge=1,le=10)
+
+    @model_validator(mode="after")
+    def _objective(self):
+        if self.objective=="reach":
+            if self.destination_x is None or self.target is not None:
+                raise ValueError("reach requires a destination and no target")
+        elif self.destination_x is not None:
+            raise ValueError("dynamic objective must not supply a static destination")
+        if self.objective=="escort" and (not self.target or abs(self.offset)<75):
+            raise ValueError("escort requires a teammate and separated formation offset")
+        return self
+
+class EnsembleSpec(Strict):
+    actors: List[EnsembleActorSpec] = Field(min_length=1,max_length=100)
+    hostile_teams: List[Tuple[str,str]] = Field(default_factory=list)
+    coordination_hz: float = Field(5,ge=1,le=10)
+
+    @model_validator(mode="after")
+    def _cast(self):
+        by={a.character:a for a in self.actors}
+        if len(by)!=len(self.actors):
+            raise ValueError("duplicate ensemble actor")
+        teams={a.team for a in self.actors}
+        pairs={frozenset(p) for p in self.hostile_teams}
+        if len(pairs)!=len(self.hostile_teams) or any(len(p)!=2 or not p<=teams for p in pairs):
+            raise ValueError("invalid or duplicate hostile team pair")
+        slots=set()
+        for a in self.actors:
+            if a.target is not None and (a.target not in by or a.target==a.character):
+                raise ValueError("invalid ensemble target")
+            if a.objective=="escort":
+                leader=by[a.target]
+                if leader.team!=a.team or leader.objective!="reach":
+                    raise ValueError("escort needs a same-team reach leader")
+                slot=(a.target,a.offset)
+                if any(k==a.target and abs(o-a.offset)<75 for k,o in slots):
+                    raise ValueError("overlapping escort formation slots")
+                slots.add(slot)
+            if a.objective=="intercept":
+                if not any(frozenset((a.team,b.team)) in pairs and (a.target is None or a.target==b.character) for b in self.actors):
+                    raise ValueError("intercept requires hostile target")
+        return self
+
 class CharacterPlacement(Strict):
     character: str
     destination_x: Optional[float] = Field(None, allow_inf_nan=False)  # opt-in autonomous floor traversal
@@ -887,6 +942,7 @@ class MathTransferSpec(Strict):
 
 
 class SceneSpec(Strict):
+    ensemble: Optional[EnsembleSpec] = None
     storyline: Optional[str] = None
     id: str
     title: str = ""
@@ -965,6 +1021,14 @@ class ProjectSpec(Strict):
                         raise ValueError(f"scene {sc.id}: placement of {pl.character} at unknown level marker {pl.at!r}")
                     pl.x = lv.markers[pl.at][0]
             placed = {pl.character for pl in sc.placements}
+            if sc.ensemble is not None:
+                if not sc.storyline or {a.character for a in sc.ensemble.actors}!=placed or len(placed)!=len(sc.placements) or sc.actions:
+                    raise ValueError("ensemble requires complete cast, storyline and no authored actions")
+                if any(pl.destination_x is not None or pl.pursue is not None or pl.actor_role is not None for pl in sc.placements):
+                    raise ValueError("ensemble owns objectives exclusively; legacy goals cannot be mixed")
+                hw=envs[sc.environment].room.width/2
+                if any(a.destination_x is not None and abs(a.destination_x)>hw-40 for a in sc.ensemble.actors):
+                    raise ValueError("ensemble destination outside room")
             exits = {x.id for x in envs[sc.environment].exits}
             bars = {o.id for o in envs[sc.environment].obstacles if o.kind == "bar"}
             props = {p.id for p in envs[sc.environment].props}

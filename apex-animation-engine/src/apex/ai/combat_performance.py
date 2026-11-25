@@ -12,7 +12,9 @@ def choose_combat_action(brain,c,t):
     enemies=[o for o in c.others.values() if o is not c and not o._gone()
              and o.frame is c.frame and o.mode=="grounded" and not o.lying
              and abs(o.z-c.z)<BODY_PASS_Z and not c._path_blocker(c.s,o.s)
-             and (brain.hostile and brain.pursuit==o.cid or
+             and (getattr(brain,"ensemble_target",None)==o.cid or
+                  getattr(getattr(o,"autonomous_brain",None),"ensemble_target",None)==c.cid or
+                  brain.hostile and brain.pursuit==o.cid or
                   getattr(o,"autonomous_brain",None) is not None
                   and o.autonomous_brain.hostile and o.autonomous_brain.pursuit==c.cid)]
     if not enemies:
