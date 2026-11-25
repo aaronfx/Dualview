@@ -270,7 +270,7 @@ class InteractionMixin:
                             and not oc.carrying and (oc.cur is None or oc.cur.type == "idle")):
                         direction = math.copysign(1.0, oc.s - self.s)
                         # Native lane allocator; no instantaneous displacement.
-                        bands = [(self.cid, self.z, BODY_PASS_Z / 2)]
+                        bands = [(self.cid, self.z, 40.0)]
                         bands += [(cid, other.z, BODY_PASS_Z / 2)
                                   for cid, other in self.others.items()
                                   if cid not in (self.cid, oc.cid) and abs(other.s - oc.s) < 120]
@@ -278,6 +278,7 @@ class InteractionMixin:
                         lane = oc._free_lane(bands)
                         self.emit(self._ev(t, "nudge", {"with": oc.cid, "point": mid}))
                         oc._receive(t, self.cid, "nudge", "stagger", 0.35, direction, "body", mid)
+                        I["push_contact"] = True
                         if lane is not None:
                             oc.z_target = lane
                         oc.emit(oc._ev(t, "nudge_reaction", {"by": self.cid, "lane": lane}))
@@ -285,7 +286,18 @@ class InteractionMixin:
                         self.emit(self._ev(t, "nudge_missed", {"with": oc.cid}))
                 else:
                     self.emit(self._ev(t, a.gesture, {"with": I["other"], "point": mid}))
-            if tau >= (1.05 if a.gesture == "nudge" and a.reaction == "stagger" else GESTURE_T):
+            if a.gesture == "nudge" and a.reaction == "stagger":
+                if tau >= 1.05:
+                    oc = self.others[I["other"]]
+                    if (I.get("push_contact") and abs(oc.z - self.z) >= 54.0
+                            and (oc.cur is None or oc.cur.type == "idle")):
+                        self.emit(self._ev(t, "nudge_clear", {"with": oc.cid, "depth_gap": abs(oc.z - self.z)}))
+                        self._next_action(t)
+                    elif tau >= 2.4 and not I.get("clearance_failed"):
+                        # Fail closed: do not advance the queued run into a blocked route.
+                        I["clearance_failed"] = True
+                        self.emit(self._ev(t, "nudge_blocked", {"with": oc.cid}))
+            elif tau >= GESTURE_T:
                 self._next_action(t)
 
     # -- push: brace, strain (bounded force), follow; losing contact -> stumble and fall

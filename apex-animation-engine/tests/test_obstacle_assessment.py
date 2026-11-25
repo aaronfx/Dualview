@@ -216,7 +216,7 @@ def test_opt_in_native_body_avoidance_completes_route():
     assert abs(a[-1].z) < 1
 
 
-def test_adaptive_avoidance_preserves_forward_momentum():
+def test_opt_in_native_body_preserves_forward_momentum():
     raw = _two_char_scene(-500, 100, 600, [])
     raw["scenes"][0]["actions"][0]["adaptive_avoidance"] = True
     sim = SceneRuntime(ProjectSpec.model_validate(raw), "s").simulate()
@@ -232,9 +232,9 @@ def test_opt_in_native_body_push_reaction_then_pass():
     raw = _two_char_scene(-360, 60, 430, [])
     scene = raw["scenes"][0]
     scene["actions"].insert(0, {"character": "iko", "type": "gesture", "gesture": "nudge",
-                                "target": "char:pell", "reaction": "stagger", "distance": 42, "speed": 300})
+                                "target": "char:pell", "reaction": "stagger", "distance": 65, "speed": 300})
     scene["actions"][1]["adaptive_avoidance"] = True
-    scene["goals"] = ["nudge@iko[with=pell]", "nudge_reaction@pell[by=iko]"]
+    scene["goals"] = ["nudge@iko[with=pell]", "nudge_reaction@pell[by=iko]", "nudge_clear@iko[with=pell]"]
     sim = SceneRuntime(ProjectSpec.model_validate(raw), "s").simulate()
     contact = next(e for e in sim.events if e.type == "nudge" and e.character == "iko")
     reaction = next(e for e in sim.events if e.type == "nudge_reaction" and e.character == "pell")
@@ -242,5 +242,9 @@ def test_opt_in_native_body_push_reaction_then_pass():
     assert not any(e.type == "nudge_missed" for e in sim.events)
     a, b = sim.controllers["iko"].records, sim.controllers["pell"].records
     assert a[-1].s > 420 and b[-1].s > 90
-    assert abs(b[-1].z) >= 28
+    clear = next(e for e in sim.events if e.type == "nudge_clear")
+    assert clear.t >= reaction.t + 0.70
+    assert clear.data["depth_gap"] >= 54
+    assert abs(b[-1].z) >= 54
+    assert all(x.s < y.s for x,y in zip(a,b) if contact.t <= x.t < clear.t)
     assert all(abs(x.s-y.s) >= 29.9 or abs(x.z-y.z) >= 28 for x,y in zip(a,b))

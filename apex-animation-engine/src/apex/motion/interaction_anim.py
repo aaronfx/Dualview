@@ -470,8 +470,8 @@ class InteractionAnimMixin:
             pose.hands["n"] = "open"
         elif kind == "nudge" and seg.data.get("push"):
             g = self._shoulder_of(other, t)
-            reach = smoothstep(0.12, GESTURE_CONTACT, tau) * (1 - smoothstep(GESTURE_CONTACT + 0.08, 0.95, tau))
-            set_lean(pose.local, 0.06 + 0.18 * reach)
+            reach = smoothstep(0.12, GESTURE_CONTACT, tau) * (1 - smoothstep(GESTURE_CONTACT + 0.03, 0.88, tau))
+            set_lean(pose.local, 0.03 + 0.12 * reach)
             sh = self.rig.world_joints(pose)["shoulder_n"]
             self.rig.arm_ik(pose, "n", (lerp(sh[0], g[0], reach), lerp(sh[1] - 25, g[1] - 12, reach)), fingertip=True)
             pose.hands["n"] = "open"
