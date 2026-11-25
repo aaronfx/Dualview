@@ -8,7 +8,7 @@ def _two_char_scene(iko_x, pell_x, iko_target, pell_actions):
         return {"id": cid, "name": cid.upper(), "strength": 52000,
                 "proportions": {"spine": 30, "chest": 28, "head": 24, "thigh": 44, "shin": 42},
                 "style": {"visual_profile": "apex_ink", "performance_profile": "continuous", "body_color": color,
-                          "far_color": "#888", "glow_color": color, "has_scarf": False, "limb_width": 8.0}}
+                          "far_color": "#888888", "glow_color": color, "has_scarf": False, "limb_width": 8.0}}
     return {"schema_version": "0.1", "id": "blk", "title": "Blocked", "fps": 24, "width": 1280, "height": 720,
             "seed": 7, "characters": [_actor("iko", "#ffd04e"), _actor("pell", "#59d6ed")],
             "environments": [{"id": "e", "room": {"width": 2200, "height": 800, "depth_back": 400,
