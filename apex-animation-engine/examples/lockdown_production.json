@@ -1,0 +1,136 @@
+{
+  "title": "LOCKDOWN: One Against Nine",
+  "duration": 160,
+  "fps": 24,
+  "hero": "iko",
+  "guard_count": 9,
+  "maximum_unmotivated_idle_seconds": 0.5,
+  "maximum_story_event_gap_seconds": 4,
+  "continuity": "one native physics timeline; act boundaries are editorial only",
+  "minimum_distinct_hero_targets": 5,
+  "actors": [
+    "speed",
+    "power",
+    "acrobat",
+    "defense",
+    "grappler",
+    "trickster",
+    "technician",
+    "tactician",
+    "commander"
+  ],
+  "acts": [
+    {
+      "id": "ambush",
+      "start": 0,
+      "end": 15,
+      "title": "Opening attack and reveal",
+      "required_events": [
+        "strike_start",
+        "hit",
+        "conflict_engagement"
+      ],
+      "dramatic_requirements": [
+        "hook",
+        "reveal of nine guards",
+        "closing security"
+      ]
+    },
+    {
+      "id": "pursuit",
+      "start": 15,
+      "end": 40,
+      "title": "Running battle",
+      "required_events": [
+        "slide_end",
+        "vault",
+        "takeoff"
+      ],
+      "dramatic_requirements": [
+        "sprinter",
+        "acrobat",
+        "bruiser",
+        "aerial confrontation"
+      ]
+    },
+    {
+      "id": "machinery",
+      "start": 40,
+      "end": 65,
+      "title": "Environment becomes a weapon",
+      "required_events": [
+        "pick_up",
+        "throw",
+        "hand_grab"
+      ],
+      "dramatic_requirements": [
+        "technician",
+        "defender",
+        "machinery activation",
+        "assisted rescue"
+      ]
+    },
+    {
+      "id": "reversal",
+      "start": 65,
+      "end": 90,
+      "title": "Yellow loses control",
+      "required_events": [
+        "knockdown",
+        "stood_up"
+      ],
+      "dramatic_requirements": [
+        "tactician",
+        "grappler",
+        "hero knockdown",
+        "recovery"
+      ]
+    },
+    {
+      "id": "comeback",
+      "start": 90,
+      "end": 125,
+      "title": "Adaptive comeback",
+      "required_events": [
+        "hit",
+        "climbed",
+        "slide_end"
+      ],
+      "dramatic_requirements": [
+        "trickster",
+        "acrobatic combinations",
+        "environment interaction"
+      ]
+    },
+    {
+      "id": "commander",
+      "start": 125,
+      "end": 152,
+      "title": "Final confrontation",
+      "required_events": [
+        "hit",
+        "blocked"
+      ],
+      "dramatic_requirements": [
+        "commander",
+        "counter adaptation",
+        "decisive contact"
+      ]
+    },
+    {
+      "id": "twist",
+      "start": 152,
+      "end": 160,
+      "title": "Escape and new threat",
+      "required_events": [
+        "conflict_escape"
+      ],
+      "dramatic_requirements": [
+        "closing exit",
+        "new shadow",
+        "defensive reaction"
+      ]
+    }
+  ],
+  "production_notes": "Native events are necessary but not sufficient for each dramatic requirement. Human creative review mandatory. Grappling, machinery interaction, closing exit and final shadow are not verified."
+}

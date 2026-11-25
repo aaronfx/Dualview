@@ -24,6 +24,7 @@ class ConflictRuntime:
         self.hero_attack_failures={}
         for cid,b in ensemble.brains.items():
             b.conflict_actor=True
+            b.conflict_style=ensemble.roles[cid].combat_style
             b.hostile=True
             if cid==self.hero:
                 b.ensemble_impact="knockdown"
@@ -104,7 +105,15 @@ class ConflictRuntime:
             hb.conflict_travel=t<self.hero_escape_until
             hb.ensemble_target=target
             en._intent(self.hero,"fight_to_escape" if target else "escape",target,t)
-            en._waypoint(self.hero,dest)
+            # The film mode explicitly seeks first contact with an opponent,
+            # instead of sprinting past the entire cast. Keep physical route
+            # authority in TraversalBrain; no teleportation or forced hits.
+            goal=dest
+            if self.spec.require_distinct_contacts and target is not None and target not in self.hero_hit_times and not hb.conflict_travel:
+                oc=ctrls[target]
+                direction=1 if oc.s>=h.s else -1
+                goal=oc.s-direction*.85*h._strike_reach("jab")
+            en._waypoint(self.hero,goal)
             hb.done=False
         for cid in self.guards:
             c,b=ctrls[cid],brains[cid]
@@ -119,10 +128,16 @@ class ConflictRuntime:
                 en._waypoint(cid,h.s-side*gap)
                 b.done=False
             elif cid in eligible:
-                # Reserve space for the active attackers. Do not join the
-                # same melee until an engagement slot becomes free.
+                # Reserve room for active attackers while continuing purposeful
+                # positioning. The longer film opts into this new behavior.
                 en._intent(cid,"cover",self.hero,t)
-                self._idle(cid,t)
+                if self.spec.require_distinct_contacts:
+                    b.ensemble_target=None
+                    side=1 if c.s>=h.s else -1
+                    goal=h.s+side*(250+60*(self.guards.index(cid)%3))
+                    en._waypoint(cid,goal)
+                else:
+                    self._idle(cid,t)
             else:
                 en._intent(cid,"watch",self.hero,t)
                 self._idle(cid,t)

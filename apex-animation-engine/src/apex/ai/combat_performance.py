@@ -40,6 +40,8 @@ def choose_combat_action(brain,c,t):
     cooldown=.48 if engaged else .8
     if getattr(brain,"ensemble_actor",False):
         cooldown=.95-.4*getattr(brain,"ensemble_aggression",.6)
+        if getattr(brain,"conflict_style","")=="speed":cooldown*=.8
+        elif getattr(brain,"conflict_style","")=="power":cooldown*=1.2
     if (c.queue and not engaged) or t-brain.last_attack<cooldown:
         return None
     # The escape actor only counters a resolved attack, once per attack.
@@ -53,6 +55,10 @@ def choose_combat_action(brain,c,t):
     moves=("jab","cross","hook","front_kick","side_kick") if brain.hostile else ("side_kick","cross","front_kick")
     if getattr(brain,"conflict_hero",False):
         moves=("sweep","side_kick","front_kick","jab","cross","hook")
+    elif getattr(brain,"conflict_actor",False):
+        style=getattr(brain,"conflict_style","balanced")
+        preferences={"speed":("jab","cross","front_kick"),"power":("side_kick","hook","cross"),"acrobat":("front_kick","side_kick","sweep"),"defense":("jab","cross"),"grappler":("hook","sweep"),"trickster":("sweep","jab","side_kick"),"technician":("cross","front_kick"),"tactician":("jab","sweep","cross"),"commander":("side_kick","sweep","hook","cross","jab")}
+        moves=preferences.get(style,moves)
     feasible=[move for move in moves if .55*c._strike_reach(move)<=gap<=c._strike_reach(move)]
     if getattr(brain,"role",None) is not None or getattr(brain,"conflict_actor",False):
         # Reserve the swept limb envelope beyond both actors; avoid starting a

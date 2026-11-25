@@ -327,7 +327,7 @@ class AcroMixin:
         explicit lane, carried object or prop sidestep is overridden.
         """
         if (a.lane is not None or a.target is not None or self.carrying
-                or self.inter_action is not None or self.lying or not self._upright()
+                or (self.inter_action is not None and (not getattr(getattr(self,"autonomous_brain",None),"ensemble_actor",False) or self.cur is self.inter_action or any(q is self.inter_action for q in self.queue))) or self.lying or not self._upright()
                 or self.frame.owner is not None or getattr(self, "_sidestep", None) is not None):
             return speed
         from ..ai.character_brain import CharacterBrain, Intent, Perception, Personality

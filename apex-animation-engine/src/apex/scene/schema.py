@@ -691,6 +691,7 @@ class EnsembleActorSpec(Strict):
     prompt: str = Field(min_length=20)
     objective: Literal["reach","escort","intercept","acquire","assist"]
     impact: Literal["flinch","knockdown"] = "flinch"
+    combat_style: Literal["balanced","speed","power","acrobat","defense","grappler","trickster","technician","tactician","commander"] = "balanced"
     resources: List[str] = Field(default_factory=list,max_length=32)
     destination_x: Optional[float] = Field(None,allow_inf_nan=False)
     target: Optional[str] = None
@@ -725,6 +726,7 @@ class ConflictSpec(Strict):
     activation_radius: float = Field(650,ge=200,le=1600)
     attack_slots: int = Field(2,ge=1,le=3)
     recovery_delay: float = Field(2.0,ge=.5,le=5)
+    require_distinct_contacts: bool = False
 
 class EnsembleSpec(Strict):
     actors: List[EnsembleActorSpec] = Field(min_length=1,max_length=100)
