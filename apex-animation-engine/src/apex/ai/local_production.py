@@ -41,8 +41,13 @@ def scene_fingerprint(p,s,settings,engine):
 
 def create_from_brief(brief,directory,*,offline=False,reason=""):
     from .smart_director import plan_story
+    from .story_check import offline_support, detect_archetype
     directory=Path(directory);directory.mkdir(parents=True,exist_ok=True)
     if (directory/"project.json").exists():raise ValueError("Production already exists")
+    # D10.5: an unsupported offline request produces a clear limitation, never a silent substitution.
+    if offline:
+        lim=offline_support(brief)
+        if lim:raise ValueError("Unsupported offline story: "+lim)
     project,trace=plan_story(brief,offline=offline,reason=reason)
     project=safe_project(project)
     raw=project.model_dump(mode="json")
@@ -54,6 +59,9 @@ def create_from_brief(brief,directory,*,offline=False,reason=""):
     project, staging = stage_cinematics(project)
     atomic(directory/"cinematic_trace.json",staging)
     atomic(directory/"story_trace.json",trace)
+    # D10.5: record the REQUIRED story (derived from the brief, independent of the generated plan) so
+    # run_production can verify it against the actual native simulation at acceptance time.
+    atomic(directory/"required_story.json",{"brief":brief,"archetype":detect_archetype(brief)})
     atomic(directory/"project.json",project.model_dump(mode="json"))
     return project
 
@@ -103,6 +111,23 @@ def run_production(directory,*,final=False,progress=None):
     if p.creative_plan:
         fails=[x.name for x in audit_creative_plan(p,evidence) if x.status=="FAIL"]
         if fails:raise ValueError("Creative contract failed: "+", ".join(fails))
+    # D10.5: verify the REQUESTED story (independent of the plan) against the actual native events. A technically
+    # valid film that fails the requested story is rejected; story_bad is folded into the acceptance gate below.
+    story=None;story_bad=[]
+    rs_path=directory/"required_story.json"
+    if rs_path.exists():
+        from .story_check import requirements_for, verify as verify_story
+        from types import SimpleNamespace
+        brief=read(rs_path).get("brief","")
+        _,reqs=requirements_for(brief)
+        if reqs:
+            allev=[];off=0.0
+            for s in p.scenes:
+                allev+=[SimpleNamespace(t=e.t+off,type=e.type,character=e.character,data=e.data) for e in evidence[s.id]]
+                off+=s.duration
+            story=verify_story(reqs,p,allev)
+            if not story["story_pass"]:
+                story_bad=["story:"+r["id"] for r in story["requirements"] if not r["met"]]
     work=directory/(mode+"_scenes");work.mkdir(exist_ok=True)
     cache_path=work/"cache.json";old=read(cache_path) if cache_path.exists() else {};cache={};dirty=[]
     for i,s in enumerate(p.scenes):
@@ -128,6 +153,7 @@ def run_production(directory,*,final=False,progress=None):
                     work_dir=str(work),qa=True,only=dirty,progress=say,on_scene=checkpoint)
     bad=[m.scene for m in res.scenes if m.failed or "FAIL" in m.gates.values() or not m.gates]
     bad += [c["name"] for c in res.film_checks if c["status"]=="FAIL"]
+    bad += story_bad                      # D10.5: wrong requested story fails acceptance even if technical QA passes
     for i,s in enumerate(p.scenes):
         seg=work/f"{i:02d}_{s.id}.mp4";meta=Path(str(seg)+".json");qa=Path(str(seg)+".qa.json")
         if seg.exists() and meta.exists() and qa.exists() and read(qa).get("passed") is True:
@@ -138,6 +164,7 @@ def run_production(directory,*,final=False,progress=None):
     report={"technical_pass":not bad,"failures":bad,"project_hash":spec_hash,"engine_hash":eng,
             "video_hash":vh,"approval_key":digest([spec_hash,eng,vh]),"render":res.to_dict(),
             "telemetry":critiques,"pixel_review":inspect_video(video),"rendered_scenes":dirty,
+            "story_verification":story,"story_pass":(story["story_pass"] if story else None),
             "artistic_review":"owner_approved_preview" if final else "pending"}
     atomic(report_path,report)
     if bad:raise RuntimeError("Native QA rejected: "+", ".join(bad))
