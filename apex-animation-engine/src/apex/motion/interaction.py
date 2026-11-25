@@ -221,7 +221,7 @@ class InteractionMixin:
             if self._go(t, a, dest) or self._face(t, a, -side):
                 return
             I.update(other=other)
-            self._open("gesture", t, other=other, gesture=a.gesture)
+            self._open("gesture", t, other=other, gesture=a.gesture, push=(a.gesture == "nudge" and a.reaction == "stagger"))
             self.emit(self._ev(t, "gesture_start", {"gesture": a.gesture, "with": other}))
 
     # ------------------------------------------------------------ per-step behaviour
@@ -259,8 +259,33 @@ class InteractionMixin:
                 oc = self.others[I["other"]]
                 mid = ((self.world.state(self.cid).pos[0] + self.world.state(oc.cid).pos[0]) / 2,
                        self.frame.to_world(self.s, self.stand_h + self.shoulder_up * 0.7)[1])
-                self.emit(self._ev(t, a.gesture, {"with": I["other"], "point": mid}))
-            if tau >= GESTURE_T:
+                if a.gesture == "nudge" and a.reaction == "stagger":
+                    # Deliberate push: only a nearby upright, unoccupied actor
+                    # can yield. A missed contact must not fabricate a reaction.
+                    from .acrobatics import BODY_PASS_Z, BODY_GAP
+                    gap = abs(oc.s - self.s)
+                    if (oc.mode == "grounded" and not oc.lying and not oc._gone()
+                            and oc.frame is self.frame and abs(oc.z - self.z) < BODY_PASS_Z
+                            and BODY_GAP - 2 <= gap <= self.arm_reach + 18
+                            and not oc.carrying and (oc.cur is None or oc.cur.type == "idle")):
+                        direction = math.copysign(1.0, oc.s - self.s)
+                        # Native lane allocator; no instantaneous displacement.
+                        bands = [(self.cid, self.z, BODY_PASS_Z / 2)]
+                        bands += [(cid, other.z, BODY_PASS_Z / 2)
+                                  for cid, other in self.others.items()
+                                  if cid not in (self.cid, oc.cid) and abs(other.s - oc.s) < 120]
+                        bands += oc._props_in_path(oc.s, oc.s + direction * 65.0)
+                        lane = oc._free_lane(bands)
+                        self.emit(self._ev(t, "nudge", {"with": oc.cid, "point": mid}))
+                        oc._receive(t, self.cid, "nudge", "stagger", 0.35, direction, "body", mid)
+                        if lane is not None:
+                            oc.z_target = lane
+                        oc.emit(oc._ev(t, "nudge_reaction", {"by": self.cid, "lane": lane}))
+                    else:
+                        self.emit(self._ev(t, "nudge_missed", {"with": oc.cid}))
+                else:
+                    self.emit(self._ev(t, a.gesture, {"with": I["other"], "point": mid}))
+            if tau >= (1.05 if a.gesture == "nudge" and a.reaction == "stagger" else GESTURE_T):
                 self._next_action(t)
 
     # -- push: brace, strain (bounded force), follow; losing contact -> stumble and fall

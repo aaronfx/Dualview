@@ -27,13 +27,14 @@ def _two_char_scene(iko_x, pell_x, iko_target, pell_actions):
 
 
 if __name__ == "__main__":
-    raw = _two_char_scene(-500, 100, 600, [])
+    raw = _two_char_scene(-360, 60, 430, [])
     raw["id"] = "adaptive_avoidance"
     raw["title"] = "Anticipate, evade, resume"
     scene = raw["scenes"][0]
-    scene["actions"][0]["adaptive_avoidance"] = True
-    scene["duration"] = 4.5
-    scene["shots"][0]["end"] = 4.5
+    scene["actions"].insert(0, {"character": "iko", "type": "gesture", "gesture": "nudge", "target": "char:pell", "reaction": "stagger", "distance": 42, "speed": 300})
+    scene["actions"][1]["adaptive_avoidance"] = True
+    scene["duration"] = 5.0
+    scene["shots"][0]["end"] = 5.0
     scene["shots"][0]["camera"] = {"mode": "follow", "target": "iko", "view_height": 550, "include": ["char:pell"], "keep_in_frame": True}
-    scene["goals"] = ["adaptive_evade@iko", "adaptive_resume@iko"]
+    scene["goals"] = ["nudge@iko[with=pell]", "nudge_reaction@pell[by=iko]"]
     Path(sys.argv[1]).write_text(json.dumps(raw), encoding="utf-8")

@@ -468,6 +468,13 @@ class InteractionAnimMixin:
             pat = 3.0 * math.sin(2 * PI * 3.0 * max(0.0, tau - GESTURE_CONTACT)) * out
             self.rig.arm_ik(pose, "n", (lerp(sh[0], g[0], out), lerp(sh[1] - 25, g[1] + 4 + pat, out)), fingertip=True)
             pose.hands["n"] = "open"
+        elif kind == "nudge" and seg.data.get("push"):
+            g = self._shoulder_of(other, t)
+            reach = smoothstep(0.12, GESTURE_CONTACT, tau) * (1 - smoothstep(GESTURE_CONTACT + 0.08, 0.95, tau))
+            set_lean(pose.local, 0.06 + 0.18 * reach)
+            sh = self.rig.world_joints(pose)["shoulder_n"]
+            self.rig.arm_ik(pose, "n", (lerp(sh[0], g[0], reach), lerp(sh[1] - 25, g[1] - 12, reach)), fingertip=True)
+            pose.hands["n"] = "open"
         elif kind == "nudge":  # a playful elbow into the other's side: lean in, bump, rock back grinning
             g = self._shoulder_of(other, t)
             bump = math.sin(PI * clamp((tau - 0.25) / 0.5, 0.0, 1.0))

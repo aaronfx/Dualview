@@ -226,3 +226,21 @@ def test_adaptive_avoidance_preserves_forward_momentum():
     during = [r for r in records if evade.t + .03 <= r.t <= evade.t + .22]
     assert during and min(r.vel[0] for r in during) > 100
     assert not any(e.type == "body_block" for e in sim.events)
+
+
+def test_opt_in_native_body_push_reaction_then_pass():
+    raw = _two_char_scene(-360, 60, 430, [])
+    scene = raw["scenes"][0]
+    scene["actions"].insert(0, {"character": "iko", "type": "gesture", "gesture": "nudge",
+                                "target": "char:pell", "reaction": "stagger", "distance": 42, "speed": 300})
+    scene["actions"][1]["adaptive_avoidance"] = True
+    scene["goals"] = ["nudge@iko[with=pell]", "nudge_reaction@pell[by=iko]"]
+    sim = SceneRuntime(ProjectSpec.model_validate(raw), "s").simulate()
+    contact = next(e for e in sim.events if e.type == "nudge" and e.character == "iko")
+    reaction = next(e for e in sim.events if e.type == "nudge_reaction" and e.character == "pell")
+    assert reaction.t >= contact.t
+    assert not any(e.type == "nudge_missed" for e in sim.events)
+    a, b = sim.controllers["iko"].records, sim.controllers["pell"].records
+    assert a[-1].s > 420 and b[-1].s > 90
+    assert abs(b[-1].z) >= 28
+    assert all(abs(x.s-y.s) >= 29.9 or abs(x.z-y.z) >= 28 for x,y in zip(a,b))
