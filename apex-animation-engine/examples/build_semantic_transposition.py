@@ -54,9 +54,30 @@ def _base_project(n: int = 2, c: int = 5, op: str = "add"):
                                           "view_height": max(480, (dest_x - term.position[0] + 420) / 1.7)}}]}]}
 
 
+def _trim_to_events(raw):
+    """Event-derived duration: run the chosen staging and cut shortly after the real payoff (the final evaluation
+    morph and the closing act), instead of a fixed wall-clock length. The >=1s intermediate dwell is internal to the
+    event timing and is preserved; only the dead tail is removed."""
+    from apex.scene.schema import ProjectSpec
+    from apex.scene.runtime import SceneRuntime
+    p = ProjectSpec.model_validate(raw)
+    sc = p.scenes[0]
+    res = SceneRuntime(p, sc.id).simulate()
+    morphs = [e.t for e in res.events if e.type == "morph"]
+    # the last authored act (the closing beat) and its duration define the real end of the performance
+    last_act = max((e.t for e in res.events if e.type == "act"), default=0.0)
+    closing = next((a.duration for a in reversed(sc.actions) if a.type == "act" and a.duration), 1.0)
+    end = max((max(morphs) if morphs else 0.0) + 0.8, last_act + closing + 0.4)
+    dur = round(min(sc.duration, end), 2)
+    raw["scenes"][0]["duration"] = dur
+    for shot in raw["scenes"][0]["shots"]:
+        shot["end"] = dur
+    return raw
+
+
 def project(n: int = 2, c: int = 5, op: str = "add"):
     from apex.scene.math_rehearsal import rehearse
-    return rehearse(_base_project(n, c, op))[0]
+    return _trim_to_events(rehearse(_base_project(n, c, op))[0])
 
 
 if __name__ == "__main__":

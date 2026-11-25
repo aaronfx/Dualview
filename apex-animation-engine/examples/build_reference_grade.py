@@ -46,12 +46,13 @@ def relay_world(width=2100):
     e['obstacles'][0].update(style='girder',color='#536d7f')
     e['backdrop']=dict(kind='tower',art_profile='industrial_depth',seed=42,weather='motes',weather_amount=.28,
         sky=['#080e19','#1b3040','#304853'],fog='#20313b')
-    # Open rooms don't draw their implicit ground. A platform top at y=0 is
-    # technically within the room floor; native rendering must show support.
-    # Use a native solid floor beam rather than painted set dressing.
-    # Existing implicit floor remains the contact authority. A girder below
-    # its surface is drawn through native World without changing the floor plane.
-    e['obstacles'].append(dict(id='station_floor',kind='beam',center=[0,-25],size=[width,50],style='girder',color='#455a66'))
+    # Open rooms don't draw their implicit ground. The implicit floor at y=0 stays
+    # the contact authority; a girder is drawn through native World *below* that
+    # surface as support. Its top must sit clear of the feet (joints touch y=0): a
+    # beam with its top at y=0 is penetrated by every footstep (obstacle_clearance),
+    # so the girder sits 8u under the floor line — a real sub-floor member, not a
+    # standable beam, and no collision bypass.
+    e['obstacles'].append(dict(id='station_floor',kind='beam',center=[0,-33],size=[width,50],style='girder',color='#455a66'))
     e['exits']=[dict(id='airlock',surface='wall_right',s=100,width=210,sealed=True,unlock_on='together:iko,pell',open_radius=280)]
     sc=p['scenes'][0];sc.update(id='relay',environment=e['id'],title='Emergency extraction',goals=['notice@iko','pick_up@iko[prop=spark]','exit_together','exit_reached@iko','exit_reached@pell'])
     sc['placements'][0]['z']=0
