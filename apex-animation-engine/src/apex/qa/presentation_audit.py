@@ -14,6 +14,10 @@ _MEANINGFUL = {"footstep", "notice", "point", "act", "gesture", "pick_up", "plac
                "push_start", "climb_start", "ledge_grab", "climbed", "takeoff", "impact", "lever_engage", "freed",
                "stood_up", "fist_bump", "shoulder_pat", "strike", "throw", "exit_reached", "crawl_start", "wave"}
 _PAYOFF = {"fist_bump", "shoulder_pat", "wave", "gesture"}
+# requirement 9: intentional close contact for combat, rescue and cooperation is expected, not a penetration defect
+_INTENTIONAL_CONTACT = {"strike", "hit", "blocked", "guard", "lift_start", "lift_ok", "lift_fail", "offer_hand",
+                        "hand_offered", "hand_grab", "help_up", "pulled_up", "fist_bump", "shoulder_pat", "gesture",
+                        "lever_engage", "freed", "crawl_start", "pinned"}
 
 
 def _result(sim, rt):
@@ -71,6 +75,12 @@ def check_character_overlap(rt, sim=None, penetrate=26.0, y_gap=120.0, tol_frac=
         return {"name": "visible_character_overlap", "status": "PASS", "metric": 0.0, "threshold": tol_frac,
                 "detail": "single character"}
     wall = rt.env.room.width / 2 + 40            # past this a character has gone through an exit (faded off screen)
+    # requirement 9: windows of intentional close contact (combat/rescue/cooperation) are expected, not penetration
+    contact = sorted(e.t for e in sim.events if e.type in _INTENTIONAL_CONTACT)
+    import bisect
+    def intentional(t, w=1.6):
+        j = bisect.bisect_left(contact, t)
+        return (j < len(contact) and contact[j] - t <= w) or (j > 0 and t - contact[j - 1] <= w)
     recs = {c: sim.controllers[c].records for c in cids}
     n = min(len(recs[c]) for c in cids)
     total = bad = 0
@@ -83,7 +93,7 @@ def check_character_overlap(rt, sim=None, penetrate=26.0, y_gap=120.0, tol_frac=
                 if abs(ra.pos[0]) > wall or abs(rb.pos[0]) > wall:   # one has exited; not on screen
                     continue
                 dx, dy = abs(ra.pos[0] - rb.pos[0]), abs(ra.pos[1] - rb.pos[1])
-                if dx < penetrate and dy < y_gap:        # bodies interpenetrate on screen (any depth)
+                if dx < penetrate and dy < y_gap and not intentional(ra.t):   # unintended interpenetration (any depth)
                     bad += 1
                     if worst is None or dx < worst[0]:
                         worst = (dx, cids[a], cids[b], round(ra.t, 2), round(abs(ra.z - rb.z)))
