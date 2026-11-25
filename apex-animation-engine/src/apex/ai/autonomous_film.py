@@ -73,8 +73,14 @@ def parse_brief(brief: str) -> dict:
         beats.append(("climb", "obstacle:barrier"))
     beats.append(("collect", "prop:core"))
     beats.append(("exit", "exit:airlock"))
-    return dict(world=_pick_world(brief), partner=partner, has_barrier=has_barrier,
-                core_word=core_word, beats=beats, title=_title(brief))
+    world = _pick_world(brief)
+    # per-story variation (issue 5): the performance is tuned to the world/mood, so films are not identical
+    urgent = any(w in b for w in ("collaps", "escape", "flee", "chase", "danger", "explo", "urgent"))
+    payoff = {"tower": "cheer", "canyon": "laugh", "city": "impact_to_grin", "void": "rise"}.get(world, "cheer")
+    watch = {"tower": "peer_down", "canyon": "kneel_look", "city": "doubt_to_dash", "void": "peer_down"}.get(world, "peer_down")
+    return dict(world=world, partner=partner, has_barrier=has_barrier, core_word=core_word, beats=beats,
+                title=_title(brief), urgent=urgent, payoff_clip=payoff, watch_clip=watch,
+                run_speed=360.0 if urgent else 300.0, focus="upper" if urgent else "body")
 
 
 def _title(brief: str) -> str:
@@ -94,10 +100,13 @@ def _base_world(plan: dict, width: float = 2200.0):
         # a movable crate gives the planner a climb aid, as in the native crossing benchmark
         props.append(dict(id="crate", kind="crate", position=[-200.0, 45.0], size=[90.0, 90.0],
                           mass=9.0, solid=True, z=0, color="#6b5330"))
-    # girder sub-floor (below the feet contact; never a standable beam) for a visible ground in open rooms
-    obstacles.append(dict(id="station_floor", kind="beam", center=[0.0, -33.0], size=[width, 50.0],
-                          style="girder", color="#455a66"))
-    env = dict(id="stage", room=dict(width=max(2600.0, width + 900), height=1000, depth_back=460,
+    room_w = max(2600.0, width + 900)
+    # The walking surface must be visually represented across the whole walk (not a partial sub-floor girder). A
+    # standable ground PLATFORM whose top is the contact plane (y=0) spans the full room: it is drawn and stood upon,
+    # and platforms are not subject to the beam obstacle-clearance check, so no physical validation is weakened.
+    obstacles.append(dict(id="ground", kind="platform", center=[0.0, -32.0], size=[room_w, 64.0],
+                          style="girder", color="#3b4b57"))
+    env = dict(id="stage", room=dict(width=room_w, height=1000, depth_back=460,
                                      entry_door=False, grid_spacing=160, grid_alpha=0.12, style="open"),
                gravity=[0, -1568], dust=14, backdrop=bd, obstacles=obstacles, props=props,
                exits=[dict(id="airlock", surface="wall_right", s=100, width=220, sealed=False, open_radius=280)])
@@ -105,7 +114,8 @@ def _base_world(plan: dict, width: float = 2200.0):
     placements = [dict(character="iko", x=-640.0, facing=1, z=0)]
     if plan["partner"]:
         chars.append(_actor("pell", "PELL", "#59d6ed", "#2e8399", "#76e4f4"))
-        placements.append(dict(character="pell", x=560.0, facing=-1, z=45))  # back lane: depth separation vs iko
+        # deepest legal back depth lane (z=60) so the two silhouettes read at clearly different depths
+        placements.append(dict(character="pell", x=600.0, facing=-1, z=60))
     return chars, env, placements
 
 
@@ -133,18 +143,30 @@ def _objectives(plan: dict):
 
 
 # --- camera + score ---------------------------------------------------------
-def _partner_actions(plan):
-    """A cooperating partner (authored, preserved by the planner): wait for the core, move to the
-    airlock, reach it together. Keeps the two silhouettes in separate depth lanes."""
+def _partner_actions(plan, exit_x):
+    """A cooperating partner (authored, preserved by the planner) who acts concurrently throughout and lands a
+    closing reaction, in a deep separate depth lane."""
     if not plan["partner"]:
         return []
-    # pell stays in the back depth lane (no silhouette overlap) and follows iko out after iko has cleared the
-    # airlock, so the two never contest the same doorway.
+    sp = plan.get("run_speed", 300.0)
+    # The partner performs CONCURRENTLY while iko works: it urges iko on, watches the climb, signals the goal and
+    # anticipates — meaningful observation, communication and cooperation rather than standing idle. It stays in a
+    # deep back lane (no silhouette overlap) and follows iko out after iko clears the airlock.
     A = lambda typ, **kw: dict(character="pell", type=typ, **kw)
-    return [A("act", clip="wave_on", emotion="joyful", duration=0.6),
-            A("wait_for", until="event:pick_up@iko[prop=core]"),
-            A("wait_for", until="event:exit_reached@iko[exit=airlock]"),
-            A("reach_exit", target="exit:airlock", speed=240, lane=55)]
+    watch = plan.get("watch_clip", "peer_down")
+    return [A("act", clip="beckon", emotion="encouraging", duration=0.9),            # urge iko forward
+            A("notice", target="char:iko", duration=0.5),                            # observe the climber
+            A("act", clip=watch, emotion="anxious", duration=1.3),                   # watch the ascent
+            A("point", target="prop:core", duration=0.7),                            # communicate the goal
+            A("act", clip="reach_out", emotion="urgent", duration=1.1),              # anticipate / reach toward iko
+            A("act", clip=watch, emotion="anxious", duration=1.2),
+            A("wait_for", until="event:pick_up@iko[prop=core]"),                     # short beat at most
+            A("act", clip="cheer", emotion="joyful", duration=1.0),                  # react to the recovery
+            A("run_to", target_x=round(exit_x - 520), speed=sp, lane=60),            # move up near the exit, deep lane
+            A("act", clip=watch, emotion="urgent", duration=1.2),                    # watch iko reach safety
+            A("wait_for", until="event:exit_reached@iko[exit=airlock]"),             # brief: iko clears first
+            A("act", clip=plan.get("payoff_clip", "cheer"), emotion="joyful", duration=1.1),   # closing reaction
+            A("reach_exit", target="exit:airlock", speed=sp, lane=60)]
 
 
 def _event_cameras(plan, events, duration):
@@ -169,19 +191,34 @@ def _last_goal_time(events, goals):
     return max(ts) if ts else None
 
 
+def _inject_payoff(raw, plan, exit_x):
+    """Issue 7: the lead runs most of the way to the exit, turns for a beat of triumphant reaction (the emotional
+    payoff), and only then leaves — so the film lands on a character moment instead of ending the instant someone
+    crosses the exit. Replaces the planner's bare reach_exit with approach -> payoff -> exit."""
+    acts = [a for a in raw["scenes"][0]["actions"] if not (a.get("character") == "iko" and a.get("type") == "reach_exit")]
+    sp = plan.get("run_speed", 300.0)
+    acts += [{"character": "iko", "type": "run_to", "target_x": round(exit_x - 240), "speed": sp},
+             {"character": "iko", "type": "act", "clip": plan.get("payoff_clip", "cheer"), "emotion": "joyful",
+              "duration": 1.3},
+             {"character": "iko", "type": "reach_exit", "target": "exit:airlock", "speed": sp}]
+    raw["scenes"][0]["actions"] = acts
+    return raw
+
+
 def film_from_brief(brief: str, *, max_trials: int = 8, reduce_idle: bool = True) -> dict:
     """Produce a native, rehearsed, camera-staged film from a natural-language brief. Returns a ProjectSpec dict.
     Raises ValueError with the native rejection evidence if no feasible choreography exists (honest failure)."""
     from ..scene.film_staging import duration_for_payoff
     plan = parse_brief(brief)
     chars, env, placements = _base_world(plan)
+    exit_x = env["room"]["width"] / 2
     goals = _goals(plan)
     base = {
         "schema_version": "0.1", "id": "autonomous_" + re.sub(r"[^a-z0-9]+", "_", plan["title"].lower())[:40],
         "title": plan["title"], "fps": 24, "width": 1920, "height": 1080, "seed": 61,
         "characters": chars, "environments": [env],
         "scenes": [{"id": "film", "title": plan["title"], "environment": "stage", "duration": 22.0,
-                    "placements": placements, "actions": _partner_actions(plan), "goals": goals,
+                    "placements": placements, "actions": _partner_actions(plan, exit_x), "goals": goals,
                     "time_fx": {"hit_stop": False, "smears": False, "screen_fx": False, "punch_in": False},
                     "score": {"key": "D", "level": 0.45, "cues": [{"mood": "tension", "at": 0.0}]},
                     "shots": [{"id": "w", "kind": "wide", "start": 0, "end": 22.0,
@@ -208,6 +245,9 @@ def film_from_brief(brief: str, *, max_trials: int = 8, reduce_idle: bool = True
                     project = tightened.project
                     repairs = [t.name for t in tightened.trials]
     raw = project.model_dump(mode="json")
+    exit_x = raw["environments"][0]["room"]["width"] / 2
+    raw = _inject_payoff(raw, plan, exit_x)         # issue 7: a reaction/payoff beat before the exit
+    project = ProjectSpec.model_validate(raw)
     sim = SceneRuntime(project, "film").simulate()
     last = _last_goal_time(sim.events, goals)
     dur = duration_for_payoff(last, tail=1.4, maximum=30) if last else raw["scenes"][0]["duration"]
