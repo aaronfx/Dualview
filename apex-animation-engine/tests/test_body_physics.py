@@ -116,3 +116,28 @@ def test_avoidance_events_are_available_to_native_story_contracts():
     from apex.scene.goals import check_event
     for event in ("sidestep","prop_block","body_block","shoved"):
         check_event(event,"movement")
+
+
+def test_live_route_refresh_for_new_moving_container(monkeypatch):
+    """A container outside the route at action start later slides into it."""
+    from apex.physics.world import PhysicsWorld
+    box = dict(kind="container", id="late", position=[-650, 51],
+               size=[100, 100], mass=110, friction=0.01, depth=40)
+    original = PhysicsWorld.step
+    launched = False
+
+    def step(world, dt):
+        nonlocal launched
+        if not launched and world.t >= 0.2:
+            world._bodies["late"].velocity = (220.0, 0.0)
+            launched = True
+        return original(world, dt)
+
+    monkeypatch.setattr(PhysicsWorld, "step", step)
+    r = sim(proj([{"character": "kai", "type": "walk_to", "target_x": -500,
+                   "speed": 100}], [box], dur=7))
+    assert launched
+    refreshed = [e for e in ev(r, "sidestep") if e.data.get("refreshed")]
+    assert refreshed and refreshed[0].data["prop"] == "late"
+    assert not ev(r, "prop_block") and not ev(r, "shoved")
+    assert abs(r.controllers["kai"].s + 500) < 2.0

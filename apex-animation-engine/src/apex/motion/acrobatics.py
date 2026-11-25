@@ -151,10 +151,22 @@ class AcroMixin:
             self.s, self.v = s_prev, 0.0
             self.world.set_kinematic(self.cid, self.frame.to_world(self.s, self.h), self.world.state(self.cid).angle)
 
-    def _plan_around_props(self, t: float, a: ActionSpec) -> None:
-        """Before a walk: props standing in the way at this depth (ones the character is not about to handle) are
-        passed in another depth lane, chosen now and clear of all of them, so the character never bumps into them."""
-        if a.lane is not None or getattr(self, "_sidestep", None) is not None or not self._upright():
+    def _refresh_prop_route(self, t: float) -> None:
+        """Bounded live decision boundary for grounded walks; never overrides explicit lanes."""
+        a = self.cur
+        if (self.mode != "grounded" or self.lying or a is None
+                or a.type not in ("walk_to", "run_to") or a.target_x is None
+                or a.lane is not None or not self._upright()):
+            return
+        if t < getattr(self, "_prop_route_next", 0.0):
+            return
+        self._prop_route_next = t + 0.1
+        self._plan_around_props(t, a, refresh=True)
+
+    def _plan_around_props(self, t: float, a: ActionSpec, *, refresh: bool = False) -> None:
+        """Choose a depth lane from live native prop positions; refresh for newly arriving moving blockers."""
+        sd = getattr(self, "_sidestep", None)
+        if a.lane is not None or (sd is not None and not refresh) or not self._upright():
             return
         lo_s, hi_s = sorted((self.s, a.target_x))
         handled = {self.carrying} | ({self.thrown["prop"]} if self.thrown else set())
@@ -165,17 +177,30 @@ class AcroMixin:
         x0 = self.frame.to_world(self.s, self.h)[0]
         blockers = [b for b in self._props_in_path(lo_s, hi_s, handled)
                     if abs(self.world.state(b[0]).pos[0] - x0) > max(self.props[b[0]].size) / 2 + 11.0]
-        if not any(abs(pz - self.z) < ph + 14.0 for _, pz, ph in blockers):
+        if refresh:
+            known = set(sd.get("props", (sd["prop"],))) if sd else set()
+            # Preserve authored static approaches, and the original sidestep's home lane.
+            # A previously untracked moving prop is evidence that the route has changed.
+            if not any(pid not in known and math.hypot(*self.world.state(pid).vel) > 20.0
+                       and abs(pz - (self.z_target if self.z_target is not None else self.z)) < ph + 17.0
+                       for pid, pz, ph in blockers):
+                return
+            if sd:
+                # Retain passed-but-still-adjacent props until the original clearance check releases them.
+                present = {pid for pid, _, _ in blockers}
+                blockers.extend((pid, *self.world.depth.get(pid, (0.0, 30.0)))
+                                for pid in known if pid not in present and pid not in self.world.inactive)
+        elif not any(abs(pz - self.z) < ph + 14.0 for _, pz, ph in blockers):
             return
         z = self._free_lane(blockers)
-        if z is not None and abs(z - self.z) > 1e-6:
+        if z is not None and (abs(z - self.z) > 1e-6 or refresh and self.z_target is not None):
             from .controller import Event
             far = max(blockers, key=lambda b: abs(self.world.state(b[0]).pos[0] - x0))
             self._sidestep = {"prop": far[0], "props": tuple(b[0] for b in blockers),
-                              "home": self.z, "planned": True}
+                              "home": sd["home"] if sd else self.z, "planned": True}
             self.z_target = z
             self.emit(Event(t, "sidestep", self.cid, {"prop": far[0], "props": list(self._sidestep["props"]),
-                                                       "lane": round(z, 1), "planned": True}))
+                                                       "lane": round(z, 1), "planned": True, "refreshed": refresh}))
 
     def _check_walk(self, t: float, a: ActionSpec) -> ActionSpec:
         hit = self._path_blocker(self.s, a.target_x)

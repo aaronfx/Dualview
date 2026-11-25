@@ -172,6 +172,7 @@ class CharacterController(InteractionMixin, CombatMixin, AcroMixin, ArcadeMixin,
         s_prev = self.s if self.mode in ("grounded", "landing") else None
         self._update(t, dt, g)
         self._step_from = s_prev
+        self._refresh_prop_route(t)
         if self.z_target is not None:  # changing depth lane (e.g. rolling past in front of someone)
             step = LANE_RATE * dt
             self.z += max(-step, min(step, self.z_target - self.z))
