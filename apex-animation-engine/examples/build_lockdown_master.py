@@ -22,7 +22,10 @@ def build():
     scale=2.65
     env=raw["environments"][0]
     env["room"]["width"]*=scale
-    env["obstacles"][0]["size"][0]*=scale
+    # Extend only the final approach: previous rehearsal reached x=22790 at 152.6s.
+    extension=6800
+    env["room"]["width"]+=2*extension
+    env["obstacles"][0]["size"][0]=env["room"]["width"]
     for obstacle in env["obstacles"][1:]:
         obstacle["center"][0]*=scale
     # Intermediate traversal challenges keep the new route playable.
@@ -31,7 +34,7 @@ def build():
             "style":"girder","color":"#a58b55","center":[x*scale,140 if i%2==0 else 25],
             "size":[150,50] if i%2==0 else [65,50]})
     env["decor"]=[{"kind":"pipe","x":-24900,"y":440,"x2":24900,"y2":440,"color":"#7c8791"}]
-    for i,x in enumerate(range(-24500,24900,420)):
+    for i,x in enumerate(range(-24500,31500,420)):
         env["decor"] += [{"kind":"panel","x":x,"y":250,"w":230,"h":145,"color":"#58616c"},
                          {"kind":"lamp","x":x,"y":650,"color":"#e8ae70"},
                          {"kind":"screen","x":x+120,"y":330,"w":130,"h":70,"text":"LOCKDOWN" if i%2==0 else "SECURITY","color":"#d74d46"}]
@@ -39,7 +42,11 @@ def build():
     for placement in sc["placements"]:
         placement["x"]*=scale
     sc["placements"][1]["x"]=sc["placements"][0]["x"]+90
-    sc["ensemble"]["actors"][0]["destination_x"]*=scale
+    sc["ensemble"]["actors"][0]["destination_x"]=8600*scale+extension
+    # Final approach includes fresh traversal rather than stationary padding.
+    for i,x in enumerate((24000,26200,28100)):
+        env["obstacles"].append({"id":f"final_hazard_{i}","kind":"beam" if i==1 else "platform","style":"girder","color":"#a58b55","center":[x,140 if i==1 else 25],"size":[150,50] if i==1 else [65,50]})
+    sc["placements"][-1]["x"]=27500
     sc["storyline"]=" ".join(f'{a["title"]}: '+", ".join(a["dramatic_requirements"]) for a in spec["acts"])
     sc["ensemble"]["conflict"].update(attack_slots=3,require_distinct_contacts=True,activation_radius=1100)
     for role,style in zip(sc["ensemble"]["actors"][1:],spec["actors"]):
