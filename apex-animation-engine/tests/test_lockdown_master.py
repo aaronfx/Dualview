@@ -35,6 +35,8 @@ def test_extended_route_preserves_opening_contact_and_native_hazards():
     env=raw["environments"][0]
     assert env["room"]["width"]>45000
     assert scene["placements"][1]["x"]-scene["placements"][0]["x"]==90
-    assert len(env["obstacles"])==12
+    assert len(env["obstacles"])==15
+    assert scene["placements"][-1]["x"]==27500
+    assert scene["ensemble"]["actors"][0]["destination_x"]>scene["placements"][-1]["x"]
     assert scene["ensemble"]["actors"][0]["destination_x"]-scene["placements"][0]["x"]>44000
     assert not scene["actions"]
