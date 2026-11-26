@@ -448,6 +448,11 @@ class SceneRuntime:
             if (role.role=="hunter" and (role.objective!="capture" or pl.pursue!=role.opponent or not pl.hostile_pursuit)) or (role.role=="fugitive" and (role.objective!="escape" or pl.destination_x is None)):
                 raise ValueError("actor role and objective disagree with placement")
             brains[pl.character].role=role
+        ensemble=None
+        if self.scene.ensemble is not None:
+            from ..ai.ensemble_runtime import EnsembleRuntime
+            ensemble=EnsembleRuntime(self.scene.ensemble,ctrls,hw)
+            brains.update(ensemble.brains)
         for cid, brain in brains.items():
             ctrls[cid].autonomous_brain = brain
             if any(a.character == cid for a in self.scene.actions):
@@ -494,6 +499,8 @@ class SceneRuntime:
                 go = go or (cs.at is not None and t >= cs.at) or (cs.on is not None and any(_matches(cs.on, e) for e in events))
                 if go and oid in collapsing:  # the first of its triggers
                     collapse(oid, t)
+            if ensemble is not None:
+                ensemble.tick(t,events)
             for cid, brain in brains.items():
                 brain.tick(ctrls[cid], t)
             for c in ctrls.values():

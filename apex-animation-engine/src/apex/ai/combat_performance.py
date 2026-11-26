@@ -12,15 +12,21 @@ def choose_combat_action(brain,c,t):
     enemies=[o for o in c.others.values() if o is not c and not o._gone()
              and o.frame is c.frame and o.mode=="grounded" and not o.lying
              and abs(o.z-c.z)<BODY_PASS_Z and not c._path_blocker(c.s,o.s)
-             and (brain.hostile and brain.pursuit==o.cid or
+             and (getattr(brain,"ensemble_target",None)==o.cid or
+                  getattr(getattr(o,"autonomous_brain",None),"ensemble_target",None)==c.cid or
+                  brain.hostile and brain.pursuit==o.cid or
                   getattr(o,"autonomous_brain",None) is not None
                   and o.autonomous_brain.hostile and o.autonomous_brain.pursuit==c.cid)]
     if not enemies:
         return None
-    enemy=min(enemies,key=lambda o:abs(o.s-c.s))
+    enemy=min(enemies,key=lambda o:(0 if o.cur is not None and o.cur.type=="strike" and o.cur.target=="char:"+c.cid and not o.inter.get("resolved") else 1,abs(o.s-c.s),o.cid))
     gap=abs(enemy.s-c.s)
     direction=1 if enemy.s>=c.s else -1
     incoming=enemy.cur
+    # Escape is an actual tactical objective: protect the next native
+    # movement leg instead of entering endless reciprocal guard/dodge loops.
+    if getattr(brain,"conflict_hero",False) and getattr(brain,"conflict_travel",False):
+        return None
     if (incoming is not None and incoming.type=="strike" and incoming.target=="char:"+c.cid
             and incoming.move in MOVES and not enemy.inter.get("resolved")
             and gap<=enemy._strike_reach(incoming.move)+20 and t-brain.last_threat>=.45):
@@ -31,7 +37,12 @@ def choose_combat_action(brain,c,t):
         if c.facing==direction and not c._path_blocker(c.s,c.s-direction*.8*c.stand_h):
             return "evade_attack",ActionSpec(character=c.cid,type="dodge",dodge="back"),enemy.cid
     engaged=getattr(brain,"role",None) is not None and brain.tactical_state in ("engage","fight_to_escape")
-    if (c.queue and not engaged) or t-brain.last_attack<(.48 if engaged else .8):
+    cooldown=.48 if engaged else .8
+    if getattr(brain,"ensemble_actor",False):
+        cooldown=.95-.4*getattr(brain,"ensemble_aggression",.6)
+        if getattr(brain,"conflict_style","")=="speed":cooldown*=.8
+        elif getattr(brain,"conflict_style","")=="power":cooldown*=1.2
+    if (c.queue and not engaged) or t-brain.last_attack<cooldown:
         return None
     # The escape actor only counters a resolved attack, once per attack.
     resolved=bool(incoming is not None and incoming.type=="strike" and enemy.inter.get("resolved"))
@@ -42,8 +53,14 @@ def choose_combat_action(brain,c,t):
     if engaged and c.facing!=direction:
         return "face_threat",ActionSpec(character=c.cid,type="turn",face=direction),enemy.cid
     moves=("jab","cross","hook","front_kick","side_kick") if brain.hostile else ("side_kick","cross","front_kick")
+    if getattr(brain,"conflict_hero",False):
+        moves=("sweep","side_kick","front_kick","jab","cross","hook")
+    elif getattr(brain,"conflict_actor",False):
+        style=getattr(brain,"conflict_style","balanced")
+        preferences={"speed":("jab","cross","front_kick"),"power":("side_kick","hook","cross"),"acrobat":("front_kick","side_kick","sweep"),"defense":("jab","cross"),"grappler":("hook","sweep"),"trickster":("sweep","jab","side_kick"),"technician":("cross","front_kick"),"tactician":("jab","sweep","cross"),"commander":("side_kick","sweep","hook","cross","jab")}
+        moves=preferences.get(style,moves)
     feasible=[move for move in moves if .55*c._strike_reach(move)<=gap<=c._strike_reach(move)]
-    if getattr(brain,"role",None) is not None:
+    if getattr(brain,"role",None) is not None or getattr(brain,"conflict_actor",False):
         # Reserve the swept limb envelope beyond both actors; avoid starting a
         # contact beside a beam when a recoil or follow-through can graze it.
         feasible=[move for move in feasible if not c._path_blocker(c.s,c.s+direction*(c._strike_reach(move)+28),top=c.stand_h+c.shoulder_up+25)
@@ -56,9 +73,11 @@ def choose_combat_action(brain,c,t):
         move=match_attack(feasible,brain.combat_moves,gap,(enemy.v-c.v)*direction,c._strike_reach,MOVES)
     else:
         move=min(feasible,key=lambda name:(brain.combat_moves.count(name),moves.index(name)))
+    if getattr(brain,"conflict_hero",False) and enemy.cur is not None and enemy.cur.type=="guard" and "sweep" in feasible:
+        move="sweep"
     brain.combat_moves.append(move)
     if counter:
         brain.countered_at=attack_time
     return ("counterattack" if counter or (engaged and not brain.hostile) else "attack"),ActionSpec(character=c.cid,type="strike",
             target="char:"+enemy.cid,move=move,distance=gap,power=1.0 if counter else .85,
-            reaction="stagger" if counter else "flinch"),enemy.cid
+            reaction="stagger" if counter else getattr(brain,"ensemble_impact","flinch")),enemy.cid

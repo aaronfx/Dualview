@@ -19,7 +19,7 @@ point press_contact prop_impact push_end push_fail push_lost push_start recovere
 slide_start stood_up switch_activated takeoff turn fist_bump shoulder_pat wave nudge nudge_reaction nudge_missed nudge_clear nudge_blocked
 strike_start swing hit hurt blocked block_hit whiff evaded knockdown settled dodge gesture_start
 step_off flip roll_start roll_end vault_start vault climb_start ledge_grab climbed wall_run wall_contact wall_kick throw_start throw
-prop_hit bump prop_block body_block sidestep shoved route_wait route_resume adaptive_evade adaptive_resume adaptive_jump autonomous_decision autonomous_reached autonomous_blocked
+prop_hit bump prop_block body_block sidestep shoved route_wait route_resume adaptive_evade adaptive_resume adaptive_jump autonomous_decision autonomous_reached autonomous_blocked ensemble_intent ensemble_objective ensemble_completed ensemble_skill_outcome conflict_escape conflict_defeat conflict_recovery conflict_engagement
 orb_jump orb_boost orb_pad collect portal_enter portal_exit beat_wait_end
 break morph_start morph morph_blocked creature_break place math_crossed math_transferred math_evaluate
 collapse ledge_catch hang_slip pulled_up act fail exit_together""".split())

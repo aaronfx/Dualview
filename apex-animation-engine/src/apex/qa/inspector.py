@@ -605,6 +605,8 @@ class Inspector:
         for sh in self.rt.scene.shots:
             if sh.kind == "insert":
                 continue
+            if self.rt.scene.ensemble is not None:
+                cid=sh.camera.target or next(iter(self.r.animators))
             need = sh.camera.min_subject_frac if sh.camera.min_subject_frac is not None else TOL["subject_frac"].get(sh.kind, 0.12)
             fr = []
             for t in [x for x in self.times if sh.start <= x < sh.end][::3]:

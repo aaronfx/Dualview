@@ -193,6 +193,18 @@ class TraversalBrain:
             return
         d = 1 if self.goal > c.s else -1
         end = self.goal
+        # A long mission is not one enormous clearance query. For live conflict,
+        # plan a short local leg and reobserve. Keep the actual mission goal.
+        if getattr(self,"conflict_actor",False):
+            end=c.s+d*min(abs(self.goal-c.s),1300)
+            # A local horizon can end inside the first structure, leaving no
+            # valid landing even though the actual mission has ample space.
+            # Expand only through that structure's landing envelope.
+            edge_hit=c._path_blocker(c.s,end)
+            if edge_hit:
+                block=edge_hit[1]
+                far=block.x1 if d>0 else block.x0
+                end=c.s+d*min(abs(self.goal-c.s),max(abs(end-c.s),(far-c.s)*d+260))
         obstacles = []
         for o in c.others.values():
             if o is c or o._gone() or o.frame is not c.frame or abs(o.z-c.z) >= BODY_PASS_Z:
@@ -216,7 +228,7 @@ class TraversalBrain:
         hit = c._path_blocker(c.s,end)
         # For story actors, assess the immediate structure independently of
         # distant opponents beyond it. Reobserve after crossing the structure.
-        if self.role is not None and hit:
+        if (self.role is not None or getattr(self,"conflict_actor",False)) and hit:
             face=hit[0]
             obstacles=[q for q in obstacles if ((q[1].x0 if d>0 else q[1].x1)-face)*d<=50]
         candidates = []
@@ -228,6 +240,13 @@ class TraversalBrain:
                 candidates.append((key,ActionSpec(character=c.cid,**kw)))
         if not hit and not obstacles:
             add("travel","goal",type="run_to",target_x=end,speed=360,adaptive_avoidance=True)
+        elif hit and obstacles and getattr(self,"conflict_actor",False):
+            # Separate the first body from a later structural crossing.
+            first=obstacles[0][1]
+            face=hit[0]
+            stop=face-d*max(180.,430*.3+70)
+            if (stop-c.s)*d>100 and (stop-(first.x1 if d>0 else first.x0))*d>90 and not c._path_blocker(c.s,stop):
+                add("avoid_to_structure",first.owner,type="run_to",target_x=stop,speed=300,adaptive_avoidance=True)
         elif obstacles:
             _, b, actor = obstacles[0]
             bands = []
@@ -265,7 +284,7 @@ class TraversalBrain:
                             add("slide_approach",b.owner,type="run_to",target_x=start,speed=300,adaptive_avoidance=True)
                         elif (near-c.s)*d>=430*SLIDE_DROP+15:
                             add("slide",b.owner,type="duck_slide",target_x=stop,speed=430)
-                        elif self.role is not None and (c.s-start)*d>5 and c.frame.lo+40<start<c.frame.hi-40 and not c._path_blocker(c.s,start):
+                        elif (self.role is not None or getattr(self,"conflict_actor",False)) and (c.s-start)*d>5 and c.frame.lo+40<start<c.frame.hi-40 and not c._path_blocker(c.s,start):
                             # A fight may leave us too close to duck safely.
                             # Back out to the verified approach instead of stalling.
                             add("reset_slide_approach",b.owner,type="walk_to",target_x=start,speed=170,adaptive_avoidance=True)
@@ -375,7 +394,7 @@ class TraversalBrain:
             if self.last != key:
                 emit("autonomous_blocked",reason="no verified native action",x=c.s,goal=self.goal,obstacle=hit[1].owner if hit else None,attempts=str(self.attempts),tactical_state=self.tactical_state)
             self.last=key
-            if self.role is not None:
+            if self.role is not None or getattr(self,"ensemble_actor",False):
                 if self.blocked_since is None:
                     self.blocked_since=t
                 if t-self.blocked_since>.45 and t-self.last_retry>1.0 and self.attempts:

@@ -685,6 +685,93 @@ class ActorRole(Strict):
     aggression: float = Field(.8,ge=0,le=1)
     resolve: float = Field(.8,ge=0,le=1)
 
+class EnsembleActorSpec(Strict):
+    character: str
+    team: str = Field(min_length=1)
+    prompt: str = Field(min_length=20)
+    objective: Literal["reach","escort","intercept","acquire","assist"]
+    impact: Literal["flinch","knockdown"] = "flinch"
+    combat_style: Literal["balanced","speed","power","acrobat","defense","grappler","trickster","technician","tactician","commander"] = "balanced"
+    resources: List[str] = Field(default_factory=list,max_length=32)
+    destination_x: Optional[float] = Field(None,allow_inf_nan=False)
+    target: Optional[str] = None
+    offset: float = Field(140,ge=-1200,le=1200)
+    aggression: float = Field(.6,ge=0,le=1)
+    courage: float = Field(.7,ge=0,le=1)
+    empathy: float = Field(.7,ge=0,le=1)
+    priority: int = Field(5,ge=1,le=10)
+
+    @model_validator(mode="after")
+    def _objective(self):
+        if self.objective=="reach":
+            if self.destination_x is None or self.target is not None:
+                raise ValueError("reach requires a destination and no target")
+        elif self.destination_x is not None:
+            raise ValueError("dynamic objective must not supply a static destination")
+        if self.impact!="flinch" and self.objective!="intercept":
+            raise ValueError("impact applies only to intercept")
+        if self.objective=="assist" and not self.target:
+            raise ValueError("assist requires a teammate target")
+        if self.objective=="acquire":
+            if not self.resources or len(set(self.resources))!=len(self.resources) or self.target is not None:
+                raise ValueError("acquire requires a unique resource pool, not a character target")
+        elif self.resources:
+            raise ValueError("resource pool requires acquire objective")
+        if self.objective=="escort" and (not self.target or abs(self.offset)<75):
+            raise ValueError("escort requires a teammate and separated formation offset")
+        return self
+
+class ConflictSpec(Strict):
+    protagonist: str
+    activation_radius: float = Field(650,ge=200,le=1600)
+    attack_slots: int = Field(2,ge=1,le=3)
+    recovery_delay: float = Field(2.0,ge=.5,le=5)
+    require_distinct_contacts: bool = False
+
+class EnsembleSpec(Strict):
+    actors: List[EnsembleActorSpec] = Field(min_length=1,max_length=100)
+    hostile_teams: List[Tuple[str,str]] = Field(default_factory=list)
+    coordination_hz: float = Field(5,ge=1,le=10)
+    perform_emotions: bool = False
+    conflict: Optional[ConflictSpec] = None
+
+    @model_validator(mode="after")
+    def _cast(self):
+        by={a.character:a for a in self.actors}
+        if len(by)!=len(self.actors):
+            raise ValueError("duplicate ensemble actor")
+        teams={a.team for a in self.actors}
+        pairs={frozenset(p) for p in self.hostile_teams}
+        if len(pairs)!=len(self.hostile_teams) or any(len(p)!=2 or not p<=teams for p in pairs):
+            raise ValueError("invalid or duplicate hostile team pair")
+        if self.conflict is not None:
+            hero=by.get(self.conflict.protagonist)
+            if hero is None or hero.objective!="reach" or len(by)<2:
+                raise ValueError("conflict needs a destination-driven protagonist")
+            if any(a.objective!="intercept" or a.target!=hero.character or frozenset((a.team,hero.team)) not in pairs for a in self.actors if a is not hero):
+                raise ValueError("conflict opponents must independently target the protagonist")
+        slots=set()
+        for a in self.actors:
+            if a.target is not None and (a.target not in by or a.target==a.character):
+                raise ValueError("invalid ensemble target")
+            if a.objective=="escort":
+                leader=by[a.target]
+                if leader.team!=a.team or leader.objective!="reach":
+                    raise ValueError("escort needs a same-team reach leader")
+                slot=(a.target,a.offset)
+                if any(k==a.target and abs(o-a.offset)<75 for k,o in slots):
+                    raise ValueError("overlapping escort formation slots")
+                slots.add(slot)
+            if a.objective=="assist":
+                if by[a.target].team!=a.team or by[a.target].objective not in ("reach","escort"):
+                    raise ValueError("assist requires a same-team moving ally")
+                if sum(b.objective=="assist" and b.target==a.target for b in self.actors)>1:
+                    raise ValueError("only one designated helper per ally")
+            if a.objective=="intercept":
+                if not any(frozenset((a.team,b.team)) in pairs and (a.target is None or a.target==b.character) for b in self.actors):
+                    raise ValueError("intercept requires hostile target")
+        return self
+
 class CharacterPlacement(Strict):
     character: str
     destination_x: Optional[float] = Field(None, allow_inf_nan=False)  # opt-in autonomous floor traversal
@@ -887,6 +974,7 @@ class MathTransferSpec(Strict):
 
 
 class SceneSpec(Strict):
+    ensemble: Optional[EnsembleSpec] = None
     storyline: Optional[str] = None
     id: str
     title: str = ""
@@ -965,6 +1053,17 @@ class ProjectSpec(Strict):
                         raise ValueError(f"scene {sc.id}: placement of {pl.character} at unknown level marker {pl.at!r}")
                     pl.x = lv.markers[pl.at][0]
             placed = {pl.character for pl in sc.placements}
+            if sc.ensemble is not None:
+                if not sc.storyline or {a.character for a in sc.ensemble.actors}!=placed or len(placed)!=len(sc.placements) or sc.actions:
+                    raise ValueError("ensemble requires complete cast, storyline and no authored actions")
+                if any(pl.destination_x is not None or pl.pursue is not None or pl.actor_role is not None for pl in sc.placements):
+                    raise ValueError("ensemble owns objectives exclusively; legacy goals cannot be mixed")
+                prop_ids={p.id for p in envs[sc.environment].props}
+                if any(not set(a.resources)<=prop_ids for a in sc.ensemble.actors):
+                    raise ValueError("unknown ensemble resource")
+                hw=envs[sc.environment].room.width/2
+                if any(a.destination_x is not None and abs(a.destination_x)>hw-40 for a in sc.ensemble.actors):
+                    raise ValueError("ensemble destination outside room")
             exits = {x.id for x in envs[sc.environment].exits}
             bars = {o.id for o in envs[sc.environment].obstacles if o.kind == "bar"}
             props = {p.id for p in envs[sc.environment].props}

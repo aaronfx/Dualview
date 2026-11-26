@@ -252,7 +252,8 @@ class CombatMixin:
         point = self.frame.to_world(oc.s - direction * 8.0, oc._body_height(part) if not oc.lying else LIE_H)
         data = {"move": I["move"], "target": I["other"], "part": part, "point": point, "dir": direction}
         dodge = getattr(oc, "dodging", None)
-        if oc.lying or oc.mode != "grounded" or I.get("obstructed"):
+        ensemble_contact=getattr(getattr(self,"autonomous_brain",None),"ensemble_actor",False) or getattr(getattr(oc,"autonomous_brain",None),"ensemble_actor",False)
+        if oc.lying or oc.mode != "grounded" or I.get("obstructed") or (ensemble_contact and (oc.frame is not self.frame or abs(oc.z-self.z)>=28)):
             outcome = "whiff"
         elif dx > self._strike_reach(I["move"]) - abs(self.s - I["s0"]) or dx < 0:  # reach from where the lunge has brought him
             outcome = "whiff"
