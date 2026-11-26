@@ -11,6 +11,7 @@ requires-python = ">=3.11"
 license = {text = "Proprietary"}
 dependencies = [
   "numpy>=1.26",
+  "sympy>=1.13,<2",
   "pydantic>=2.6",
   "pymunk>=6.6",
   "skia-python>=87.5",
